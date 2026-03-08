@@ -227,7 +227,7 @@ impl GffWriter {
                 for sub in &v.substrings {
                     content_size += 8 + sub.string.len();
                 }
-                let total_size = 12 + content_size;
+                let total_size = 8 + content_size;
 
                 self.field_data.write_u32::<LittleEndian>(total_size as u32)?;
                 self.field_data.write_u32::<LittleEndian>(v.string_ref as u32)?;
