@@ -663,12 +663,14 @@ impl Character {
         let mut total_hp_reduction = 0i32;
         let mut total_sp_reduction = 0i32;
         let mut feats_to_remove: HashSet<i32> = HashSet::new();
-        let mut ability_reductions: Vec<u8> = Vec::new(); // ability indices to decrement
-        let mut skill_ranks_to_remove: HashMap<usize, i32> = HashMap::new(); // skill_idx -> ranks
+        let mut feats_to_keep: HashSet<i32> = HashSet::new();
+        let mut ability_reductions: Vec<u8> = Vec::new();
+        let mut skill_ranks_to_remove: HashMap<usize, i32> = HashMap::new();
 
         // Collect info from all entries for this class
         for (idx, entry) in lvl_stat_list.iter().enumerate() {
-            if entry.get("LvlStatClass").and_then(gff_value_to_i32) == Some(class_id.0) {
+            let entry_class_id = entry.get("LvlStatClass").and_then(gff_value_to_i32);
+            if entry_class_id == Some(class_id.0) {
                 indices_to_remove.push(idx);
 
                 // HP to remove
@@ -686,18 +688,17 @@ impl Character {
                         ability_reductions.push(ability_idx as u8);
                     }
 
-                // Feats to remove (respecting protected)
-                if let Some(GffValue::ListOwned(feat_list)) = entry.get("FeatList") {
+                // Chosen feats to remove
+                if let Some(feat_list) = super::gff_helpers::extract_list_from_map(entry, "FeatList") {
                     for feat_entry in feat_list {
-                        if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32)
-                            && !preserved_feats.contains(&feat_id) {
-                                feats_to_remove.insert(feat_id);
-                            }
+                        if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
+                            feats_to_remove.insert(feat_id);
+                        }
                     }
                 }
 
                 // Skill ranks to remove
-                if let Some(GffValue::ListOwned(skills)) = entry.get("SkillList") {
+                if let Some(skills) = super::gff_helpers::extract_list_from_map(entry, "SkillList") {
                     for (skill_idx, skill_entry) in skills.iter().enumerate() {
                         let ranks = skill_entry.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
                         if ranks > 0 {
@@ -710,18 +711,56 @@ impl Character {
                 if let Some(class_entry) = class_list.iter_mut().find(|c| c.get("Class").and_then(gff_value_to_i32) == Some(class_id.0)) {
                     for spell_level in 0..10 {
                         let list_key = format!("KnownList{spell_level}");
-                        if let Some(GffValue::ListOwned(spells)) = entry.get(&list_key) {
+                        if let Some(spells) = super::gff_helpers::extract_list_from_map(entry, &list_key) {
                             for spell_entry in spells {
-                                if let Some(spell_id) = spell_entry.get("Spell").and_then(gff_value_to_i32)
-                                    && let Some(GffValue::ListOwned(known_list)) = class_entry.get_mut(&list_key) {
+                                if let Some(spell_id) = spell_entry.get("Spell").and_then(gff_value_to_i32) {
+                                    if let Some(mut known_list) = super::gff_helpers::extract_list_from_map(class_entry, &list_key) {
                                         known_list.retain(|s| s.get("Spell").and_then(gff_value_to_i32) != Some(spell_id));
+                                        class_entry.insert(list_key.clone(), GffValue::ListOwned(known_list));
                                     }
+                                }
                             }
+                        }
+                    }
+                }
+            } else {
+                // Collect chosen feats from OTHER classes to KEEP
+                if let Some(feat_list) = super::gff_helpers::extract_list_from_map(entry, "FeatList") {
+                    for feat_entry in feat_list {
+                        if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
+                            feats_to_keep.insert(feat_id);
                         }
                     }
                 }
             }
         }
+
+        // Add auto feats granted by this class across all its levels
+        for lvl in 1..=current_level {
+            for feat_info in self.get_class_feats_for_level(class_id, lvl, game_data) {
+                if feat_info.list_type == 0 || feat_info.list_type == 3 {
+                    feats_to_remove.insert(feat_info.feat_id.0);
+                }
+            }
+        }
+
+        // Add auto feats to keep (from other classes)
+        for class_entry in &class_list {
+            let other_class_id = class_entry.get("Class").and_then(gff_value_to_i32).unwrap_or(-1);
+            if other_class_id != -1 && other_class_id != class_id.0 {
+                let other_level = class_entry.get("ClassLevel").and_then(gff_value_to_i32).unwrap_or(0);
+                for lvl in 1..=other_level {
+                    for feat_info in self.get_class_feats_for_level(ClassId(other_class_id), lvl, game_data) {
+                        if feat_info.list_type == 0 || feat_info.list_type == 3 {
+                            feats_to_keep.insert(feat_info.feat_id.0);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Subtract feats_to_keep and preserved_feats
+        feats_to_remove.retain(|f| !feats_to_keep.contains(f) && !preserved_feats.contains(f));
 
         // Remove LvlStatList entries in reverse order to maintain indices
         for idx in indices_to_remove.into_iter().rev() {
@@ -1173,21 +1212,14 @@ impl Character {
         entry: &IndexMap<String, GffValue<'static>>,
         field: &str,
     ) -> Vec<FeatId> {
-        let list = match entry.get(field) {
-            Some(GffValue::ListOwned(maps)) => maps,
-            _ => return vec![],
-        };
-
+        let list = super::gff_helpers::extract_list_from_map(entry, field).unwrap_or_default();
         list.iter()
             .filter_map(|f| f.get("Feat").and_then(gff_value_to_i32).map(FeatId))
             .collect()
     }
 
     fn extract_skill_list(entry: &IndexMap<String, GffValue<'static>>) -> Vec<SkillRankEntry> {
-        let list = match entry.get("SkillList") {
-            Some(GffValue::ListOwned(maps)) => maps,
-            _ => return vec![],
-        };
+        let list = super::gff_helpers::extract_list_from_map(entry, "SkillList").unwrap_or_default();
 
         list.iter()
             .enumerate()
@@ -1649,6 +1681,7 @@ impl Character {
     }
 
     fn level_down_internal(&mut self, class_id: ClassId, game_data: &GameData) -> Result<(), CharacterError> {
+        let current_level = self.class_level(class_id);
         // Get preserved feat IDs before any modifications
         let preserved_feats = self.get_preserved_feat_ids(game_data);
         let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
@@ -1704,7 +1737,7 @@ impl Character {
         self.set_available_skill_points((current_sp - sp_gained).max(0));
 
         // 4. Refund Skill Ranks (Direct edit to avoid history side-effect)
-        if let Some(GffValue::ListOwned(skills)) = entry.get("SkillList") {
+        if let Some(skills) = super::gff_helpers::extract_list_from_map(&entry, "SkillList") {
             let mut char_skill_list = self.get_list_owned("SkillList").unwrap_or_default();
             for (skill_idx, skill_entry) in skills.iter().enumerate() {
                 let ranks = skill_entry.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
@@ -1718,30 +1751,78 @@ impl Character {
         }
 
         // 5. Remove Feats (Direct edit to avoid history side-effect)
-        // Skip protected feats (racial, background, domain)
-        if let Some(GffValue::ListOwned(feats)) = entry.get("FeatList") {
-            let mut char_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
+        let mut feats_to_remove: HashSet<i32> = HashSet::new();
+        let mut feats_to_keep: HashSet<i32> = HashSet::new();
+
+        // 5a. Collect chosen feats from the removed level
+        if let Some(feats) = super::gff_helpers::extract_list_from_map(&entry, "FeatList") {
             for feat_entry in feats {
-                if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32)
-                    && !preserved_feats.contains(&feat_id) {
-                        char_feat_list.retain(|f| f.get("Feat").and_then(gff_value_to_i32) != Some(feat_id));
-                    }
+                if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
+                    feats_to_remove.insert(feat_id);
+                }
             }
-            self.set_list("FeatList", char_feat_list);
         }
+
+        // 5b. Add auto feats granted at THIS specific level
+        let auto_feats = self.get_class_feats_for_level(class_id, current_level, game_data);
+        for feat_info in auto_feats {
+            if feat_info.list_type == 0 || feat_info.list_type == 3 {
+                feats_to_remove.insert(feat_info.feat_id.0);
+            }
+        }
+
+        // 5c. Collect chosen feats to KEEP from surviving LvlStatList entries
+        for stat_entry in &lvl_stat_list {
+            if let Some(feat_list) = super::gff_helpers::extract_list_from_map(stat_entry, "FeatList") {
+                for feat_entry in feat_list {
+                    if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
+                        feats_to_keep.insert(feat_id);
+                    }
+                }
+            }
+        }
+
+        // 5d. Add auto feats to keep from remaining levels of THIS class and ALL levels of OTHER classes
+        let class_list_for_feats = self.get_list_owned("ClassList").unwrap_or_default();
+        for class_entry in &class_list_for_feats {
+            let other_class_id = class_entry.get("Class").and_then(gff_value_to_i32).unwrap_or(-1);
+            if other_class_id != -1 {
+                let other_level = class_entry.get("ClassLevel").and_then(gff_value_to_i32).unwrap_or(0);
+                let max_lvl = if other_class_id == class_id.0 { current_level - 1 } else { other_level };
+                for lvl in 1..=max_lvl {
+                    let auto_f = self.get_class_feats_for_level(ClassId(other_class_id), lvl, game_data);
+                    for feat_info in auto_f {
+                        if feat_info.list_type == 0 || feat_info.list_type == 3 {
+                            feats_to_keep.insert(feat_info.feat_id.0);
+                        }
+                    }
+                }
+            }
+        }
+
+        feats_to_remove.retain(|f| !feats_to_keep.contains(f) && !preserved_feats.contains(f));
+
+        let mut char_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
+        char_feat_list.retain(|f| {
+            let feat_id = f.get("Feat").and_then(gff_value_to_i32).unwrap_or(-1);
+            !feats_to_remove.contains(&feat_id)
+        });
+        self.set_list("FeatList", char_feat_list);
 
         // 6. Undo Spell Selections (Direct edit to avoid history side-effect)
         if let Some(mut class_list) = self.get_list_owned("ClassList") {
             for i in 0..10 {
                 let list_key = format!("KnownList{i}");
-                if let Some(GffValue::ListOwned(spells)) = entry.get(&list_key) {
+                if let Some(spells) = super::gff_helpers::extract_list_from_map(&entry, &list_key) {
                     for spell_entry in spells {
                         if let Some(spell_id) = spell_entry.get("Spell").and_then(gff_value_to_i32) {
                             for class_entry in &mut class_list {
-                                if class_entry.get("Class").and_then(gff_value_to_i32) == Some(class_id.0)
-                                    && let Some(GffValue::ListOwned(known_list)) = class_entry.get_mut(&list_key) {
+                                if class_entry.get("Class").and_then(gff_value_to_i32) == Some(class_id.0) {
+                                    if let Some(mut known_list) = super::gff_helpers::extract_list_from_map(class_entry, &list_key) {
                                         known_list.retain(|s| s.get("Spell").and_then(gff_value_to_i32) != Some(spell_id));
+                                        class_entry.insert(list_key.clone(), GffValue::ListOwned(known_list));
                                     }
+                                }
                             }
                         }
                     }
@@ -1784,11 +1865,7 @@ impl Character {
         let last_idx = lvl_stat_list.len() - 1;
         let entry = &mut lvl_stat_list[last_idx];
 
-        let mut feat_list = entry.get("FeatList")
-            .and_then(|v| match v {
-                GffValue::ListOwned(l) => Some(l.clone()),
-                _ => None,
-            })
+        let mut feat_list = super::gff_helpers::extract_list_from_map(entry, "FeatList")
             .unwrap_or_default();
 
         if added {

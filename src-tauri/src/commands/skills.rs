@@ -84,7 +84,7 @@ pub async fn get_skills_state(state: State<'_, AppState>) -> CommandResult<Skill
         all_skills.into_iter().partition(|s| s.is_class_skill);
 
     let available_points = character.get_available_skill_points();
-    let total_spent = character.total_skill_points_spent();
+    let total_spent = character.calculate_total_spent_with_costs(&game_data);
 
     Ok(SkillsStateResponse {
         class_skills,
@@ -113,7 +113,19 @@ pub async fn set_skill_rank(
     };
 
     let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    
+    // Instead of raw set_skill_rank, calculate point difference and deduct
+    let points_spent = new_cost - old_cost;
+    let mut current_unspent = character.get_available_skill_points();
+    
+    current_unspent -= points_spent;
+    if current_unspent < 0 {
+        current_unspent = 0; // Prevent going negative in the backend storage
+    }
+    
+    // Set the rank
     character.set_skill_rank(SkillId(skill_id), ranks)?;
+    character.set_available_skill_points(current_unspent);
 
     let points_spent = new_cost - old_cost;
 

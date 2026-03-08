@@ -291,6 +291,19 @@ pub fn extract_localized_string(ls: &LocalizedString<'_>) -> Option<String> {
     None
 }
 
+pub fn extract_list_from_map(
+    map: &IndexMap<String, GffValue<'static>>,
+    field: &str,
+) -> Option<Vec<IndexMap<String, GffValue<'static>>>> {
+    match map.get(field)? {
+        GffValue::ListOwned(maps) => Some(maps.clone()),
+        GffValue::List(lazy_structs) => {
+            Some(lazy_structs.iter().map(crate::parsers::gff::types::LazyStruct::force_load).collect())
+        }
+        _ => None,
+    }
+}
+
 pub fn gff_value_to_i32(value: &GffValue<'_>) -> Option<i32> {
     match value {
         GffValue::Int(v) => Some(*v),

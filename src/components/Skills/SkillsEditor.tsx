@@ -48,6 +48,10 @@ export default function SkillsEditor() {
   }, [character?.id, skillsData, isLoading, loadSkills]);
 
   useEffect(() => {
+    setFixedTotalBudget(null);
+  }, [character?.id]);
+
+  useEffect(() => {
     setLocalSkillOverrides({});
   }, [skillsData]);
   const applyOverrides = (skillList: SkillSummaryEntry[]) => {
@@ -70,12 +74,20 @@ export default function SkillsEditor() {
   const crossClassSkills = applyOverrides(skillsData?.cross_class_skills?.filter(skill => isValidSkillName(skill.name)) || []);
   const skills = [...classSkills, ...crossClassSkills];
 
-  const totalAvailable = skillsData?.total_available ?? 0;
-  const totalSpentPoints = skillsData?.spent_points || 0;
-  const pointsBalance = totalAvailable - totalSpentPoints;
+  const [fixedTotalBudget, setFixedTotalBudget] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (skillsData && fixedTotalBudget === null) {
+      setFixedTotalBudget(skillsData.total_available);
+    }
+  }, [skillsData, fixedTotalBudget]);
+
+  const totalAvailable = fixedTotalBudget ?? skillsData?.total_available ?? 0;
+  const rawSpentPoints = skillsData?.spent_points || 0;
+  const pointsBalance = totalAvailable - rawSpentPoints;
   const availableSkillPoints = Math.max(0, pointsBalance);
   const overdrawnSkillPoints = pointsBalance < 0 ? Math.abs(pointsBalance) : 0;
-  const _totalSkillPoints = totalAvailable;
+  const displayedSpentPoints = Math.min(rawSpentPoints, totalAvailable);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -173,6 +185,7 @@ export default function SkillsEditor() {
 
     try {
       await hookResetSkills();
+      setFixedTotalBudget(null);
     } catch (err) {
       handleError(err);
     } finally {
@@ -337,7 +350,7 @@ export default function SkillsEditor() {
           <CardContent padding="p-3" className="text-center">
             <div className="text-xs text-[rgb(var(--color-text-muted))]">{t('skills.pointsSpent')}</div>
             <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
-              {display(totalSpentPoints)}
+              {display(displayedSpentPoints)}
             </div>
           </CardContent>
         </Card>
