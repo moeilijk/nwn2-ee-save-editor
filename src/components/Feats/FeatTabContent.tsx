@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
 import { FeatCard } from './FeatCard';
@@ -25,6 +25,84 @@ export interface FeatTabContentProps {
   hasNext: boolean;
   hasPrevious: boolean;
   onPageChange: (page: number) => void;
+
+  removingFeatId?: number | null;
+  addingFeatId?: number | null;
+  addedFeatId?: number | null;
+}
+
+function AnimatedFeatCard({
+  feat,
+  removingFeatId,
+  addedFeatId,
+  ...cardProps
+}: {
+  feat: FeatInfo;
+  removingFeatId?: number | null;
+  addedFeatId?: number | null;
+  isOwned: boolean;
+  isProtected?: boolean;
+  onRemove?: (featId: number) => void;
+  onAdd?: (featId: number) => void;
+  onLoadDetails: (feat: FeatInfo) => Promise<FeatInfo | null>;
+}) {
+  const isRemoving = removingFeatId === feat.id;
+  const isAdding = addedFeatId === feat.id;
+  const [mounted, setMounted] = useState(!isAdding);
+
+  useEffect(() => {
+    if (isAdding && !mounted) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setMounted(true);
+        });
+      });
+    }
+  }, [isAdding, mounted]);
+
+  return (
+    <div
+      className={cn(
+        'grid transition-all duration-[180ms]',
+        isRemoving
+          ? 'grid-rows-[0fr] opacity-0 -translate-x-10 mb-0 ease-in'
+          : (isAdding && !mounted)
+            ? 'grid-rows-[0fr] opacity-0 translate-x-10 mb-0 ease-in'
+            : 'grid-rows-[1fr] opacity-100 translate-x-0 mb-3 ease-out'
+      )}
+    >
+      <div className="overflow-hidden">
+        <FeatCard feat={feat} {...cardProps} />
+      </div>
+    </div>
+  );
+}
+
+function AvailableFeatCardWrapper({
+  featId,
+  addingFeatId,
+  children,
+}: {
+  featId: number;
+  addingFeatId?: number | null;
+  children: React.ReactNode;
+}) {
+  const isLeaving = addingFeatId === featId;
+
+  return (
+    <div
+      className={cn(
+        'grid transition-all duration-[180ms]',
+        isLeaving
+          ? 'grid-rows-[0fr] opacity-0 translate-x-10 mb-0 ease-in'
+          : 'grid-rows-[1fr] opacity-100 translate-x-0 mb-3 ease-out'
+      )}
+    >
+      <div className="overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function MyFeatsTabComponent({
@@ -32,11 +110,15 @@ function MyFeatsTabComponent({
   protectedFeatIds,
   onRemove,
   onLoadDetails,
+  removingFeatId,
+  addedFeatId,
 }: {
   feats: FeatInfo[];
   protectedFeatIds: Set<number>;
   onRemove: (featId: number) => void;
   onLoadDetails: (feat: FeatInfo) => Promise<FeatInfo | null>;
+  removingFeatId?: number | null;
+  addedFeatId?: number | null;
 }) {
   if (feats.length === 0) {
     return (
@@ -49,11 +131,13 @@ function MyFeatsTabComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1">
       {feats.map((feat) => (
-        <FeatCard
+        <AnimatedFeatCard
           key={feat.id}
           feat={feat}
+          removingFeatId={removingFeatId}
+          addedFeatId={addedFeatId}
           isOwned={true}
           isProtected={protectedFeatIds.has(feat.id)}
           onRemove={onRemove}
@@ -71,11 +155,13 @@ function AvailableFeatsTabComponent({
   ownedFeatIds,
   onAdd,
   onLoadDetails,
+  addingFeatId,
 }: {
   feats: FeatInfo[];
   ownedFeatIds: Set<number>;
   onAdd: (featId: number) => void;
   onLoadDetails: (feat: FeatInfo) => Promise<FeatInfo | null>;
+  addingFeatId?: number | null;
 }) {
   if (feats.length === 0) {
     return (
@@ -88,15 +174,20 @@ function AvailableFeatsTabComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3">
+    <div className="grid grid-cols-1">
       {feats.map((feat) => (
-        <FeatCard
+        <AvailableFeatCardWrapper
           key={feat.id}
-          feat={feat}
-          isOwned={ownedFeatIds.has(feat.id)}
-          onAdd={onAdd}
-          onLoadDetails={onLoadDetails}
-        />
+          featId={feat.id}
+          addingFeatId={addingFeatId}
+        >
+          <FeatCard
+            feat={feat}
+            isOwned={ownedFeatIds.has(feat.id)}
+            onAdd={onAdd}
+            onLoadDetails={onLoadDetails}
+          />
+        </AvailableFeatCardWrapper>
       ))}
     </div>
   );
@@ -118,11 +209,24 @@ function FeatTabContentComponent({
   hasNext,
   hasPrevious,
   onPageChange,
+  removingFeatId,
+  addingFeatId,
+  addedFeatId,
 }: FeatTabContentProps) {
+  const topAnchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let el = topAnchorRef.current?.parentElement;
+    while (el) {
+      el.scrollTop = 0;
+      el = el.parentElement;
+    }
+  }, [currentPage]);
 
   return (
     <div className="flex flex-col flex-1 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))] rounded-lg overflow-hidden">
       <ScrollArea className="flex-1">
+        <div ref={topAnchorRef} />
         <div className="p-4">
           <div className={cn('transition-opacity duration-200', activeTab === 'my-feats' ? 'block' : 'hidden')}>
             <MyFeatsTab
@@ -130,6 +234,8 @@ function FeatTabContentComponent({
               protectedFeatIds={protectedFeatIds}
               onRemove={onRemoveFeat}
               onLoadDetails={onLoadFeatDetails}
+              removingFeatId={removingFeatId}
+              addedFeatId={addedFeatId}
             />
           </div>
 
@@ -139,6 +245,7 @@ function FeatTabContentComponent({
               ownedFeatIds={ownedFeatIds}
               onAdd={onAddFeat}
               onLoadDetails={onLoadFeatDetails}
+              addingFeatId={addingFeatId}
             />
 
           </div>

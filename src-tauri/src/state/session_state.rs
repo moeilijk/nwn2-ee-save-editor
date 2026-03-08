@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, debug, warn, instrument};
 
-use crate::character::Character;
+use crate::character::{Character, FeatInfo};
 use crate::services::resource_manager::ResourceManager;
 use crate::services::savegame_handler::SaveGameHandler;
 
@@ -13,6 +13,7 @@ pub struct SessionState {
     pub savegame_handler: Option<SaveGameHandler>,
     pub character: Option<Character>,
     pub item_property_decoder: ItemPropertyDecoder,
+    pub feat_cache: Option<Vec<FeatInfo>>,
 }
 
 impl SessionState {
@@ -31,6 +32,7 @@ impl SessionState {
             savegame_handler: None,
             character: None,
             item_property_decoder,
+            feat_cache: None,
         }
     }
 
@@ -120,6 +122,11 @@ impl SessionState {
         self.character = None;
         self.savegame_handler = None;
         self.current_file_path = None;
+        self.feat_cache = None;
+    }
+
+    pub fn invalidate_feat_cache(&mut self) {
+        self.feat_cache = None;
     }
 
     pub fn has_unsaved_changes(&self) -> bool {

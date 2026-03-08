@@ -18,7 +18,7 @@ pub mod save_summary;
 mod race;
 mod identity;
 pub mod classes;
-mod feats;
+pub(crate) mod feats;
 mod skills;
 mod inventory;
 mod spells;

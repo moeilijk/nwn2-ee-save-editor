@@ -16,6 +16,42 @@ export interface DetailedPrerequisites {
   unmet: string[];
 }
 
+export interface PrereqFeat {
+  id: number;
+  name: string;
+  met: boolean;
+}
+
+export interface PrereqAbility {
+  ability: string;
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface PrereqValue {
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface PrereqSkill {
+  skill: string;
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface BackendFeatPrerequisites {
+  feats: PrereqFeat[];
+  abilities: PrereqAbility[];
+  bab: PrereqValue | null;
+  level: PrereqValue | null;
+  caster_level: PrereqValue | null;
+  spell_level: PrereqValue | null;
+  skills: PrereqSkill[];
+}
+
 export interface FeatInfo {
   id: number;
   feat_id?: number;
@@ -27,7 +63,7 @@ export interface FeatInfo {
   custom: boolean;
   description?: string;
   icon?: string;
-  prerequisites?: Record<string, unknown>;
+  prerequisites?: BackendFeatPrerequisites | Record<string, unknown>;
   can_take?: boolean;
   missing_requirements?: string[];
   has_feat?: boolean;

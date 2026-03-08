@@ -95,6 +95,7 @@ export interface FeatResponse {
   label: string;
   name: string;
   type: number;
+  category?: string;
   protected: boolean;
   custom: boolean;
   icon?: string;
@@ -141,10 +142,23 @@ export interface LegitimateFeatsResponse {
   subcategory?: string;
 }
 
+export interface AutoAddedFeat {
+  feat_id: number;
+  label: string;
+}
+
+export interface AbilityChange {
+  ability: string;
+  old_value: number;
+  new_value: number;
+}
+
 export interface FeatActionResponse {
   feat_id: number;
   success: boolean;
   message: string;
+  auto_added_feats?: AutoAddedFeat[];
+  auto_modified_abilities?: AbilityChange[];
   character_feats?: FeatResponse[];
 }
 
@@ -155,10 +169,14 @@ export interface FeatDetailsResponse {
   name: string;
   description: string;
   type: number;
+  category?: string;
   protected: boolean;
   custom: boolean;
   icon?: string;
   prerequisites?: Record<string, unknown>;
+  can_take?: boolean;
+  missing_requirements?: string[];
+  has_feat?: boolean;
   effects?: Record<string, unknown>;
 }
 
@@ -718,11 +736,13 @@ export class CharacterAPI {
 
   static async addFeat(characterId: number, featId: number): Promise<FeatActionResponse> {
     try {
-        const result = await invoke<any>('add_feat', { featId: featId });
-        return { 
-            feat_id: featId, 
-            success: result.success, // Verify result shape
-            message: result.message || "Feat added" 
+        const result = await invoke<FeatActionResponse>('add_feat', { featId: featId });
+        return {
+            feat_id: featId,
+            success: result.success,
+            message: result.message || "Feat added",
+            auto_added_feats: result.auto_added_feats || [],
+            auto_modified_abilities: result.auto_modified_abilities || [],
         };
     } catch (error) {
         throw new Error(String(error));

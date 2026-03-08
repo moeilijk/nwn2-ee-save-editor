@@ -1,12 +1,13 @@
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
-use tauri::State;
-use tracing::{info, error, instrument};
+use tauri::{AppHandle, Manager, State};
+use tracing::{info, warn, error, instrument};
 
 #[tauri::command]
-#[instrument(name = "load_character_command", skip(state), fields(file_path = %file_path))]
+#[instrument(name = "load_character_command", skip(state, app), fields(file_path = %file_path))]
 pub async fn load_character(
     state: State<'_, AppState>,
+    app: AppHandle,
     file_path: String,
 ) -> CommandResult<bool> {
     info!("Load character command invoked");
@@ -15,6 +16,28 @@ pub async fn load_character(
     match session.load_character(&file_path) {
         Ok(()) => {
             info!("Character loaded successfully via command");
+            drop(session);
+            tokio::spawn(async move {
+                let state = app.state::<AppState>();
+                let cache = {
+                    let game_data = state.game_data.read();
+                    let session = state.session.read();
+                    let Some(character) = session.character.as_ref() else {
+                        return;
+                    };
+                    match super::feats::build_feat_list(character, &game_data) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to pre-warm feat cache: {e}");
+                            return;
+                        }
+                    }
+                };
+                let mut session = state.session.write();
+                if session.feat_cache.is_none() {
+                    session.feat_cache = Some(cache);
+                }
+            });
             Ok(true)
         }
         Err(e) => {

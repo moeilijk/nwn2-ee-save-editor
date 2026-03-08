@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::Regex;
@@ -50,6 +51,7 @@ impl FeatType {
     pub const HERITAGE: Self = Self(1024);
     pub const ITEM_CREATION: Self = Self(2048);
     pub const RACIAL: Self = Self(4096);
+    pub const DOMAIN: Self = Self(8192);
 
     pub fn contains(&self, flag: FeatType) -> bool {
         (self.0 & flag.0) != 0
@@ -71,6 +73,7 @@ impl FeatType {
             "HERITAGE" | "HERITAGE_FT_CAT" => 1024,
             "ITEMCREATION" | "ITEM" | "ITEMCREATION_FT_CAT" => 2048,
             "RACIALABILITY" | "RACIAL" | "RACIALABILITY_FT_CAT" | "RACIAL_FT_CAT" => 4096,
+            "DOMAIN" | "DOMAIN_FT_CAT" => 8192,
             _ => {
                 if upper.contains("PROFICIENCY") || upper.contains("COMBAT") {
                     2
@@ -96,14 +99,40 @@ impl FeatType {
                     512
                 } else if upper.contains("HERITAGE") {
                     1024
+                } else if upper.contains("DOMAIN") {
+                    8192
                 } else if upper.contains("GENERAL") {
                     1
                 } else {
-                    s.parse::<i32>().unwrap_or(0)
+                    match s.parse::<i32>() {
+                        Ok(n) if (1..=13).contains(&n) => Self::from_category_int(n).0,
+                        Ok(n) => n,
+                        Err(_) => 0,
+                    }
                 }
             }
         };
         Self(value)
+    }
+
+    /// Maps NWN2 sequential TOOLCATEGORIES integer IDs to bitmask values.
+    fn from_category_int(id: i32) -> Self {
+        match id {
+            1 => Self::GENERAL,
+            2 => Self::PROFICIENCY,
+            3 => Self::METAMAGIC,
+            4 => Self::DIVINE,
+            5 => Self::CLASS,
+            6 => Self::EPIC,
+            7 => Self::ITEM_CREATION,
+            8 => Self::SPELLCASTING,
+            9 => Self::BACKGROUND,
+            10 => Self::HISTORY,
+            11 => Self::HERITAGE,
+            12 => Self::RACIAL,
+            13 => Self::SKILL_SAVE,
+            _ => Self(0),
+        }
     }
 }
 
@@ -180,6 +209,8 @@ pub struct FeatInfo {
     #[serde(rename = "custom")]
     pub is_custom: bool,
     pub has_feat: bool,
+    pub can_take: bool,
+    pub missing_requirements: Vec<String>,
     pub prerequisites: FeatPrerequisites,
     pub availability: FeatAvailability,
 }
@@ -459,6 +490,46 @@ const AC_CONDITIONAL_KEYWORDS: &[&str] = &[
     "when using",
     "when fighting",
 ];
+
+/// Pre-compute domain feat ID sets from the domains 2DA table.
+/// Returns (all_domain_feats, epithet_feats) for O(1) lookups.
+pub fn build_domain_feat_sets(game_data: &GameData) -> (HashSet<i32>, HashSet<i32>) {
+    let mut all_domain_feats = HashSet::new();
+    let mut epithet_feats = HashSet::new();
+
+    let Some(domains_table) = game_data.get_table("domains") else {
+        return (all_domain_feats, epithet_feats);
+    };
+
+    for row_id in 0..domains_table.row_count() {
+        let Some(domain_data) = domains_table.get_by_id(row_id as i32) else {
+            continue;
+        };
+
+        for field in ["granted_feat", "castable_feat", "GrantedFeat", "CastableFeat"] {
+            if let Some(feat_id) = domain_data
+                .get(field)
+                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                .filter(|&id| id >= 0)
+            {
+                all_domain_feats.insert(feat_id);
+            }
+        }
+
+        for field in ["epithet_feat", "EpithetFeat"] {
+            if let Some(feat_id) = domain_data
+                .get(field)
+                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                .filter(|&id| id >= 0)
+            {
+                all_domain_feats.insert(feat_id);
+                epithet_feats.insert(feat_id);
+            }
+        }
+    }
+
+    (all_domain_feats, epithet_feats)
+}
 
 impl Character {
     // ========== BASIC FEAT ACCESS ==========
@@ -1814,9 +1885,12 @@ impl Character {
         let description = Self::resolve_feat_description(&feat_data, game_data);
         let icon = feat_data.get("icon").and_then(|s| s.as_ref()).map_or("", std::string::String::as_str).to_string();
 
-        let feat_type = Self::parse_feat_type(&feat_data, &description);
+        let mut feat_type = Self::parse_feat_type(&feat_data, &description);
 
         let is_domain = self.is_domain_feat(feat_id, game_data);
+        if is_domain {
+            feat_type = FeatType(feat_type.0 | FeatType::DOMAIN.0);
+        }
         let category = FeatCategory::from_feat_type(feat_type, is_domain);
 
         let is_protected = self.is_feat_protected(feat_id, game_data);
@@ -1828,6 +1902,7 @@ impl Character {
 
         let prerequisites = self.build_feat_prerequisites(&feat_data, game_data);
         let availability = self.get_feat_availability(feat_id, feat_type, &label, game_data);
+        let prereq_result = self.validate_feat_prerequisites(feat_id, game_data);
 
         Some(FeatInfo {
             id: feat_id,
@@ -1840,35 +1915,90 @@ impl Character {
             is_protected,
             is_custom,
             has_feat,
+            can_take: prereq_result.can_take,
+            missing_requirements: prereq_result.missing_requirements,
             prerequisites,
             availability,
         })
     }
 
-    fn parse_feat_type(feat_data: &ahash::AHashMap<String, Option<String>>, description: &str) -> FeatType {
-        let field_mapper = FieldMapper::new();
+    /// Fast path for listing: skips prerequisites, availability checks, and
+    /// uses pre-computed HashSets for domain/epithet lookups instead of
+    /// iterating the domains table per feat.
+    pub fn get_feat_info_display(
+        &self,
+        feat_id: FeatId,
+        game_data: &GameData,
+        domain_feats: &HashSet<i32>,
+        epithet_feats: &HashSet<i32>,
+        feat_sources: &HashMap<FeatId, FeatSource>,
+        owned_feats: &HashSet<FeatId>,
+    ) -> Option<FeatInfo> {
+        let feats_table = game_data.get_table("feat")?;
+        let feat_data = feats_table.get_by_id(feat_id.0)?;
 
-        if let Some(type_str) = field_mapper.get_field_value(feat_data, "type") {
-            let feat_type = FeatType::from_string(&type_str);
-            if feat_type.0 != 0 && feat_type.0 != 1 {
-                return feat_type;
-            }
-            if let Ok(type_int) = type_str.parse::<i32>()
-                && type_int > 0
-            {
-                return FeatType(type_int);
-            }
+        let label = feat_data
+            .get("label")
+            .and_then(|s| s.as_ref())
+            .map_or_else(|| format!("feat_{}", feat_id.0), |s| s.clone());
+        let name = Self::resolve_feat_name_from_data(&feat_data, game_data);
+        let description = Self::resolve_feat_description(&feat_data, game_data);
+        let icon = feat_data.get("icon").and_then(|s| s.as_ref()).map_or("", std::string::String::as_str).to_string();
+
+        let mut feat_type = Self::parse_feat_type(&feat_data, &description);
+
+        let is_domain = domain_feats.contains(&feat_id.0);
+        if is_domain {
+            feat_type = FeatType(feat_type.0 | FeatType::DOMAIN.0);
+        }
+        let category = FeatCategory::from_feat_type(feat_type, is_domain);
+
+        let is_protected = feat_sources
+            .get(&feat_id)
+            .is_some_and(|s| matches!(s, FeatSource::Race | FeatSource::Background))
+            || epithet_feats.contains(&feat_id.0);
+
+        let is_custom = feat_data
+            .get("custom")
+            .and_then(|s| s.as_ref())
+            .is_some_and(|s| s == "1" || s.to_lowercase() == "true");
+        let has_feat = owned_feats.contains(&feat_id);
+
+        Some(FeatInfo {
+            id: feat_id,
+            label,
+            name,
+            description,
+            icon,
+            feat_type,
+            category,
+            is_protected,
+            is_custom,
+            has_feat,
+            can_take: true,
+            missing_requirements: vec![],
+            prerequisites: FeatPrerequisites::default(),
+            availability: FeatAvailability { available: true, reasons: vec![] },
+        })
+    }
+
+    pub(crate) fn parse_feat_type(feat_data: &ahash::AHashMap<String, Option<String>>, description: &str) -> FeatType {
+        if let Some(type_str) = feat_data
+            .get("TOOLCATEGORIES")
+            .or_else(|| feat_data.get("ToolsCategories"))
+            .or_else(|| feat_data.get("toolscategories"))
+            .and_then(|s| s.as_ref())
+        {
+            return FeatType::from_string(type_str);
         }
 
         if let Some(type_str) = feat_data
-            .keys()
-            .find(|k| k.eq_ignore_ascii_case("FeatCategory") || k.eq_ignore_ascii_case("TOOLCATEGORIES"))
-            .and_then(|key| feat_data.get(key).and_then(|v| v.as_ref()))
+            .get("FeatCategory")
+            .or_else(|| feat_data.get("FEATCATEGORY"))
+            .or_else(|| feat_data.get("featcategory"))
+            .and_then(|s| s.as_ref())
         {
-            let feat_type = FeatType::from_string(type_str);
-            if feat_type.0 != 0 {
-                return feat_type;
-            }
+            return FeatType::from_string(type_str);
         }
 
         static TYPE_OF_FEAT_RE: LazyLock<Regex> = LazyLock::new(|| {

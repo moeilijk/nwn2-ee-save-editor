@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import NWN2Icon from '@/components/ui/NWN2Icon';
-import type { FeatInfo, Prerequisite } from './types';
+import type { FeatInfo, Prerequisite, DetailedPrerequisites, BackendFeatPrerequisites } from './types';
 import { cn } from '@/lib/utils';
 
 export interface FeatCardProps {
@@ -17,39 +17,40 @@ export interface FeatCardProps {
   isProtected?: boolean;
 }
 
-function getFeatTypeInfo(category?: string): { label: string; icon: React.ReactNode; colorClass: string } {
-  const label = category || 'General';
+interface CategoryBadgeInfo {
+  label: string;
+  icon: React.ReactNode;
+  colorClass: string;
+}
 
-  switch (label) {
-    case 'General':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-blue-500' };
-    case 'Proficiency':
-      return { label, icon: <Swords className="w-3 h-3" />, colorClass: 'bg-gray-500' };
-    case 'Skill/Save':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-cyan-500' };
-    case 'Metamagic':
-      return { label, icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-purple-500' };
-    case 'Divine':
-      return { label, icon: <Sun className="w-3 h-3" />, colorClass: 'bg-yellow-500' };
-    case 'Epic':
-      return { label, icon: <Zap className="w-3 h-3" />, colorClass: 'bg-orange-500' };
-    case 'Class':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-green-500' };
-    case 'Background':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-teal-500' };
-    case 'Spellcasting':
-      return { label, icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-indigo-500' };
-    case 'History':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-amber-500' };
-    case 'Heritage':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-rose-500' };
-    case 'Item Creation':
-      return { label, icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-lime-500' };
-    case 'Racial':
-      return { label, icon: <Shield className="w-3 h-3" />, colorClass: 'bg-pink-500' };
-    default:
-      return { label: 'General', icon: <Shield className="w-3 h-3" />, colorClass: 'bg-blue-500' };
+const CATEGORY_DEFS: Record<number, CategoryBadgeInfo> = {
+  1:    { label: 'General',       icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-blue-500' },
+  2:    { label: 'Proficiency',   icon: <Swords className="w-3 h-3" />,   colorClass: 'bg-gray-500' },
+  4:    { label: 'Skill/Save',    icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-cyan-500' },
+  8:    { label: 'Metamagic',     icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-purple-500' },
+  16:   { label: 'Divine',        icon: <Sun className="w-3 h-3" />,      colorClass: 'bg-yellow-500' },
+  32:   { label: 'Epic',          icon: <Zap className="w-3 h-3" />,      colorClass: 'bg-orange-500' },
+  64:   { label: 'Class',         icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-green-500' },
+  128:  { label: 'Background',    icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-teal-500' },
+  256:  { label: 'Spellcasting',  icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-indigo-500' },
+  512:  { label: 'History',       icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-amber-500' },
+  1024: { label: 'Heritage',      icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-rose-500' },
+  2048: { label: 'Item Creation', icon: <Sparkles className="w-3 h-3" />, colorClass: 'bg-lime-500' },
+  4096: { label: 'Racial',        icon: <Shield className="w-3 h-3" />,   colorClass: 'bg-pink-500' },
+  8192: { label: 'Domain',        icon: <Sun className="w-3 h-3" />,      colorClass: 'bg-yellow-600' },
+};
+
+const CATEGORY_BITS = Object.keys(CATEGORY_DEFS).map(Number).sort((a, b) => a - b);
+const DEFAULT_BADGE: CategoryBadgeInfo = { label: 'General', icon: <Shield className="w-3 h-3" />, colorClass: 'bg-blue-500' };
+
+function getFeatCategories(featType: number): CategoryBadgeInfo[] {
+  const categories: CategoryBadgeInfo[] = [];
+  for (const bit of CATEGORY_BITS) {
+    if ((featType & bit) !== 0) {
+      categories.push(CATEGORY_DEFS[bit]);
+    }
   }
+  return categories.length > 0 ? categories : [DEFAULT_BADGE];
 }
 
 interface ParsedDescription {
@@ -127,12 +128,62 @@ function PrerequisiteItem({ prereq }: { prereq: Prerequisite }) {
   );
 }
 
+function transformPrerequisites(prereqs: BackendFeatPrerequisites): DetailedPrerequisites {
+  const requirements: Prerequisite[] = [];
+  const met: string[] = [];
+  const unmet: string[] = [];
+
+  for (const f of prereqs.feats) {
+    const desc = `Requires: ${f.name}`;
+    requirements.push({ type: 'feat', description: desc, feat_id: f.id, met: f.met });
+    (f.met ? met : unmet).push(desc);
+  }
+
+  for (const a of prereqs.abilities) {
+    const desc = `${a.ability} ${a.required}+`;
+    requirements.push({ type: 'ability', description: desc, required_value: a.required, current_value: a.current, met: a.met });
+    (a.met ? met : unmet).push(desc);
+  }
+
+  if (prereqs.bab) {
+    const desc = `Base Attack Bonus +${prereqs.bab.required}`;
+    requirements.push({ type: 'bab', description: desc, required_value: prereqs.bab.required, current_value: prereqs.bab.current, met: prereqs.bab.met });
+    (prereqs.bab.met ? met : unmet).push(desc);
+  }
+
+  if (prereqs.level) {
+    const desc = `Character Level ${prereqs.level.required}`;
+    requirements.push({ type: 'level', description: desc, required_value: prereqs.level.required, current_value: prereqs.level.current, met: prereqs.level.met });
+    (prereqs.level.met ? met : unmet).push(desc);
+  }
+
+  if (prereqs.caster_level) {
+    const desc = `Caster Level ${prereqs.caster_level.required}`;
+    requirements.push({ type: 'level', description: desc, required_value: prereqs.caster_level.required, current_value: prereqs.caster_level.current, met: prereqs.caster_level.met });
+    (prereqs.caster_level.met ? met : unmet).push(desc);
+  }
+
+  if (prereqs.spell_level) {
+    const desc = `Spell Level ${prereqs.spell_level.required}`;
+    requirements.push({ type: 'spell_level', description: desc, required_value: prereqs.spell_level.required, current_value: prereqs.spell_level.current, met: prereqs.spell_level.met });
+    (prereqs.spell_level.met ? met : unmet).push(desc);
+  }
+
+  for (const s of prereqs.skills) {
+    const desc = `${s.skill} ${s.required}+`;
+    requirements.push({ type: 'ability', description: desc, required_value: s.required, current_value: s.current, met: s.met });
+    (s.met ? met : unmet).push(desc);
+  }
+
+  return { requirements, met, unmet };
+}
+
 function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isProtected = false }: FeatCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [detailedFeat, setDetailedFeat] = useState<FeatInfo | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const typeInfo = getFeatTypeInfo(feat.category);
+  const categories = getFeatCategories(feat.type ?? 1);
 
   const handleToggleExpand = async () => {
     if (!isExpanded && onLoadDetails && !detailedFeat) {
@@ -145,7 +196,26 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
   };
 
   const displayFeat = detailedFeat || feat;
-  const hasPrerequisites = displayFeat.detailed_prerequisites?.requirements && displayFeat.detailed_prerequisites.requirements.length > 0;
+
+  const computedPrerequisites = React.useMemo(() => {
+    if (displayFeat.detailed_prerequisites?.requirements?.length) {
+      return displayFeat.detailed_prerequisites;
+    }
+    if (displayFeat.prerequisites) {
+      const prereqs = displayFeat.prerequisites as BackendFeatPrerequisites;
+      const hasAny = prereqs.feats?.length > 0
+        || prereqs.abilities?.length > 0
+        || prereqs.bab != null
+        || prereqs.level != null
+        || prereqs.caster_level != null
+        || prereqs.spell_level != null
+        || prereqs.skills?.length > 0;
+      if (hasAny) return transformPrerequisites(prereqs);
+    }
+    return null;
+  }, [displayFeat.detailed_prerequisites, displayFeat.prerequisites]);
+
+  const hasPrerequisites = computedPrerequisites != null && computedPrerequisites.requirements.length > 0;
 
   return (
     <Card
@@ -173,10 +243,12 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
                 {feat.name}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge className={cn("w-[7.5rem] gap-1 text-white", typeInfo.colorClass)}>
-                  {typeInfo.icon}
-                  {typeInfo.label}
-                </Badge>
+                {categories.map((cat) => (
+                  <Badge key={cat.label} className={cn("w-[7.5rem] gap-1 text-white", cat.colorClass)}>
+                    {cat.icon}
+                    {cat.label}
+                  </Badge>
+                ))}
                 {isProtected && (
                   <Badge variant="outline" className="w-[5.5rem] text-[rgb(var(--color-warning))]">
                     Protected
@@ -326,13 +398,13 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
                 }
               })()}
 
-              {hasPrerequisites && (
+              {hasPrerequisites && computedPrerequisites && (
                 <div>
                   <h4 className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-2">
                     Prerequisites
                   </h4>
                   <div className="space-y-2">
-                    {displayFeat.detailed_prerequisites!.requirements.map((prereq, idx) => (
+                    {computedPrerequisites.requirements.map((prereq, idx) => (
                       <PrerequisiteItem key={idx} prereq={prereq} />
                     ))}
                   </div>

@@ -1,6 +1,8 @@
-use crate::character::{FeatEntry, FeatSlots, PrerequisiteResult, FeatInfo, FeatSummary, DomainInfo, FeatId, DomainId, FeatAvailability, FeatType};
+use crate::character::{Character, FeatEntry, FeatSlots, PrerequisiteResult, FeatInfo, FeatSummary, DomainInfo, FeatId, DomainId, FeatAvailability};
+use crate::character::feats::{build_domain_feat_sets, AutoAddedFeat, AbilityChange};
 use crate::commands::{CommandError, CommandResult};
-use crate::state::AppState;
+use crate::loaders::GameData;
+use crate::state::{AppState, SessionState};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
@@ -10,6 +12,8 @@ pub struct FeatActionResult {
     pub success: bool,
     pub message: String,
     pub feat_id: i32,
+    pub auto_added_feats: Vec<AutoAddedFeat>,
+    pub auto_modified_abilities: Vec<AbilityChange>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -81,18 +85,49 @@ pub async fn add_feat(
     state: State<'_, AppState>,
     feat_id: i32,
 ) -> CommandResult<FeatActionResult> {
+    let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    match character.add_feat(FeatId(feat_id)) {
-        Ok(()) => Ok(FeatActionResult {
-            success: true,
-            message: "Feat added successfully".to_string(),
-            feat_id,
-        }),
+    let result = {
+        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        character.add_feat_with_prerequisites(
+            FeatId(feat_id),
+            crate::character::feats::FeatSource::Manual,
+            &game_data,
+        )
+    };
+    session.invalidate_feat_cache();
+    match result {
+        Ok(add_result) => {
+            let mut parts = Vec::new();
+            if !add_result.auto_added_feats.is_empty() {
+                let names: Vec<&str> = add_result.auto_added_feats.iter().map(|f| f.label.as_str()).collect();
+                parts.push(format!("feats: {}", names.join(", ")));
+            }
+            if !add_result.auto_modified_abilities.is_empty() {
+                let changes: Vec<String> = add_result.auto_modified_abilities.iter()
+                    .map(|a| format!("{} {} -> {}", a.ability, a.old_value, a.new_value))
+                    .collect();
+                parts.push(format!("abilities: {}", changes.join(", ")));
+            }
+            let message = if parts.is_empty() {
+                "Feat added successfully".to_string()
+            } else {
+                format!("Feat added with prerequisites - {}", parts.join("; "))
+            };
+            Ok(FeatActionResult {
+                success: true,
+                message,
+                feat_id,
+                auto_added_feats: add_result.auto_added_feats,
+                auto_modified_abilities: add_result.auto_modified_abilities,
+            })
+        }
         Err(e) => Ok(FeatActionResult {
             success: false,
             message: e.to_string(),
             feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
         }),
     }
 }
@@ -103,17 +138,25 @@ pub async fn remove_feat(
     feat_id: i32,
 ) -> CommandResult<FeatActionResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    match character.remove_feat(FeatId(feat_id)) {
+    let result = {
+        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        character.remove_feat(FeatId(feat_id))
+    };
+    session.invalidate_feat_cache();
+    match result {
         Ok(()) => Ok(FeatActionResult {
             success: true,
             message: "Feat removed successfully".to_string(),
             feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
         }),
         Err(e) => Ok(FeatActionResult {
             success: false,
             message: e.to_string(),
             feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
         }),
     }
 }
@@ -125,13 +168,17 @@ pub async fn swap_feat(
     new_feat_id: i32,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    character.swap_feat(FeatId(old_feat_id), FeatId(new_feat_id))
-        .map(|_| ())
-        .map_err(|e| CommandError::OperationFailed {
-            operation: format!("swap_feat({old_feat_id} -> {new_feat_id})"),
-            reason: e.to_string(),
-        })
+    let result = {
+        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        character.swap_feat(FeatId(old_feat_id), FeatId(new_feat_id))
+            .map(|_| ())
+            .map_err(|e| CommandError::OperationFailed {
+                operation: format!("swap_feat({old_feat_id} -> {new_feat_id})"),
+                reason: e.to_string(),
+            })
+    };
+    session.invalidate_feat_cache();
+    result
 }
 
 #[tauri::command]
@@ -166,12 +213,15 @@ pub async fn get_available_domains(state: State<'_, AppState>) -> CommandResult<
 pub async fn add_domain(state: State<'_, AppState>, domain_id: i32) -> CommandResult<Vec<i32>> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    let feats = character.add_domain(DomainId(domain_id), &game_data)
-        .map_err(|e| CommandError::OperationFailed {
-            operation: format!("add_domain({domain_id})"),
-            reason: e.to_string(),
-        })?;
+    let feats = {
+        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        character.add_domain(DomainId(domain_id), &game_data)
+            .map_err(|e| CommandError::OperationFailed {
+                operation: format!("add_domain({domain_id})"),
+                reason: e.to_string(),
+            })?
+    };
+    session.invalidate_feat_cache();
     Ok(feats.into_iter().map(|f| f.0).collect())
 }
 
@@ -179,25 +229,35 @@ pub async fn add_domain(state: State<'_, AppState>, domain_id: i32) -> CommandRe
 pub async fn remove_domain(state: State<'_, AppState>, domain_id: i32) -> CommandResult<Vec<i32>> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    let feats = character.remove_domain(DomainId(domain_id), &game_data)
-        .map_err(|e| CommandError::OperationFailed {
-            operation: format!("remove_domain({domain_id})"),
-            reason: e.to_string(),
-        })?;
+    let feats = {
+        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        character.remove_domain(DomainId(domain_id), &game_data)
+            .map_err(|e| CommandError::OperationFailed {
+                operation: format!("remove_domain({domain_id})"),
+                reason: e.to_string(),
+            })?
+    };
+    session.invalidate_feat_cache();
     Ok(feats.into_iter().map(|f| f.0).collect())
 }
 
-#[tauri::command]
-pub async fn get_all_feats(state: State<'_, AppState>) -> CommandResult<Vec<FeatInfo>> {
-    let session = state.session.read();
-    let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
-
+pub(super) fn build_feat_list(character: &Character, game_data: &GameData) -> Result<Vec<FeatInfo>, CommandError> {
     let feats_table = game_data.get_table("feat")
         .ok_or(CommandError::NotFound { item: "Feat table".to_string() })?;
 
-    let mut all_feats = Vec::new();
+    let (domain_feats, epithet_feats) = build_domain_feat_sets(game_data);
+
+    let feat_entries = character.feat_entries();
+    let mut feat_sources = std::collections::HashMap::with_capacity(feat_entries.len());
+    let mut owned_feats = std::collections::HashSet::with_capacity(feat_entries.len());
+    for entry in &feat_entries {
+        feat_sources.insert(entry.feat_id, entry.source);
+        owned_feats.insert(entry.feat_id);
+    }
+
+    let mut all_feats: Vec<FeatInfo> = Vec::new();
+    let mut seen_names: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
     for i in 0..feats_table.row_count() {
         let feat_id = FeatId(i as i32);
 
@@ -213,7 +273,14 @@ pub async fn get_all_feats(state: State<'_, AppState>) -> CommandResult<Vec<Feat
             }
         }
 
-        if let Some(feat_info) = character.get_feat_info(feat_id, &game_data) {
+        if let Some(feat_info) = character.get_feat_info_display(
+            feat_id,
+            game_data,
+            &domain_feats,
+            &epithet_feats,
+            &feat_sources,
+            &owned_feats,
+        ) {
             if feat_info.label.is_empty()
                 || feat_info.label.starts_with("****")
                 || feat_info.label.starts_with("DEL_")
@@ -221,10 +288,38 @@ pub async fn get_all_feats(state: State<'_, AppState>) -> CommandResult<Vec<Feat
             {
                 continue;
             }
+
+            if let Some(&existing_idx) = seen_names.get(&feat_info.name) {
+                if feat_info.has_feat && !all_feats[existing_idx].has_feat {
+                    all_feats[existing_idx] = feat_info;
+                }
+                continue;
+            }
+            seen_names.insert(feat_info.name.clone(), all_feats.len());
             all_feats.push(feat_info);
         }
     }
     Ok(all_feats)
+}
+
+pub(super) fn ensure_feat_cache(session: &mut SessionState, game_data: &GameData) -> Result<(), CommandError> {
+    if session.feat_cache.is_some() {
+        return Ok(());
+    }
+    let cache = {
+        let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+        build_feat_list(character, game_data)?
+    };
+    session.feat_cache = Some(cache);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_all_feats(state: State<'_, AppState>) -> CommandResult<Vec<FeatInfo>> {
+    let game_data = state.game_data.read();
+    let mut session = state.session.write();
+    ensure_feat_cache(&mut session, &game_data)?;
+    Ok(session.feat_cache.clone().unwrap())
 }
 
 #[tauri::command]
@@ -235,62 +330,33 @@ pub async fn get_filtered_feats(
     feat_type: Option<i32>,
     search: Option<String>,
 ) -> CommandResult<FilteredFeatsResponse> {
-    let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let mut session = state.session.write();
+    ensure_feat_cache(&mut session, &game_data)?;
 
-    let feats_table = game_data.get_table("feat")
-        .ok_or(CommandError::NotFound { item: "Feat table".to_string() })?;
-
+    let cached = session.feat_cache.as_ref().unwrap();
     let search_lower = search.as_ref().map(|s| s.to_lowercase());
 
-    let mut filtered_feats = Vec::new();
-    for i in 0..feats_table.row_count() {
-        let feat_id = FeatId(i as i32);
+    let filtered_feats: Vec<&FeatInfo> = cached.iter().filter(|feat_info| {
+        if let Some(ft) = feat_type
+            && (feat_info.feat_type.0 & ft) == 0
+        {
+            return false;
+        }
+        if let Some(ref search_str) = search_lower {
+            let name_lower = feat_info.name.to_lowercase();
+            let label_lower = feat_info.label.to_lowercase();
+            let desc_lower = feat_info.description.to_lowercase();
 
-        if let Some(feat_data) = feats_table.get_by_id(feat_id.0) {
-            let removed = feat_data
-                .get("removed")
-                .or_else(|| feat_data.get("REMOVED"))
-                .and_then(|s| s.as_ref())
-                .is_some_and(|s| s == "1");
-
-            if removed {
-                continue;
+            if !name_lower.contains(search_str)
+                && !label_lower.contains(search_str)
+                && !desc_lower.contains(search_str)
+            {
+                return false;
             }
         }
-
-        if let Some(feat_info) = character.get_feat_info(feat_id, &game_data) {
-            if feat_info.label.is_empty()
-                || feat_info.label.starts_with("****")
-                || feat_info.label.starts_with("DEL_")
-                || feat_info.label == "DELETED"
-            {
-                continue;
-            }
-
-            if let Some(ft) = feat_type
-                && (feat_info.feat_type.0 & ft) == 0
-            {
-                continue;
-            }
-
-            if let Some(ref search_str) = search_lower {
-                let name_lower = feat_info.name.to_lowercase();
-                let label_lower = feat_info.label.to_lowercase();
-                let desc_lower = feat_info.description.to_lowercase();
-
-                if !name_lower.contains(search_str)
-                    && !label_lower.contains(search_str)
-                    && !desc_lower.contains(search_str)
-                {
-                    continue;
-                }
-            }
-
-            filtered_feats.push(feat_info);
-        }
-    }
+        true
+    }).collect();
 
     let total = filtered_feats.len() as i32;
     let pages = if total == 0 { 1 } else { (total + limit - 1) / limit };
@@ -298,7 +364,7 @@ pub async fn get_filtered_feats(
     let end = (start + limit as usize).min(filtered_feats.len());
 
     let paged_feats = if start < filtered_feats.len() {
-        filtered_feats[start..end].to_vec()
+        filtered_feats[start..end].iter().map(|f| (*f).clone()).collect()
     } else {
         Vec::new()
     };
@@ -341,38 +407,7 @@ pub async fn check_feat_availability(
         .and_then(|strref| game_data.get_string(strref))
         .unwrap_or_default();
 
-    let feat_type = parse_feat_type_from_data(&feat_data, &description);
+    let feat_type = Character::parse_feat_type(&feat_data, &description);
 
     Ok(character.get_feat_availability(FeatId(feat_id), feat_type, &label, &game_data))
-}
-
-fn parse_feat_type_from_data(feat_data: &ahash::AHashMap<String, Option<String>>, description: &str) -> FeatType {
-    if let Some(type_str) = feat_data
-        .get("TOOLCATEGORIES")
-        .or_else(|| feat_data.get("ToolsCategories"))
-        .or_else(|| feat_data.get("toolscategories"))
-        .and_then(|s| s.as_ref())
-    {
-        return FeatType::from_string(type_str);
-    }
-
-    if let Some(type_str) = feat_data
-        .get("FeatCategory")
-        .or_else(|| feat_data.get("FEATCATEGORY"))
-        .or_else(|| feat_data.get("featcategory"))
-        .and_then(|s| s.as_ref())
-    {
-        return FeatType::from_string(type_str);
-    }
-
-    if description.contains("Type of Feat:") {
-        if description.contains("Background") {
-            return FeatType::BACKGROUND;
-        }
-        if description.contains("History") {
-            return FeatType::HISTORY;
-        }
-    }
-
-    FeatType::GENERAL
 }

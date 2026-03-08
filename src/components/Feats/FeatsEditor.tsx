@@ -1,10 +1,11 @@
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui/Card';
 import { AlertCircle } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { useFeatSearch } from '@/hooks/useFeatSearch';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { FeatNavBar, type FeatTab } from './FeatNavBar';
 import { FeatTabContent } from './FeatTabContent';
 import type { FeatInfo, FeatsState } from './types';
@@ -26,6 +27,7 @@ export default function FeatsEditor() {
 
   const [activeTab, setActiveTab] = useState<FeatTab>('my-feats');
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [sortBy, setSortBy] = useState('name');
   const [selectedTypes, setSelectedTypes] = useState<Set<number>>(new Set());
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
@@ -37,6 +39,11 @@ export default function FeatsEditor() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
   const FEATS_PER_PAGE = 100;
+
+  const [removingFeatId, setRemovingFeatId] = useState<number | null>(null);
+  const [addingFeatId, setAddingFeatId] = useState<number | null>(null);
+  const [addedFeatId, setAddedFeatId] = useState<number | null>(null);
+  const pendingAddFeatRef = useRef<number | null>(null);
 
   const featsData = feats.data as FeatsState | null;
   const isLoading = characterLoading || feats.isLoading;
@@ -50,7 +57,7 @@ export default function FeatsEditor() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, selectedTypes, showAvailableOnly]);
+  }, [activeTab, debouncedSearch, selectedTypes, showAvailableOnly]);
 
   useEffect(() => {
     const loadAvailableFeats = async () => {
@@ -78,7 +85,7 @@ export default function FeatsEditor() {
              page: currentPage,
              limit: FEATS_PER_PAGE,
              featType: featTypeBitmask,
-             search: (searchTerm && searchTerm.length >= 3) ? searchTerm : undefined,
+             search: (debouncedSearch && debouncedSearch.length >= 3) ? debouncedSearch : undefined,
            });
 
            setAvailableFeats(response.feats);
@@ -97,7 +104,7 @@ export default function FeatsEditor() {
     };
 
     loadAvailableFeats();
-  }, [character?.id, activeTab, currentPage, FEATS_PER_PAGE, selectedTypes, searchTerm, showAvailableOnly, setTotalFeats]);
+  }, [character?.id, activeTab, currentPage, FEATS_PER_PAGE, selectedTypes, debouncedSearch, showAvailableOnly, setTotalFeats]);
 
 
   const allMyFeats = useMemo(() => {
@@ -188,25 +195,53 @@ export default function FeatsEditor() {
   const finalAvailableFeats = filteredAvailableFeats;
 
   const handleAddFeat = useCallback(async (featId: number) => {
-    if (!character?.id) return;
+    if (!character?.id || addingFeatId) return;
+
+    pendingAddFeatRef.current = featId;
+    setAddingFeatId(featId);
+    await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
       const response = await CharacterAPI.addFeat(character.id, featId);
       await feats.load({ force: true });
       await invalidateSubsystems(['combat', 'abilityScores']);
 
-      if (response.message && (response.message.includes('feats:') || response.message.includes('abilities:'))) {
-        showToast(response.message, 'success', 6000);
+      setAddingFeatId(null);
+      setAddedFeatId(pendingAddFeatRef.current);
+      pendingAddFeatRef.current = null;
+      setTimeout(() => setAddedFeatId(null), 250);
+
+      const parts: string[] = [];
+      if (response.auto_added_feats?.length) {
+        const names = response.auto_added_feats.map(f => f.label).join(', ');
+        parts.push(`Prerequisites added: ${names}`);
+      }
+      if (response.auto_modified_abilities?.length) {
+        const changes = response.auto_modified_abilities
+          .map(a => `${a.ability} ${a.old_value} -> ${a.new_value}`)
+          .join(', ');
+        parts.push(`Abilities modified: ${changes}`);
+      }
+
+      if (parts.length > 0) {
+        showToast(`Feat added. ${parts.join('. ')}`, 'success', 6000);
       } else {
         showToast('Feat added successfully', 'success');
       }
     } catch (error) {
+      pendingAddFeatRef.current = null;
+      setAddingFeatId(null);
       handleError(error);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast, handleError]);
+  }, [character?.id, feats, invalidateSubsystems, showToast, handleError, addingFeatId]);
 
   const handleRemoveFeat = useCallback(async (featId: number) => {
-    if (!character?.id) return;
+    if (!character?.id || removingFeatId) return;
+
+    if (addedFeatId === featId) setAddedFeatId(null);
+    setRemovingFeatId(featId);
+
+    await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
       await CharacterAPI.removeFeat(character.id, featId);
@@ -215,8 +250,10 @@ export default function FeatsEditor() {
       showToast('Feat removed successfully', 'success');
     } catch (error) {
       handleError(error);
+    } finally {
+      setRemovingFeatId(null);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast, handleError]);
+  }, [character?.id, feats, invalidateSubsystems, showToast, handleError, removingFeatId, addedFeatId]);
 
   const handleLoadFeatDetails = useCallback(async (feat: FeatInfo): Promise<FeatInfo | null> => {
     if (!character?.id) return null;
@@ -331,6 +368,9 @@ export default function FeatsEditor() {
         hasNext={hasNext}
         hasPrevious={hasPrevious}
         onPageChange={handlePageChange}
+        removingFeatId={removingFeatId}
+        addingFeatId={addingFeatId}
+        addedFeatId={addedFeatId}
       />
     </div>
   );
