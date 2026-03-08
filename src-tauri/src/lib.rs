@@ -9,7 +9,9 @@ pub mod state;
 pub mod loaders;
 pub mod commands;
 pub mod character;
+pub mod mcp_server;
 
+use std::sync::Arc;
 use tauri::Manager;
 use tracing::{info, debug};
 
@@ -56,6 +58,17 @@ pub fn run() {
       // Initialize AppState
       info!("Initializing AppState");
       let app_state = crate::state::AppState::new();
+      
+      // Start MCP IPC Bridge
+      let mcp_state = crate::mcp_server::McpState {
+          game_data: Arc::clone(&app_state.game_data),
+          session: Arc::clone(&app_state.session),
+      };
+      
+      tauri::async_runtime::spawn(async move {
+          crate::mcp_server::start(mcp_state, 14207).await;
+      });
+
       app.manage(app_state);
       info!("AppState initialized successfully");
 
