@@ -390,8 +390,9 @@
 .badge-base {
   display: inline-flex;
   align-items: center;
-  border-radius: 9999px;
-  padding: 0.125rem 0.625rem;
+  justify-content: center;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   transition: all 0.2s ease;
@@ -3825,6 +3826,27 @@
   font-size: 0.75rem;
   color: rgb(var(--color-text-muted));
   font-style: italic;
+}
+
+/* Sonner toast overrides */
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  color: rgb(var(--color-text-muted)) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
+  color: rgb(var(--color-success));
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
+  color: rgb(var(--color-error));
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: rgb(var(--color-warning));
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="info"] [data-icon] {
+  color: rgb(var(--color-primary));
 }
 
 } /* Close @layer components */

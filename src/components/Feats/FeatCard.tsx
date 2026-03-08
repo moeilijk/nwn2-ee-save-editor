@@ -1,6 +1,6 @@
 
 import React, { memo, useState } from 'react';
-import { ChevronDown, ChevronUp, Shield, Swords, Sparkles, Sun, Zap, Check, X, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Shield, Swords, Sparkles, Sun, Zap, Check, X, AlertCircle, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -155,7 +155,13 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
         isOwned && 'border-[rgb(var(--color-primary)/0.3)]'
       )}
     >
-      <div className="flex items-start gap-3">
+      <div
+        className="group/card flex items-start gap-3 cursor-pointer"
+        onClick={handleToggleExpand}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleExpand(); } }}
+      >
         <div className="flex-shrink-0">
           <NWN2Icon icon={`ife_${feat.label?.toLowerCase() || ''}`} size="lg" />
         </div>
@@ -166,24 +172,18 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
               <h3 className="text-base font-semibold text-[rgb(var(--color-text-primary))] truncate">
                 {feat.name}
               </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge className={cn("flex items-center gap-1 text-white", typeInfo.colorClass)}>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <Badge className={cn("w-[7.5rem] gap-1 text-white", typeInfo.colorClass)}>
                   {typeInfo.icon}
                   {typeInfo.label}
                 </Badge>
-                {isOwned && (
-                  <Badge variant="default" className="bg-[rgb(var(--color-primary))] text-white flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Active
-                  </Badge>
-                )}
                 {isProtected && (
-                  <Badge variant="outline" className="text-[rgb(var(--color-warning))]">
+                  <Badge variant="outline" className="w-[5.5rem] text-[rgb(var(--color-warning))]">
                     Protected
                   </Badge>
                 )}
                 {feat.custom && (
-                  <Badge variant="secondary">Custom</Badge>
+                  <Badge variant="secondary" className="w-[3.75rem]">Custom</Badge>
                 )}
               </div>
             </div>
@@ -204,27 +204,25 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
               )}
               {isOwned && onRemove && !isProtected && (
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
+                  className="flex-shrink-0 w-8 h-8 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-500"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemove(feat.id);
                   }}
                 >
-                  Remove
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               )}
-              <Button
-                variant="icon-interactive"
-                size="icon"
-                onClick={handleToggleExpand}
-              >
-                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
+              <div className="ml-2 pl-3 border-l border-[rgb(var(--color-surface-border))]">
+                {isExpanded
+                  ? <ChevronUp className="w-4 h-4 text-[rgb(var(--color-text-muted))] group-hover/card:text-[rgb(var(--color-primary))] transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-[rgb(var(--color-text-muted))] group-hover/card:text-[rgb(var(--color-primary))] transition-colors" />
+                }
+              </div>
             </div>
           </div>
-
-
 
           {feat.can_take === false && feat.missing_requirements && feat.missing_requirements.length > 0 && !isExpanded && (
             <div className="mt-2 flex items-start gap-2 text-xs text-[rgb(var(--color-warning))]">
@@ -244,7 +242,7 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
           )}
 
           {!isLoadingDetails && (
-            <>
+            <div className="px-4">
               {displayFeat.description && (() => {
                 const parsed = parseAndCleanDescription(displayFeat.description);
                 const hasStructuredSections = !!(
@@ -356,7 +354,7 @@ function FeatCardComponent({ feat, isOwned, onAdd, onRemove, onLoadDetails, isPr
                   </ul>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       )}

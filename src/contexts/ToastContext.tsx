@@ -1,14 +1,8 @@
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Toast, ToastContainer, ToastType } from '@/components/ui/Toast';
+import { createContext, useContext, useCallback, ReactNode } from 'react';
+import { toast, Toaster } from 'sonner';
 
-interface ToastItem {
-  id: string;
-  message: string;
-  description?: string;
-  type: ToastType;
-  duration?: number;
-}
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 interface ToastContextType {
   showToast: (message: string, type?: ToastType, duration?: number, description?: string) => void;
@@ -16,34 +10,39 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+const toastFn: Record<ToastType, typeof toast.success> = {
+  success: toast.success,
+  error: toast.error,
+  warning: toast.warning,
+  info: toast.info,
+};
+
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
   const showToast = useCallback((message: string, type: ToastType = 'info', duration = 5000, description?: string) => {
-    const id = Math.random().toString(36).substring(7);
-    setToasts(prev => [...prev, { id, message, description, type, duration }]);
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
+    toastFn[type](message, { description, duration });
   }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <ToastContainer>
-        {toasts.map(toast => (
-          <Toast
-            key={toast.id}
-            id={toast.id}
-            message={toast.message}
-            description={toast.description}
-            type={toast.type}
-            duration={toast.duration}
-            onClose={removeToast}
-          />
-        ))}
-      </ToastContainer>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: 'rgb(var(--color-surface-3))',
+            border: '1px solid rgb(var(--color-border))',
+            color: 'rgb(var(--color-text-primary))',
+            fontSize: '13px',
+          },
+          classNames: {
+            description: 'toast-description',
+            success: 'toast-success',
+            error: 'toast-error',
+            warning: 'toast-warning',
+            info: 'toast-info',
+          },
+        }}
+      />
     </ToastContext.Provider>
   );
 }

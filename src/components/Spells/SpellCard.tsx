@@ -1,6 +1,6 @@
 
 import React, { memo, useState } from 'react';
-import { ChevronDown, ChevronUp, Sparkles, Check, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -44,7 +44,7 @@ function SpellCardComponent({
   onAdd,
   onRemove,
   onLoadDetails,
-  casterClasses
+  casterClasses,
 }: SpellCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [detailedSpell, setDetailedSpell] = useState<SpellInfo | null>(null);
@@ -83,7 +83,7 @@ function SpellCardComponent({
       )}
     >
       <div
-        className="flex items-start gap-3 cursor-pointer"
+        className="group/card flex items-start gap-3 cursor-pointer"
         onClick={handleToggleExpand}
         role="button"
         tabIndex={0}
@@ -106,11 +106,11 @@ function SpellCardComponent({
                 {stripNwn2Tags(spell.name)}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge className={cn("flex items-center gap-1 text-white", schoolColorClass)}>
+                <Badge className={cn("w-[7.5rem] gap-1 text-white", schoolColorClass)}>
                   {displaySpell.school_name && getSchoolIcon(displaySpell.school_name, 'sm')}
                   {displaySpell.school_name || 'Unknown'}
                 </Badge>
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="w-[3.75rem]">
                   {levelText}
                 </Badge>
                 {spell.is_domain_spell && (
@@ -118,12 +118,9 @@ function SpellCardComponent({
                     Domain
                   </Badge>
                 )}
-                {isOwned && (
-                  <Badge variant="default" className="bg-[rgb(var(--color-primary))] text-white flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    {spell.memorized_count && spell.memorized_count > 1
-                      ? `x${spell.memorized_count}`
-                      : 'Active'}
+                {spell.memorized_count && spell.memorized_count > 1 && (
+                  <Badge variant="default" className="bg-[rgb(var(--color-primary))] text-white">
+                    x{spell.memorized_count}
                   </Badge>
                 )}
               </div>
@@ -182,13 +179,12 @@ function SpellCardComponent({
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
-              <Button
-                variant="icon-interactive"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); handleToggleExpand(); }}
-              >
-                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
+              <div className="ml-2 pl-3 border-l border-[rgb(var(--color-surface-border))]">
+                {isExpanded
+                  ? <ChevronUp className="w-4 h-4 text-[rgb(var(--color-text-muted))] group-hover/card:text-[rgb(var(--color-primary))] transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-[rgb(var(--color-text-muted))] group-hover/card:text-[rgb(var(--color-primary))] transition-colors" />
+                }
+              </div>
             </div>
           </div>
 
