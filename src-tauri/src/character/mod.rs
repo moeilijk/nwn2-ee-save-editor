@@ -51,6 +51,7 @@ pub use inventory::{
 pub use spells::{
     MemorizedSpellRaw, SpellSummary, SpellDetails, SpellsState, MAX_SPELL_LEVEL,
     SpellcastingClass, KnownSpellEntry, MemorizedSpellEntry, CasterClassSummary, MetamagicFeat,
+    is_displayable_spell, is_mod_prefixed_name,
 };
 pub use skills::{SkillSummaryEntry, SkillPointsSummary, ABLE_LEARNER_FEAT_ID};
 pub use abilities::{AbilityIncrease, AbilityPointsSummary, AbilitiesState};

@@ -97,6 +97,8 @@ export interface BaseItem {
   name: string;
   type: number;
   category: string;
+  subCategory: string;
+  itemClass: string | null;
 }
 
 export interface ItemTemplate {
@@ -104,6 +106,7 @@ export interface ItemTemplate {
   name: string;
   base_item: number;
   category: number;
+  sub_category: string;
   source: string;
 }
 
@@ -111,7 +114,7 @@ export const ITEM_CATEGORIES = {
   0: 'Armor & Clothing',
   1: 'Weapons',
   2: 'Magic Items',
-  3: 'Accessories',
+  3: 'Magic Items',
   4: 'Miscellaneous'
 } as const;
 
@@ -126,6 +129,8 @@ interface AvailableBaseItem {
     id: number;
     name: string;
     item_class: string | null;
+    store_panel: number;
+    sub_category: string;
     weight: number | null;
     base_cost: number | null;
 }
@@ -142,15 +147,44 @@ interface AddItemResult {
     inventory_index?: number;
 }
 
-function mapItemClassToCategory(itemClass: string | null): string {
-    if (!itemClass) return 'Miscellaneous';
-    const cls = itemClass.toUpperCase();
-    if (cls.includes('ARMOR') || cls.includes('CLOTH') || cls.includes('HELM') || cls.includes('BOOT') || cls.includes('GLOVE') || cls.includes('BELT') || cls.includes('CLOAK') || cls.includes('ROBE') || cls.includes('BRACER')) return 'Armor & Clothing';
-    if (cls.includes('WEAPON') || cls.includes('SWORD') || cls.includes('AXE') || cls.includes('BOW') || cls.includes('DAGGER') || cls.includes('STAFF') || cls.includes('MACE') || cls.includes('HAMMER') || cls.includes('SPEAR') || cls.includes('HALBERD') || cls.includes('FLAIL') || cls.includes('CROSSBOW') || cls.includes('SLING') || cls.includes('ARROW') || cls.includes('BOLT') || cls.includes('BULLET') || cls.includes('THROWN')) return 'Weapons';
-    if (cls.includes('RING') || cls.includes('AMULET') || cls.includes('NECK')) return 'Accessories';
-    if (cls.includes('POTION') || cls.includes('SCROLL') || cls.includes('WAND') || cls.includes('ROD') || cls.includes('MAGIC')) return 'Magic Items';
-    return 'Miscellaneous';
-}
+export const SUB_CATEGORY_LABELS: Record<string, string> = {
+    swords: 'inventory.subcategories.swords',
+    axes: 'inventory.subcategories.axes',
+    bows: 'inventory.subcategories.bows',
+    crossbows: 'inventory.subcategories.crossbows',
+    daggers: 'inventory.subcategories.daggers',
+    macesAndHammers: 'inventory.subcategories.macesAndHammers',
+    polearms: 'inventory.subcategories.polearms',
+    staves: 'inventory.subcategories.staves',
+    flails: 'inventory.subcategories.flails',
+    thrown: 'inventory.subcategories.thrown',
+    ammunition: 'inventory.subcategories.ammunition',
+    otherWeapons: 'inventory.subcategories.otherWeapons',
+    bodyArmor: 'inventory.subcategories.bodyArmor',
+    helmets: 'inventory.subcategories.helmets',
+    shields: 'inventory.subcategories.shields',
+    boots: 'inventory.subcategories.boots',
+    gloves: 'inventory.subcategories.gloves',
+    cloaks: 'inventory.subcategories.cloaks',
+    belts: 'inventory.subcategories.belts',
+    robes: 'inventory.subcategories.robes',
+    otherArmor: 'inventory.subcategories.otherArmor',
+    potions: 'inventory.subcategories.potions',
+    scrolls: 'inventory.subcategories.scrolls',
+    wandsAndRods: 'inventory.subcategories.wandsAndRods',
+    otherMagic: 'inventory.subcategories.otherMagic',
+    rings: 'inventory.subcategories.rings',
+    amulets: 'inventory.subcategories.amulets',
+    otherAccessories: 'inventory.subcategories.otherAccessories',
+    gems: 'inventory.subcategories.gems',
+    trapsAndKits: 'inventory.subcategories.trapsAndKits',
+    books: 'inventory.subcategories.books',
+    containers: 'inventory.subcategories.containers',
+    otherMisc: 'inventory.subcategories.otherMisc',
+    other: 'inventory.subcategories.other',
+};
+
+export const CATEGORIES_WITH_SUBS = new Set(['Weapons', 'Armor & Clothing', 'Magic Items', 'Miscellaneous']);
 
 export class InventoryAPI {
   async equipItem(characterId: number, request: EquipItemRequest): Promise<EquipItemResponse> {
@@ -269,7 +303,9 @@ export class InventoryAPI {
                 id: item.id,
                 name: item.name,
                 type: item.id,
-                category: mapItemClassToCategory(item.item_class)
+                category: ITEM_CATEGORIES[item.store_panel as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous',
+                subCategory: item.sub_category,
+                itemClass: item.item_class,
             }))
         };
     } catch (e) {

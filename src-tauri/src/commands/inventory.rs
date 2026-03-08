@@ -49,6 +49,7 @@ pub struct IndexedTemplate {
     pub name: String,
     pub base_item: i32,
     pub category: i32,
+    pub sub_category: String,
     pub source: String,
 }
 
@@ -241,30 +242,41 @@ pub async fn get_available_templates(
 
     let total_start = Instant::now();
 
-    let (templates, category_map) = {
+    let (templates, category_map, sub_category_map) = {
         let resource_manager = state.resource_manager.read().await;
         let game_data = state.game_data.read();
         let templates = resource_manager.get_all_item_templates();
         tracing::info!("get_all_item_templates: {:?}, count: {}", total_start.elapsed(), templates.len());
 
-        let category_map: HashMap<i32, i32> = game_data
-            .get_table("baseitems")
-            .map(|t| {
-                (0..t.row_count())
-                    .filter_map(|i| {
-                        let row = t.get_row(i).ok()?;
-                        let category = row.get("StorePanel")
-                            .or_else(|| row.get("storepanel"))
-                            .and_then(|v| v.as_ref())
-                            .and_then(|s| s.parse::<i32>().ok())
-                            .unwrap_or(4);
-                        Some((i as i32, category))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        
-        (templates, category_map)
+        let mut cat_map: HashMap<i32, i32> = HashMap::new();
+        let mut sub_map: HashMap<i32, String> = HashMap::new();
+        if let Some(t) = game_data.get_table("baseitems") {
+            for i in 0..t.row_count() {
+                if let Ok(row) = t.get_row(i) {
+                    let store_panel = row.get("StorePanel")
+                        .or_else(|| row.get("storepanel"))
+                        .and_then(|v| v.as_ref())
+                        .and_then(|s| s.parse::<i32>().ok())
+                        .unwrap_or(4);
+                    let label = row.get("label")
+                        .or_else(|| row.get("Label"))
+                        .and_then(|v| v.as_ref())
+                        .cloned()
+                        .unwrap_or_default();
+                    let item_class = row.get("itemclass")
+                        .or_else(|| row.get("ItemClass"))
+                        .and_then(|v| v.as_ref())
+                        .map(String::as_str);
+                    cat_map.insert(i as i32, store_panel);
+                    sub_map.insert(
+                        i as i32,
+                        super::gamedata::compute_sub_category(store_panel, &label, item_class),
+                    );
+                }
+            }
+        }
+
+        (templates, cat_map, sub_map)
     };
 
     let tag_regex = Regex::new(r"<[^>]+>").unwrap();
@@ -373,6 +385,7 @@ pub async fn get_available_templates(
         string_ref: Option<i32>,
         base_item: i32,
         category: i32,
+        sub_category: String,
         source: String,
     }
 
@@ -409,6 +422,10 @@ pub async fn get_available_templates(
                 .unwrap_or((None, None));
 
             let category = category_map.get(&base_item).copied().unwrap_or(4);
+            let sub_category = sub_category_map
+                .get(&base_item)
+                .cloned()
+                .unwrap_or_else(|| "other".to_string());
 
             Some(ParsedItem {
                 resref: resref.clone(),
@@ -416,6 +433,7 @@ pub async fn get_available_templates(
                 string_ref,
                 base_item,
                 category,
+                sub_category,
                 source: source.clone(),
             })
         })
@@ -445,6 +463,7 @@ pub async fn get_available_templates(
                 name,
                 base_item: p.base_item,
                 category: p.category,
+                sub_category: p.sub_category,
                 source: p.source,
             }
         })

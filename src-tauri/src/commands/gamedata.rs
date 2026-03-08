@@ -681,6 +681,8 @@ pub struct AvailableBaseItem {
     pub id: i32,
     pub name: String,
     pub item_class: Option<String>,
+    pub store_panel: i32,
+    pub sub_category: String,
     pub weight: Option<f32>,
     pub base_cost: Option<i32>,
 }
@@ -720,6 +722,23 @@ pub async fn get_available_base_items(state: State<'_, AppState>) -> CommandResu
                 .get("itemclass")
                 .or_else(|| row.get("ItemClass"))
                 .and_then(std::clone::Clone::clone);
+            let store_panel = row
+                .get("StorePanel")
+                .or_else(|| row.get("storepanel"))
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(4);
+            let label = row
+                .get("label")
+                .or_else(|| row.get("Label"))
+                .and_then(|v| v.as_ref())
+                .cloned()
+                .unwrap_or_default();
+            let sub_category = compute_sub_category(
+                store_panel,
+                &label,
+                item_class.as_deref(),
+            );
             let weight = row
                 .get("weight")
                 .or_else(|| row.get("Weight"))
@@ -734,6 +753,8 @@ pub async fn get_available_base_items(state: State<'_, AppState>) -> CommandResu
                 id: i as i32,
                 name,
                 item_class,
+                store_panel,
+                sub_category,
                 weight,
                 base_cost,
             });
@@ -824,6 +845,74 @@ pub async fn get_available_item_properties(state: State<'_, AppState>) -> Comman
         }
     }
     Ok(props)
+}
+
+pub(super) fn compute_sub_category(store_panel: i32, label: &str, item_class: Option<&str>) -> String {
+    let label_lower = label.to_lowercase();
+    let cls_lower = item_class.map(str::to_lowercase).unwrap_or_default();
+
+    match store_panel {
+        0 => {
+            if label_lower.contains("helm") { "helmets" }
+            else if label_lower.contains("shield") || label_lower.contains("tower") { "shields" }
+            else if label_lower.contains("boot") { "boots" }
+            else if label_lower.contains("glove") || label_lower.contains("gauntlet") || label_lower.contains("bracer") { "gloves" }
+            else if label_lower.contains("cloak") { "cloaks" }
+            else if label_lower.contains("belt") { "belts" }
+            else if label_lower.contains("robe") || label_lower.contains("cloth") { "robes" }
+            else { "bodyArmor" }
+        }
+        1 => {
+            if cls_lower.contains("sword") || label_lower.contains("sword") || label_lower.contains("rapier")
+                || label_lower.contains("kukri") || label_lower.contains("katana")
+                || label_lower.contains("scimitar") || label_lower.contains("falchion")
+                || label_lower.contains("kama") || label_lower.contains("sickle") { "swords" }
+            else if cls_lower.contains("axe") || label_lower.contains("axe") { "axes" }
+            else if (cls_lower.contains("bow") || label_lower.contains("bow"))
+                && !cls_lower.contains("cross") && !label_lower.contains("cross") { "bows" }
+            else if cls_lower.contains("xbow") || label_lower.contains("crossbow") { "crossbows" }
+            else if cls_lower.contains("dag") || label_lower.contains("dagger") { "daggers" }
+            else if cls_lower.contains("mace") || cls_lower.contains("ham")
+                || label_lower.contains("mace") || label_lower.contains("hammer")
+                || label_lower.contains("morning") || label_lower.contains("club") { "macesAndHammers" }
+            else if label_lower.contains("spear") || label_lower.contains("halberd")
+                || label_lower.contains("trident") || label_lower.contains("pike") { "polearms" }
+            else if cls_lower.contains("staf") || label_lower.contains("staff")
+                || label_lower.contains("quarter") { "staves" }
+            else if label_lower.contains("flail") || label_lower.contains("whip") { "flails" }
+            else if label_lower.contains("thrown") || label_lower.contains("sling")
+                || label_lower.contains("dart") || label_lower.contains("shuriken") { "thrown" }
+            else if label_lower.contains("arrow") || label_lower.contains("bolt")
+                || label_lower.contains("bullet") { "ammunition" }
+            else { "otherWeapons" }
+        }
+        2 => {
+            if label_lower.contains("potion") { "potions" }
+            else if label_lower.contains("scroll") { "scrolls" }
+            else if label_lower.contains("wand") || label_lower.contains("rod") { "wandsAndRods" }
+            else { "otherMagic" }
+        }
+        3 => {
+            if label_lower.contains("wand") || label_lower.contains("rod") { "wandsAndRods" }
+            else if label_lower.contains("ring") { "rings" }
+            else if label_lower.contains("amulet") || label_lower.contains("neck") { "amulets" }
+            else if label_lower.contains("potion") { "potions" }
+            else if label_lower.contains("scroll") { "scrolls" }
+            else { "otherMagic" }
+        }
+        4 => {
+            if label_lower.contains("ring") { "rings" }
+            else if label_lower.contains("amulet") || label_lower.contains("neck") { "amulets" }
+            else if label_lower.contains("gem") || label_lower.contains("jewel") { "gems" }
+            else if label_lower.contains("trap") || label_lower.contains("kit") { "trapsAndKits" }
+            else if label_lower.contains("book") || label_lower.contains("recipe")
+                || label_lower.contains("enchant") { "books" }
+            else if label_lower.contains("container") || label_lower.contains("bag") { "containers" }
+            else { "otherMisc" }
+        }
+        _ => "other",
+    }
+    .to_string()
 }
 
 #[cfg(test)]

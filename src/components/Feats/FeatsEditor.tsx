@@ -36,7 +36,7 @@ export default function FeatsEditor() {
   const [, setAvailableTotal] = useState(0); 
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const FEATS_PER_PAGE = 50;
+  const FEATS_PER_PAGE = 100;
 
   const featsData = feats.data as FeatsState | null;
   const isLoading = characterLoading || feats.isLoading;

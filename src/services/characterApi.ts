@@ -8,6 +8,12 @@ const formatAlignment = (lawChaos: number, goodEvil: number): string => {
   return `${lc} ${ge}`;
 };
 
+const SPELL_SCHOOL_NAME_TO_ID: Record<string, number> = {
+  General: 0, Abjuration: 1, Conjuration: 2, Divination: 3,
+  Enchantment: 4, Evocation: 5, Illusion: 6, Necromancy: 7,
+  Transmutation: 8, Universal: 0,
+};
+
 export interface CharacterAbilities {
   strength: number;
   dexterity: number;
@@ -755,6 +761,7 @@ export class CharacterAPI {
       levels?: string;
       schools?: string;
       search?: string;
+      show_all?: boolean;
     } = {}
   ): Promise<LegitimateSpellsResponse> {
     const result = await invoke<{
@@ -779,9 +786,11 @@ export class CharacterAPI {
     }>('get_character_available_spells', {
       page: options.page,
       limit: options.limit,
-      classId: options.class_id,
+      classId: options.show_all ? undefined : options.class_id,
       spellLevel: options.levels ? parseInt(options.levels.split(',')[0], 10) : undefined,
+      schoolIds: options.schools ? options.schools.split(',').map(name => SPELL_SCHOOL_NAME_TO_ID[name]).filter((id): id is number => id !== undefined) : undefined,
       search: options.search,
+      showAll: options.show_all || undefined,
     });
 
     return {
@@ -799,6 +808,17 @@ export class CharacterAPI {
     };
   }
 
+  static async getAbilitySpells(): Promise<Array<{
+    spell_id: number;
+    name: string;
+    icon: string;
+    description?: string;
+    school_name?: string;
+    innate_level: number;
+  }>> {
+    return await invoke('get_character_ability_spells');
+  }
+
   static async manageSpell(
     characterId: number,
     action: 'add' | 'remove',
@@ -807,21 +827,17 @@ export class CharacterAPI {
     spellLevel?: number
   ): Promise<SpellManageResponse> {
       try {
-        let result;
-        if (action === 'add') {
-             // assuming classIndex maps to logic in frontend? or we need classId.
-             // Rust command expects class_id, not index.
-             // Frontend usually has access to class_id. If missing here we might fail.
-             // But let's assume classIndex IS classId for now or 0.
-             // Wait, Rust signature: add_known_spell(class_id, spell_level, spell_id)
-             result = await invoke('add_known_spell', { classId: classIndex, spellLevel: spellLevel || 0, spellId: spellId });
-        } else {
-             result = await invoke('remove_known_spell', { classId: classIndex, spellLevel: spellLevel || 0, spellId: spellId });
+        const result = action === 'add'
+          ? await invoke<{ success: boolean; message: string }>('add_known_spell', { classIndex, spellLevel: spellLevel ?? 0, spellId })
+          : await invoke<{ success: boolean; message: string }>('remove_known_spell', { classIndex, spellLevel: spellLevel ?? 0, spellId });
+
+        if (!result.success) {
+          throw new Error(result.message);
         }
-        
+
         return {
-            message: "Spell updated",
-            spell_summary: {}, // Refresh summary needed?
+            message: result.message,
+            spell_summary: {},
             has_unsaved_changes: true
         };
       } catch (error) {

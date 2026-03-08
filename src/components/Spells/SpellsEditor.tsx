@@ -1,7 +1,7 @@
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui/Card';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle, Info, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { useSpellSearch } from '@/hooks/useSpellSearch';
@@ -11,6 +11,10 @@ import type { SpellInfo, SpellsState, SpellcastingClass, KnownSpell } from './ty
 import { useToast } from '@/contexts/ToastContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useTranslations } from '@/hooks/useTranslations';
+import { Badge } from '@/components/ui/Badge';
+import NWN2Icon from '@/components/ui/NWN2Icon';
+import { display } from '@/utils/dataHelpers';
+import { stripNwn2Tags } from '@/utils/nwn2Markup';
 
 export default function SpellsEditor() {
   const {
@@ -39,7 +43,18 @@ export default function SpellsEditor() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const SPELLS_PER_PAGE = 50;
+  const [debugMode, setDebugMode] = useState(false);
+  const [abilitySpells, setAbilitySpells] = useState<Array<{
+    spell_id: number; name: string; icon: string;
+    description?: string; school_name?: string; innate_level: number;
+  }>>([]);
+  const [abilitySpellsExpanded, setAbilitySpellsExpanded] = useState(false);
+  const SPELLS_PER_PAGE = 100;
+
+  const [removingSpellKey, setRemovingSpellKey] = useState<string | null>(null);
+  const [addingSpellKey, setAddingSpellKey] = useState<string | null>(null);
+  const [addedSpellKey, setAddedSpellKey] = useState<string | null>(null);
+  const pendingAddSpellRef = useRef<string | null>(null);
 
   const spellsData = spells.data as SpellsState | null;
   const isLoading = characterLoading || spells.isLoading;
@@ -52,8 +67,16 @@ export default function SpellsEditor() {
   }, [character?.id, spells.data, spells.isLoading, spells]);
 
   useEffect(() => {
+    if (character?.id) {
+      CharacterAPI.getAbilitySpells()
+        .then(setAbilitySpells)
+        .catch(() => setAbilitySpells([]));
+    }
+  }, [character?.id]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, selectedClasses, selectedSchools, selectedLevels]);
+  }, [activeTab, searchTerm, selectedClasses, selectedSchools, selectedLevels, debugMode]);
 
   useEffect(() => {
     const loadAvailableSpells = async () => {
@@ -84,6 +107,7 @@ export default function SpellsEditor() {
           levels,
           search: (searchTerm && searchTerm.length >= 3) ? searchTerm : undefined,
           class_id: classId,
+          show_all: debugMode || undefined,
         });
 
         setAvailableSpells(response.spells);
@@ -99,7 +123,7 @@ export default function SpellsEditor() {
     };
 
     loadAvailableSpells();
-  }, [character?.id, activeTab, currentPage, SPELLS_PER_PAGE, selectedClasses, selectedSchools, selectedLevels, searchTerm, setTotalSpells]);
+  }, [character?.id, activeTab, currentPage, SPELLS_PER_PAGE, selectedClasses, selectedSchools, selectedLevels, searchTerm, setTotalSpells, debugMode]);
 
   const casterClasses = useMemo(() => {
     if (!spellsData?.spellcasting_classes) return [];
@@ -219,9 +243,11 @@ export default function SpellsEditor() {
   const filteredMySpells = useMemo(() => filterAndSortSpells(searchedMySpells), [searchedMySpells, filterAndSortSpells]);
 
   const filteredAvailableSpells = useMemo(() => {
-    const notOwned = availableSpells.filter(spell => !ownedSpellIds.has(spell.id));
+    const spellsToShow = debugMode
+      ? availableSpells
+      : availableSpells.filter(spell => !ownedSpellIds.has(spell.id));
 
-    return notOwned.sort((a, b) => {
+    return spellsToShow.sort((a, b) => {
       switch (sortBy) {
         case 'name':
           return a.name.localeCompare(b.name);
@@ -233,26 +259,46 @@ export default function SpellsEditor() {
           return 0;
       }
     });
-  }, [availableSpells, ownedSpellIds, sortBy]);
+  }, [availableSpells, ownedSpellIds, sortBy, debugMode]);
 
   const finalAvailableSpells = filteredAvailableSpells;
 
   const handleAddSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
-    if (!character?.id) return;
+    if (!character?.id || addingSpellKey) return;
+
+    const key = `${spellId}-${spellLevel}`;
+    pendingAddSpellRef.current = key;
+
+    setAddingSpellKey(key);
+    await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
       const response = await CharacterAPI.manageSpell(character.id, 'add', spellId, classIndex, spellLevel);
       await spells.load({ force: true });
       await invalidateSubsystems(['combat']);
 
+      setAddingSpellKey(null);
+      setAddedSpellKey(pendingAddSpellRef.current);
+      pendingAddSpellRef.current = null;
+      setTimeout(() => setAddedSpellKey(null), 250);
+
       showToast(response.message || 'Spell learned successfully', 'success');
     } catch (error) {
+      pendingAddSpellRef.current = null;
+      setAddingSpellKey(null);
       handleError(error);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast, handleError]);
+  }, [character?.id, spells, invalidateSubsystems, showToast, handleError, addingSpellKey]);
 
   const handleRemoveSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
-    if (!character?.id) return;
+    if (!character?.id || removingSpellKey) return;
+
+    const key = `${spellId}-${spellLevel}`;
+
+    if (addedSpellKey === key) setAddedSpellKey(null);
+    setRemovingSpellKey(key);
+
+    await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
       const response = await CharacterAPI.manageSpell(character.id, 'remove', spellId, classIndex, spellLevel);
@@ -261,8 +307,10 @@ export default function SpellsEditor() {
       showToast(response.message || 'Spell removed successfully', 'success');
     } catch (error) {
       handleError(error);
+    } finally {
+      setRemovingSpellKey(null);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast, handleError]);
+  }, [character?.id, spells, invalidateSubsystems, showToast, handleError, removingSpellKey, addedSpellKey]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(totalSpells / SPELLS_PER_PAGE);
@@ -309,6 +357,8 @@ export default function SpellsEditor() {
           hasPrevious={false}
           onPageChange={() => {}}
           availableClasses={availableClassFilters}
+          debugMode={debugMode}
+          onDebugToggle={() => setDebugMode(prev => !prev)}
         />
         <div className="flex items-center justify-center h-64 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))] rounded-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[rgb(var(--color-primary))]"></div>
@@ -362,6 +412,8 @@ export default function SpellsEditor() {
           hasPrevious={hasPrevious}
           onPageChange={handlePageChange}
           availableClasses={availableClassFilters}
+          debugMode={debugMode}
+          onDebugToggle={() => setDebugMode(prev => !prev)}
         />
       </div>
 
@@ -383,6 +435,58 @@ export default function SpellsEditor() {
         </div>
       )}
 
+      {abilitySpells.length > 0 && (
+        <div className="mb-4 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))] rounded-lg overflow-hidden">
+          <button
+            onClick={() => setAbilitySpellsExpanded(prev => !prev)}
+            className="w-full flex items-center justify-between p-3 hover:bg-[rgb(var(--color-surface-2))] transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-500" />
+              <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">
+                {t('spells.abilitySpells')}
+              </span>
+              <Badge variant="secondary">{abilitySpells.length}</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[rgb(var(--color-text-muted))]">
+                {t('spells.abilitySpellsDescription')}
+              </span>
+              {abilitySpellsExpanded
+                ? <ChevronUp className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
+                : <ChevronDown className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
+              }
+            </div>
+          </button>
+          {abilitySpellsExpanded && (
+            <div className="border-t border-[rgb(var(--color-surface-border))] p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {abilitySpells.map((spell) => (
+                  <div
+                    key={spell.spell_id}
+                    className="flex items-center gap-3 p-2 rounded-md bg-[rgb(var(--color-surface-2))]"
+                  >
+                    <NWN2Icon icon={spell.icon} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
+                        {display(stripNwn2Tags(spell.name))}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {spell.school_name && (
+                          <span className="text-xs text-[rgb(var(--color-text-muted))]">
+                            {spell.school_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <SpellTabContent
         activeTab={activeTab}
         mySpells={filteredMySpells}
@@ -397,6 +501,9 @@ export default function SpellsEditor() {
         hasPrevious={hasPrevious}
         onPageChange={handlePageChange}
         casterClasses={casterClasses}
+        removingSpellKey={removingSpellKey}
+        addingSpellKey={addingSpellKey}
+        addedSpellKey={addedSpellKey}
       />
     </div>
   );

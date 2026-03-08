@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Button } from '@/components/ui/Button';
 import { SpellCard } from './SpellCard';
@@ -27,6 +27,58 @@ export interface SpellTabContentProps {
   onPageChange: (page: number) => void;
 
   casterClasses: Array<{index: number; name: string; class_id: number; can_edit_spells: boolean}>;
+
+  removingSpellKey?: string | null;
+  addingSpellKey?: string | null;
+  addedSpellKey?: string | null;
+}
+
+function AnimatedSpellCard({
+  spell,
+  spellKey,
+  removingSpellKey,
+  addedSpellKey,
+  ...cardProps
+}: {
+  spell: SpellInfo;
+  spellKey: string;
+  removingSpellKey?: string | null;
+  addedSpellKey?: string | null;
+  isOwned: boolean;
+  onRemove?: (spellId: number, classIndex: number, spellLevel: number) => void;
+  onLoadDetails?: (spell: SpellInfo) => Promise<SpellInfo | null>;
+  casterClasses: Array<{index: number; name: string; class_id: number; can_edit_spells: boolean}>;
+}) {
+  const isRemoving = removingSpellKey === spellKey;
+  const isAdding = addedSpellKey === spellKey;
+  const [mounted, setMounted] = useState(!isAdding);
+
+  useEffect(() => {
+    if (isAdding && !mounted) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setMounted(true);
+        });
+      });
+    }
+  }, [isAdding, mounted]);
+
+  return (
+    <div
+      className={cn(
+        'grid transition-all duration-[180ms]',
+        isRemoving
+          ? 'grid-rows-[0fr] opacity-0 -translate-x-10 mb-0 ease-in'
+          : (isAdding && !mounted)
+            ? 'grid-rows-[0fr] opacity-0 translate-x-10 mb-0 ease-in'
+            : 'grid-rows-[1fr] opacity-100 translate-x-0 mb-3 ease-out'
+      )}
+    >
+      <div className="overflow-hidden">
+        <SpellCard spell={spell} {...cardProps} />
+      </div>
+    </div>
+  );
 }
 
 function MySpellsTabComponent({
@@ -34,11 +86,15 @@ function MySpellsTabComponent({
   onRemove,
   onLoadDetails,
   casterClasses,
+  removingSpellKey,
+  addedSpellKey,
 }: {
   spells: SpellInfo[];
   onRemove: (spellId: number, classIndex: number, spellLevel: number) => void;
   onLoadDetails?: (spell: SpellInfo) => Promise<SpellInfo | null>;
   casterClasses: Array<{index: number; name: string; class_id: number; can_edit_spells: boolean}>;
+  removingSpellKey?: string | null;
+  addedSpellKey?: string | null;
 }) {
   if (spells.length === 0) {
     return (
@@ -51,22 +107,55 @@ function MySpellsTabComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3">
-      {spells.map((spell, index) => (
-        <SpellCard
-          key={`${spell.id}-${spell.level}-${index}`}
-          spell={spell}
-          isOwned={true}
-          onRemove={onRemove}
-          onLoadDetails={onLoadDetails}
-          casterClasses={casterClasses}
-        />
-      ))}
+    <div className="grid grid-cols-1">
+      {spells.map((spell, index) => {
+        const spellKey = `${spell.id}-${spell.level}`;
+        return (
+          <AnimatedSpellCard
+            key={`${spell.id}-${spell.level}-${index}`}
+            spell={spell}
+            spellKey={spellKey}
+            removingSpellKey={removingSpellKey}
+            addedSpellKey={addedSpellKey}
+            isOwned={true}
+            onRemove={onRemove}
+            onLoadDetails={onLoadDetails}
+            casterClasses={casterClasses}
+          />
+        );
+      })}
     </div>
   );
 }
 
 const MySpellsTab = memo(MySpellsTabComponent);
+
+function AvailableSpellCardWrapper({
+  spellKey,
+  addingSpellKey,
+  children,
+}: {
+  spellKey: string;
+  addingSpellKey?: string | null;
+  children: React.ReactNode;
+}) {
+  const isLeaving = addingSpellKey === spellKey;
+
+  return (
+    <div
+      className={cn(
+        'grid transition-all duration-[180ms]',
+        isLeaving
+          ? 'grid-rows-[0fr] opacity-0 translate-x-10 mb-0 ease-in'
+          : 'grid-rows-[1fr] opacity-100 translate-x-0 mb-3 ease-out'
+      )}
+    >
+      <div className="overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function AvailableSpellsTabComponent({
   spells,
@@ -74,12 +163,14 @@ function AvailableSpellsTabComponent({
   onAdd,
   onLoadDetails,
   casterClasses,
+  addingSpellKey,
 }: {
   spells: SpellInfo[];
   ownedSpellIds: Set<number>;
   onAdd: (spellId: number, classIndex: number, spellLevel: number) => void;
   onLoadDetails?: (spell: SpellInfo) => Promise<SpellInfo | null>;
   casterClasses: Array<{index: number; name: string; class_id: number; can_edit_spells: boolean}>;
+  addingSpellKey?: string | null;
 }) {
   if (spells.length === 0) {
     return (
@@ -92,17 +183,25 @@ function AvailableSpellsTabComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3">
-      {spells.map((spell, index) => (
-        <SpellCard
-          key={`${spell.id}-${spell.level}-${index}`}
-          spell={spell}
-          isOwned={ownedSpellIds.has(spell.id)}
-          onAdd={onAdd}
-          onLoadDetails={onLoadDetails}
-          casterClasses={casterClasses}
-        />
-      ))}
+    <div className="grid grid-cols-1">
+      {spells.map((spell, index) => {
+        const spellKey = `${spell.id}-${spell.level}`;
+        return (
+          <AvailableSpellCardWrapper
+            key={`${spell.id}-${spell.level}-${index}`}
+            spellKey={spellKey}
+            addingSpellKey={addingSpellKey}
+          >
+            <SpellCard
+              spell={spell}
+              isOwned={ownedSpellIds.has(spell.id)}
+              onAdd={onAdd}
+              onLoadDetails={onLoadDetails}
+              casterClasses={casterClasses}
+            />
+          </AvailableSpellCardWrapper>
+        );
+      })}
     </div>
   );
 }
@@ -124,11 +223,24 @@ function SpellTabContentComponent({
   hasPrevious,
   onPageChange,
   casterClasses,
+  removingSpellKey,
+  addingSpellKey,
+  addedSpellKey,
 }: SpellTabContentProps) {
+  const topAnchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let el = topAnchorRef.current?.parentElement;
+    while (el) {
+      el.scrollTop = 0;
+      el = el.parentElement;
+    }
+  }, [currentPage]);
 
   return (
     <div className="flex flex-col flex-1 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))] rounded-lg overflow-hidden">
       <ScrollArea className="flex-1">
+        <div ref={topAnchorRef} />
         <div className="p-4">
           <div className={cn('transition-opacity duration-200', activeTab === 'my-spells' ? 'block' : 'hidden')}>
             <MySpellsTab
@@ -136,6 +248,8 @@ function SpellTabContentComponent({
               onRemove={onRemoveSpell}
               onLoadDetails={onLoadSpellDetails}
               casterClasses={casterClasses}
+              removingSpellKey={removingSpellKey}
+              addedSpellKey={addedSpellKey}
             />
           </div>
 
@@ -145,6 +259,8 @@ function SpellTabContentComponent({
               onRemove={onRemoveSpell}
               onLoadDetails={onLoadSpellDetails}
               casterClasses={casterClasses}
+              removingSpellKey={removingSpellKey}
+              addedSpellKey={addedSpellKey}
             />
           </div>
 
@@ -155,6 +271,7 @@ function SpellTabContentComponent({
               onAdd={onAddSpell}
               onLoadDetails={onLoadSpellDetails}
               casterClasses={casterClasses}
+              addingSpellKey={addingSpellKey}
             />
           </div>
         </div>

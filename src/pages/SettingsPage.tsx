@@ -267,8 +267,8 @@ export default function SettingsPage() {
     path: string | null;
     exists: boolean;
     autoDetected: boolean;
-    onEdit: () => void;
-    onReset: () => void;
+    onEdit?: () => void;
+    onReset?: () => void;
   }) => (
     <div className="flex items-center justify-between py-3 border-b last:border-0">
       <div className="flex-1">

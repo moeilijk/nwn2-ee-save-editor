@@ -1,9 +1,9 @@
-use crate::character::{MemorizedSpellRaw, SpellSummary, SpellDetails};
+use crate::character::{MemorizedSpellRaw, SpellSummary, SpellDetails, is_displayable_spell, is_mod_prefixed_name};
 use crate::character::types::{ClassId, SpellId};
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tauri::State;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -297,6 +297,17 @@ pub struct PaginationInfo {
     pub has_previous: bool,
 }
 
+const LEARNABLE_CLASS_COLUMNS: &[(&str, &str)] = &[
+    ("Bard", "Bard"),
+    ("Cleric", "Cleric"),
+    ("Druid", "Druid"),
+    ("Paladin", "Paladin"),
+    ("Ranger", "Ranger"),
+    ("Wiz_Sorc", "Wizard/Sorcerer"),
+    ("FavSoul", "Favored Soul"),
+    ("SpiritShm", "Spirit Shaman"),
+];
+
 #[tauri::command]
 pub async fn get_character_available_spells(
     state: State<'_, AppState>,
@@ -304,7 +315,9 @@ pub async fn get_character_available_spells(
     limit: Option<i32>,
     class_id: Option<i32>,
     spell_level: Option<i32>,
+    school_ids: Option<Vec<i32>>,
     search: Option<String>,
+    show_all: Option<bool>,
 ) -> CommandResult<AvailableSpellsResponse> {
     let session = state.session.read();
     let game_data = state.game_data.read();
@@ -312,6 +325,7 @@ pub async fn get_character_available_spells(
 
     let page = page.unwrap_or(1).max(1);
     let limit = limit.unwrap_or(50).clamp(10, 100);
+    let show_all = show_all.unwrap_or(false);
 
     let spells_table = game_data
         .get_table("spells")
@@ -329,7 +343,7 @@ pub async fn get_character_available_spells(
         })
         .collect();
 
-    if class_columns.is_empty() {
+    if !show_all && class_columns.is_empty() {
         return Ok(AvailableSpellsResponse {
             spells: vec![],
             pagination: PaginationInfo {
@@ -352,11 +366,17 @@ pub async fn get_character_available_spells(
             continue;
         };
 
-        // Skip removed spells
-        if spell_row.get("REMOVED").and_then(|v| v.as_ref()).is_some_and(|v| v == "1") {
+        if !is_displayable_spell(&spell_row) {
             continue;
         }
-        if spell_row.get("DELETED").and_then(|v| v.as_ref()).is_some_and(|v| !v.is_empty() && v != "****") {
+        // Only include spells on a traditional caster class list - excludes Warlock
+        // invocations, Stormlord abilities, and other class features that only appear
+        // in Warlock/Innate columns
+        let on_caster_list = LEARNABLE_CLASS_COLUMNS.iter().any(|&(col, _)| {
+            spell_row.get(col).and_then(|v| v.as_ref())
+                .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+        });
+        if !on_caster_list {
             continue;
         }
 
@@ -364,25 +384,41 @@ pub async fn get_character_available_spells(
         let mut available_classes: Vec<String> = Vec::new();
         let mut found_level: Option<i32> = None;
 
-        for (cid, col, class_name) in &class_columns {
-            // Filter by class_id if specified
-            if let Some(filter_class) = class_id
-                && cid.0 != filter_class {
-                    continue;
+        if show_all {
+            for &(col, class_name) in LEARNABLE_CLASS_COLUMNS {
+                if let Some(level_str) = spell_row.get(col).and_then(|v| v.as_ref())
+                    && let Ok(lvl) = level_str.parse::<i32>()
+                    && lvl >= 0
+                {
+                    if let Some(filter_level) = spell_level
+                        && lvl != filter_level {
+                            continue;
+                        }
+                    available_classes.push(class_name.to_string());
+                    if found_level.is_none() {
+                        found_level = Some(lvl);
+                    }
                 }
-
-            if let Some(level_str) = spell_row.get(col).and_then(|v| v.as_ref())
-                && let Ok(lvl) = level_str.parse::<i32>()
-                && lvl >= 0
-            {
-                // Filter by spell level if specified
-                if let Some(filter_level) = spell_level
-                    && lvl != filter_level {
+            }
+        } else {
+            for (cid, col, class_name) in &class_columns {
+                if let Some(filter_class) = class_id
+                    && cid.0 != filter_class {
                         continue;
                     }
-                available_classes.push(class_name.clone());
-                if found_level.is_none() {
-                    found_level = Some(lvl);
+
+                if let Some(level_str) = spell_row.get(col).and_then(|v| v.as_ref())
+                    && let Ok(lvl) = level_str.parse::<i32>()
+                    && lvl >= 0
+                {
+                    if let Some(filter_level) = spell_level
+                        && lvl != filter_level {
+                            continue;
+                        }
+                    available_classes.push(class_name.clone());
+                    if found_level.is_none() {
+                        found_level = Some(lvl);
+                    }
                 }
             }
         }
@@ -405,6 +441,10 @@ pub async fn get_character_available_spells(
                 }
             })
             .unwrap_or_else(|| format!("Spell {row_id}"));
+
+        if is_mod_prefixed_name(&name) {
+            continue;
+        }
 
         // Apply search filter
         if let Some(ref search_lower) = search_lower
@@ -431,6 +471,18 @@ pub async fn get_character_available_spells(
             }
         });
 
+        if let Some(ref filter_schools) = school_ids
+            && !filter_schools.is_empty()
+        {
+            if let Some(sid) = school_id {
+                if !filter_schools.contains(&sid) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+
         let school_name = school_id.and_then(|id| {
             game_data
                 .get_table("spellschools")
@@ -443,7 +495,7 @@ pub async fn get_character_available_spells(
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
-                    game_data.get_string(strref)
+                    game_data.get_string(strref).filter(|s| !s.is_empty())
                 } else if !desc_raw.is_empty() {
                     Some(desc_raw.clone())
                 } else {
@@ -489,4 +541,104 @@ pub async fn get_character_available_spells(
             has_previous: page > 1,
         },
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AbilitySpellEntry {
+    pub spell_id: i32,
+    pub name: String,
+    pub icon: String,
+    pub description: Option<String>,
+    pub school_name: Option<String>,
+    pub innate_level: i32,
+}
+
+fn is_on_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
+    LEARNABLE_CLASS_COLUMNS.iter().any(|&(col, _)| {
+        spell_row.get(col).and_then(|v| v.as_ref())
+            .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+    })
+}
+
+#[tauri::command]
+pub async fn get_character_ability_spells(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<AbilitySpellEntry>> {
+    let session = state.session.read();
+    let game_data = state.game_data.read();
+    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+
+    let spells_table = game_data
+        .get_table("spells")
+        .ok_or_else(|| CommandError::NotFound { item: "spells table".to_string() })?;
+
+    let char_feats: HashSet<i32> = character.feat_ids().iter().map(|f| f.0).collect();
+
+    // Collect all spell IDs from the character's known spell lists
+    let mut known_spell_ids: HashSet<i32> = HashSet::new();
+    for class_entry in character.class_entries() {
+        for level in 0..=9 {
+            for spell_id in character.known_spells(class_entry.class_id, level) {
+                known_spell_ids.insert(spell_id.0);
+            }
+        }
+    }
+
+    let mut ability_spells = Vec::new();
+    let mut seen = HashSet::new();
+
+    for row_id in 0..spells_table.row_count() {
+        let Ok(spell_row) = spells_table.get_row(row_id) else {
+            continue;
+        };
+
+        if spell_row.get("REMOVED").and_then(|v| v.as_ref()).is_some_and(|v| v == "1") {
+            continue;
+        }
+
+        let spell_id_val = row_id as i32;
+        let user_type = spell_row.get("UserType").and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<i32>().ok()).unwrap_or(1);
+        let feat_id = spell_row.get("FeatID").and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<i32>().ok());
+        let is_spellability = spell_row.get("Label").and_then(|v| v.as_ref())
+            .is_some_and(|v| v.starts_with("SPELLABILITY_"));
+        let on_caster_list = is_on_caster_list(&spell_row);
+
+        // Include if: character has the feat that grants this spell
+        let has_feat = feat_id.is_some_and(|fid| char_feats.contains(&fid));
+        // Include if: character knows this spell AND it's not a regular learnable spell
+        let is_known_ability = known_spell_ids.contains(&spell_id_val)
+            && (user_type != 1 || is_spellability || !on_caster_list);
+
+        if !has_feat && !is_known_ability {
+            continue;
+        }
+        if !seen.insert(spell_id_val) {
+            continue;
+        }
+
+        let spell_id = SpellId(spell_id_val);
+        let Some(details) = character.get_spell_details(spell_id, &game_data) else {
+            continue;
+        };
+
+        let innate_level = spell_row
+            .get("Innate")
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(0);
+
+        ability_spells.push(AbilitySpellEntry {
+            spell_id: spell_id_val,
+            name: details.name,
+            icon: details.icon,
+            description: details.description,
+            school_name: details.school_name,
+            innate_level,
+        });
+    }
+
+    ability_spells.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(ability_spells)
 }

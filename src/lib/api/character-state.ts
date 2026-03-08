@@ -114,7 +114,7 @@ export const CharacterStateAPI = {
    * Returns the updated AbilitiesState.
    */
   applyPointBuy: (newScores: import('../bindings').AbilityScores) =>
-    invoke<AbilitiesState>('apply_point_buy', { new_scores: newScores }),
+    invoke<AbilitiesState>('apply_point_buy', { newScores }),
 
   // ===========================================================================
   // Session Management
@@ -124,13 +124,13 @@ export const CharacterStateAPI = {
    * Load a character from a save file.
    */
   loadCharacter: (filePath: string) =>
-    invoke<boolean>('load_character', { file_path: filePath }),
+    invoke<boolean>('load_character', { filePath }),
 
   /**
    * Save the current character.
    */
   saveCharacter: (filePath?: string) =>
-    invoke<boolean>('save_character', { file_path: filePath }),
+    invoke<boolean>('save_character', { filePath }),
 
   /**
    * Close the current character.
@@ -158,25 +158,17 @@ export const CharacterStateAPI = {
   resetAllSkills: () => invoke<number>('reset_all_skills'),
 
   // Feats
-  addFeat: (featId: FeatId) => invoke<void>('add_feat', { feat_id: featId }),
-  removeFeat: (featId: FeatId) => invoke<void>('remove_feat', { feat_id: featId }),
+  addFeat: (featId: FeatId) => invoke<void>('add_feat', { featId }),
+  removeFeat: (featId: FeatId) => invoke<void>('remove_feat', { featId }),
   swapFeat: (oldFeatId: FeatId, newFeatId: FeatId) =>
-    invoke<void>('swap_feat', { old_feat_id: oldFeatId, new_feat_id: newFeatId }),
+    invoke<void>('swap_feat', { oldFeatId, newFeatId }),
 
   // Spells
   addKnownSpell: (classIndex: number, spellLevel: number, spellId: SpellId) =>
-    invoke<SpellChangeResult>('add_known_spell', {
-      class_index: classIndex,
-      spell_level: spellLevel,
-      spell_id: spellId,
-    }),
+    invoke<SpellChangeResult>('add_known_spell', { classIndex, spellLevel, spellId }),
 
   removeKnownSpell: (classIndex: number, spellLevel: number, spellId: SpellId) =>
-    invoke<SpellChangeResult>('remove_known_spell', {
-      class_index: classIndex,
-      spell_level: spellLevel,
-      spell_id: spellId,
-    }),
+    invoke<SpellChangeResult>('remove_known_spell', { classIndex, spellLevel, spellId }),
 
   // Combat
   updateNaturalArmor: (value: number) =>
@@ -186,7 +178,7 @@ export const CharacterStateAPI = {
     invoke<InitiativeChange>('update_initiative_bonus', { value }),
 
   setMiscSaveBonus: (saveType: number, value: number) =>
-    invoke<SaveChange>('set_misc_save_bonus', { save_type: saveType, value }),
+    invoke<SaveChange>('set_misc_save_bonus', { saveType, value }),
 
   updateHitPoints: (current?: number, max?: number) =>
     invoke<HitPoints>('update_hit_points', { current, max }),
@@ -195,16 +187,13 @@ export const CharacterStateAPI = {
   setGold: (amount: number) => invoke<number>('set_gold', { amount }),
 
   equipItem: (inventoryIndex: number, slot: EquipmentSlot) =>
-    invoke<EquipResult>('equip_item', { inventory_index: inventoryIndex, slot }),
+    invoke<EquipResult>('equip_item', { inventoryIndex, slot }),
 
   unequipItem: (slot: EquipmentSlot) =>
     invoke<UnequipResult>('unequip_item', { slot }),
 
   addToInventory: (baseItemId: number, stackSize: number) =>
-    invoke<AddItemResult>('add_to_inventory', {
-      base_item_id: baseItemId,
-      stack_size: stackSize,
-    }),
+    invoke<AddItemResult>('add_to_inventory', { baseItemId, stackSize }),
 
   removeFromInventory: (index: number) =>
     invoke<RemoveItemResult>('remove_from_inventory', { index }),

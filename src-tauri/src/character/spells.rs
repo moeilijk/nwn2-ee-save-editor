@@ -12,6 +12,38 @@ use super::gff_helpers::gff_value_to_i32;
 
 pub const MAX_SPELL_LEVEL: i32 = 9;
 
+/// Mod-added spells use name prefixes to distinguish from vanilla content.
+/// These are internal to modpacks and not selectable in the game's spell UI.
+pub fn is_mod_prefixed_name(name: &str) -> bool {
+    name.starts_with("K's ")
+}
+
+pub fn is_displayable_spell(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
+    if spell_row.get("REMOVED").and_then(|v| v.as_ref()).is_some_and(|v| v == "1") {
+        return false;
+    }
+    if spell_row.get("DELETED").and_then(|v| v.as_ref()).is_some_and(|v| !v.is_empty() && v != "****") {
+        return false;
+    }
+    if spell_row.get("Master").and_then(|v| v.as_ref()).is_some_and(|v| {
+        !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0)
+    }) {
+        return false;
+    }
+    if spell_row.get("UserType").and_then(|v| v.as_ref()).is_some_and(|v| v != "1") {
+        return false;
+    }
+    if spell_row.get("FeatID").and_then(|v| v.as_ref()).is_some_and(|v| {
+        !v.is_empty() && v != "****" && v.parse::<i32>().is_ok()
+    }) {
+        return false;
+    }
+    if spell_row.get("Label").and_then(|v| v.as_ref()).is_some_and(|v| v.starts_with("SPELLABILITY_")) {
+        return false;
+    }
+    true
+}
+
 static SCHOOL_LETTER_MAP: LazyLock<HashMap<char, i32>> = LazyLock::new(|| {
     HashMap::from([
         ('G', 0),
@@ -1065,26 +1097,43 @@ impl Character {
     }
 
     /// Get a comprehensive spell summary for all spellcasting classes (internal use).
+    ///
+    /// Iterates the raw ClassList with proper indices so that `class_list_index`
+    /// matches the positional index used by `add_known_spell`/`remove_known_spell`.
     fn get_spell_summary_internal(&self, game_data: &GameData) -> Vec<ClassSpellInfoInternal> {
+        let Some(class_list) = self.get_list("ClassList") else {
+            return Vec::new();
+        };
+
         let mut classes = Vec::new();
 
-        for class_entry in self.class_entries() {
-            if !self.is_spellcaster(class_entry.class_id, game_data) {
+        for (list_idx, entry) in class_list.iter().enumerate() {
+            let class_id_val = gff_value_to_i32(
+                entry.get("Class").unwrap_or(&GffValue::Int(-1)),
+            )
+            .unwrap_or(-1);
+            if class_id_val < 0 {
+                continue;
+            }
+            let class_id = ClassId(class_id_val);
+
+            if !self.is_spellcaster(class_id, game_data) {
                 continue;
             }
 
-            let caster_level = self.get_caster_level(class_entry.class_id, game_data);
-            let is_prepared = self.is_prepared_caster(class_entry.class_id, game_data);
-            let base_slots = self.calculate_spell_slots(class_entry.class_id, game_data);
+            let caster_level = self.get_caster_level(class_id, game_data);
+            let is_prepared = self.is_prepared_caster(class_id, game_data);
+            let base_slots = self.calculate_spell_slots(class_id, game_data);
 
             let mut bonus_slots = vec![0; 10];
             for spell_level in 1..=MAX_SPELL_LEVEL {
                 bonus_slots[spell_level as usize] =
-                    self.calculate_bonus_spell_slots(class_entry.class_id, spell_level, game_data);
+                    self.calculate_bonus_spell_slots(class_id, spell_level, game_data);
             }
 
             classes.push(ClassSpellInfoInternal {
-                class_id: class_entry.class_id,
+                class_list_index: list_idx,
+                class_id,
                 caster_level,
                 is_prepared,
                 slots: base_slots,
@@ -1116,7 +1165,7 @@ impl Character {
 
         let mut class_configs: Vec<ClassSpellConfig> = Vec::new();
 
-        for (index, class_info) in internal_classes.iter().enumerate() {
+        for class_info in &internal_classes {
             let class_name = self.get_class_name(class_info.class_id, game_data);
             let class_level = self.class_level(class_info.class_id);
             let all_spells_known = self.uses_all_spells_known(class_info.class_id, game_data);
@@ -1128,8 +1177,14 @@ impl Character {
             let mut slots_by_level = HashMap::new();
 
             for level in 0..=MAX_SPELL_LEVEL {
-                let slot_count = class_info.slots.get(level as usize).copied().unwrap_or(0)
-                    + class_info.bonus_slots.get(level as usize).copied().unwrap_or(0);
+                let base = class_info.slots.get(level as usize).copied().unwrap_or(0);
+                // Bonus spell slots only apply to levels where the caster has base slots
+                let bonus = if base > 0 {
+                    class_info.bonus_slots.get(level as usize).copied().unwrap_or(0)
+                } else {
+                    0
+                };
+                let slot_count = base + bonus;
                 if slot_count > 0 {
                     total_slots += slot_count;
                     max_spell_level = level;
@@ -1139,7 +1194,7 @@ impl Character {
             total_spell_levels += max_spell_level;
 
             spellcasting_classes.push(SpellcastingClass {
-                index: index as i32,
+                index: class_info.class_list_index as i32,
                 class_id: class_info.class_id,
                 class_name: class_name.clone(),
                 class_level,
@@ -1171,14 +1226,24 @@ impl Character {
             });
         }
 
+        let spells_table_ref = game_data.get_table("spells");
+
         // Process explicit known spells (non-AllSpellsKnown classes)
+        // Read all levels 0-9: a character's spellbook can contain spells above
+        // their current castable level (e.g. a Wizard's spellbook).
         for config in &class_configs {
             if config.all_spells_known {
                 continue;
             }
-            for spell_level in 0..=config.max_castable_level {
+            for spell_level in 0..=MAX_SPELL_LEVEL {
                 let spell_ids = self.known_spells(config.class_id, spell_level);
                 for spell_id in spell_ids {
+                    if let Some(ref table) = spells_table_ref
+                        && let Some(spell_row) = table.get_by_id(spell_id.0)
+                        && !is_displayable_spell(&spell_row)
+                    {
+                        continue;
+                    }
                     if let Some(details) = self.get_spell_details(spell_id, game_data) {
                         let is_domain_spell = domain_spell_map
                             .get(&config.class_id)
@@ -1214,11 +1279,7 @@ impl Character {
                         continue;
                     };
 
-                    // Skip removed spells
-                    if spell_row.get("REMOVED").and_then(|v| v.as_ref()).is_some_and(|v| v == "1") {
-                        continue;
-                    }
-                    if spell_row.get("DELETED").and_then(|v| v.as_ref()).is_some_and(|v| !v.is_empty() && v != "****") {
+                    if !is_displayable_spell(&spell_row) {
                         continue;
                     }
 
@@ -1231,6 +1292,9 @@ impl Character {
                         {
                             let spell_id = SpellId(row_id as i32);
                             if let Some(details) = self.get_spell_details_from_row(&spell_row, spell_id, game_data) {
+                                if is_mod_prefixed_name(&details.name) {
+                                    continue;
+                                }
                                 let is_domain_spell = domain_spell_map
                                     .get(&config.class_id)
                                     .is_some_and(|levels| {
@@ -1368,7 +1432,7 @@ impl Character {
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
-                    game_data.get_string(strref)
+                    game_data.get_string(strref).filter(|s| !s.is_empty())
                 } else if !desc_raw.is_empty() {
                     Some(desc_raw.clone())
                 } else {
@@ -1636,7 +1700,7 @@ impl Character {
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
-                    game_data.get_string(strref)
+                    game_data.get_string(strref).filter(|s| !s.is_empty())
                 } else if !desc_raw.is_empty() {
                     Some(desc_raw.clone())
                 } else {
@@ -1939,6 +2003,7 @@ pub struct SpellSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassSpellInfoInternal {
+    pub class_list_index: usize,
     pub class_id: ClassId,
     pub caster_level: i32,
     pub is_prepared: bool,

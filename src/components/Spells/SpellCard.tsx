@@ -1,13 +1,12 @@
 
 import React, { memo, useState } from 'react';
-import { ChevronDown, ChevronUp, Sparkles, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Check, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import NWN2Icon from '@/components/ui/NWN2Icon';
-import { display } from '@/utils/dataHelpers';
-import { parseSpellDescription } from '@/utils/spellParser';
+import { stripNwn2Tags } from '@/utils/nwn2Markup';
 import { getSchoolIcon } from './SpellSections';
 import type { SpellInfo } from './types';
 import { cn } from '@/lib/utils';
@@ -39,10 +38,6 @@ function getSchoolColorClass(schoolName?: string): string {
   return 'bg-gray-500';
 }
 
-function stripHtmlTags(text: string): string {
-  return text.replace(/<\/?[^>]+(>|$)/g, '');
-}
-
 function SpellCardComponent({
   spell,
   isOwned,
@@ -54,6 +49,7 @@ function SpellCardComponent({
   const [isExpanded, setIsExpanded] = useState(false);
   const [detailedSpell, setDetailedSpell] = useState<SpellInfo | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   const editableClasses = casterClasses.filter(cls => cls.can_edit_spells);
   const [selectedClassIndex, setSelectedClassIndex] = useState<number>(
@@ -78,8 +74,6 @@ function SpellCardComponent({
   const schoolColorClass = getSchoolColorClass(displaySpell.school_name);
   const levelText = displaySpell.level === 0 ? 'Cantrip' : `Level ${displaySpell.level}`;
 
-  const parsedDescription = parseSpellDescription(displaySpell.description || '');
-
   return (
     <Card
       variant="interactive"
@@ -88,7 +82,13 @@ function SpellCardComponent({
         isOwned && 'border-[rgb(var(--color-primary)/0.3)]'
       )}
     >
-      <div className="flex items-start gap-3">
+      <div
+        className="flex items-start gap-3 cursor-pointer"
+        onClick={handleToggleExpand}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleExpand(); } }}
+      >
         <div className="flex-shrink-0">
           {displaySpell.icon ? (
             <NWN2Icon icon={displaySpell.icon} size="lg" />
@@ -103,7 +103,7 @@ function SpellCardComponent({
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-semibold text-[rgb(var(--color-text-primary))] truncate">
-                {spell.name}
+                {stripNwn2Tags(spell.name)}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge className={cn("flex items-center gap-1 text-white", schoolColorClass)}>
@@ -153,66 +153,45 @@ function SpellCardComponent({
                    <Button
                     variant="outline"
                     size="sm"
-                    onClick={(e) => {
+                    disabled={isAdding}
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      onAdd(spell.id, selectedClassIndex, spell.level);
+                      setIsAdding(true);
+                      try {
+                        await onAdd(spell.id, selectedClassIndex, spell.level);
+                      } finally {
+                        setIsAdding(false);
+                      }
                     }}
                   >
-                    Add
+                    {isAdding ? '...' : 'Add'}
                   </Button>
                 </div>
               )}
               {isOwned && onRemove && spellClassCanEdit && (
                  <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
+                  className="flex-shrink-0 w-8 h-8 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-500"
                   onClick={(e) => {
                     e.stopPropagation();
                     const classIndex = casterClasses.find(cls => cls.class_id === spell.class_id)?.index ?? selectedClassIndex;
                     onRemove(spell.id, classIndex, spell.level);
                   }}
                 >
-                  Remove
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               )}
               <Button
                 variant="icon-interactive"
                 size="icon"
-                onClick={handleToggleExpand}
+                onClick={(e) => { e.stopPropagation(); handleToggleExpand(); }}
               >
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             </div>
           </div>
 
-          {displaySpell.description && (
-            <p className="text-sm text-[rgb(var(--color-text-secondary))] line-clamp-2">
-              {display(stripHtmlTags(displaySpell.description).split('\n')[0])}
-            </p>
-          )}
-
-          <div className="flex items-center gap-3 mt-2 text-xs text-[rgb(var(--color-text-muted))]">
-            {parsedDescription.range && (
-              <div>
-                <span className="font-medium">Range:</span> {parsedDescription.range}
-              </div>
-            )}
-            {parsedDescription.duration && (
-              <div>
-                <span className="font-medium">Duration:</span> {parsedDescription.duration}
-              </div>
-            )}
-            {parsedDescription.save && parsedDescription.save.toLowerCase() !== 'none' && (
-              <div>
-                <span className="font-medium">Save:</span> {parsedDescription.save}
-              </div>
-            )}
-            {parsedDescription.spellResistance && (
-              <div>
-                <span className="font-medium">SR:</span> {parsedDescription.spellResistance}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -227,7 +206,7 @@ function SpellCardComponent({
           {!isLoadingDetails && displaySpell.description && (
             <div className="px-4">
               <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap">
-                {stripHtmlTags(displaySpell.description)}
+                {stripNwn2Tags(displaySpell.description)}
               </p>
             </div>
           )}

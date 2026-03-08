@@ -1,12 +1,11 @@
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock as StdRwLock};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tempfile::TempDir;
 
 use app_lib::services::ResourceManager;
 use app_lib::loaders::GameDataLoader;
 use app_lib::config::NWN2Paths;
-use app_lib::parsers::tlk::TLKParser;
 
 use app_lib::services::item_property_decoder::ItemPropertyDecoder;
 
@@ -52,20 +51,13 @@ pub async fn create_test_context() -> TestContext {
         rm.initialize().await.expect("Failed to initialize ResourceManager");
     }
 
-    // Initialize TLK Parser manually since we need to pass it to GameDataLoader
+    // Use the ResourceManager's TLK parser (includes Workshop TLK if available)
     let tlk_parser = {
-        let paths_guard = paths.read().await;
-        if let Some(tlk_path) = paths_guard.dialog_tlk() {
-            if tlk_path.exists() {
-                let mut parser = TLKParser::new();
-                parser.parse_from_file(&tlk_path).expect("Failed to parse dialog.tlk");
-                Arc::new(StdRwLock::new(parser))
-            } else {
-                 panic!("dialog.tlk not found at {:?}", tlk_path);
-            }
-        } else {
-            panic!("Could not determine dialog.tlk path");
-        }
+        let rm = resource_manager.read().await;
+        rm.get_tlk_parser()
+            .unwrap_or_else(|| {
+                panic!("TLK parser not available after ResourceManager initialization");
+            })
     };
 
     // Initialize GameDataLoader

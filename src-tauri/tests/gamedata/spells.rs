@@ -171,6 +171,56 @@ async fn test_bard_spell_list() {
 }
 
 #[tokio::test]
+async fn test_spell_desc_resolution() {
+    let ctx = create_test_context().await;
+    let table = ctx.loader.get_table("spells").expect("spells.2da missing");
+    let cols = table.column_names();
+
+    assert!(
+        cols.iter().any(|c| c.eq_ignore_ascii_case("SpellDesc")),
+        "SpellDesc column should exist in spells.2da"
+    );
+
+    // Verify core spells have resolvable descriptions
+    let search_labels = ["Shield", "Web", "Magic_Missile", "Acid_Fog"];
+    for label in search_labels {
+        for row_idx in 0..table.row_count() {
+            if cell_value(table, row_idx, "Label").as_deref() != Some(label) {
+                continue;
+            }
+            let desc_strref = cell_value(table, row_idx, "SpellDesc")
+                .and_then(|s| s.parse::<i32>().ok());
+            let resolved = desc_strref.and_then(|strref| ctx.loader.get_string(strref));
+            assert!(
+                resolved.as_ref().is_some_and(|s| !s.is_empty()),
+                "Spell {} should have a resolved description (strref={:?})",
+                label, desc_strref
+            );
+            break;
+        }
+    }
+
+    // Count resolution stats
+    let mut resolved_count = 0;
+    let mut total_with_strref = 0;
+    for row_idx in 0..table.row_count() {
+        let desc_val = cell_value(table, row_idx, "SpellDesc");
+        if let Some(ref s) = desc_val {
+            if let Ok(strref) = s.parse::<i32>() {
+                total_with_strref += 1;
+                if ctx.loader.get_string(strref).as_ref().is_some_and(|r| !r.is_empty()) {
+                    resolved_count += 1;
+                }
+            }
+        }
+    }
+
+    let resolve_rate = resolved_count as f64 / total_with_strref as f64 * 100.0;
+    println!("SpellDesc resolution: {}/{} ({:.1}%)", resolved_count, total_with_strref, resolve_rate);
+    assert!(resolve_rate > 95.0, "At least 95% of SpellDesc strrefs should resolve");
+}
+
+#[tokio::test]
 async fn test_metamagic_flags() {
     let ctx = create_test_context().await;
     

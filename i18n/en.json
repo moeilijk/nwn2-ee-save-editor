@@ -238,7 +238,43 @@
     "loadingBaseItems": "Loading base items...",
     "selectedId": "Selected ID",
     "selectedResref": "Selected ResRef",
-    "source": "Source"
+    "source": "Source",
+    "subcategories": {
+      "swords": "Swords",
+      "axes": "Axes",
+      "bows": "Bows",
+      "crossbows": "Crossbows",
+      "daggers": "Daggers",
+      "macesAndHammers": "Maces & Hammers",
+      "polearms": "Polearms",
+      "staves": "Staves",
+      "flails": "Flails & Whips",
+      "thrown": "Thrown",
+      "ammunition": "Ammunition",
+      "otherWeapons": "Other",
+      "bodyArmor": "Body Armor",
+      "helmets": "Helmets",
+      "shields": "Shields",
+      "boots": "Boots",
+      "gloves": "Gloves & Bracers",
+      "cloaks": "Cloaks",
+      "belts": "Belts",
+      "robes": "Robes & Clothing",
+      "otherArmor": "Other",
+      "potions": "Potions",
+      "scrolls": "Scrolls",
+      "wandsAndRods": "Wands & Rods",
+      "otherMagic": "Other",
+      "rings": "Rings",
+      "amulets": "Amulets & Necklaces",
+      "otherAccessories": "Other",
+      "gems": "Gems & Jewels",
+      "trapsAndKits": "Traps & Kits",
+      "books": "Books & Recipes",
+      "containers": "Containers",
+      "otherMisc": "Other",
+      "other": "Other"
+    }
   },
   "status": {
     "ready": "Ready",
@@ -756,6 +792,11 @@
   },
   "spells": {
     "readOnlyClassNotice": "automatically knows all spells from game rules and cannot be modified.",
-    "noEditableClasses": "All spellcasting classes on this character have fixed spell lists that cannot be modified."
+    "noEditableClasses": "All spellcasting classes on this character have fixed spell lists that cannot be modified.",
+    "debugAllSpells": "Show all game spells (debug)",
+    "debugModeActive": "Debug: Showing all game spells",
+    "abilitySpells": "Special Abilities",
+    "abilitySpellsDescription": "Spell-like abilities granted by feats and class features. These are read-only.",
+    "noAbilitySpells": "No special ability spells found on this character."
   }
 }

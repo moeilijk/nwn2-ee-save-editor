@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { FixedSizeList as List } from 'react-window';
-import { ItemTemplate, ITEM_CATEGORIES } from '@/services/inventoryApi';
+import { ItemTemplate, ITEM_CATEGORIES, SUB_CATEGORY_LABELS, CATEGORIES_WITH_SUBS } from '@/services/inventoryApi';
 import { useTranslations } from '@/hooks/useTranslations';
 import { display } from '@/utils/dataHelpers';
 
@@ -26,7 +26,7 @@ interface AddItemModalProps {
   onClose: () => void;
   onAddBaseItem: (baseItemId: number) => Promise<number | null>;
   onAddTemplate: (resref: string) => Promise<void>;
-  baseItems: { id: number; name: string; category?: string }[];
+  baseItems: { id: number; name: string; category?: string; subCategory?: string; itemClass?: string | null }[];
   templates: ItemTemplate[];
   isLoadingTemplates: boolean;
 }
@@ -93,8 +93,10 @@ export default function AddItemModal({
   const [selectedBaseId, setSelectedBaseId] = useState<number | null>(null);
   const [selectedTemplateResref, setSelectedTemplateResref] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBaseCategory, setSelectedBaseCategory] = useState<string | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
+  const [selectedTemplateSubCategory, setSelectedTemplateSubCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -104,11 +106,13 @@ export default function AddItemModal({
       setIsAdding(false);
       setSelectedCategory(null);
       setSelectedBaseCategory(null);
+      setSelectedSubCategory(null);
+      setSelectedTemplateSubCategory(null);
     }
   }, [isOpen]);
 
   const baseCategories = useMemo(() => {
-    const BASE_CATEGORY_ORDER = ['Armor & Clothing', 'Weapons', 'Magic Items', 'Accessories', 'Miscellaneous'];
+    const BASE_CATEGORY_ORDER = ['Armor & Clothing', 'Weapons', 'Magic Items', 'Miscellaneous'];
     const presentCategories = new Set<string>();
     baseItems.forEach(item => {
       if (item.category) presentCategories.add(item.category);
@@ -116,11 +120,66 @@ export default function AddItemModal({
     return BASE_CATEGORY_ORDER.filter(cat => presentCategories.has(cat));
   }, [baseItems]);
 
+  const availableSubCategories = useMemo(() => {
+    if (!selectedBaseCategory || !CATEGORIES_WITH_SUBS.has(selectedBaseCategory)) return [];
+    const subs = new Map<string, number>();
+    for (const item of baseItems) {
+      if (item.category === selectedBaseCategory && item.subCategory) {
+        subs.set(item.subCategory, (subs.get(item.subCategory) || 0) + 1);
+      }
+    }
+    return Array.from(subs.entries())
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => {
+        const aLabel = SUB_CATEGORY_LABELS[a] || a;
+        const bLabel = SUB_CATEGORY_LABELS[b] || b;
+        return aLabel.localeCompare(bLabel);
+      });
+  }, [baseItems, selectedBaseCategory]);
+
+  const getTemplateCategoryName = (tmpl: ItemTemplate): string =>
+    ITEM_CATEGORIES[tmpl.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous';
+
+  const templateCategories = useMemo(() => {
+    const CATEGORY_ORDER = ['Armor & Clothing', 'Weapons', 'Magic Items', 'Miscellaneous'];
+    const counts = new Map<string, number>();
+    for (const tmpl of templates) {
+      const name = getTemplateCategoryName(tmpl);
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return CATEGORY_ORDER
+      .filter(cat => counts.has(cat))
+      .map(cat => [cat, counts.get(cat)!] as const);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates]);
+
+  const availableTemplateSubCategories = useMemo(() => {
+    if (selectedCategory === null || !CATEGORIES_WITH_SUBS.has(selectedCategory)) return [];
+    const subs = new Map<string, number>();
+    for (const tmpl of templates) {
+      if (getTemplateCategoryName(tmpl) === selectedCategory) {
+        subs.set(tmpl.sub_category, (subs.get(tmpl.sub_category) || 0) + 1);
+      }
+    }
+    return Array.from(subs.entries())
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => {
+        const aLabel = SUB_CATEGORY_LABELS[a] || a;
+        const bLabel = SUB_CATEGORY_LABELS[b] || b;
+        return aLabel.localeCompare(bLabel);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates, selectedCategory]);
+
   const filteredBaseItems = useMemo(() => {
     let filtered = baseItems;
 
     if (selectedBaseCategory !== null) {
       filtered = filtered.filter(item => item.category === selectedBaseCategory);
+    }
+
+    if (selectedSubCategory !== null) {
+      filtered = filtered.filter(item => item.subCategory === selectedSubCategory);
     }
 
     if (searchQuery) {
@@ -132,13 +191,21 @@ export default function AddItemModal({
     }
 
     return filtered;
-  }, [baseItems, searchQuery, selectedBaseCategory]);
+  }, [baseItems, searchQuery, selectedBaseCategory, selectedSubCategory]);
 
   const filteredTemplates = useMemo(() => {
     let filtered = templates;
 
     if (selectedCategory !== null) {
-      filtered = filtered.filter(tmpl => tmpl.category === selectedCategory);
+      filtered = filtered.filter(tmpl =>
+        getTemplateCategoryName(tmpl) === selectedCategory
+      );
+    }
+
+    if (selectedTemplateSubCategory !== null) {
+      filtered = filtered.filter(tmpl =>
+        tmpl.sub_category === selectedTemplateSubCategory
+      );
     }
 
     if (searchQuery) {
@@ -150,7 +217,8 @@ export default function AddItemModal({
     }
 
     return filtered;
-  }, [templates, searchQuery, selectedCategory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates, searchQuery, selectedCategory, selectedTemplateSubCategory]);
 
   const listContainerRef = React.useRef<HTMLDivElement>(null);
   const { height: listHeight, width: listWidth } = useContainerDimensions(listContainerRef);
@@ -239,7 +307,7 @@ export default function AddItemModal({
                       <Button
                         variant={selectedBaseCategory === null ? 'primary' : 'outline'}
                         size="sm"
-                        onClick={() => setSelectedBaseCategory(null)}
+                        onClick={() => { setSelectedBaseCategory(null); setSelectedSubCategory(null); }}
                       >
                         {t('common.all')} ({baseItems.length})
                       </Button>
@@ -250,13 +318,35 @@ export default function AddItemModal({
                             key={category}
                             variant={selectedBaseCategory === category ? 'primary' : 'outline'}
                             size="sm"
-                            onClick={() => setSelectedBaseCategory(category)}
+                            onClick={() => { setSelectedBaseCategory(category); setSelectedSubCategory(null); }}
                           >
                             {category} ({count})
                           </Button>
                         );
                       })}
                     </div>
+
+                    {availableSubCategories.length > 1 && (
+                      <div className="add-item-modal-subcategory-filter">
+                        <Button
+                          variant={selectedSubCategory === null ? 'primary' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedSubCategory(null)}
+                        >
+                          {t('common.all')}
+                        </Button>
+                        {availableSubCategories.map(([subCat, count]) => (
+                          <Button
+                            key={subCat}
+                            variant={selectedSubCategory === subCat ? 'primary' : 'outline'}
+                            size="sm"
+                            onClick={() => setSelectedSubCategory(subCat)}
+                          >
+                            {t(SUB_CATEGORY_LABELS[subCat] || subCat)} ({count})
+                          </Button>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="add-item-modal-list">
                       {filteredBaseItems.map((item) => (
@@ -293,24 +383,43 @@ export default function AddItemModal({
                       <Button
                         variant={selectedCategory === null ? 'primary' : 'outline'}
                         size="sm"
-                        onClick={() => setSelectedCategory(null)}
+                        onClick={() => { setSelectedCategory(null); setSelectedTemplateSubCategory(null); }}
                       >
                         {t('common.all')} ({templates.length})
                       </Button>
-                      {Object.entries(ITEM_CATEGORIES).map(([catId, catName]) => {
-                        const count = templates.filter(t => t.category === Number(catId)).length;
-                        return (
-                          <Button
-                            key={catId}
-                            variant={selectedCategory === Number(catId) ? 'primary' : 'outline'}
-                            size="sm"
-                            onClick={() => setSelectedCategory(Number(catId))}
-                          >
-                            {catName} ({count})
-                          </Button>
-                        );
-                      })}
+                      {templateCategories.map(([catName, count]) => (
+                        <Button
+                          key={catName}
+                          variant={selectedCategory === catName ? 'primary' : 'outline'}
+                          size="sm"
+                          onClick={() => { setSelectedCategory(catName); setSelectedTemplateSubCategory(null); }}
+                        >
+                          {catName} ({count})
+                        </Button>
+                      ))}
                     </div>
+
+                    {availableTemplateSubCategories.length > 1 && (
+                      <div className="add-item-modal-subcategory-filter">
+                        <Button
+                          variant={selectedTemplateSubCategory === null ? 'primary' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedTemplateSubCategory(null)}
+                        >
+                          {t('common.all')}
+                        </Button>
+                        {availableTemplateSubCategories.map(([subCat, count]) => (
+                          <Button
+                            key={subCat}
+                            variant={selectedTemplateSubCategory === subCat ? 'primary' : 'outline'}
+                            size="sm"
+                            onClick={() => setSelectedTemplateSubCategory(subCat)}
+                          >
+                            {t(SUB_CATEGORY_LABELS[subCat] || subCat)} ({count})
+                          </Button>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="add-item-modal-virtualized-list" ref={listContainerRef}>
                       {filteredTemplates.length > 0 ? (

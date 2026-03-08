@@ -55,8 +55,7 @@ export default function AbilityScoresEditor() {
 
   const handleApplyPointBuy = useCallback(async (scores: AbilityScores) => {
     await CharacterStateAPI.applyPointBuy(scores);
-    attributesData.invalidate();
-    await attributesData.load();
+    await attributesData.load({ force: true });
   }, [attributesData]);
 
   const abilitiesState = attributesData.data as AbilitiesState | null;

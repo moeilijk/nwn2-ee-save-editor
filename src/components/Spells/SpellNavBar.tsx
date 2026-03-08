@@ -1,6 +1,6 @@
 
 import React, { memo } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Bug } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -40,6 +40,9 @@ export interface SpellNavBarProps {
   onPageChange: (page: number) => void;
 
   availableClasses?: Array<{name: string; value: string}>;
+
+  debugMode?: boolean;
+  onDebugToggle?: () => void;
 }
 
 const SORT_OPTIONS = [
@@ -96,6 +99,8 @@ function SpellNavBarComponent({
   hasPrevious,
   onPageChange,
   availableClasses = [],
+  debugMode = false,
+  onDebugToggle,
 }: SpellNavBarProps) {
 
   const handleClassToggle = (className: string) => {
@@ -172,6 +177,17 @@ function SpellNavBarComponent({
             <Badge variant="secondary" className="ml-2">
               {availableSpellsCount}
             </Badge>
+          </Button>
+
+          <div className="mx-2 h-6 w-px bg-[rgb(var(--color-surface-border))]" />
+
+          <Button
+            variant={debugMode ? 'primary' : 'outline'}
+            onClick={onDebugToggle}
+            size="sm"
+            title={debugMode ? 'Debug: Showing all game spells' : 'Show all game spells (debug)'}
+          >
+            <Bug className="w-4 h-4" />
           </Button>
         </div>
 

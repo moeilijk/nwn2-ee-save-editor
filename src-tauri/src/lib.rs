@@ -191,6 +191,7 @@ pub fn run() {
       crate::commands::spells::clear_memorized_spells,
       crate::commands::spells::get_character_available_spells,
       crate::commands::spells::is_spellcaster,
+      crate::commands::spells::get_character_ability_spells,
       crate::commands::spells::get_max_castable_spell_level,
       // Inventory
       crate::commands::inventory::get_inventory_items,

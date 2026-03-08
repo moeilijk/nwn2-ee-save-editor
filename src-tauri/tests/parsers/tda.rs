@@ -414,3 +414,148 @@ Label       Value
     assert_eq!(parser.row_count(), 3);
     assert_eq!(parser.column_count(), 2);
 }
+
+#[tokio::test]
+async fn test_2da_files_tab_character_usage() {
+    use std::path::PathBuf;
+
+    let _ctx = create_test_context().await;
+
+    let nwn2_data_dir = PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
+
+    if !nwn2_data_dir.exists() {
+        println!("WARNING: NWN2 install not found at expected location, skipping tab detection test");
+        return;
+    }
+
+    const BASE_GAME_ZIPS: &[&str] = &["2da.zip", "2da_x1.zip", "2da_x2.zip"];
+
+    let mut total_files = 0;
+    let mut files_with_tabs = Vec::new();
+    let mut files_without_tabs = 0;
+
+    println!("\n=== Scanning NWN2 2DA files for tab character usage ===\n");
+
+    for zip_name in BASE_GAME_ZIPS {
+        let zip_path = nwn2_data_dir.join(zip_name);
+        if !zip_path.exists() {
+            println!("Skipping {}, file not found", zip_name);
+            continue;
+        }
+
+        println!("Scanning {} ...", zip_name);
+
+        let file = std::fs::File::open(&zip_path).expect("Failed to open zip");
+        let mut archive = zip::ZipArchive::new(file).expect("Failed to read zip");
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).expect("Failed to read entry");
+            let name = entry.name().to_string();
+
+            if !name.to_lowercase().ends_with(".2da") {
+                continue;
+            }
+
+            total_files += 1;
+
+            let mut contents = Vec::new();
+            std::io::Read::read_to_end(&mut entry, &mut contents).expect("Failed to read file");
+
+            let text = String::from_utf8_lossy(&contents);
+
+            if text.contains('\t') {
+                files_with_tabs.push((zip_name.to_string(), name.clone()));
+
+                let lines_with_tabs: Vec<usize> = text
+                    .lines()
+                    .enumerate()
+                    .filter(|(_, line)| line.contains('\t'))
+                    .map(|(idx, _)| idx + 1)
+                    .collect();
+
+                println!("  TABS FOUND: {} (lines: {:?})", name, lines_with_tabs);
+            } else {
+                files_without_tabs += 1;
+            }
+        }
+    }
+
+    println!("\n=== RESULTS ===");
+    println!("Total 2DA files scanned: {}", total_files);
+    println!("Files with tab characters: {}", files_with_tabs.len());
+    println!("Files without tabs: {}", files_without_tabs);
+
+    if !files_with_tabs.is_empty() {
+        println!("\n=== Files containing tabs ===");
+        for (zip, file) in &files_with_tabs {
+            println!("  {} -> {}", zip, file);
+        }
+    } else {
+        println!("\nNo 2DA files use tab characters - all use space-separated format");
+    }
+
+    assert!(total_files > 0, "Should have scanned at least some 2DA files");
+}
+
+#[tokio::test]
+async fn test_2da_tab_separated_parsing_verification() {
+    use std::path::PathBuf;
+
+    let ctx = create_test_context().await;
+
+    let nwn2_data_dir = PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
+
+    if !nwn2_data_dir.exists() {
+        println!("WARNING: NWN2 install not found, skipping tab parsing verification");
+        return;
+    }
+
+    let zip_path = nwn2_data_dir.join("2da.zip");
+    if !zip_path.exists() {
+        println!("WARNING: 2da.zip not found, skipping test");
+        return;
+    }
+
+    let file = std::fs::File::open(&zip_path).expect("Failed to open 2da.zip");
+    let mut archive = zip::ZipArchive::new(file).expect("Failed to read zip");
+
+    let spells_entry = archive.by_name("2da/spells.2da");
+    if spells_entry.is_err() {
+        println!("WARNING: spells.2da not found in zip");
+        return;
+    }
+
+    let mut entry = spells_entry.unwrap();
+    let mut contents = Vec::new();
+    std::io::Read::read_to_end(&mut entry, &mut contents).expect("Failed to read spells.2da");
+
+    let text = String::from_utf8_lossy(&contents);
+
+    println!("\n=== Verifying tab-separated parsing for spells.2da ===");
+    println!("File size: {} bytes", contents.len());
+    println!("Contains tabs: {}", text.contains('\t'));
+
+    let lines_with_tabs = text
+        .lines()
+        .filter(|line| line.contains('\t'))
+        .count();
+
+    println!("Lines with tabs: {} / {}", lines_with_tabs, text.lines().count());
+
+    let table = ctx.loader.get_table("spells").expect("spells.2da not found");
+    println!("Parsed rows: {}", table.row_count());
+    println!("Parsed columns: {}", table.parser.column_count());
+
+    let cols = table.column_names();
+    println!("Column count: {}", cols.len());
+    println!("First 10 columns: {:?}", &cols[..10.min(cols.len())]);
+
+    let row0 = table.get_row(0).expect("Failed to get row 0");
+    println!("Row 0 field count: {}", row0.len());
+    println!("Row 0 Label: {:?}", row0.get("label").or_else(|| row0.get("Label")));
+
+    assert!(table.row_count() > 0, "Should have parsed rows");
+    assert!(table.parser.column_count() > 10, "Should have many columns");
+    assert!(text.contains('\t'), "spells.2da should use tabs");
+    println!("\nTab-separated parsing verified successfully!");
+}
