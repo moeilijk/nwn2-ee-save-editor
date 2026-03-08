@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[tauri::command]
 pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
@@ -12,19 +12,16 @@ pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
     }
 
     // Create new settings window
-    let _settings_window = WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        WebviewUrl::App("settings".into())
-    )
-    .title("Settings - NWN2:EE Save Editor")
-    .inner_size(600.0, 500.0)
-    .min_inner_size(500.0, 400.0)
-    .resizable(true)
-    .decorations(true)
-    .center()
-    .build()
-    .map_err(|e| e.to_string())?;
+    let _settings_window =
+        WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings".into()))
+            .title("Settings - NWN2:EE Save Editor")
+            .inner_size(600.0, 500.0)
+            .min_inner_size(500.0, 400.0)
+            .resizable(true)
+            .decorations(true)
+            .center()
+            .build()
+            .map_err(|e| e.to_string())?;
 
     Ok(())
 }

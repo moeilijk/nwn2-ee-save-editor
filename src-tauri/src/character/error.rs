@@ -1,7 +1,7 @@
 //! Character error types - consolidated from 11 separate manager error modules.
 
-use thiserror::Error;
 use serde::Serialize;
+use thiserror::Error;
 
 /// Unified error type for Character operations.
 ///
@@ -21,7 +21,10 @@ pub enum CharacterError {
     },
 
     #[error("Validation failed for {field}: {message}")]
-    ValidationFailed { field: &'static str, message: String },
+    ValidationFailed {
+        field: &'static str,
+        message: String,
+    },
 
     #[error("Not found: {entity} with ID {id}")]
     NotFound { entity: &'static str, id: i32 },

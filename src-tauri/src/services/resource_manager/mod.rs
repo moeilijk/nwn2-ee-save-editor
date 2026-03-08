@@ -5,8 +5,8 @@ pub mod override_chain;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock as StdRwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock as StdRwLock};
 
 use dashmap::DashMap;
 use indexmap::IndexMap;
@@ -264,7 +264,10 @@ impl ResourceManager {
                 return Ok(());
             }
 
-            debug!("Scanning Steam Workshop directory: {}", workshop_dir.display());
+            debug!(
+                "Scanning Steam Workshop directory: {}",
+                workshop_dir.display()
+            );
             let mut new_paths = HashMap::new();
 
             // Workshop structure: <WorkshopDir>/<ModID>/override/
@@ -277,14 +280,14 @@ impl ResourceManager {
                         if override_path.exists() && override_path.is_dir() {
                             self.index_directory_recursive(&override_path, &mut new_paths)?;
                         }
-                        
+
                         // Some mods might put files directly in the mod ID folder (less common but possible?)
-                        // Standard practice is usually an override folder or just loose files. 
+                        // Standard practice is usually an override folder or just loose files.
                         // The Python code checked 'override' subdirectory.
                     }
                 }
             }
-            
+
             self.workshop_file_paths.extend(new_paths);
             info!("Indexed {} workshop 2DAs", self.workshop_file_paths.len());
         }
@@ -309,7 +312,7 @@ impl ResourceManager {
             return Ok(());
         }
 
-        // Use a stack for iterative recursion to avoid stack overflow on deep structures, 
+        // Use a stack for iterative recursion to avoid stack overflow on deep structures,
         // though fs recursion is usually shallow enough. Iterative is safer.
         let mut stack = vec![dir.to_path_buf()];
 
@@ -319,25 +322,27 @@ impl ResourceManager {
                     let path = entry.path();
                     if path.is_dir() {
                         stack.push(path);
-                    } else if path.is_file() 
-                        && path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("2da"))
-                        && let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                            let mtime = std::fs::metadata(&path)?
-                                .modified()
-                                .ok()
-                                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                                .map_or(0.0, |d| d.as_secs_f64());
+                    } else if path.is_file()
+                        && path
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("2da"))
+                        && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+                    {
+                        let mtime = std::fs::metadata(&path)?
+                            .modified()
+                            .ok()
+                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map_or(0.0, |d| d.as_secs_f64());
 
-                            self.file_mod_tracker.track(path.clone(), mtime);
-                            target.insert(name.to_lowercase(), path);
-                        }
+                        self.file_mod_tracker.track(path.clone(), mtime);
+                        target.insert(name.to_lowercase(), path);
+                    }
                 }
             }
         }
 
         Ok(())
     }
-
 
     async fn load_base_tlk(&mut self) -> ResourceManagerResult<()> {
         let paths = self.paths.read().await;
@@ -353,7 +358,11 @@ impl ResourceManager {
             if tlk_path.exists() {
                 match module_loader::load_tlk(tlk_path) {
                     Ok(parser) => {
-                        info!("Found base TLK: {} ({} entries)", tlk_path.display(), parser.string_count());
+                        info!(
+                            "Found base TLK: {} ({} entries)",
+                            tlk_path.display(),
+                            parser.string_count()
+                        );
                         best_source = tlk_path.display().to_string();
                         best_parser = Some(parser);
                     }
@@ -387,11 +396,14 @@ impl ResourceManager {
                     match module_loader::load_tlk(&actual_path) {
                         Ok(parser) => {
                             let count = parser.string_count();
-                            let best_count = best_parser.as_ref().map_or(0, TLKParser::string_count);
+                            let best_count =
+                                best_parser.as_ref().map_or(0, TLKParser::string_count);
                             if count > best_count {
                                 info!(
                                     "Found Workshop TLK with more entries: {} ({} > {})",
-                                    actual_path.display(), count, best_count
+                                    actual_path.display(),
+                                    count,
+                                    best_count
                                 );
                                 best_source = actual_path.display().to_string();
                                 best_parser = Some(parser);
@@ -404,7 +416,11 @@ impl ResourceManager {
         }
 
         if let Some(parser) = best_parser {
-            info!("Using TLK: {} ({} entries)", best_source, parser.string_count());
+            info!(
+                "Using TLK: {} ({} entries)",
+                best_source,
+                parser.string_count()
+            );
             self.tlk_cache = Some(Arc::new(StdRwLock::new(parser)));
         }
 
@@ -595,16 +611,18 @@ impl ResourceManager {
 
         if let Some(custom_tlk) = &self.custom_tlk_cache
             && let Ok(mut tlk) = custom_tlk.write()
-                && let Ok(Some(s)) = tlk.get_string(str_ref as usize)
-                    && !s.is_empty() {
-                        return s;
-                    }
+            && let Ok(Some(s)) = tlk.get_string(str_ref as usize)
+            && !s.is_empty()
+        {
+            return s;
+        }
 
         if let Some(base_tlk) = &self.tlk_cache
             && let Ok(mut tlk) = base_tlk.write()
-                && let Ok(Some(s)) = tlk.get_string(str_ref as usize) {
-                    return s;
-                }
+            && let Ok(Some(s)) = tlk.get_string(str_ref as usize)
+        {
+            return s;
+        }
 
         format!("<StrRef:{str_ref}>")
     }
@@ -630,14 +648,13 @@ impl ResourceManager {
         }
 
         let module_info = module_loader::extract_module_info(module_path)?;
-        let module_2das =
-            module_loader::load_module_2das(module_path, module_info.is_directory)?;
+        let module_2das = module_loader::load_module_2das(module_path, module_info.is_directory)?;
 
         self.module_info = Some(module_info.clone());
         self.module_path = Some(module_path.to_path_buf());
         self.module_overrides.clear();
         for (k, v) in module_2das {
-             self.module_overrides.insert(k, v);
+            self.module_overrides.insert(k, v);
         }
         self.current_module = Some(module_key.clone());
 
@@ -661,9 +678,10 @@ impl ResourceManager {
                         self.hak_overrides.push(hak_2das);
 
                         if let Some(tlk_path) = module_loader::check_hak_for_tlk(&hak_path)
-                            && let Ok(tlk) = module_loader::load_tlk(&tlk_path) {
-                                self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
-                            }
+                            && let Ok(tlk) = module_loader::load_tlk(&tlk_path)
+                        {
+                            self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
+                        }
                     }
                     Err(e) => {
                         warn!("Failed to load HAK {}: {}", hak_name, e);
@@ -726,18 +744,20 @@ impl ResourceManager {
         if let Some(tlk_dir) = paths.tlk_dir() {
             let tlk_path = tlk_dir.join(&tlk_filename);
             if tlk_path.exists()
-                && let Ok(tlk) = module_loader::load_tlk(&tlk_path) {
-                    self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
-                    return;
-                }
+                && let Ok(tlk) = module_loader::load_tlk(&tlk_path)
+            {
+                self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
+                return;
+            }
         }
 
         if let Some(data_dir) = paths.data() {
             let tlk_path = data_dir.join(&tlk_filename);
             if tlk_path.exists()
-                && let Ok(tlk) = module_loader::load_tlk(&tlk_path) {
-                    self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
-                }
+                && let Ok(tlk) = module_loader::load_tlk(&tlk_path)
+            {
+                self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
+            }
         }
     }
 
@@ -800,9 +820,10 @@ impl ResourceManager {
                         self.hak_overrides.push(hak_2das);
 
                         if let Some(tlk_path) = module_loader::check_hak_for_tlk(&hak_path)
-                            && let Ok(tlk) = module_loader::load_tlk(&tlk_path) {
-                                self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
-                            }
+                            && let Ok(tlk) = module_loader::load_tlk(&tlk_path)
+                        {
+                            self.custom_tlk_cache = Some(Arc::new(StdRwLock::new(tlk)));
+                        }
                     }
                     Err(e) => {
                         warn!("Failed to load HAK {}: {}", hak_name, e);
@@ -920,7 +941,11 @@ impl ResourceManager {
         Ok(result)
     }
 
-    pub fn read_zip_file(&self, zip_path: &std::path::Path, internal_path: &str) -> ResourceManagerResult<Vec<u8>> {
+    pub fn read_zip_file(
+        &self,
+        zip_path: &std::path::Path,
+        internal_path: &str,
+    ) -> ResourceManagerResult<Vec<u8>> {
         self.zip_reader
             .lock()
             .read_file_from_zip(
@@ -934,51 +959,50 @@ impl ResourceManager {
         &self,
         info: &TemplateInfo,
     ) -> ResourceManagerResult<IndexMap<String, crate::parsers::gff::GffValue<'static>>> {
-        let data = match &info.container_type {
-            ContainerType::Zip => {
-                let internal_path = info
-                    .internal_path
-                    .as_ref()
-                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+        let data =
+            match &info.container_type {
+                ContainerType::Zip => {
+                    let internal_path = info.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
 
-                self.zip_reader
-                    .lock()
-                    .read_file_from_zip(
-                        info.container_path.to_string_lossy().to_string(),
-                        internal_path.clone(),
-                    )
-                    .map_err(|e| ResourceManagerError::ZipError(e.clone()))?
-            }
-            ContainerType::Erf => {
-                let internal_path = info
-                    .internal_path
-                    .as_ref()
-                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+                    self.zip_reader
+                        .lock()
+                        .read_file_from_zip(
+                            info.container_path.to_string_lossy().to_string(),
+                            internal_path.clone(),
+                        )
+                        .map_err(|e| ResourceManagerError::ZipError(e.clone()))?
+                }
+                ContainerType::Erf => {
+                    let internal_path = info.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
 
-                let mut erf = ErfParser::new();
-                erf.read(&info.container_path).map_err(|e| {
-                    ResourceManagerError::InvalidErfFormat(format!(
-                        "Failed to open {}: {}",
-                        info.container_path.display(),
-                        e
-                    ))
-                })?;
+                    let mut erf = ErfParser::new();
+                    erf.read(&info.container_path).map_err(|e| {
+                        ResourceManagerError::InvalidErfFormat(format!(
+                            "Failed to open {}: {}",
+                            info.container_path.display(),
+                            e
+                        ))
+                    })?;
 
-                erf.resources
-                    .get(internal_path)
-                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
-                        resource: internal_path.clone(),
-                        container: info.container_path.display().to_string(),
-                    })?
-                    .data
-                    .clone()
-                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
-                        resource: internal_path.clone(),
-                        container: info.container_path.display().to_string(),
-                    })?
-            }
-            ContainerType::Directory => std::fs::read(&info.container_path)?,
-        };
+                    erf.resources
+                        .get(internal_path)
+                        .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                            resource: internal_path.clone(),
+                            container: info.container_path.display().to_string(),
+                        })?
+                        .data
+                        .clone()
+                        .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                            resource: internal_path.clone(),
+                            container: info.container_path.display().to_string(),
+                        })?
+                }
+                ContainerType::Directory => std::fs::read(&info.container_path)?,
+            };
 
         let gff = GffParser::from_bytes(data).map_err(|e| {
             ResourceManagerError::InvalidGffFormat(format!("Failed to parse template: {e}"))
@@ -987,7 +1011,7 @@ impl ResourceManager {
         let fields = gff.read_struct_fields(0).map_err(|e| {
             ResourceManagerError::InvalidGffFormat(format!("Failed to read template fields: {e}"))
         })?;
-        
+
         let mut owned_fields = IndexMap::new();
         for (k, v) in fields {
             owned_fields.insert(k, v.force_owned());
@@ -1000,51 +1024,50 @@ impl ResourceManager {
         &self,
         info: &TemplateInfo,
     ) -> ResourceManagerResult<(Option<String>, i32)> {
-        let data = match &info.container_type {
-            ContainerType::Zip => {
-                let internal_path = info
-                    .internal_path
-                    .as_ref()
-                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+        let data =
+            match &info.container_type {
+                ContainerType::Zip => {
+                    let internal_path = info.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
 
-                self.zip_reader
-                    .lock()
-                    .read_file_from_zip(
-                        info.container_path.to_string_lossy().to_string(),
-                        internal_path.clone(),
-                    )
-                    .map_err(|e| ResourceManagerError::ZipError(e.clone()))?
-            }
-            ContainerType::Erf => {
-                let internal_path = info
-                    .internal_path
-                    .as_ref()
-                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+                    self.zip_reader
+                        .lock()
+                        .read_file_from_zip(
+                            info.container_path.to_string_lossy().to_string(),
+                            internal_path.clone(),
+                        )
+                        .map_err(|e| ResourceManagerError::ZipError(e.clone()))?
+                }
+                ContainerType::Erf => {
+                    let internal_path = info.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
 
-                let mut erf = ErfParser::new();
-                erf.read(&info.container_path).map_err(|e| {
-                    ResourceManagerError::InvalidErfFormat(format!(
-                        "Failed to open {}: {}",
-                        info.container_path.display(),
-                        e
-                    ))
-                })?;
+                    let mut erf = ErfParser::new();
+                    erf.read(&info.container_path).map_err(|e| {
+                        ResourceManagerError::InvalidErfFormat(format!(
+                            "Failed to open {}: {}",
+                            info.container_path.display(),
+                            e
+                        ))
+                    })?;
 
-                erf.resources
-                    .get(internal_path)
-                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
-                        resource: internal_path.clone(),
-                        container: info.container_path.display().to_string(),
-                    })?
-                    .data
-                    .clone()
-                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
-                        resource: internal_path.clone(),
-                        container: info.container_path.display().to_string(),
-                    })?
-            }
-            ContainerType::Directory => std::fs::read(&info.container_path)?,
-        };
+                    erf.resources
+                        .get(internal_path)
+                        .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                            resource: internal_path.clone(),
+                            container: info.container_path.display().to_string(),
+                        })?
+                        .data
+                        .clone()
+                        .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                            resource: internal_path.clone(),
+                            container: info.container_path.display().to_string(),
+                        })?
+                }
+                ContainerType::Directory => std::fs::read(&info.container_path)?,
+            };
 
         let gff = GffParser::from_bytes(data).map_err(|e| {
             ResourceManagerError::InvalidGffFormat(format!("Failed to parse template: {e}"))
@@ -1087,7 +1110,7 @@ impl ResourceManager {
     pub fn get_cache_stats(&self) -> CacheStats {
         let hits = self.cache_hits.load(Ordering::Relaxed);
         let misses = self.cache_misses.load(Ordering::Relaxed);
-        
+
         CacheStats {
             size: self.tda_locations.len(),
             max_size: 0,
@@ -1152,7 +1175,10 @@ fn gff_value_to_json(value: &crate::parsers::gff::GffValue<'_>) -> serde_json::V
                     })
                 })
                 .collect();
-            obj.insert("substrings".to_string(), serde_json::Value::Array(substrings));
+            obj.insert(
+                "substrings".to_string(),
+                serde_json::Value::Array(substrings),
+            );
             serde_json::Value::Object(obj)
         }
         GffValue::Void(data) => serde_json::json!(base64::Engine::encode(
@@ -1213,28 +1239,28 @@ mod tests {
     fn test_recursive_directory_indexing() {
         use std::fs;
         use std::io::Write;
-        
+
         // Create a temp directory structure
         let temp_dir = std::env::temp_dir().join("nwn2_test_recursive");
         if temp_dir.exists() {
             let _ = fs::remove_dir_all(&temp_dir);
         }
         fs::create_dir_all(&temp_dir).unwrap();
-        
+
         let sub_dir = temp_dir.join("subdir");
         fs::create_dir(&sub_dir).unwrap();
-        
+
         let file1 = temp_dir.join("test1.2da");
         let mut f1 = fs::File::create(&file1).unwrap();
         f1.write_all(b"test").unwrap();
-        
+
         let file2 = sub_dir.join("test2.2da");
         let mut f2 = fs::File::create(&file2).unwrap();
         f2.write_all(b"test").unwrap();
-        
+
         // Placeholder test to verify compilation
         assert!(true);
-        
+
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
     }

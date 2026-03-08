@@ -1,6 +1,6 @@
-use std::borrow::Cow;
-use indexmap::IndexMap;
 use crate::parsers::gff::{GffValue, LocalizedString, LocalizedSubstring};
+use indexmap::IndexMap;
+use std::borrow::Cow;
 
 impl super::Character {
     pub fn get_byte(&self, field: &str) -> Option<u8> {
@@ -124,9 +124,7 @@ impl super::Character {
     pub fn get_list(&self, field: &str) -> Option<&Vec<IndexMap<String, GffValue<'static>>>> {
         match self.gff.get(field)? {
             GffValue::ListOwned(maps) => Some(maps),
-            GffValue::List(_lazy_structs) => {
-                None
-            }
+            GffValue::List(_lazy_structs) => None,
             _ => None,
         }
     }
@@ -134,19 +132,25 @@ impl super::Character {
     pub fn get_list_owned(&self, field: &str) -> Option<Vec<IndexMap<String, GffValue<'static>>>> {
         match self.gff.get(field)? {
             GffValue::ListOwned(maps) => Some(maps.clone()),
-            GffValue::List(lazy_structs) => {
-                Some(lazy_structs.iter().map(super::super::parsers::gff::types::LazyStruct::force_load).collect())
-            }
+            GffValue::List(lazy_structs) => Some(
+                lazy_structs
+                    .iter()
+                    .map(super::super::parsers::gff::types::LazyStruct::force_load)
+                    .collect(),
+            ),
             _ => None,
         }
     }
 
-    pub fn get_list_mut(&mut self, field: &str) -> Option<&mut Vec<IndexMap<String, GffValue<'static>>>> {
+    pub fn get_list_mut(
+        &mut self,
+        field: &str,
+    ) -> Option<&mut Vec<IndexMap<String, GffValue<'static>>>> {
         match self.gff.get_mut(field)? {
             GffValue::ListOwned(maps) => {
                 self.modified = true;
                 Some(maps)
-            },
+            }
             _ => None,
         }
     }
@@ -154,9 +158,7 @@ impl super::Character {
     pub fn get_struct(&self, field: &str) -> Option<&IndexMap<String, GffValue<'static>>> {
         match self.gff.get(field)? {
             GffValue::StructOwned(map) => Some(map),
-            GffValue::Struct(_lazy_struct) => {
-                None
-            }
+            GffValue::Struct(_lazy_struct) => None,
             _ => None,
         }
     }
@@ -215,10 +217,8 @@ impl super::Character {
     }
 
     pub fn set_string(&mut self, field: &str, value: String) {
-        self.gff.insert(
-            field.to_string(),
-            GffValue::String(Cow::Owned(value)),
-        );
+        self.gff
+            .insert(field.to_string(), GffValue::String(Cow::Owned(value)));
         self.modified = true;
     }
 
@@ -245,20 +245,20 @@ impl super::Character {
     }
 
     pub fn set_resref(&mut self, field: &str, value: String) {
-        self.gff.insert(
-            field.to_string(),
-            GffValue::ResRef(Cow::Owned(value)),
-        );
+        self.gff
+            .insert(field.to_string(), GffValue::ResRef(Cow::Owned(value)));
         self.modified = true;
     }
 
     pub fn set_list(&mut self, field: &str, value: Vec<IndexMap<String, GffValue<'static>>>) {
-        self.gff.insert(field.to_string(), GffValue::ListOwned(value));
+        self.gff
+            .insert(field.to_string(), GffValue::ListOwned(value));
         self.modified = true;
     }
 
     pub fn set_struct(&mut self, field: &str, value: IndexMap<String, GffValue<'static>>) {
-        self.gff.insert(field.to_string(), GffValue::StructOwned(Box::new(value)));
+        self.gff
+            .insert(field.to_string(), GffValue::StructOwned(Box::new(value)));
         self.modified = true;
     }
 
@@ -285,9 +285,10 @@ impl super::Character {
 
 pub fn extract_localized_string(ls: &LocalizedString<'_>) -> Option<String> {
     if let Some(substring) = ls.substrings.first()
-        && !substring.string.is_empty() {
-            return Some(substring.string.to_string());
-        }
+        && !substring.string.is_empty()
+    {
+        return Some(substring.string.to_string());
+    }
     None
 }
 
@@ -297,9 +298,12 @@ pub fn extract_list_from_map(
 ) -> Option<Vec<IndexMap<String, GffValue<'static>>>> {
     match map.get(field)? {
         GffValue::ListOwned(maps) => Some(maps.clone()),
-        GffValue::List(lazy_structs) => {
-            Some(lazy_structs.iter().map(crate::parsers::gff::types::LazyStruct::force_load).collect())
-        }
+        GffValue::List(lazy_structs) => Some(
+            lazy_structs
+                .iter()
+                .map(crate::parsers::gff::types::LazyStruct::force_load)
+                .collect(),
+        ),
         _ => None,
     }
 }
@@ -336,7 +340,10 @@ mod tests {
         fields.insert("Dex".to_string(), GffValue::Byte(14));
         fields.insert("Con".to_string(), GffValue::Byte(12));
         fields.insert("Int".to_string(), GffValue::Int(10));
-        fields.insert("Name".to_string(), GffValue::String(Cow::Owned("Test".to_string())));
+        fields.insert(
+            "Name".to_string(),
+            GffValue::String(Cow::Owned("Test".to_string())),
+        );
         fields
     }
 
@@ -407,7 +414,10 @@ mod tests {
         assert_eq!(gff_value_to_i32(&GffValue::Int(42)), Some(42));
         assert_eq!(gff_value_to_i32(&GffValue::Byte(10)), Some(10));
         assert_eq!(gff_value_to_i32(&GffValue::Short(-5)), Some(-5));
-        assert_eq!(gff_value_to_i32(&GffValue::String(Cow::Borrowed("test"))), None);
+        assert_eq!(
+            gff_value_to_i32(&GffValue::String(Cow::Borrowed("test"))),
+            None
+        );
     }
 
     #[test]

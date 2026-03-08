@@ -9,8 +9,8 @@ pub mod rule_detector;
 pub mod savegame_handler;
 
 pub use field_mapper::{
-    AbilityModifiers, ClassProperties, FeatPrerequisites, FieldMapper, PrereqTableParsed,
-    SaveBonuses, FIELD_PATTERNS,
+    AbilityModifiers, ClassProperties, FIELD_PATTERNS, FeatPrerequisites, FieldMapper,
+    PrereqTableParsed, SaveBonuses,
 };
 
 pub use resource_manager::{

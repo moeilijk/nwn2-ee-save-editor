@@ -16,7 +16,10 @@ impl DirectoryWalker {
         }
     }
 
-    pub fn scan_workshop_directory(&mut self, workshop_dir: &Path) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn scan_workshop_directory(
+        &mut self,
+        workshop_dir: &Path,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let start_time = Instant::now();
         let mut resources = HashMap::new();
         let mut workshop_items_scanned = 0;
@@ -57,26 +60,47 @@ impl DirectoryWalker {
 
         let scan_time = start_time.elapsed();
 
-        self.stats.insert("last_workshop_scan_time_ms".to_string(), scan_time.as_millis() as u64);
-        self.stats.insert("last_workshop_items_scanned".to_string(), workshop_items_scanned);
-        self.stats.insert("last_workshop_override_dirs".to_string(), override_dirs_found);
-        self.stats.insert("last_workshop_files_found".to_string(), files_found as u64);
+        self.stats.insert(
+            "last_workshop_scan_time_ms".to_string(),
+            scan_time.as_millis() as u64,
+        );
+        self.stats.insert(
+            "last_workshop_items_scanned".to_string(),
+            workshop_items_scanned,
+        );
+        self.stats.insert(
+            "last_workshop_override_dirs".to_string(),
+            override_dirs_found,
+        );
+        self.stats
+            .insert("last_workshop_files_found".to_string(), files_found as u64);
 
         Ok(resources)
     }
 
-    pub fn index_directory(&mut self, directory: &Path, recursive: bool) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn index_directory(
+        &mut self,
+        directory: &Path,
+        recursive: bool,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let start_time = Instant::now();
         let resources = Self::scan_directory_for_2das(directory, recursive)?;
         let scan_time = start_time.elapsed();
 
-        self.stats.insert("last_dir_index_time_ms".to_string(), scan_time.as_millis() as u64);
-        self.stats.insert("last_dir_files_found".to_string(), resources.len() as u64);
+        self.stats.insert(
+            "last_dir_index_time_ms".to_string(),
+            scan_time.as_millis() as u64,
+        );
+        self.stats
+            .insert("last_dir_files_found".to_string(), resources.len() as u64);
 
         Ok(resources)
     }
 
-    fn scan_directory_for_2das(directory: &Path, recursive: bool) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    fn scan_directory_for_2das(
+        directory: &Path,
+        recursive: bool,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let mut resources = HashMap::new();
 
         if !directory.is_dir() {
@@ -90,9 +114,9 @@ impl DirectoryWalker {
         };
 
         for entry in walker {
-            let entry = entry.map_err(|e| ResourceScanError::Io(std::io::Error::other(
-                format!("WalkDir error: {e}")
-            )))?;
+            let entry = entry.map_err(|e| {
+                ResourceScanError::Io(std::io::Error::other(format!("WalkDir error: {e}")))
+            })?;
 
             let path = entry.path();
 
@@ -132,16 +156,18 @@ impl DirectoryWalker {
         Ok(resources)
     }
 
-    pub fn scan_directories_parallel(&mut self, directories: Vec<&Path>, recursive: bool) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn scan_directories_parallel(
+        &mut self,
+        directories: Vec<&Path>,
+        recursive: bool,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         use rayon::prelude::*;
 
         let start_time = Instant::now();
 
         let results: Result<Vec<_>, ResourceScanError> = directories
             .par_iter()
-            .map(|dir_path| {
-                DirectoryWalker::scan_directory_for_2das(dir_path, recursive)
-            })
+            .map(|dir_path| DirectoryWalker::scan_directory_for_2das(dir_path, recursive))
             .collect();
 
         let parallel_results = results?;
@@ -153,8 +179,14 @@ impl DirectoryWalker {
 
         let total_time = start_time.elapsed();
 
-        self.stats.insert("last_parallel_dir_time_ms".to_string(), total_time.as_millis() as u64);
-        self.stats.insert("last_parallel_dir_count".to_string(), directories.len() as u64);
+        self.stats.insert(
+            "last_parallel_dir_time_ms".to_string(),
+            total_time.as_millis() as u64,
+        );
+        self.stats.insert(
+            "last_parallel_dir_count".to_string(),
+            directories.len() as u64,
+        );
 
         Ok(combined_resources)
     }
@@ -177,8 +209,8 @@ impl Default for DirectoryWalker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_directory_walker_creation() {

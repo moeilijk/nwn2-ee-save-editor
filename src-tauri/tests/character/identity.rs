@@ -1,4 +1,4 @@
-use super::super::common::{fixtures_path, load_test_gff, create_test_context};
+use super::super::common::{create_test_context, fixtures_path, load_test_gff};
 use app_lib::character::Character;
 use app_lib::parsers::gff::GffParser;
 use app_lib::services::savegame_handler::SaveGameHandler;
@@ -57,9 +57,21 @@ async fn test_name_consistency_across_levels() {
     println!("\n=== Name Consistency Across Levels ===");
 
     let characters = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("sagemelchior/sagemelchior1.bic", "sagemelchior/sagemelchior4.bic", "Melchior"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "sagemelchior/sagemelchior1.bic",
+            "sagemelchior/sagemelchior4.bic",
+            "Melchior",
+        ),
     ];
 
     for (l1_path, l30_path, name) in characters {
@@ -126,20 +138,19 @@ async fn test_classic_campaign_identity() {
     let save_path = fixtures_path().join("saves/Classic_Campaign");
     println!("Loading save from: {:?}", save_path);
 
-    let handler = SaveGameHandler::new(&save_path, false, false)
-        .expect("Failed to create SaveGameHandler");
+    let handler =
+        SaveGameHandler::new(&save_path, false, false).expect("Failed to create SaveGameHandler");
 
-    let player_data = handler.extract_player_bic()
+    let player_data = handler
+        .extract_player_bic()
         .expect("Failed to extract player.bic")
         .expect("player.bic not found in save");
 
-    let parser = GffParser::from_bytes(player_data)
-        .expect("Failed to parse player.bic GFF");
-    
-    let root = parser.read_struct_fields(0)
-        .expect("Failed to read root struct");
-    
+    let parser = GffParser::from_bytes(player_data).expect("Failed to parse player.bic GFF");
 
+    let root = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
 
     let character = Character::from_gff(root);
 
@@ -150,25 +161,39 @@ async fn test_classic_campaign_identity() {
     );
 
     // Verify some Identity properties
-    assert!(!character.first_name().is_empty(), "First name should not be empty");
+    assert!(
+        !character.first_name().is_empty(),
+        "First name should not be empty"
+    );
     // Michael has no last name in this save
     // assert!(!character.last_name().is_empty(), "Last name should not be empty");
-    assert!(!character.full_name().is_empty(), "Full name should not be empty");
+    assert!(
+        !character.full_name().is_empty(),
+        "Full name should not be empty"
+    );
     assert!(character.age() >= 0, "Age should be non-negative");
     assert!(character.experience() >= 0, "XP should be non-negative");
-    
+
     let alignment = character.alignment();
     println!("Alignment: {}", alignment.alignment_string());
     println!("Deity: '{}'", character.deity());
     println!("Description: '{}'", character.description());
-    
-    assert_eq!(character.deity(), "Shaundakul", "Deity should be Shaundakul");
-    assert!(character.description().contains("Not much is known about your history"), "Description should match default text");
+
+    assert_eq!(
+        character.deity(),
+        "Shaundakul",
+        "Deity should be Shaundakul"
+    );
+    assert!(
+        character
+            .description()
+            .contains("Not much is known about your history"),
+        "Description should match default text"
+    );
 
     assert!(alignment.law_chaos >= 0 && alignment.law_chaos <= 100);
     assert!(alignment.good_evil >= 0 && alignment.good_evil <= 100);
 }
-
 
 // ============================================================================
 // Age Tests
@@ -192,8 +217,16 @@ async fn test_age_across_fixtures() {
 
         println!("{}: Age = {}", character.first_name(), age);
 
-        assert!(age >= 0, "{} should have non-negative age", character.first_name());
-        assert!(age <= 10000, "{} should have reasonable age", character.first_name());
+        assert!(
+            age >= 0,
+            "{} should have non-negative age",
+            character.first_name()
+        );
+        assert!(
+            age <= 10000,
+            "{} should have reasonable age",
+            character.first_name()
+        );
     }
 }
 
@@ -213,7 +246,11 @@ async fn test_set_age_validation() {
 
     let invalid_result = character.set_age(-5);
     assert!(invalid_result.is_err());
-    assert_eq!(character.age(), 50, "Age should remain unchanged after error");
+    assert_eq!(
+        character.age(),
+        50,
+        "Age should remain unchanged after error"
+    );
 
     println!("Final age after tests: {}", character.age());
 }
@@ -227,9 +264,21 @@ async fn test_experience_progression() {
     println!("\n=== Experience Progression ===");
 
     let characters = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
     ];
 
     for (l1_path, l30_path, name) in characters {
@@ -249,7 +298,7 @@ async fn test_experience_progression() {
 
         assert!(xp_l1 >= 0, "{} L1 XP should be non-negative", name);
         assert!(xp_l30 >= xp_l1, "{} L30 XP should be >= L1 XP", name);
-        
+
         if char_l30.total_level() > char_l1.total_level() {
             assert!(
                 xp_l30 > xp_l1,
@@ -276,12 +325,18 @@ async fn test_experience_matches_level() {
 
         println!("{}: Level {} with {} XP", character.first_name(), level, xp);
 
-        assert!(level >= expected_min_level, "Level should match expectation");
+        assert!(
+            level >= expected_min_level,
+            "Level should match expectation"
+        );
 
         if level == 1 {
             assert!(xp < 1000, "Level 1 should have < 1000 XP");
         } else if level >= 20 {
-            assert!(xp >= 190000, "Level 20+ should have significant XP (>=190k)");
+            assert!(
+                xp >= 190000,
+                "Level 20+ should have significant XP (>=190k)"
+            );
         }
     }
 }
@@ -302,7 +357,11 @@ async fn test_set_experience_validation() {
 
     let invalid_result = character.set_experience(-100);
     assert!(invalid_result.is_err());
-    assert_eq!(character.experience(), 50000, "XP should remain unchanged after error");
+    assert_eq!(
+        character.experience(),
+        50000,
+        "XP should remain unchanged after error"
+    );
 
     println!("Final XP: {}", character.experience());
 }
@@ -430,7 +489,9 @@ async fn test_set_alignment_on_real_character() {
 
     println!(
         "Updated: LC={}, GE={} -> '{}'",
-        updated.law_chaos, updated.good_evil, updated.alignment_string()
+        updated.law_chaos,
+        updated.good_evil,
+        updated.alignment_string()
     );
 }
 
@@ -449,7 +510,9 @@ async fn test_alignment_clamping() {
 
     println!(
         "Clamped to: LC={}, GE={} -> '{}'",
-        alignment.law_chaos, alignment.good_evil, alignment.alignment_string()
+        alignment.law_chaos,
+        alignment.good_evil,
+        alignment.alignment_string()
     );
 }
 
@@ -465,7 +528,10 @@ async fn test_alignment_partial_update() {
 
     let updated = character.alignment();
     assert_eq!(updated.law_chaos, 25);
-    assert_eq!(updated.good_evil, original.good_evil, "Good/evil should remain unchanged");
+    assert_eq!(
+        updated.good_evil, original.good_evil,
+        "Good/evil should remain unchanged"
+    );
 
     println!(
         "Partial update: LC {} -> {}, GE unchanged at {}",
@@ -536,7 +602,12 @@ async fn test_gender_across_fixtures() {
         let gender = character.gender();
         let gender_str = if gender == 0 { "Male" } else { "Female" };
 
-        println!("{}: Gender = {} ({})", character.first_name(), gender, gender_str);
+        println!(
+            "{}: Gender = {} ({})",
+            character.first_name(),
+            gender,
+            gender_str
+        );
 
         assert!(
             gender == 0 || gender == 1,
@@ -563,7 +634,11 @@ async fn test_set_gender_validation() {
 
     let invalid_result = character.set_gender(2);
     assert!(invalid_result.is_err());
-    assert_eq!(character.gender(), new_gender, "Gender should remain unchanged after error");
+    assert_eq!(
+        character.gender(),
+        new_gender,
+        "Gender should remain unchanged after error"
+    );
 
     let invalid_result = character.set_gender(-1);
     assert!(invalid_result.is_err());
@@ -663,9 +738,9 @@ async fn test_biography_aggregation() {
         assert_eq!(bio.age, character.age());
         // With full game data loaded, we get resolved TLK names
         if character.first_name() == "Ryath" {
-           assert_eq!(bio.background, Some("Militia".to_string()));
+            assert_eq!(bio.background, Some("Militia".to_string()));
         } else if character.first_name() == "Occidio" {
-           assert_eq!(bio.background, Some("Natural Leader".to_string()));
+            assert_eq!(bio.background, Some("Natural Leader".to_string()));
         }
         assert_eq!(bio.gender, character.gender());
         assert_eq!(bio.experience, character.experience());
@@ -715,8 +790,16 @@ async fn test_biography_consistency_between_levels() {
             bio_l30.alignment.alignment_string()
         );
 
-        assert_eq!(bio_l1.name, bio_l30.name, "{} name should be consistent", name);
-        assert_eq!(bio_l1.gender, bio_l30.gender, "{} gender should be consistent", name);
+        assert_eq!(
+            bio_l1.name, bio_l30.name,
+            "{} name should be consistent",
+            name
+        );
+        assert_eq!(
+            bio_l1.gender, bio_l30.gender,
+            "{} gender should be consistent",
+            name
+        );
     }
 }
 
@@ -751,13 +834,22 @@ async fn test_all_fixtures_identity_sanity() {
         let character = load_character(path);
 
         assert!(
-            !character.full_name().is_empty() || character.first_name().is_empty() && character.last_name().is_empty(),
+            !character.full_name().is_empty()
+                || character.first_name().is_empty() && character.last_name().is_empty(),
             "{} should have a name or explicitly empty",
             label
         );
 
-        assert!(character.age() >= 0, "{} should have non-negative age", label);
-        assert!(character.experience() >= 0, "{} should have non-negative XP", label);
+        assert!(
+            character.age() >= 0,
+            "{} should have non-negative age",
+            label
+        );
+        assert!(
+            character.experience() >= 0,
+            "{} should have non-negative XP",
+            label
+        );
         assert!(
             character.gender() == 0 || character.gender() == 1,
             "{} should have valid gender",
@@ -817,10 +909,7 @@ async fn test_xp_level_correlation() {
         );
 
         if fixture_num > 1 {
-            assert!(
-                xp >= prev_xp,
-                "XP should not decrease between fixtures"
-            );
+            assert!(xp >= prev_xp, "XP should not decrease between fixtures");
             assert!(
                 level >= prev_level,
                 "Level should not decrease between fixtures"
@@ -842,10 +931,16 @@ async fn test_is_modified_tracking() {
 
     let mut character = load_character("ryathstrongarm/ryathstrongarm1.bic");
 
-    assert!(!character.is_modified(), "Fresh character should not be modified");
+    assert!(
+        !character.is_modified(),
+        "Fresh character should not be modified"
+    );
 
     character.set_first_name("ModifiedName".to_string());
-    assert!(character.is_modified(), "Should be modified after name change");
+    assert!(
+        character.is_modified(),
+        "Should be modified after name change"
+    );
 
     println!("Modified tracking works correctly");
 }
@@ -888,22 +983,22 @@ async fn test_background_retrieval() {
     // We need game data for background lookup (feats)
     let ctx = create_test_context().await;
     let loader = ctx.loader;
-    
+
     // Ensure data is loaded
     assert!(loader.is_ready());
     let game_data = loader.game_data().expect("Game data should be loaded");
 
     let fixtures = [
         "ryathstrongarm/ryathstrongarm1.bic",
-        "occidiooctavon/occidiooctavon1.bic", 
+        "occidiooctavon/occidiooctavon1.bic",
     ];
 
     for path in fixtures {
         let character = load_character(path);
         let background = character.background(game_data);
-        
+
         println!("{}: Background = {:?}", character.first_name(), background);
-        
+
         // Background presence depends on the fixture; verify the method returns without panicking.
     }
 }

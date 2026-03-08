@@ -18,9 +18,8 @@ use crate::parsers::gff::GffParser;
 pub use backup::{BackupInfo, CleanupResult, RestoreResult};
 pub use error::{SaveGameError, SaveGameResult};
 
-static NWN2_DATE_TIME: LazyLock<zip::DateTime> = LazyLock::new(|| {
-    zip::DateTime::from_date_and_time(1980, 1, 1, 0, 0, 0).unwrap_or_default()
-});
+static NWN2_DATE_TIME: LazyLock<zip::DateTime> =
+    LazyLock::new(|| zip::DateTime::from_date_and_time(1980, 1, 1, 0, 0, 0).unwrap_or_default());
 
 const RESGFF_ZIP: &str = "resgff.zip";
 const PLAYERLIST_IFO: &str = "playerlist.ifo";
@@ -118,9 +117,8 @@ impl SaveGameHandler {
     pub fn extract_file(&self, filename: &str) -> SaveGameResult<Vec<u8>> {
         // Only these root files are stored on disk (not in ZIP) for directory-mode saves.
         // Other files always come from ZIP to prevent stale disk files from overriding.
-        let is_disk_root_file = filename == GLOBALS_XML
-            || filename == MODULE_IFO
-            || filename == CURRENTMODULE_TXT;
+        let is_disk_root_file =
+            filename == GLOBALS_XML || filename == MODULE_IFO || filename == CURRENTMODULE_TXT;
 
         if is_disk_root_file {
             let disk_path = self.save_dir.join(filename);
@@ -132,11 +130,11 @@ impl SaveGameHandler {
         let file = File::open(&self.zip_path)?;
         let mut archive = ZipArchive::new(file)?;
 
-        let mut zip_file = archive.by_name(filename).map_err(|_| {
-            SaveGameError::FileNotInSave {
+        let mut zip_file = archive
+            .by_name(filename)
+            .map_err(|_| SaveGameError::FileNotInSave {
                 filename: filename.into(),
-            }
-        })?;
+            })?;
 
         let mut contents = Vec::with_capacity(zip_file.size() as usize);
         zip_file.read_to_end(&mut contents)?;
@@ -274,10 +272,14 @@ impl SaveGameHandler {
 
         // Check if file should be written to disk (root files)
         let disk_path = self.save_dir.join(filename);
-        if filename == GLOBALS_XML || filename == MODULE_IFO || filename == CURRENTMODULE_TXT || disk_path.exists() {
-             fs::write(&disk_path, content)?;
-             debug!("Updated file on disk: {}", filename);
-             return Ok(());
+        if filename == GLOBALS_XML
+            || filename == MODULE_IFO
+            || filename == CURRENTMODULE_TXT
+            || disk_path.exists()
+        {
+            fs::write(&disk_path, content)?;
+            debug!("Updated file on disk: {}", filename);
+            return Ok(());
         }
 
         let temp_path = self.zip_path.with_extension("zip.tmp");
@@ -529,9 +531,8 @@ impl SaveGameHandler {
             None => return Ok(None),
         };
 
-        let gff = GffParser::from_bytes(data).map_err(|e| {
-            SaveGameError::GffParse(format!("Failed to parse player.bic: {e}"))
-        })?;
+        let gff = GffParser::from_bytes(data)
+            .map_err(|e| SaveGameError::GffParse(format!("Failed to parse player.bic: {e}")))?;
 
         let fields = gff.read_struct_fields(0).map_err(|e| {
             SaveGameError::GffParse(format!("Failed to read player.bic fields: {e}"))
@@ -597,9 +598,10 @@ impl SaveGameHandler {
     fn cleanup_temp_files(&mut self) {
         for path in self.temp_files.drain(..) {
             if path.exists()
-                && let Err(e) = fs::remove_file(&path) {
-                    warn!("Failed to cleanup temp file {}: {}", path.display(), e);
-                }
+                && let Err(e) = fs::remove_file(&path)
+            {
+                warn!("Failed to cleanup temp file {}: {}", path.display(), e);
+            }
         }
     }
 }
@@ -631,10 +633,7 @@ fn extract_locstring(
 
     match fields.get(key)? {
         GffValue::String(s) => Some(s.to_string()),
-        GffValue::LocString(ls) => ls
-            .substrings
-            .first()
-            .map(|sub| sub.string.to_string()),
+        GffValue::LocString(ls) => ls.substrings.first().map(|sub| sub.string.to_string()),
         _ => None,
     }
 }
@@ -671,10 +670,10 @@ mod tests {
         assert!(handler.validate_file_content("test.bic", valid_bic).is_ok());
 
         let invalid_bic = b"XXXX test data here";
-        assert!(handler
-            .validate_file_content("test.bic", invalid_bic)
-            .is_err());
+        assert!(
+            handler
+                .validate_file_content("test.bic", invalid_bic)
+                .is_err()
+        );
     }
-
-
 }

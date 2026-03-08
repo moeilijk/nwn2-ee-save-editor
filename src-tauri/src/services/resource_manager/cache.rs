@@ -49,10 +49,8 @@ impl ModuleLRUCache {
             if let Some(entry) = self.cache.get_mut(key) {
                 entry.last_accessed = current_timestamp();
             }
-            self.cache.move_index(
-                self.cache.get_index_of(key).unwrap(),
-                self.cache.len() - 1,
-            );
+            self.cache
+                .move_index(self.cache.get_index_of(key).unwrap(), self.cache.len() - 1);
             self.cache.get(key)
         } else {
             self.misses += 1;
@@ -155,9 +153,10 @@ impl FileModificationTracker {
 
     pub fn is_modified(&self, path: &PathBuf) -> bool {
         if let Some(&cached_mtime) = self.mod_times.get(path)
-            && let Ok(current_mtime) = get_file_mtime(path) {
-                return (current_mtime - cached_mtime).abs() > 0.001;
-            }
+            && let Ok(current_mtime) = get_file_mtime(path)
+        {
+            return (current_mtime - cached_mtime).abs() > 0.001;
+        }
         true
     }
 

@@ -1,8 +1,8 @@
+use crate::character::types::{AbilityIndex, ClassId};
+use crate::character::{Character, CharacterError};
+use crate::loaders::GameData;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use crate::character::{Character, CharacterError};
-use crate::character::types::{AbilityIndex, ClassId};
-use crate::loaders::GameData;
 
 // TODO: Future enhancements for full Python parity:
 // - Damage Reduction stacking (aggregate from Barbarian levels, items, feats)
@@ -322,12 +322,11 @@ impl Character {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use crate::parsers::gff::GffValue;
+    use indexmap::IndexMap;
 
     fn create_test_character() -> Character {
         let mut fields = IndexMap::new();
@@ -584,7 +583,7 @@ mod tests {
     #[test]
     fn test_set_hit_points() {
         let mut character = Character::from_gff(IndexMap::new());
-        
+
         character.set_current_hit_points(50);
         assert_eq!(character.current_hit_points(), 50);
 
@@ -600,7 +599,7 @@ mod tests {
         let mut character = Character::from_gff(IndexMap::new());
         character.set_max_hit_points(0);
         assert_eq!(character.max_hit_points(), 1);
-        
+
         character.set_max_hit_points(-10);
         assert_eq!(character.max_hit_points(), 1);
     }

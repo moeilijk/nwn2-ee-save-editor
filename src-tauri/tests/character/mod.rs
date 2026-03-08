@@ -6,6 +6,6 @@ mod identity;
 mod inventory;
 mod race;
 mod saves;
+mod skill_bonus_test;
 mod skills;
 mod spells;
-mod skill_bonus_test;

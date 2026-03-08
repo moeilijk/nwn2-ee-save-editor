@@ -3,60 +3,62 @@
 //! Replaces the 11-manager architecture with a single Character struct
 //! that directly owns GFF data without Arc<RwLock<>> overhead.
 
+use crate::parsers::gff::GffValue;
 use indexmap::IndexMap;
 use tracing::{debug, instrument};
-use crate::parsers::gff::GffValue;
 
-pub mod error;
-pub mod types;
-pub mod gff_helpers;
 pub mod abilities;
-pub mod saves;
+pub mod classes;
 pub mod combat;
 pub mod combat_summary;
-pub mod save_summary;
-mod race;
-mod identity;
-pub mod classes;
+pub mod error;
 pub(crate) mod feats;
-mod skills;
+pub mod gff_helpers;
+mod identity;
 mod inventory;
-mod spells;
 pub mod overview;
+mod race;
+pub mod save_summary;
+pub mod saves;
+mod skills;
+mod spells;
+pub mod types;
 
-pub use error::CharacterError;
-pub use types::*;
-pub use race::{SizeCategory, SubraceInfo};
-pub use identity::Alignment;
-pub use classes::{ClassEntry, LevelHistoryEntry, SkillRankEntry, ClassInfo, BabType, XpProgress, ClassSummaryEntry, AlignmentRestriction, PrestigeRequirements, PrestigeClassValidation, PrestigeClassOption};
-pub use saves::SaveBonuses;
+pub use abilities::{AbilitiesState, AbilityIncrease, AbilityPointsSummary};
+pub use classes::ClassesState;
+pub use classes::{
+    AlignmentRestriction, BabType, ClassEntry, ClassInfo, ClassSummaryEntry, LevelHistoryEntry,
+    PrestigeClassOption, PrestigeClassValidation, PrestigeRequirements, SkillRankEntry, XpProgress,
+};
 pub use combat::{CombatStats, DamageBonuses};
 pub use combat_summary::{
-    ArmorClass, ACBreakdown, AttackBonuses, AttackBreakdown, Initiative,
-    CombatManeuverBonus, MovementSpeed, DamageReduction, CombatSummary,
-    NaturalArmorChange, InitiativeChange,
+    ACBreakdown, ArmorClass, AttackBonuses, AttackBreakdown, CombatManeuverBonus, CombatSummary,
+    DamageReduction, Initiative, InitiativeChange, MovementSpeed, NaturalArmorChange,
 };
-pub use save_summary::{
-    SaveType, SavingThrows, SaveBreakdown, SaveSummary, SaveCheck, SaveChange,
+pub use error::CharacterError;
+pub use feats::{
+    DomainInfo, FeatAvailability, FeatCategory, FeatEntry, FeatInfo, FeatSlots, FeatSource,
+    FeatSummary, FeatType, FeatsState, PrerequisiteResult,
 };
-pub use feats::{FeatEntry, FeatSource, FeatSlots, PrerequisiteResult, FeatInfo, FeatSummary, FeatCategory, FeatType, DomainInfo, FeatsState, FeatAvailability};
+pub use identity::Alignment;
 pub use inventory::{
-    BasicItemInfo, WeightStatus, BaseItemData as CharacterBaseItemData,
-    EquipmentSummary, EquipmentSlotInfo, EncumbranceInfo, EquipmentSlot,
-    InventoryItem, EquipResult, UnequipResult, AddItemResult, RemoveItemResult,
-    EncumbranceStatus, ItemProficiencyInfo, ProficiencyRequirement,
-    FullInventorySummary, FullInventoryItem, FullEquippedItem, FullEncumbrance,
-    DecodedPropertyInfo,
+    AddItemResult, BaseItemData as CharacterBaseItemData, BasicItemInfo, DecodedPropertyInfo,
+    EncumbranceInfo, EncumbranceStatus, EquipResult, EquipmentSlot, EquipmentSlotInfo,
+    EquipmentSummary, FullEncumbrance, FullEquippedItem, FullInventoryItem, FullInventorySummary,
+    InventoryItem, ItemProficiencyInfo, ProficiencyRequirement, RemoveItemResult, UnequipResult,
+    WeightStatus,
 };
+pub use overview::OverviewState;
+pub use race::{SizeCategory, SubraceInfo};
+pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};
+pub use saves::SaveBonuses;
+pub use skills::{ABLE_LEARNER_FEAT_ID, SkillPointsSummary, SkillSummaryEntry};
 pub use spells::{
-    MemorizedSpellRaw, SpellSummary, SpellDetails, SpellsState, MAX_SPELL_LEVEL,
-    SpellcastingClass, KnownSpellEntry, MemorizedSpellEntry, CasterClassSummary, MetamagicFeat,
+    CasterClassSummary, KnownSpellEntry, MAX_SPELL_LEVEL, MemorizedSpellEntry, MemorizedSpellRaw,
+    MetamagicFeat, SpellDetails, SpellSummary, SpellcastingClass, SpellsState,
     is_displayable_spell, is_mod_prefixed_name,
 };
-pub use skills::{SkillSummaryEntry, SkillPointsSummary, ABLE_LEARNER_FEAT_ID};
-pub use abilities::{AbilityIncrease, AbilityPointsSummary, AbilitiesState};
-pub use classes::ClassesState;
-pub use overview::OverviewState;
+pub use types::*;
 
 /// Character data with direct GFF ownership.
 ///
@@ -145,24 +147,37 @@ impl Character {
         let race_id = self.race_id();
         if game_data.get_table("racialtypes").is_some()
             && let Some(races) = game_data.get_table("racialtypes")
-                && races.get_by_id(race_id.0).is_none() {
-                    result.add_error(format!("Invalid race ID: {}", race_id.0));
-                }
+            && races.get_by_id(race_id.0).is_none()
+        {
+            result.add_error(format!("Invalid race ID: {}", race_id.0));
+        }
 
         let level = self.total_level();
         if level < 1 {
             result.add_error("Character level is less than 1");
         }
         if level > types::MAX_TOTAL_LEVEL {
-            result.add_error(format!("Character level {} exceeds maximum {}", level, types::MAX_TOTAL_LEVEL));
+            result.add_error(format!(
+                "Character level {} exceeds maximum {}",
+                level,
+                types::MAX_TOTAL_LEVEL
+            ));
         }
 
         let alignment = self.alignment();
-        if alignment.law_chaos < types::ALIGNMENT_MIN || alignment.law_chaos > types::ALIGNMENT_MAX {
-            result.add_error(format!("Law/Chaos alignment {} out of range", alignment.law_chaos));
+        if alignment.law_chaos < types::ALIGNMENT_MIN || alignment.law_chaos > types::ALIGNMENT_MAX
+        {
+            result.add_error(format!(
+                "Law/Chaos alignment {} out of range",
+                alignment.law_chaos
+            ));
         }
-        if alignment.good_evil < types::ALIGNMENT_MIN || alignment.good_evil > types::ALIGNMENT_MAX {
-            result.add_error(format!("Good/Evil alignment {} out of range", alignment.good_evil));
+        if alignment.good_evil < types::ALIGNMENT_MIN || alignment.good_evil > types::ALIGNMENT_MAX
+        {
+            result.add_error(format!(
+                "Good/Evil alignment {} out of range",
+                alignment.good_evil
+            ));
         }
 
         result

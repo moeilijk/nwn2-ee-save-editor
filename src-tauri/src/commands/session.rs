@@ -1,7 +1,7 @@
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use tauri::{AppHandle, Manager, State};
-use tracing::{info, warn, error, instrument};
+use tracing::{error, info, instrument, warn};
 
 #[tauri::command]
 #[instrument(name = "load_character_command", skip(state, app), fields(file_path = %file_path))]
@@ -65,7 +65,10 @@ pub async fn save_character(
             error!("Failed to save character: {}", e);
             Err(CommandError::FileError {
                 message: e.clone(),
-                path: session.current_file_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                path: session
+                    .current_file_path
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string()),
             })
         }
     }
@@ -93,7 +96,10 @@ pub async fn get_session_info(state: State<'_, AppState>) -> CommandResult<Sessi
     let session = state.session.read();
     Ok(SessionInfo {
         character_loaded: session.character.is_some(),
-        file_path: session.current_file_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+        file_path: session
+            .current_file_path
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string()),
         dirty: session.has_unsaved_changes(),
     })
 }
@@ -106,9 +112,7 @@ pub async fn has_unsaved_changes(state: State<'_, AppState>) -> CommandResult<bo
 
 #[tauri::command]
 #[instrument(name = "export_to_localvault_command", skip(state))]
-pub async fn export_to_localvault(
-    state: State<'_, AppState>,
-) -> CommandResult<String> {
+pub async fn export_to_localvault(state: State<'_, AppState>) -> CommandResult<String> {
     info!("Export to localvault command invoked");
 
     let session = state.session.read();

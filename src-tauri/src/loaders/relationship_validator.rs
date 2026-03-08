@@ -34,7 +34,11 @@ impl RelationshipValidator {
         self.dependency_graph.clear();
 
         for (table_name, table) in tables {
-            let columns: Vec<String> = table.column_names().iter().map(|s| (*s).to_string()).collect();
+            let columns: Vec<String> = table
+                .column_names()
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect();
 
             for column in &columns {
                 self.check_column_for_relationship(table_name, column, tables);
@@ -77,10 +81,7 @@ impl RelationshipValidator {
         }
     }
 
-    fn resolve_table_name(
-        name: &str,
-        tables: &HashMap<String, LoadedTable>,
-    ) -> Option<String> {
+    fn resolve_table_name(name: &str, tables: &HashMap<String, LoadedTable>) -> Option<String> {
         if tables.contains_key(name) {
             return Some(name.to_string());
         }
@@ -105,7 +106,12 @@ impl RelationshipValidator {
         None
     }
 
-    fn add_lookup_reference(&mut self, source_table: &str, source_column: &str, target_table: &str) {
+    fn add_lookup_reference(
+        &mut self,
+        source_table: &str,
+        source_column: &str,
+        target_table: &str,
+    ) {
         let rel = RelationshipDefinition::new_lookup(
             source_table.to_string(),
             source_column.to_string(),
@@ -221,16 +227,18 @@ impl RelationshipValidator {
                 }
                 RelationshipType::Lookup => {
                     if let Some(id) = RuleDetector::parse_int(Some(&value_str))
-                        && id >= 0 && !target_ids.contains(&id) {
-                            report.add_broken_reference(BrokenReference::new(
-                                rel.source_table.clone(),
-                                rel.source_column.clone(),
-                                row_idx,
-                                rel.target_table.clone(),
-                                id,
-                            ));
-                            valid = false;
-                        }
+                        && id >= 0
+                        && !target_ids.contains(&id)
+                    {
+                        report.add_broken_reference(BrokenReference::new(
+                            rel.source_table.clone(),
+                            rel.source_column.clone(),
+                            row_idx,
+                            rel.target_table.clone(),
+                            id,
+                        ));
+                        valid = false;
+                    }
                 }
             }
         }

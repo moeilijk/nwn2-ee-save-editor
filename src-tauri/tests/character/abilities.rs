@@ -73,12 +73,30 @@ async fn test_ability_modifiers_formula() {
     let expected_wis_mod = (scores.wis - 10) / 2;
     let expected_cha_mod = (scores.cha - 10) / 2;
 
-    println!("STR: {} -> mod {} (expected {})", scores.str_, mods.str_mod, expected_str_mod);
-    println!("DEX: {} -> mod {} (expected {})", scores.dex, mods.dex_mod, expected_dex_mod);
-    println!("CON: {} -> mod {} (expected {})", scores.con, mods.con_mod, expected_con_mod);
-    println!("INT: {} -> mod {} (expected {})", scores.int, mods.int_mod, expected_int_mod);
-    println!("WIS: {} -> mod {} (expected {})", scores.wis, mods.wis_mod, expected_wis_mod);
-    println!("CHA: {} -> mod {} (expected {})", scores.cha, mods.cha_mod, expected_cha_mod);
+    println!(
+        "STR: {} -> mod {} (expected {})",
+        scores.str_, mods.str_mod, expected_str_mod
+    );
+    println!(
+        "DEX: {} -> mod {} (expected {})",
+        scores.dex, mods.dex_mod, expected_dex_mod
+    );
+    println!(
+        "CON: {} -> mod {} (expected {})",
+        scores.con, mods.con_mod, expected_con_mod
+    );
+    println!(
+        "INT: {} -> mod {} (expected {})",
+        scores.int, mods.int_mod, expected_int_mod
+    );
+    println!(
+        "WIS: {} -> mod {} (expected {})",
+        scores.wis, mods.wis_mod, expected_wis_mod
+    );
+    println!(
+        "CHA: {} -> mod {} (expected {})",
+        scores.cha, mods.cha_mod, expected_cha_mod
+    );
 
     assert_eq!(mods.str_mod, expected_str_mod);
     assert_eq!(mods.dex_mod, expected_dex_mod);
@@ -216,7 +234,11 @@ async fn test_total_abilities_with_equipment() {
     let total = character.get_total_abilities(game_data, &decoder);
     let equip_bonuses = character.get_equipment_bonuses(game_data, &decoder);
 
-    println!("Character: {} (Level {})", character.first_name(), character.total_level());
+    println!(
+        "Character: {} (Level {})",
+        character.first_name(),
+        character.total_level()
+    );
     println!(
         "Base:      STR={:>2} DEX={:>2} CON={:>2} INT={:>2} WIS={:>2} CHA={:>2}",
         base.str_, base.dex, base.con, base.int, base.wis, base.cha
@@ -259,7 +281,11 @@ async fn test_ability_increase_history() {
     let total_level = character.total_level();
     let expected_increases = total_level / 4; // One increase every 4 levels
 
-    println!("Character: {} (Level {})", character.first_name(), total_level);
+    println!(
+        "Character: {} (Level {})",
+        character.first_name(),
+        total_level
+    );
     println!("Expected ability increases: {}", expected_increases);
     println!("Actual ability increases: {}", history.len());
 
@@ -369,7 +395,8 @@ async fn test_constitution_cascade_real_character() {
     if old_mod != new_mod {
         let expected_hp_change = (new_mod - old_mod) * total_level;
         assert_eq!(
-            hp_change, expected_hp_change,
+            hp_change,
+            expected_hp_change,
             "HP should change by (mod_diff * level) = {} * {} = {}",
             new_mod - old_mod,
             total_level,
@@ -445,7 +472,10 @@ async fn test_hit_points_consistency() {
 
         println!(
             "{}: Current={} Max={} Temp={} Effective={}",
-            name, hp.current, hp.max, hp.temp,
+            name,
+            hp.current,
+            hp.max,
+            hp.temp,
             hp.effective_current()
         );
 
@@ -494,7 +524,8 @@ async fn test_effective_ability_modifier() {
 
         // Effective modifier should be calculated from effective score
         assert_eq!(
-            effective_mod, expected_effective_mod,
+            effective_mod,
+            expected_effective_mod,
             "Effective modifier for {} mismatch",
             ability.gff_field()
         );

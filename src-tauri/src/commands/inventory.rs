@@ -1,21 +1,19 @@
 use crate::character::{
-    BasicItemInfo, FullInventorySummary, AddItemResult, EquipResult,
-    RemoveItemResult, UnequipResult, EquipmentSlot, InventoryItem,
-    EncumbranceInfo, BaseItemId, ItemProficiencyInfo,
+    AddItemResult, BaseItemId, BasicItemInfo, EncumbranceInfo, EquipResult, EquipmentSlot,
+    FullInventorySummary, InventoryItem, ItemProficiencyInfo, RemoveItemResult, UnequipResult,
 };
-use serde_json::Value as JsonValue;
 use crate::commands::{CommandError, CommandResult};
-use crate::state::AppState;
 use crate::services::item_property_decoder::{
-    EditorContext, ItemBonuses, PropertyMetadata,
-    load_2da_options_from_rm, is_invalid_label,
+    EditorContext, ItemBonuses, PropertyMetadata, is_invalid_label, load_2da_options_from_rm,
 };
+use crate::state::AppState;
 use rayon::prelude::*;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use specta::Type;
 use std::collections::HashMap;
 use tauri::State;
-use regex::Regex;
 
 pub(super) async fn ensure_decoder_initialized(state: &AppState) {
     let needs_init = {
@@ -39,7 +37,13 @@ pub(super) async fn ensure_decoder_initialized(state: &AppState) {
         let rm = state.resource_manager.read().await;
         let mut session = state.session.write();
         session.item_property_decoder.initialize_with_rm(&rm);
-        session.item_property_decoder.set_lookup_tables(skills, classes, feats, spells, racial_groups);
+        session.item_property_decoder.set_lookup_tables(
+            skills,
+            classes,
+            feats,
+            spells,
+            racial_groups,
+        );
     }
 }
 
@@ -63,7 +67,10 @@ pub struct EquippedItem {
 #[tauri::command]
 pub async fn get_inventory_items(state: State<'_, AppState>) -> CommandResult<Vec<BasicItemInfo>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.inventory_items())
 }
 
@@ -72,25 +79,38 @@ pub async fn get_equipped_items(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<(usize, BasicItemInfo)>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.equipped_items())
 }
 
 #[tauri::command]
-pub async fn get_inventory_summary(state: State<'_, AppState>) -> CommandResult<FullInventorySummary> {
+pub async fn get_inventory_summary(
+    state: State<'_, AppState>,
+) -> CommandResult<FullInventorySummary> {
     ensure_decoder_initialized(&state).await;
 
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let summary = character.get_full_inventory_summary(&game_data, &session.item_property_decoder);
-    tracing::info!("Inventory summary retrieved. Items: {}, Equipped: {}, Gold: {}",
+    tracing::info!(
+        "Inventory summary retrieved. Items: {}, Equipped: {}, Gold: {}",
         summary.inventory.len(),
         summary.equipped.len(),
         summary.gold
     );
     if let Some(first) = summary.inventory.first() {
-        tracing::debug!("First item: {}, raw data keys: {:?}", first.name, first.item.0.keys().collect::<Vec<_>>());
+        tracing::debug!(
+            "First item: {}, raw data keys: {:?}",
+            first.name,
+            first.item.0.keys().collect::<Vec<_>>()
+        );
     }
     Ok(summary)
 }
@@ -98,14 +118,20 @@ pub async fn get_inventory_summary(state: State<'_, AppState>) -> CommandResult<
 #[tauri::command]
 pub async fn get_gold(state: State<'_, AppState>) -> CommandResult<u32> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.gold())
 }
 
 #[tauri::command]
 pub async fn set_gold(state: State<'_, AppState>, amount: u32) -> CommandResult<u32> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     character.set_gold(amount);
     Ok(character.gold())
 }
@@ -113,7 +139,10 @@ pub async fn set_gold(state: State<'_, AppState>, amount: u32) -> CommandResult<
 #[tauri::command]
 pub async fn add_gold(state: State<'_, AppState>, amount: i32) -> CommandResult<u32> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let current = character.gold();
     let new_amount = if amount < 0 {
         current.saturating_sub(amount.unsigned_abs())
@@ -130,7 +159,10 @@ pub async fn get_equipment_bonuses(state: State<'_, AppState>) -> CommandResult<
 
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_equipment_bonuses(&game_data, &session.item_property_decoder))
 }
 
@@ -141,7 +173,10 @@ pub async fn get_item_proficiency_info(
 ) -> CommandResult<ItemProficiencyInfo> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_item_proficiency_info(base_item_id, &game_data))
 }
 
@@ -149,7 +184,10 @@ pub async fn get_item_proficiency_info(
 pub async fn calculate_total_weight(state: State<'_, AppState>) -> CommandResult<f32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.calculate_total_weight(&game_data))
 }
 
@@ -161,7 +199,10 @@ pub async fn equip_item(
 ) -> CommandResult<EquipResult> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.equip_item(inventory_index, slot, &game_data)?)
 }
 
@@ -171,7 +212,10 @@ pub async fn unequip_item(
     slot: EquipmentSlot,
 ) -> CommandResult<UnequipResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.unequip_item(slot)?)
 }
 
@@ -183,7 +227,10 @@ pub async fn add_to_inventory(
 ) -> CommandResult<AddItemResult> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.add_item(base_item_id, stack_size, &game_data)?)
 }
 
@@ -193,17 +240,21 @@ pub async fn remove_from_inventory(
     index: usize,
 ) -> CommandResult<RemoveItemResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.remove_item(index)?)
 }
 
 #[tauri::command]
-pub async fn calculate_encumbrance(
-    state: State<'_, AppState>,
-) -> CommandResult<EncumbranceInfo> {
+pub async fn calculate_encumbrance(state: State<'_, AppState>) -> CommandResult<EncumbranceInfo> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_encumbrance_info(&game_data))
 }
 
@@ -213,7 +264,10 @@ pub async fn get_equipped_item(
     slot: EquipmentSlot,
 ) -> CommandResult<Option<EquippedItem>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     if let Some(basic_info) = character.get_equipped_item_by_slot(slot) {
         Ok(Some(EquippedItem {
@@ -246,24 +300,31 @@ pub async fn get_available_templates(
         let resource_manager = state.resource_manager.read().await;
         let game_data = state.game_data.read();
         let templates = resource_manager.get_all_item_templates();
-        tracing::info!("get_all_item_templates: {:?}, count: {}", total_start.elapsed(), templates.len());
+        tracing::info!(
+            "get_all_item_templates: {:?}, count: {}",
+            total_start.elapsed(),
+            templates.len()
+        );
 
         let mut cat_map: HashMap<i32, i32> = HashMap::new();
         let mut sub_map: HashMap<i32, String> = HashMap::new();
         if let Some(t) = game_data.get_table("baseitems") {
             for i in 0..t.row_count() {
                 if let Ok(row) = t.get_row(i) {
-                    let store_panel = row.get("StorePanel")
+                    let store_panel = row
+                        .get("StorePanel")
                         .or_else(|| row.get("storepanel"))
                         .and_then(|v| v.as_ref())
                         .and_then(|s| s.parse::<i32>().ok())
                         .unwrap_or(4);
-                    let label = row.get("label")
+                    let label = row
+                        .get("label")
                         .or_else(|| row.get("Label"))
                         .and_then(|v| v.as_ref())
                         .cloned()
                         .unwrap_or_default();
-                    let item_class = row.get("itemclass")
+                    let item_class = row
+                        .get("itemclass")
                         .or_else(|| row.get("ItemClass"))
                         .and_then(|v| v.as_ref())
                         .map(String::as_str);
@@ -305,10 +366,12 @@ pub async fn get_available_templates(
             zip_buffers.insert(zip_path.clone(), Arc::new(data));
         }
     }
-    tracing::info!("ZIP preload: {:?}, {} ZIPs, {:.2} MB",
+    tracing::info!(
+        "ZIP preload: {:?}, {} ZIPs, {:.2} MB",
         zip_read_start.elapsed(),
         zip_buffers.len(),
-        zip_buffers.values().map(|v| v.len()).sum::<usize>() as f64 / 1_048_576.0);
+        zip_buffers.values().map(|v| v.len()).sum::<usize>() as f64 / 1_048_576.0
+    );
 
     let offset_start = Instant::now();
 
@@ -325,9 +388,13 @@ pub async fn get_available_templates(
     let mut jobs: Vec<DecompJob> = Vec::with_capacity(templates.len());
 
     for (zip_path, files) in &grouped {
-        let Some(zip_data) = zip_buffers.get(zip_path) else { continue };
+        let Some(zip_data) = zip_buffers.get(zip_path) else {
+            continue;
+        };
         let reader = Cursor::new(zip_data.as_ref().as_slice());
-        let Ok(mut archive) = zip::ZipArchive::new(reader) else { continue };
+        let Ok(mut archive) = zip::ZipArchive::new(reader) else {
+            continue;
+        };
 
         for (resref, internal_path, source) in files {
             if let Ok(entry) = archive.by_name(internal_path) {
@@ -344,7 +411,11 @@ pub async fn get_available_templates(
         }
     }
 
-    tracing::info!("Offset map: {:?}, {} jobs", offset_start.elapsed(), jobs.len());
+    tracing::info!(
+        "Offset map: {:?}, {} jobs",
+        offset_start.elapsed(),
+        jobs.len()
+    );
 
     let decomp_start = Instant::now();
 
@@ -375,7 +446,11 @@ pub async fn get_available_templates(
         })
         .collect();
 
-    tracing::info!("Decompress phase (libdeflater): {:?}, files: {}", decomp_start.elapsed(), raw_data.len());
+    tracing::info!(
+        "Decompress phase (libdeflater): {:?}, files: {}",
+        decomp_start.elapsed(),
+        raw_data.len()
+    );
 
     let parse_start = Instant::now();
 
@@ -394,7 +469,9 @@ pub async fn get_available_templates(
         .filter_map(|(resref, data, source)| {
             let gff = crate::parsers::gff::GffParser::from_bytes(data.clone()).ok()?;
 
-            let base_item = gff.read_field_by_label(0, "BaseItem").ok()
+            let base_item = gff
+                .read_field_by_label(0, "BaseItem")
+                .ok()
                 .and_then(|v| match v {
                     crate::parsers::gff::GffValue::Int(i) => Some(i),
                     crate::parsers::gff::GffValue::Short(s) => Some(s as i32),
@@ -405,7 +482,9 @@ pub async fn get_available_templates(
                 })
                 .unwrap_or(0);
 
-            let (name, string_ref) = gff.read_field_by_label(0, "LocalizedName").ok()
+            let (name, string_ref) = gff
+                .read_field_by_label(0, "LocalizedName")
+                .ok()
                 .map(|v| {
                     if let crate::parsers::gff::GffValue::LocString(ls) = v {
                         if !ls.substrings.is_empty() {
@@ -442,18 +521,22 @@ pub async fn get_available_templates(
     tracing::info!("GFF parse phase (parallel): {:?}", parse_start.elapsed());
 
     let tlk_start = Instant::now();
-    let string_refs: Vec<i32> = parsed_items.iter()
-        .filter_map(|p| p.string_ref)
-        .collect();
-    
+    let string_refs: Vec<i32> = parsed_items.iter().filter_map(|p| p.string_ref).collect();
+
     let resource_manager = state.resource_manager.read().await;
     let tlk_strings = resource_manager.get_strings_batch(&string_refs);
     drop(resource_manager);
-    tracing::info!("TLK batch resolve: {:?}, {} refs", tlk_start.elapsed(), string_refs.len());
+    tracing::info!(
+        "TLK batch resolve: {:?}, {} refs",
+        tlk_start.elapsed(),
+        string_refs.len()
+    );
 
-    let mut indexed: Vec<IndexedTemplate> = parsed_items.into_iter()
+    let mut indexed: Vec<IndexedTemplate> = parsed_items
+        .into_iter()
         .map(|p| {
-            let name = p.name
+            let name = p
+                .name
                 .or_else(|| p.string_ref.and_then(|sr| tlk_strings.get(&sr).cloned()))
                 .unwrap_or_else(|| p.resref.replace(".uti", ""));
             let name = tag_regex.replace_all(&name, "").to_string();
@@ -483,20 +566,24 @@ pub async fn add_item_from_template(
     let item_fields = {
         let rm = state.resource_manager.read().await;
         let templates = rm.get_all_item_templates();
-        let template_info = templates.get(&resref).cloned().ok_or_else(|| {
-            CommandError::NotFound {
-                item: format!("Item template '{resref}'"),
-            }
-        })?;
-        rm.get_item_template_fields(&template_info).map_err(|e| {
-            CommandError::Internal(format!("Failed to load item template: {e}"))
-        })?
+        let template_info =
+            templates
+                .get(&resref)
+                .cloned()
+                .ok_or_else(|| CommandError::NotFound {
+                    item: format!("Item template '{resref}'"),
+                })?;
+        rm.get_item_template_fields(&template_info)
+            .map_err(|e| CommandError::Internal(format!("Failed to load item template: {e}")))?
     };
 
     // Now acquire sync locks and add item
     let game_data = state.game_data.read();
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     Ok(character.add_item_from_struct(item_fields, &game_data)?)
 }
@@ -520,9 +607,7 @@ pub struct ItemEditorMetadataResponse {
 }
 
 /// Load skills from game data skills.2da table.
-fn load_skills_from_game_data(
-    game_data: &crate::loaders::GameData,
-) -> HashMap<u32, String> {
+fn load_skills_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u32, String> {
     let mut skills = HashMap::new();
     let Some(skill_table) = game_data.get_table("skills") else {
         return skills;
@@ -555,9 +640,7 @@ fn load_skills_from_game_data(
 }
 
 /// Load classes from game data classes.2da table.
-fn load_classes_from_game_data(
-    game_data: &crate::loaders::GameData,
-) -> HashMap<u32, String> {
+fn load_classes_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u32, String> {
     let mut classes = HashMap::new();
     let Some(class_table) = game_data.get_table("classes") else {
         return classes;
@@ -588,9 +671,7 @@ fn load_classes_from_game_data(
 }
 
 /// Load racial types from game data racialtypes.2da table.
-fn load_racial_groups_from_game_data(
-    game_data: &crate::loaders::GameData,
-) -> HashMap<u32, String> {
+fn load_racial_groups_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u32, String> {
     let mut races = HashMap::new();
     let Some(race_table) = game_data.get_table("racialtypes") else {
         return races;
@@ -621,9 +702,7 @@ fn load_racial_groups_from_game_data(
 }
 
 /// Load feats from game data feat.2da table.
-fn load_feats_from_game_data(
-    game_data: &crate::loaders::GameData,
-) -> HashMap<u32, String> {
+fn load_feats_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u32, String> {
     let mut feats = HashMap::new();
     let Some(feat_table) = game_data.get_table("feat") else {
         return feats;
@@ -653,10 +732,11 @@ fn load_feats_from_game_data(
     feats
 }
 
-
 /// Get editor metadata for the item property editor.
 #[tauri::command]
-pub fn get_editor_metadata(state: State<'_, AppState>) -> CommandResult<ItemEditorMetadataResponse> {
+pub fn get_editor_metadata(
+    state: State<'_, AppState>,
+) -> CommandResult<ItemEditorMetadataResponse> {
     let rm = state.resource_manager.blocking_read();
 
     let abilities = load_2da_options_from_rm(&rm, "iprp_abilities");
@@ -710,7 +790,9 @@ pub fn get_editor_metadata(state: State<'_, AppState>) -> CommandResult<ItemEdit
 
     let property_types = {
         let session = state.session.read();
-        session.item_property_decoder.get_editor_property_metadata_with_rm(&context, &rm)
+        session
+            .item_property_decoder
+            .get_editor_property_metadata_with_rm(&context, &rm)
     };
 
     Ok(ItemEditorMetadataResponse {
@@ -770,15 +852,16 @@ pub async fn update_item(
     request: UpdateItemRequest,
 ) -> CommandResult<UpdateItemResponse> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     if let Some(slot_str) = &request.slot {
-        let slot = parse_equipment_slot(slot_str).ok_or_else(|| {
-            CommandError::InvalidValue {
-                field: "slot".to_string(),
-                expected: "valid equipment slot".to_string(),
-                actual: slot_str.clone(),
-            }
+        let slot = parse_equipment_slot(slot_str).ok_or_else(|| CommandError::InvalidValue {
+            field: "slot".to_string(),
+            expected: "valid equipment slot".to_string(),
+            actual: slot_str.clone(),
         })?;
         character.update_equipped_item(slot, &request.item_data)?;
         Ok(UpdateItemResponse {

@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::io;
+use thiserror::Error;
 
 pub type TLKResult<T> = Result<T, TLKError>;
 
@@ -14,14 +14,23 @@ pub enum TLKError {
     #[error("File too short: expected at least {expected} bytes, found {actual}")]
     FileTooShort { expected: usize, actual: usize },
 
-    #[error("Corrupted string entry at index {index}: offset {offset} + size {size} exceeds file bounds")]
-    CorruptedStringEntry { index: usize, offset: u32, size: u32 },
+    #[error(
+        "Corrupted string entry at index {index}: offset {offset} + size {size} exceeds file bounds"
+    )]
+    CorruptedStringEntry {
+        index: usize,
+        offset: u32,
+        size: u32,
+    },
 
     #[error("String reference {str_ref} out of bounds (max: {max_strings})")]
     StringRefOutOfBounds { str_ref: usize, max_strings: usize },
 
     #[error("Invalid UTF-8 sequence in string {str_ref}: {source}")]
-    InvalidUtf8 { str_ref: usize, source: std::string::FromUtf8Error },
+    InvalidUtf8 {
+        str_ref: usize,
+        source: std::string::FromUtf8Error,
+    },
 
     #[error("Cache serialization error: {0}")]
     SerializationError(#[from] rmp_serde::encode::Error),
@@ -93,7 +102,10 @@ impl SecurityLimits {
     pub fn validate_string_size(&self, size: usize) -> TLKResult<()> {
         if size > self.max_string_size {
             return Err(TLKError::SecurityViolation {
-                message: format!("String size {} exceeds limit {}", size, self.max_string_size),
+                message: format!(
+                    "String size {} exceeds limit {}",
+                    size, self.max_string_size
+                ),
             });
         }
         Ok(())

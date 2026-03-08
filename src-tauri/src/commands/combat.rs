@@ -1,7 +1,6 @@
 use crate::character::{
-    ArmorClass, AttackBonuses, CombatSummary, DamageReduction,
-    Initiative, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows,
-    NaturalArmorChange, InitiativeChange,
+    ArmorClass, AttackBonuses, CombatSummary, DamageReduction, Initiative, InitiativeChange,
+    NaturalArmorChange, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows,
 };
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
@@ -12,7 +11,10 @@ pub async fn get_combat_summary(state: State<'_, AppState>) -> CommandResult<Com
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_combat_summary(&game_data, decoder))
 }
@@ -21,7 +23,10 @@ pub async fn get_combat_summary(state: State<'_, AppState>) -> CommandResult<Com
 pub async fn calculate_base_attack_bonus(state: State<'_, AppState>) -> CommandResult<i32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.calculate_bab(&game_data))
 }
 
@@ -29,15 +34,23 @@ pub async fn calculate_base_attack_bonus(state: State<'_, AppState>) -> CommandR
 pub async fn get_attack_sequence(state: State<'_, AppState>) -> CommandResult<Vec<i32>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_attack_sequence(&game_data))
 }
 
 #[tauri::command]
-pub async fn get_damage_reduction(state: State<'_, AppState>) -> CommandResult<Vec<DamageReduction>> {
+pub async fn get_damage_reduction(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<DamageReduction>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_damage_reduction_list(&game_data))
 }
 
@@ -47,7 +60,10 @@ pub async fn update_natural_armor(
     value: i32,
 ) -> CommandResult<NaturalArmorChange> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let old_value = character.natural_ac();
     character.set_natural_ac(value)?;
@@ -64,7 +80,10 @@ pub async fn update_initiative_bonus(
     value: i32,
 ) -> CommandResult<InitiativeChange> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let old_value = character.get_i32("initbonus").unwrap_or(0);
     character.set_i32("initbonus", value);
@@ -80,7 +99,10 @@ pub async fn get_save_summary(state: State<'_, AppState>) -> CommandResult<SaveS
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_save_summary(&game_data, decoder))
 }
@@ -92,17 +114,22 @@ pub async fn set_misc_save_bonus(
     value: i32,
 ) -> CommandResult<SaveChange> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let save_enum = match save_type {
         1 => SaveType::Fortitude,
         2 => SaveType::Reflex,
         3 => SaveType::Will,
-        _ => return Err(CommandError::InvalidValue {
-            field: "save_type".to_string(),
-            expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
-            actual: save_type.to_string(),
-        }),
+        _ => {
+            return Err(CommandError::InvalidValue {
+                field: "save_type".to_string(),
+                expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
+                actual: save_type.to_string(),
+            });
+        }
     };
 
     let old_misc = match save_enum {
@@ -133,17 +160,22 @@ pub async fn check_save(
     take_20: bool,
 ) -> CommandResult<SaveCheck> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let save_enum = match save_type {
         1 => SaveType::Fortitude,
         2 => SaveType::Reflex,
         3 => SaveType::Will,
-        _ => return Err(CommandError::InvalidValue {
-            field: "save_type".to_string(),
-            expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
-            actual: save_type.to_string(),
-        }),
+        _ => {
+            return Err(CommandError::InvalidValue {
+                field: "save_type".to_string(),
+                expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
+                actual: save_type.to_string(),
+            });
+        }
     };
 
     let base_bonus = match save_enum {
@@ -161,7 +193,10 @@ pub async fn get_armor_class(state: State<'_, AppState>) -> CommandResult<ArmorC
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_armor_class(&game_data, decoder))
 }
@@ -171,7 +206,10 @@ pub async fn get_attack_bonuses(state: State<'_, AppState>) -> CommandResult<Att
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_attack_bonuses(&game_data, decoder))
 }
@@ -181,7 +219,10 @@ pub async fn get_initiative(state: State<'_, AppState>) -> CommandResult<Initiat
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_initiative_breakdown(&game_data, decoder))
 }
@@ -190,7 +231,10 @@ pub async fn get_initiative(state: State<'_, AppState>) -> CommandResult<Initiat
 pub async fn get_attacks_per_round(state: State<'_, AppState>) -> CommandResult<i32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let attack_sequence = character.get_attack_sequence(&game_data);
     Ok(attack_sequence.len() as i32)
 }
@@ -200,7 +244,10 @@ pub async fn get_saving_throws(state: State<'_, AppState>) -> CommandResult<Savi
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_saving_throws(&game_data, decoder))
 }
@@ -213,18 +260,23 @@ pub async fn get_save_breakdown(
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
 
     let save_enum = match save_type {
         1 => SaveType::Fortitude,
         2 => SaveType::Reflex,
         3 => SaveType::Will,
-        _ => return Err(CommandError::InvalidValue {
-            field: "save_type".to_string(),
-            expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
-            actual: save_type.to_string(),
-        }),
+        _ => {
+            return Err(CommandError::InvalidValue {
+                field: "save_type".to_string(),
+                expected: "1 (Fortitude), 2 (Reflex), or 3 (Will)".to_string(),
+                actual: save_type.to_string(),
+            });
+        }
     };
 
     Ok(character.get_save_breakdown(&game_data, decoder, save_enum))

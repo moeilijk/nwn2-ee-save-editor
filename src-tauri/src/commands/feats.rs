@@ -1,5 +1,8 @@
-use crate::character::{Character, FeatEntry, FeatSlots, PrerequisiteResult, FeatInfo, FeatSummary, DomainInfo, FeatId, DomainId, FeatAvailability};
-use crate::character::feats::{build_domain_feat_sets, AutoAddedFeat, AbilityChange};
+use crate::character::feats::{AbilityChange, AutoAddedFeat, build_domain_feat_sets};
+use crate::character::{
+    Character, DomainId, DomainInfo, FeatAvailability, FeatEntry, FeatId, FeatInfo, FeatSlots,
+    FeatSummary, PrerequisiteResult,
+};
 use crate::commands::{CommandError, CommandResult};
 use crate::loaders::GameData;
 use crate::state::{AppState, SessionState};
@@ -30,14 +33,20 @@ pub struct FilteredFeatsResponse {
 #[tauri::command]
 pub async fn get_feat_list(state: State<'_, AppState>) -> CommandResult<Vec<FeatEntry>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.feat_entries())
 }
 
 #[tauri::command]
 pub async fn has_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult<bool> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.has_feat(FeatId(feat_id)))
 }
 
@@ -45,11 +54,14 @@ pub async fn has_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult
 pub async fn get_feat_info(state: State<'_, AppState>, feat_id: i32) -> CommandResult<FeatInfo> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     character
         .get_feat_info(FeatId(feat_id), &game_data)
         .ok_or_else(|| CommandError::NotFound {
-            item: format!("Feat {feat_id}")
+            item: format!("Feat {feat_id}"),
         })
 }
 
@@ -57,7 +69,10 @@ pub async fn get_feat_info(state: State<'_, AppState>, feat_id: i32) -> CommandR
 pub async fn get_feat_summary(state: State<'_, AppState>) -> CommandResult<FeatSummary> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_feat_summary(&game_data))
 }
 
@@ -65,7 +80,10 @@ pub async fn get_feat_summary(state: State<'_, AppState>) -> CommandResult<FeatS
 pub async fn get_feat_slots(state: State<'_, AppState>) -> CommandResult<FeatSlots> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_feat_slots(&game_data))
 }
 
@@ -76,19 +94,22 @@ pub async fn validate_feat_prerequisites(
 ) -> CommandResult<PrerequisiteResult> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.validate_feat_prerequisites(FeatId(feat_id), &game_data))
 }
 
 #[tauri::command]
-pub async fn add_feat(
-    state: State<'_, AppState>,
-    feat_id: i32,
-) -> CommandResult<FeatActionResult> {
+pub async fn add_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult<FeatActionResult> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
     let result = {
-        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
         character.add_feat_with_prerequisites(
             FeatId(feat_id),
             crate::character::feats::FeatSource::Manual,
@@ -100,11 +121,17 @@ pub async fn add_feat(
         Ok(add_result) => {
             let mut parts = Vec::new();
             if !add_result.auto_added_feats.is_empty() {
-                let names: Vec<&str> = add_result.auto_added_feats.iter().map(|f| f.label.as_str()).collect();
+                let names: Vec<&str> = add_result
+                    .auto_added_feats
+                    .iter()
+                    .map(|f| f.label.as_str())
+                    .collect();
                 parts.push(format!("feats: {}", names.join(", ")));
             }
             if !add_result.auto_modified_abilities.is_empty() {
-                let changes: Vec<String> = add_result.auto_modified_abilities.iter()
+                let changes: Vec<String> = add_result
+                    .auto_modified_abilities
+                    .iter()
                     .map(|a| format!("{} {} -> {}", a.ability, a.old_value, a.new_value))
                     .collect();
                 parts.push(format!("abilities: {}", changes.join(", ")));
@@ -139,7 +166,10 @@ pub async fn remove_feat(
 ) -> CommandResult<FeatActionResult> {
     let mut session = state.session.write();
     let result = {
-        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
         character.remove_feat(FeatId(feat_id))
     };
     session.invalidate_feat_cache();
@@ -169,8 +199,12 @@ pub async fn swap_feat(
 ) -> CommandResult<()> {
     let mut session = state.session.write();
     let result = {
-        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-        character.swap_feat(FeatId(old_feat_id), FeatId(new_feat_id))
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character
+            .swap_feat(FeatId(old_feat_id), FeatId(new_feat_id))
             .map(|_| ())
             .map_err(|e| CommandError::OperationFailed {
                 operation: format!("swap_feat({old_feat_id} -> {new_feat_id})"),
@@ -188,7 +222,10 @@ pub async fn check_feat_progression(
 ) -> CommandResult<Option<i32>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let old_feat = character.check_feat_progression(FeatId(new_feat_id), &game_data);
     Ok(old_feat.map(|f| f.0))
 }
@@ -196,7 +233,10 @@ pub async fn check_feat_progression(
 #[tauri::command]
 pub async fn get_character_domains(state: State<'_, AppState>) -> CommandResult<Vec<i32>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let domains = character.get_character_domains();
     Ok(domains.into_iter().map(|d| d.0).collect())
 }
@@ -205,7 +245,10 @@ pub async fn get_character_domains(state: State<'_, AppState>) -> CommandResult<
 pub async fn get_available_domains(state: State<'_, AppState>) -> CommandResult<Vec<DomainInfo>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_available_domains(&game_data))
 }
 
@@ -214,8 +257,12 @@ pub async fn add_domain(state: State<'_, AppState>, domain_id: i32) -> CommandRe
     let game_data = state.game_data.read();
     let mut session = state.session.write();
     let feats = {
-        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-        character.add_domain(DomainId(domain_id), &game_data)
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character
+            .add_domain(DomainId(domain_id), &game_data)
             .map_err(|e| CommandError::OperationFailed {
                 operation: format!("add_domain({domain_id})"),
                 reason: e.to_string(),
@@ -230,8 +277,12 @@ pub async fn remove_domain(state: State<'_, AppState>, domain_id: i32) -> Comman
     let game_data = state.game_data.read();
     let mut session = state.session.write();
     let feats = {
-        let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-        character.remove_domain(DomainId(domain_id), &game_data)
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character
+            .remove_domain(DomainId(domain_id), &game_data)
             .map_err(|e| CommandError::OperationFailed {
                 operation: format!("remove_domain({domain_id})"),
                 reason: e.to_string(),
@@ -241,9 +292,13 @@ pub async fn remove_domain(state: State<'_, AppState>, domain_id: i32) -> Comman
     Ok(feats.into_iter().map(|f| f.0).collect())
 }
 
-pub(super) fn build_feat_list(character: &Character, game_data: &GameData) -> Result<Vec<FeatInfo>, CommandError> {
-    let feats_table = game_data.get_table("feat")
-        .ok_or(CommandError::NotFound { item: "Feat table".to_string() })?;
+pub(super) fn build_feat_list(
+    character: &Character,
+    game_data: &GameData,
+) -> Result<Vec<FeatInfo>, CommandError> {
+    let feats_table = game_data.get_table("feat").ok_or(CommandError::NotFound {
+        item: "Feat table".to_string(),
+    })?;
 
     let (domain_feats, epithet_feats) = build_domain_feat_sets(game_data);
 
@@ -302,12 +357,18 @@ pub(super) fn build_feat_list(character: &Character, game_data: &GameData) -> Re
     Ok(all_feats)
 }
 
-pub(super) fn ensure_feat_cache(session: &mut SessionState, game_data: &GameData) -> Result<(), CommandError> {
+pub(super) fn ensure_feat_cache(
+    session: &mut SessionState,
+    game_data: &GameData,
+) -> Result<(), CommandError> {
     if session.feat_cache.is_some() {
         return Ok(());
     }
     let cache = {
-        let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
         build_feat_list(character, game_data)?
     };
     session.feat_cache = Some(cache);
@@ -337,34 +398,44 @@ pub async fn get_filtered_feats(
     let cached = session.feat_cache.as_ref().unwrap();
     let search_lower = search.as_ref().map(|s| s.to_lowercase());
 
-    let filtered_feats: Vec<&FeatInfo> = cached.iter().filter(|feat_info| {
-        if let Some(ft) = feat_type
-            && (feat_info.feat_type.0 & ft) == 0
-        {
-            return false;
-        }
-        if let Some(ref search_str) = search_lower {
-            let name_lower = feat_info.name.to_lowercase();
-            let label_lower = feat_info.label.to_lowercase();
-            let desc_lower = feat_info.description.to_lowercase();
-
-            if !name_lower.contains(search_str)
-                && !label_lower.contains(search_str)
-                && !desc_lower.contains(search_str)
+    let filtered_feats: Vec<&FeatInfo> = cached
+        .iter()
+        .filter(|feat_info| {
+            if let Some(ft) = feat_type
+                && (feat_info.feat_type.0 & ft) == 0
             {
                 return false;
             }
-        }
-        true
-    }).collect();
+            if let Some(ref search_str) = search_lower {
+                let name_lower = feat_info.name.to_lowercase();
+                let label_lower = feat_info.label.to_lowercase();
+                let desc_lower = feat_info.description.to_lowercase();
+
+                if !name_lower.contains(search_str)
+                    && !label_lower.contains(search_str)
+                    && !desc_lower.contains(search_str)
+                {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
 
     let total = filtered_feats.len() as i32;
-    let pages = if total == 0 { 1 } else { (total + limit - 1) / limit };
+    let pages = if total == 0 {
+        1
+    } else {
+        (total + limit - 1) / limit
+    };
     let start = ((page - 1) * limit) as usize;
     let end = (start + limit as usize).min(filtered_feats.len());
 
     let paged_feats = if start < filtered_feats.len() {
-        filtered_feats[start..end].iter().map(|f| (*f).clone()).collect()
+        filtered_feats[start..end]
+            .iter()
+            .map(|f| (*f).clone())
+            .collect()
     } else {
         Vec::new()
     };
@@ -387,13 +458,20 @@ pub async fn check_feat_availability(
 ) -> CommandResult<FeatAvailability> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
-    let feats_table = game_data.get_table("feat")
-        .ok_or(CommandError::NotFound { item: "Feat table".to_string() })?;
+    let feats_table = game_data.get_table("feat").ok_or(CommandError::NotFound {
+        item: "Feat table".to_string(),
+    })?;
 
-    let feat_data = feats_table.get_by_id(feat_id)
-        .ok_or(CommandError::NotFound { item: format!("Feat {feat_id}") })?;
+    let feat_data = feats_table
+        .get_by_id(feat_id)
+        .ok_or(CommandError::NotFound {
+            item: format!("Feat {feat_id}"),
+        })?;
 
     let label = feat_data
         .get("label")

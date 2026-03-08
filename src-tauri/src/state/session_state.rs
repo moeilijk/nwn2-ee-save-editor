@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{info, debug, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::character::{Character, FeatInfo};
 use crate::services::resource_manager::ResourceManager;
@@ -44,51 +44,45 @@ impl SessionState {
         crate::services::savegame_handler::backup::clear_backup_tracking();
 
         debug!("Creating SaveGameHandler");
-        let handler = SaveGameHandler::new(&path, false, true)
-            .map_err(|e| {
-                warn!("Failed to create save handler: {}", e);
-                format!("Failed to create save handler: {e}")
-            })?;
+        let handler = SaveGameHandler::new(&path, false, true).map_err(|e| {
+            warn!("Failed to create save handler: {}", e);
+            format!("Failed to create save handler: {e}")
+        })?;
         debug!("SaveGameHandler created");
 
         debug!("Extracting playerlist.ifo from save archive");
-        let playerlist_data = handler.extract_player_data()
-            .map_err(|e| {
-                warn!("Failed to extract playerlist.ifo: {}", e);
-                format!("Failed to extract playerlist.ifo: {e}")
-            })?;
+        let playerlist_data = handler.extract_player_data().map_err(|e| {
+            warn!("Failed to extract playerlist.ifo: {}", e);
+            format!("Failed to extract playerlist.ifo: {e}")
+        })?;
         info!("playerlist.ifo extracted ({} bytes)", playerlist_data.len());
 
         debug!("Parsing GFF data");
-        let gff = crate::parsers::gff::GffParser::from_bytes(playerlist_data)
-             .map_err(|e| {
-                 warn!("GFF parse error: {}", e);
-                 format!("GFF Parse error: {e}")
-             })?;
+        let gff = crate::parsers::gff::GffParser::from_bytes(playerlist_data).map_err(|e| {
+            warn!("GFF parse error: {}", e);
+            format!("GFF Parse error: {e}")
+        })?;
         debug!("GFF parsed successfully");
 
         debug!("Reading playerlist.ifo root struct");
-        let root_fields = gff.read_struct_fields(0)
-             .map_err(|e| {
-                 warn!("Failed to read root struct: {}", e);
-                 format!("Failed to read root struct: {e}")
-             })?;
+        let root_fields = gff.read_struct_fields(0).map_err(|e| {
+            warn!("Failed to read root struct: {}", e);
+            format!("Failed to read root struct: {e}")
+        })?;
 
         debug!("Extracting Mod_PlayerList[0] (character data)");
         let fields = {
             use crate::parsers::gff::GffValue;
-            let mod_player_list = root_fields.get("Mod_PlayerList")
-                .ok_or_else(|| {
-                    warn!("Mod_PlayerList not found in playerlist.ifo");
-                    "Mod_PlayerList not found in playerlist.ifo".to_string()
-                })?;
+            let mod_player_list = root_fields.get("Mod_PlayerList").ok_or_else(|| {
+                warn!("Mod_PlayerList not found in playerlist.ifo");
+                "Mod_PlayerList not found in playerlist.ifo".to_string()
+            })?;
 
             if let GffValue::List(lazy_structs) = mod_player_list {
-                let first = lazy_structs.first()
-                    .ok_or_else(|| {
-                        warn!("Mod_PlayerList is empty");
-                        "Mod_PlayerList is empty".to_string()
-                    })?;
+                let first = lazy_structs.first().ok_or_else(|| {
+                    warn!("Mod_PlayerList is empty");
+                    "Mod_PlayerList is empty".to_string()
+                })?;
                 first.force_load()
             } else {
                 warn!("Mod_PlayerList is not a list");
@@ -99,9 +93,11 @@ impl SessionState {
 
         debug!("Creating Character from GFF fields");
         let character = Character::from_gff(fields);
-        info!("Character created: {} (Level {})",
-              character.full_name(),
-              character.total_level());
+        info!(
+            "Character created: {} (Level {})",
+            character.full_name(),
+            character.total_level()
+        );
 
         self.character = Some(character);
         self.savegame_handler = Some(handler);
@@ -112,7 +108,10 @@ impl SessionState {
     }
 
     pub fn save_character(&mut self) -> Result<(), String> {
-        let _handler = self.savegame_handler.as_mut().ok_or("No active save handler")?;
+        let _handler = self
+            .savegame_handler
+            .as_mut()
+            .ok_or("No active save handler")?;
         let _character = self.character.as_ref().ok_or("No character loaded")?;
 
         // TODO: serialize character data to GFF and write to save file
@@ -132,7 +131,9 @@ impl SessionState {
     }
 
     pub fn has_unsaved_changes(&self) -> bool {
-        self.character.as_ref().is_some_and(super::super::character::Character::is_modified)
+        self.character
+            .as_ref()
+            .is_some_and(super::super::character::Character::is_modified)
     }
 
     pub fn character(&self) -> Option<&Character> {
@@ -145,18 +146,24 @@ impl SessionState {
 
     #[instrument(name = "SessionState::export_to_localvault", skip(self))]
     pub fn export_to_localvault(&self) -> Result<String, String> {
-        let handler = self.savegame_handler.as_ref().ok_or("No active save handler")?;
+        let handler = self
+            .savegame_handler
+            .as_ref()
+            .ok_or("No active save handler")?;
         let character = self.character.as_ref().ok_or("No character loaded")?;
 
         let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-        let vault_path = nwn2_paths.localvault().ok_or("Could not determine NWN2 localvault path")?;
+        let vault_path = nwn2_paths
+            .localvault()
+            .ok_or("Could not determine NWN2 localvault path")?;
 
         if !vault_path.exists() {
             std::fs::create_dir_all(&vault_path)
                 .map_err(|e| format!("Failed to create localvault directory: {e}"))?;
         }
 
-        let player_bic_data = handler.extract_player_bic()
+        let player_bic_data = handler
+            .extract_player_bic()
             .map_err(|e| format!("Failed to extract player.bic: {e}"))?
             .ok_or("No player.bic found in save")?;
 

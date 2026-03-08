@@ -6,10 +6,10 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::parsers::tlk::TLKParser;
-use crate::services::resource_manager::ResourceManager;
 use crate::services::RuleDetector;
+use crate::services::resource_manager::ResourceManager;
 
-use super::constants::{is_priority_table, should_load_table, PRIORITY_TABLES};
+use super::constants::{PRIORITY_TABLES, is_priority_table, should_load_table};
 use super::error::{LoaderError, LoaderResult};
 use super::relationship_validator::RelationshipValidator;
 use super::types::{
@@ -54,10 +54,7 @@ impl DataModelLoader {
         }
     }
 
-    pub fn set_progress_callback(
-        &mut self,
-        callback: ProgressCallback,
-    ) {
+    pub fn set_progress_callback(&mut self, callback: ProgressCallback) {
         self.progress = LoadingProgress::new(Some(callback));
     }
 
@@ -200,9 +197,9 @@ impl DataModelLoader {
     async fn load_table(&self, name: &str) -> LoaderResult<LoadedTable> {
         let rm = self.resource_manager.read().await;
 
-        let parser = rm.get_2da_with_overrides(name).map_err(|e| {
-            LoaderError::Parse(format!("Failed to get 2DA {name}: {e}"))
-        })?;
+        let parser = rm
+            .get_2da_with_overrides(name)
+            .map_err(|e| LoaderError::Parse(format!("Failed to get 2DA {name}: {e}")))?;
 
         Ok(LoadedTable::new(name.to_string(), parser))
     }

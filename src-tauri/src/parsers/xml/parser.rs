@@ -1,13 +1,13 @@
-use super::types::{XmlData, GlobalsXml};
-use quick_xml::de::from_str;
-use regex::Regex;
-use std::collections::{HashMap, HashSet, BTreeMap};
-use chrono::{Utc, TimeZone};
-use std::sync::OnceLock;
-use serde::Serialize;
+use super::types::{GlobalsXml, XmlData};
+use chrono::{TimeZone, Utc};
 use quick_xml::Writer;
-use std::io::Cursor;
+use quick_xml::de::from_str;
 use quick_xml::events::{BytesDecl, Event};
+use regex::Regex;
+use serde::Serialize;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io::Cursor;
+use std::sync::OnceLock;
 
 // Constants
 const BLACKLIST: &[&str] = &["of", "the", "level", "count", "quest", "plot", "state"];
@@ -16,7 +16,8 @@ static INFLUENCE_PATTERN: OnceLock<Regex> = OnceLock::new();
 static PREFIX_PATTERN: OnceLock<Regex> = OnceLock::new();
 
 fn get_influence_pattern() -> &'static Regex {
-    INFLUENCE_PATTERN.get_or_init(|| Regex::new(r"(?i)^(?:[a-zA-Z0-9_]*_)?(?:inf|influence)([a-z]+)$").unwrap())
+    INFLUENCE_PATTERN
+        .get_or_init(|| Regex::new(r"(?i)^(?:[a-zA-Z0-9_]*_)?(?:inf|influence)([a-z]+)$").unwrap())
 }
 
 fn get_prefix_pattern() -> &'static Regex {
@@ -27,25 +28,48 @@ fn get_prefix_pattern() -> &'static Regex {
 static QUEST_PATTERNS: OnceLock<Vec<(Regex, &'static str, i32)>> = OnceLock::new();
 
 fn get_quest_patterns() -> &'static Vec<(Regex, &'static str, i32)> {
-    QUEST_PATTERNS.get_or_init(|| vec![
-        // 1. Exclusions
-        (Regex::new(r"(?i)^_OG.*").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i)^__conv.*").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i)^WM_.*").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i).*(Num|Indx|Count|Fmn|Spc|Col|StN|FcN|LcN)$").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i).*NumKilled$").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i).*Influence.*").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i).*(rep|reputation)$").unwrap(), "exclude", 1),
-        (Regex::new(r"(?i)^(MinimalDifficultyLevel|LastWriteTime|CAMPAIGN_SETUP_FLAG|N2_.*)$").unwrap(), "exclude", 1),
-        
-        // 2. Completion
-        (Regex::new(r"(?i).*(Done|Over|Dead)$").unwrap(), "completed", 5),
-        (Regex::new(r"(?i).*Complete(d)?$").unwrap(), "completed", 5),
-        
-        // 3. Active/State
-        (Regex::new(r"(?i).*(State|Plot)$").unwrap(), "state", 10),
-        (Regex::new(r"(?i).*(Quest|Mission|Intro|Go|Enabled|Visited|Met)$").unwrap(), "active", 11),
-    ])
+    QUEST_PATTERNS.get_or_init(|| {
+        vec![
+            // 1. Exclusions
+            (Regex::new(r"(?i)^_OG.*").unwrap(), "exclude", 1),
+            (Regex::new(r"(?i)^__conv.*").unwrap(), "exclude", 1),
+            (Regex::new(r"(?i)^WM_.*").unwrap(), "exclude", 1),
+            (
+                Regex::new(r"(?i).*(Num|Indx|Count|Fmn|Spc|Col|StN|FcN|LcN)$").unwrap(),
+                "exclude",
+                1,
+            ),
+            (Regex::new(r"(?i).*NumKilled$").unwrap(), "exclude", 1),
+            (Regex::new(r"(?i).*Influence.*").unwrap(), "exclude", 1),
+            (
+                Regex::new(r"(?i).*(rep|reputation)$").unwrap(),
+                "exclude",
+                1,
+            ),
+            (
+                Regex::new(
+                    r"(?i)^(MinimalDifficultyLevel|LastWriteTime|CAMPAIGN_SETUP_FLAG|N2_.*)$",
+                )
+                .unwrap(),
+                "exclude",
+                1,
+            ),
+            // 2. Completion
+            (
+                Regex::new(r"(?i).*(Done|Over|Dead)$").unwrap(),
+                "completed",
+                5,
+            ),
+            (Regex::new(r"(?i).*Complete(d)?$").unwrap(), "completed", 5),
+            // 3. Active/State
+            (Regex::new(r"(?i).*(State|Plot)$").unwrap(), "state", 10),
+            (
+                Regex::new(r"(?i).*(Quest|Mission|Intro|Go|Enabled|Visited|Met)$").unwrap(),
+                "active",
+                11,
+            ),
+        ]
+    })
 }
 
 #[derive(Clone, Serialize)]
@@ -58,23 +82,159 @@ pub struct CompanionDefinition {
 
 pub fn get_companion_definitions() -> HashMap<&'static str, CompanionDefinition> {
     let mut map = HashMap::new();
-    map.insert("neeshka", CompanionDefinition { name: "Neeshka", influence_var: "00_nInfluenceneeshka", joined_var: "00_bNeeshka_Joined", met_var: None });
-    map.insert("khelgar", CompanionDefinition { name: "Khelgar", influence_var: "00_nInfluencekhelgar", joined_var: "00_bKhelgar_Joined", met_var: None });
-    map.insert("elanee", CompanionDefinition { name: "Elanee", influence_var: "00_nInfluenceelanee", joined_var: "00_bElanee_Joined", met_var: None });
-    map.insert("qara", CompanionDefinition { name: "Qara", influence_var: "00_nInfluenceqara", joined_var: "00_bQaraJoined", met_var: None });
-    map.insert("casavir", CompanionDefinition { name: "Casavir", influence_var: "00_nInfluencecasavir", joined_var: "00_bCasavir_Joined", met_var: None });
-    map.insert("grobnar", CompanionDefinition { name: "Grobnar", influence_var: "00_nInfluencegrobnar", joined_var: "00_bGrobnar_Joined", met_var: None });
-    map.insert("sand", CompanionDefinition { name: "Sand", influence_var: "00_nInfluencesand", joined_var: "00_bSand_Joined", met_var: Some("SandIntroDone") });
-    map.insert("bishop", CompanionDefinition { name: "Bishop", influence_var: "00_nInfluencebishop", joined_var: "00_bBishop_Joined", met_var: None });
-    map.insert("shandra", CompanionDefinition { name: "Shandra", influence_var: "00_nInfluenceshandra", joined_var: "00_bShandra_Joined", met_var: Some("bShandraMet") });
-    map.insert("ammon_jerro", CompanionDefinition { name: "Ammon Jerro", influence_var: "00_nInfluenceammon", joined_var: "00_bAmmon_Joined", met_var: Some("bAmmonMet") });
-    map.insert("zhjaeve", CompanionDefinition { name: "Zhjaeve", influence_var: "00_nInfluencezhjaeve", joined_var: "00_bZhjaeve_Joined", met_var: Some("bZhjaeveMet") });
-    map.insert("construct", CompanionDefinition { name: "Construct", influence_var: "00_nInfluenceconstruct", joined_var: "00_bConstruct_Joined", met_var: Some("bConstructMet") });
-    map.insert("safiya", CompanionDefinition { name: "Safiya", influence_var: "00_nInfluencesafiya", joined_var: "00_bSafiya_Joined", met_var: Some("bSafiyaMet") });
-    map.insert("gann", CompanionDefinition { name: "Gann", influence_var: "00_nInfluencegann", joined_var: "00_bGann_Joined", met_var: Some("bGannMet") });
-    map.insert("kaelyn", CompanionDefinition { name: "Kaelyn the Dove", influence_var: "00_nInfluencekaelyn", joined_var: "00_bKaelyn_Joined", met_var: Some("bKaelynMet") });
-    map.insert("okku", CompanionDefinition { name: "Okku", influence_var: "00_nInfluenceokku", joined_var: "00_bOkku_Joined", met_var: Some("bOkkuMet") });
-    map.insert("one_of_many", CompanionDefinition { name: "One of Many", influence_var: "00_nInfluenceoneofmany", joined_var: "00_bOneOfMany_Joined", met_var: Some("bOneOfManyMet") });
+    map.insert(
+        "neeshka",
+        CompanionDefinition {
+            name: "Neeshka",
+            influence_var: "00_nInfluenceneeshka",
+            joined_var: "00_bNeeshka_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "khelgar",
+        CompanionDefinition {
+            name: "Khelgar",
+            influence_var: "00_nInfluencekhelgar",
+            joined_var: "00_bKhelgar_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "elanee",
+        CompanionDefinition {
+            name: "Elanee",
+            influence_var: "00_nInfluenceelanee",
+            joined_var: "00_bElanee_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "qara",
+        CompanionDefinition {
+            name: "Qara",
+            influence_var: "00_nInfluenceqara",
+            joined_var: "00_bQaraJoined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "casavir",
+        CompanionDefinition {
+            name: "Casavir",
+            influence_var: "00_nInfluencecasavir",
+            joined_var: "00_bCasavir_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "grobnar",
+        CompanionDefinition {
+            name: "Grobnar",
+            influence_var: "00_nInfluencegrobnar",
+            joined_var: "00_bGrobnar_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "sand",
+        CompanionDefinition {
+            name: "Sand",
+            influence_var: "00_nInfluencesand",
+            joined_var: "00_bSand_Joined",
+            met_var: Some("SandIntroDone"),
+        },
+    );
+    map.insert(
+        "bishop",
+        CompanionDefinition {
+            name: "Bishop",
+            influence_var: "00_nInfluencebishop",
+            joined_var: "00_bBishop_Joined",
+            met_var: None,
+        },
+    );
+    map.insert(
+        "shandra",
+        CompanionDefinition {
+            name: "Shandra",
+            influence_var: "00_nInfluenceshandra",
+            joined_var: "00_bShandra_Joined",
+            met_var: Some("bShandraMet"),
+        },
+    );
+    map.insert(
+        "ammon_jerro",
+        CompanionDefinition {
+            name: "Ammon Jerro",
+            influence_var: "00_nInfluenceammon",
+            joined_var: "00_bAmmon_Joined",
+            met_var: Some("bAmmonMet"),
+        },
+    );
+    map.insert(
+        "zhjaeve",
+        CompanionDefinition {
+            name: "Zhjaeve",
+            influence_var: "00_nInfluencezhjaeve",
+            joined_var: "00_bZhjaeve_Joined",
+            met_var: Some("bZhjaeveMet"),
+        },
+    );
+    map.insert(
+        "construct",
+        CompanionDefinition {
+            name: "Construct",
+            influence_var: "00_nInfluenceconstruct",
+            joined_var: "00_bConstruct_Joined",
+            met_var: Some("bConstructMet"),
+        },
+    );
+    map.insert(
+        "safiya",
+        CompanionDefinition {
+            name: "Safiya",
+            influence_var: "00_nInfluencesafiya",
+            joined_var: "00_bSafiya_Joined",
+            met_var: Some("bSafiyaMet"),
+        },
+    );
+    map.insert(
+        "gann",
+        CompanionDefinition {
+            name: "Gann",
+            influence_var: "00_nInfluencegann",
+            joined_var: "00_bGann_Joined",
+            met_var: Some("bGannMet"),
+        },
+    );
+    map.insert(
+        "kaelyn",
+        CompanionDefinition {
+            name: "Kaelyn the Dove",
+            influence_var: "00_nInfluencekaelyn",
+            joined_var: "00_bKaelyn_Joined",
+            met_var: Some("bKaelynMet"),
+        },
+    );
+    map.insert(
+        "okku",
+        CompanionDefinition {
+            name: "Okku",
+            influence_var: "00_nInfluenceokku",
+            joined_var: "00_bOkku_Joined",
+            met_var: Some("bOkkuMet"),
+        },
+    );
+    map.insert(
+        "one_of_many",
+        CompanionDefinition {
+            name: "One of Many",
+            influence_var: "00_nInfluenceoneofmany",
+            joined_var: "00_bOneOfMany_Joined",
+            met_var: Some("bOneOfManyMet"),
+        },
+    );
     map
 }
 
@@ -96,7 +256,8 @@ impl RustXmlParser {
     }
 
     pub fn from_string(content: &str) -> Result<Self, String> {
-        let globals: GlobalsXml = from_str(content).map_err(|e| format!("Failed to parse XML: {e}"))?;
+        let globals: GlobalsXml =
+            from_str(content).map_err(|e| format!("Failed to parse XML: {e}"))?;
         Ok(Self {
             data: XmlData::from_xml_struct(globals),
         })
@@ -104,19 +265,22 @@ impl RustXmlParser {
 
     pub fn to_xml_string(&self) -> Result<String, String> {
         let xml_struct = self.data.to_xml_struct();
-        
+
         // Manually write the declaration using custom approach or standard way to ensure it's clean
         // quick-xml's Writer can write the declaration.
         let mut writer = Writer::new(Cursor::new(Vec::new()));
-        writer.write_event(Event::Decl(BytesDecl::new("1.0", None, None))).map_err(|e| e.to_string())?;
-        
-        let mut result = String::from_utf8(writer.into_inner().into_inner()).map_err(|e| e.to_string())?;
+        writer
+            .write_event(Event::Decl(BytesDecl::new("1.0", None, None)))
+            .map_err(|e| e.to_string())?;
+
+        let mut result =
+            String::from_utf8(writer.into_inner().into_inner()).map_err(|e| e.to_string())?;
         result.push('\n'); // Add newline after declaration
-        
+
         let mut ser = quick_xml::se::Serializer::new(&mut result);
         ser.indent(' ', 2);
         xml_struct.serialize(ser).map_err(|e| e.to_string())?;
-        
+
         Ok(result)
     }
 
@@ -127,20 +291,21 @@ impl RustXmlParser {
 
         for (var_name, value) in &self.data.integers {
             if let Some(caps) = pattern.captures(var_name)
-                && let Some(matched) = caps.get(1) {
-                    let companion_name = matched.as_str();
-                    if companion_name.len() > 2 && !blacklist_set.contains(companion_name) {
-                        let lower_name = companion_name.to_lowercase();
-                        discovered.entry(lower_name).or_insert_with(|| {
-                            let mut info = BTreeMap::new();
-                            info.insert("name".to_string(), capitalize(companion_name));
-                            info.insert("influence".to_string(), value.to_string());
-                            info.insert("recruitment".to_string(), "unknown".to_string());
-                            info.insert("source".to_string(), "discovered".to_string());
-                            info
-                        });
-                    }
+                && let Some(matched) = caps.get(1)
+            {
+                let companion_name = matched.as_str();
+                if companion_name.len() > 2 && !blacklist_set.contains(companion_name) {
+                    let lower_name = companion_name.to_lowercase();
+                    discovered.entry(lower_name).or_insert_with(|| {
+                        let mut info = BTreeMap::new();
+                        info.insert("name".to_string(), capitalize(companion_name));
+                        info.insert("influence".to_string(), value.to_string());
+                        info.insert("recruitment".to_string(), "unknown".to_string());
+                        info.insert("source".to_string(), "discovered".to_string());
+                        info
+                    });
                 }
+            }
         }
         discovered
     }
@@ -162,17 +327,21 @@ impl RustXmlParser {
             if joined > 0 {
                 recruitment = "recruited".to_string();
             } else if let Some(met_var) = def.met_var
-                && self.data.integers.get(met_var).copied().unwrap_or(0) > 0 {
-                    recruitment = "met".to_string();
-                }
+                && self.data.integers.get(met_var).copied().unwrap_or(0) > 0
+            {
+                recruitment = "met".to_string();
+            }
 
             if influence.is_some() || recruitment != "not_recruited" {
-                companion_status.insert(comp_id.to_string(), CompanionStatus {
-                    name: def.name.to_string(),
-                    influence,
-                    recruitment,
-                    source: "explicit".to_string(),
-                });
+                companion_status.insert(
+                    comp_id.to_string(),
+                    CompanionStatus {
+                        name: def.name.to_string(),
+                        influence,
+                        recruitment,
+                        source: "explicit".to_string(),
+                    },
+                );
             }
         }
 
@@ -181,11 +350,14 @@ impl RustXmlParser {
         for (comp_id, status) in discovered {
             companion_status.entry(comp_id).or_insert_with(|| {
                 let influence_val = status.get("influence").and_then(|s| s.parse::<i32>().ok());
-                
+
                 CompanionStatus {
                     name: status.get("name").cloned().unwrap_or_default(),
                     influence: influence_val,
-                    recruitment: status.get("recruitment").cloned().unwrap_or("unknown".to_string()),
+                    recruitment: status
+                        .get("recruitment")
+                        .cloned()
+                        .unwrap_or("unknown".to_string()),
                     source: "discovered".to_string(),
                 }
             });
@@ -197,7 +369,7 @@ impl RustXmlParser {
     fn identify_quest_vars(&self) -> (HashSet<String>, HashSet<String>) {
         let mut completed = HashSet::new();
         let mut active = HashSet::new();
-        
+
         let sorted_patterns = get_quest_patterns();
 
         for (var_name, &value) in &self.data.integers {
@@ -230,7 +402,7 @@ impl RustXmlParser {
                 }
             }
         }
-        
+
         let active: HashSet<String> = active.difference(&completed).cloned().collect();
         (completed, active)
     }
@@ -238,9 +410,9 @@ impl RustXmlParser {
     pub fn get_quest_overview_struct(&self) -> QuestOverview {
         let (completed, active) = self.identify_quest_vars();
         let total = completed.len() + active.len();
-        
+
         let mut quest_groups = BTreeMap::new();
-         let all_quest_vars: HashSet<_> = completed.union(&active).collect();
+        let all_quest_vars: HashSet<_> = completed.union(&active).collect();
         let prefix_pattern = get_prefix_pattern();
 
         for var in all_quest_vars {
@@ -272,11 +444,15 @@ impl RustXmlParser {
             completed_count: completed.len(),
             active_count: active.len(),
             total_quest_vars: total,
-            completion_percentage: if total > 0 { (completed.len() as f32 / total as f32) * 100.0 } else { 0.0 },
+            completion_percentage: if total > 0 {
+                (completed.len() as f32 / total as f32) * 100.0
+            } else {
+                0.0
+            },
             quest_groups,
         }
     }
-    
+
     pub fn get_general_info(&self) -> HashMap<String, Option<String>> {
         let mut info = HashMap::new();
         info.insert("player_name".to_string(), None);
@@ -299,7 +475,10 @@ impl RustXmlParser {
             if let Some(dt) = Utc.timestamp_opt(i64::from(*timestamp), 0).single() {
                 info.insert("last_saved".to_string(), Some(dt.to_rfc3339()));
             } else {
-                info.insert("last_saved".to_string(), Some(format!("Invalid timestamp: {timestamp}")));
+                info.insert(
+                    "last_saved".to_string(),
+                    Some(format!("Invalid timestamp: {timestamp}")),
+                );
             }
         }
 

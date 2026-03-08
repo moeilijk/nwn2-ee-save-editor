@@ -12,18 +12,18 @@ pub struct SecurityLimits {
 impl Default for SecurityLimits {
     fn default() -> Self {
         Self {
-            max_file_size: 500 * 1024 * 1024,  // 500MB for ERF/HAK files
-            max_resource_count: 100_000,        // Maximum resources
+            max_file_size: 500 * 1024 * 1024,     // 500MB for ERF/HAK files
+            max_resource_count: 100_000,          // Maximum resources
             max_resource_size: 100 * 1024 * 1024, // 100MB per resource
-            max_string_length: 1024,            // Maximum string length
+            max_string_length: 1024,              // Maximum string length
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErfVersion {
-    V10,  // 16-character resource names
-    V11,  // 32-character resource names
+    V10, // 16-character resource names
+    V11, // 32-character resource names
 }
 
 impl ErfVersion {
@@ -108,7 +108,11 @@ pub struct KeyEntry {
 
 impl KeyEntry {
     pub fn full_name(&self) -> String {
-        format!("{}.{}", self.resource_name, resource_type_to_extension(self.resource_type))
+        format!(
+            "{}.{}",
+            self.resource_name,
+            resource_type_to_extension(self.resource_type)
+        )
     }
 }
 
@@ -122,7 +126,7 @@ pub struct ResourceEntry {
 pub struct ErfResource {
     pub key: KeyEntry,
     pub entry: ResourceEntry,
-    pub data: Option<Vec<u8>>,  // Lazy-loaded
+    pub data: Option<Vec<u8>>, // Lazy-loaded
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

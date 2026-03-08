@@ -41,22 +41,30 @@ impl ZipContentReader {
         }
     }
 
-    pub fn read_file_from_zip(&mut self, zip_path: String, internal_path: String) -> Result<Vec<u8>, String> {
+    pub fn read_file_from_zip(
+        &mut self,
+        zip_path: String,
+        internal_path: String,
+    ) -> Result<Vec<u8>, String> {
         if self.open_archives.contains_key(&zip_path) {
             self.cache_hits += 1;
         } else {
             self.open_archive(&zip_path)?;
         }
 
-        let index = self.file_indices
+        let index = self
+            .file_indices
             .get(&zip_path)
             .and_then(|indices| indices.get(&internal_path).copied())
             .ok_or_else(|| format!("File not found in ZIP index: {internal_path}"))?;
 
-        let archive = self.open_archives.get_mut(&zip_path)
+        let archive = self
+            .open_archives
+            .get_mut(&zip_path)
             .ok_or_else(|| format!("Failed to access ZIP archive: {zip_path}"))?;
 
-        let mut file = archive.by_index(index)
+        let mut file = archive
+            .by_index(index)
             .map_err(|e| format!("Failed to read file at index {index}: {e}"))?;
 
         let mut contents = Vec::new();
@@ -73,24 +81,26 @@ impl ZipContentReader {
 
         let mut grouped: HashMap<String, Vec<ZipReadRequest>> = HashMap::new();
         for request in requests {
-            grouped.entry(request.zip_path.clone())
+            grouped
+                .entry(request.zip_path.clone())
                 .or_default()
                 .push(request);
         }
 
         for (zip_path, file_requests) in grouped {
             if !self.open_archives.contains_key(&zip_path)
-                && let Err(e) = self.open_archive(&zip_path) {
-                    for req in file_requests {
-                        results.push(ZipReadResult {
-                            request_id: req.request_id,
-                            success: false,
-                            data: None,
-                            error: Some(format!("Failed to open ZIP: {e}")),
-                        });
-                    }
-                    continue;
+                && let Err(e) = self.open_archive(&zip_path)
+            {
+                for req in file_requests {
+                    results.push(ZipReadResult {
+                        request_id: req.request_id,
+                        success: false,
+                        data: None,
+                        error: Some(format!("Failed to open ZIP: {e}")),
+                    });
                 }
+                continue;
+            }
 
             if let Some(archive) = self.open_archives.get_mut(&zip_path) {
                 for req in file_requests {
@@ -140,8 +150,8 @@ impl ZipContentReader {
     ) -> Vec<ZipReadResult> {
         requests
             .par_iter()
-            .map(|req| {
-                match Self::read_single_file(&req.zip_path, &req.internal_path) {
+            .map(
+                |req| match Self::read_single_file(&req.zip_path, &req.internal_path) {
                     Ok(data) => ZipReadResult {
                         request_id: req.request_id.clone(),
                         success: true,
@@ -154,18 +164,17 @@ impl ZipContentReader {
                         data: None,
                         error: Some(e),
                     },
-                }
-            })
+                },
+            )
             .collect()
     }
 
     fn read_single_file(zip_path: &str, internal_path: &str) -> Result<Vec<u8>, String> {
-        let file = File::open(zip_path)
-            .map_err(|e| format!("Failed to open ZIP: {e}"))?;
+        let file = File::open(zip_path).map_err(|e| format!("Failed to open ZIP: {e}"))?;
 
         let reader = BufReader::with_capacity(64 * 1024, file);
-        let mut archive = ZipArchive::new(reader)
-            .map_err(|e| format!("Failed to read ZIP: {e}"))?;
+        let mut archive =
+            ZipArchive::new(reader).map_err(|e| format!("Failed to read ZIP: {e}"))?;
 
         let mut entry = archive
             .by_name(internal_path)
@@ -200,17 +209,30 @@ impl ZipContentReader {
         let mut stats = HashMap::new();
         stats.insert("files_read".to_string(), serde_json::json!(self.files_read));
         stats.insert("bytes_read".to_string(), serde_json::json!(self.bytes_read));
-        stats.insert("archives_opened".to_string(), serde_json::json!(self.archives_opened));
+        stats.insert(
+            "archives_opened".to_string(),
+            serde_json::json!(self.archives_opened),
+        );
         stats.insert("cache_hits".to_string(), serde_json::json!(self.cache_hits));
-        stats.insert("open_archives".to_string(), serde_json::json!(self.open_archives.len()));
+        stats.insert(
+            "open_archives".to_string(),
+            serde_json::json!(self.open_archives.len()),
+        );
 
         let bytes_read_mb = self.bytes_read as f64 / (1024.0 * 1024.0);
-        stats.insert("bytes_read_mb".to_string(), serde_json::json!(bytes_read_mb));
+        stats.insert(
+            "bytes_read_mb".to_string(),
+            serde_json::json!(bytes_read_mb),
+        );
 
         stats
     }
 
-    pub fn file_exists_in_zip(&mut self, zip_path: String, internal_path: String) -> Result<bool, String> {
+    pub fn file_exists_in_zip(
+        &mut self,
+        zip_path: String,
+        internal_path: String,
+    ) -> Result<bool, String> {
         if !self.open_archives.contains_key(&zip_path) {
             self.open_archive(&zip_path)?;
         }
@@ -228,8 +250,8 @@ impl ZipContentReader {
             return Err(format!("ZIP file not found: {zip_path}"));
         }
 
-        let file = File::open(path)
-            .map_err(|e| format!("Failed to open ZIP file {zip_path}: {e}"))?;
+        let file =
+            File::open(path).map_err(|e| format!("Failed to open ZIP file {zip_path}: {e}"))?;
 
         const BUFFER_SIZE: usize = 64 * 1024;
         let reader = BufReader::with_capacity(BUFFER_SIZE, file);

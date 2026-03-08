@@ -9,7 +9,10 @@ use app_lib::parsers::tda::TDAParser;
 async fn test_2da_classes_basic() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
     assert!(table.row_count() > 0, "classes.2da should have rows");
     assert_eq!(table.name, "classes");
 }
@@ -18,7 +21,10 @@ async fn test_2da_classes_basic() {
 async fn test_2da_column_names() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
     let cols = table.column_names();
 
     println!("classes.2da columns ({}):", cols.len());
@@ -27,29 +33,52 @@ async fn test_2da_column_names() {
     }
     println!();
 
-    assert!(cols.iter().any(|c| c.to_lowercase() == "label"), "Should have Label column");
-    assert!(cols.iter().any(|c| c.to_lowercase() == "name"), "Should have Name column");
-    assert!(cols.iter().any(|c| c.to_lowercase() == "hitdie"), "Should have HitDie column");
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "label"),
+        "Should have Label column"
+    );
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "name"),
+        "Should have Name column"
+    );
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "hitdie"),
+        "Should have HitDie column"
+    );
 }
 
 #[tokio::test]
 async fn test_2da_cell_access_by_name() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     let bard_label = table.get_cell(1, "Label").expect("Row 1 Label missing");
     println!("Class 1 Label: {:?}", bard_label);
-    assert!(bard_label.as_deref().unwrap_or("").to_lowercase().contains("bard"));
+    assert!(
+        bard_label
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase()
+            .contains("bard")
+    );
 }
 
 #[tokio::test]
 async fn test_2da_cell_access_by_index() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
-    let col_idx = table.find_column_index("Label").expect("Label column not found");
+    let col_idx = table
+        .find_column_index("Label")
+        .expect("Label column not found");
     let result = table.parser.get_cell(0, col_idx);
     assert!(result.is_ok(), "Should be able to access by column index");
     println!("Row 0, Column {}: {:?}", col_idx, result.unwrap());
@@ -63,7 +92,10 @@ async fn test_2da_cell_access_by_index() {
 async fn test_2da_row_dict() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     let row0 = table.get_row(0).expect("Failed to get row dict");
     println!("Row 0 as dict: {:?}", row0);
@@ -74,7 +106,10 @@ async fn test_2da_row_dict() {
 async fn test_2da_all_rows_dict() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     let all_rows = table.parser.get_all_rows_dict();
     println!("Total rows: {}", all_rows.len());
@@ -90,7 +125,10 @@ async fn test_2da_all_rows_dict() {
 async fn test_2da_find_row() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     let result = table.parser.find_row("Label", "Fighter");
     match result {
@@ -104,10 +142,16 @@ async fn test_2da_find_row() {
 async fn test_2da_find_nonexistent_row() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     let result = table.parser.find_row("Label", "NonExistentClass12345");
-    assert!(matches!(result, Ok(None)), "Should return None for nonexistent row");
+    assert!(
+        matches!(result, Ok(None)),
+        "Should return None for nonexistent row"
+    );
 }
 
 // =============================================================================
@@ -118,7 +162,10 @@ async fn test_2da_find_nonexistent_row() {
 async fn test_2da_null_values() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     println!("\n=== Checking for **** (null) values ===");
     for row_idx in 0..table.row_count().min(10) {
@@ -144,35 +191,60 @@ async fn test_2da_feats_table() {
     assert!(table.row_count() > 100, "feat.2da should have many feats");
 
     let cols = table.column_names();
-    assert!(cols.iter().any(|c| c.to_lowercase() == "label"), "Should have Label");
-    assert!(cols.iter().any(|c| c.to_lowercase() == "prereqfeat1"), "Should have PreReqFeat1");
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "label"),
+        "Should have Label"
+    );
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "prereqfeat1"),
+        "Should have PreReqFeat1"
+    );
 }
 
 #[tokio::test]
 async fn test_2da_skills_table() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("skills").expect("skills.2da not found");
-    println!("skills.2da has {} rows, {} columns", table.row_count(), table.parser.column_count());
+    let table = ctx
+        .loader
+        .get_table("skills")
+        .expect("skills.2da not found");
+    println!(
+        "skills.2da has {} rows, {} columns",
+        table.row_count(),
+        table.parser.column_count()
+    );
 
     let cols = table.column_names();
-    assert!(cols.iter().any(|c| c.to_lowercase() == "name"), "Should have Name column");
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "name"),
+        "Should have Name column"
+    );
 }
 
 #[tokio::test]
 async fn test_2da_spells_table() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("spells").expect("spells.2da not found");
+    let table = ctx
+        .loader
+        .get_table("spells")
+        .expect("spells.2da not found");
     println!("spells.2da has {} rows", table.row_count());
-    assert!(table.row_count() > 500, "spells.2da should have many spells");
+    assert!(
+        table.row_count() > 500,
+        "spells.2da should have many spells"
+    );
 }
 
 #[tokio::test]
 async fn test_2da_races_table() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("racialtypes").expect("racialtypes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("racialtypes")
+        .expect("racialtypes.2da not found");
     println!("racialtypes.2da has {} rows", table.row_count());
 
     let cols = table.column_names();
@@ -183,9 +255,15 @@ async fn test_2da_races_table() {
 async fn test_2da_baseitems_table() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("baseitems").expect("baseitems.2da not found");
+    let table = ctx
+        .loader
+        .get_table("baseitems")
+        .expect("baseitems.2da not found");
     println!("baseitems.2da has {} rows", table.row_count());
-    assert!(table.row_count() > 50, "baseitems.2da should have many items");
+    assert!(
+        table.row_count() > 50,
+        "baseitems.2da should have many items"
+    );
 }
 
 // =============================================================================
@@ -196,15 +274,27 @@ async fn test_2da_baseitems_table() {
 async fn test_2da_cls_feat_fight() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("cls_feat_fight").expect("cls_feat_fight.2da not found");
+    let table = ctx
+        .loader
+        .get_table("cls_feat_fight")
+        .expect("cls_feat_fight.2da not found");
     println!("cls_feat_fight.2da has {} rows", table.row_count());
 
     let cols = table.column_names();
     println!("Columns: {:?}", cols);
 
-    assert!(cols.iter().any(|c| c.to_lowercase() == "featindex"), "Should have FeatIndex");
-    assert!(cols.iter().any(|c| c.to_lowercase() == "list"), "Should have List");
-    assert!(cols.iter().any(|c| c.to_lowercase() == "grantedonlevel"), "Should have GrantedOnLevel");
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "featindex"),
+        "Should have FeatIndex"
+    );
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "list"),
+        "Should have List"
+    );
+    assert!(
+        cols.iter().any(|c| c.to_lowercase() == "grantedonlevel"),
+        "Should have GrantedOnLevel"
+    );
 }
 
 // =============================================================================
@@ -222,7 +312,9 @@ Label       Name        Value
 "#;
 
     let mut parser = TDAParser::new();
-    parser.parse_from_string(content).expect("Failed to parse 2DA string");
+    parser
+        .parse_from_string(content)
+        .expect("Failed to parse 2DA string");
 
     assert_eq!(parser.row_count(), 3);
     assert_eq!(parser.column_count(), 3);
@@ -238,7 +330,9 @@ Label       Description
 "#;
 
     let mut parser = TDAParser::new();
-    parser.parse_from_string(content).expect("Failed to parse 2DA string");
+    parser
+        .parse_from_string(content)
+        .expect("Failed to parse 2DA string");
 
     let desc0 = parser.get_cell_by_name(0, "Description").unwrap();
     println!("Row 0 Description: {:?}", desc0);
@@ -255,10 +349,16 @@ Label       Value       Optional
 "#;
 
     let mut parser = TDAParser::new();
-    parser.parse_from_string(content).expect("Failed to parse 2DA string");
+    parser
+        .parse_from_string(content)
+        .expect("Failed to parse 2DA string");
 
-    println!("Parsed {} rows, {} columns", parser.row_count(), parser.column_count());
-    
+    println!(
+        "Parsed {} rows, {} columns",
+        parser.row_count(),
+        parser.column_count()
+    );
+
     let opt0 = parser.get_cell_by_name(0, "Optional").unwrap();
     let val1 = parser.get_cell_by_name(1, "Value").unwrap();
 
@@ -281,7 +381,10 @@ Label       Value       Optional
 async fn test_2da_column_iteration() {
     let ctx = create_test_context().await;
 
-    let table = ctx.loader.get_table("classes").expect("classes.2da not found");
+    let table = ctx
+        .loader
+        .get_table("classes")
+        .expect("classes.2da not found");
 
     if let Some(labels) = table.parser.iter_column_by_name("Label") {
         println!("First 10 class labels:");
@@ -421,10 +524,13 @@ async fn test_2da_files_tab_character_usage() {
 
     let _ctx = create_test_context().await;
 
-    let nwn2_data_dir = PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
+    let nwn2_data_dir =
+        PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
 
     if !nwn2_data_dir.exists() {
-        println!("WARNING: NWN2 install not found at expected location, skipping tab detection test");
+        println!(
+            "WARNING: NWN2 install not found at expected location, skipping tab detection test"
+        );
         return;
     }
 
@@ -494,7 +600,10 @@ async fn test_2da_files_tab_character_usage() {
         println!("\nNo 2DA files use tab characters - all use space-separated format");
     }
 
-    assert!(total_files > 0, "Should have scanned at least some 2DA files");
+    assert!(
+        total_files > 0,
+        "Should have scanned at least some 2DA files"
+    );
 }
 
 #[tokio::test]
@@ -503,7 +612,8 @@ async fn test_2da_tab_separated_parsing_verification() {
 
     let ctx = create_test_context().await;
 
-    let nwn2_data_dir = PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
+    let nwn2_data_dir =
+        PathBuf::from("C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/Data");
 
     if !nwn2_data_dir.exists() {
         println!("WARNING: NWN2 install not found, skipping tab parsing verification");
@@ -535,14 +645,18 @@ async fn test_2da_tab_separated_parsing_verification() {
     println!("File size: {} bytes", contents.len());
     println!("Contains tabs: {}", text.contains('\t'));
 
-    let lines_with_tabs = text
-        .lines()
-        .filter(|line| line.contains('\t'))
-        .count();
+    let lines_with_tabs = text.lines().filter(|line| line.contains('\t')).count();
 
-    println!("Lines with tabs: {} / {}", lines_with_tabs, text.lines().count());
+    println!(
+        "Lines with tabs: {} / {}",
+        lines_with_tabs,
+        text.lines().count()
+    );
 
-    let table = ctx.loader.get_table("spells").expect("spells.2da not found");
+    let table = ctx
+        .loader
+        .get_table("spells")
+        .expect("spells.2da not found");
     println!("Parsed rows: {}", table.row_count());
     println!("Parsed columns: {}", table.parser.column_count());
 
@@ -552,7 +666,10 @@ async fn test_2da_tab_separated_parsing_verification() {
 
     let row0 = table.get_row(0).expect("Failed to get row 0");
     println!("Row 0 field count: {}", row0.len());
-    println!("Row 0 Label: {:?}", row0.get("label").or_else(|| row0.get("Label")));
+    println!(
+        "Row 0 Label: {:?}",
+        row0.get("label").or_else(|| row0.get("Label"))
+    );
 
     assert!(table.row_count() > 0, "Should have parsed rows");
     assert!(table.parser.column_count() > 10, "Should have many columns");

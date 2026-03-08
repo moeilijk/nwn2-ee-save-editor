@@ -117,10 +117,7 @@ impl ResourceLocation {
     }
 
     pub fn is_archive(&self) -> bool {
-        matches!(
-            self.container_type,
-            ContainerType::Zip | ContainerType::Erf
-        )
+        matches!(self.container_type, ContainerType::Zip | ContainerType::Erf)
     }
 }
 

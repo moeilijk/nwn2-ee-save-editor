@@ -109,7 +109,10 @@ impl TDAParser {
     pub fn add_column(&mut self, name: &str) {
         let index = self.columns.len();
         let symbol = self.interner.get_or_intern(name);
-        self.columns.push(ColumnInfo { name: symbol, index });
+        self.columns.push(ColumnInfo {
+            name: symbol,
+            index,
+        });
         self.column_map.insert(name.to_lowercase(), index);
     }
 
@@ -187,7 +190,9 @@ impl TDAParser {
 
         for (col_info, cell) in self.columns.iter().zip(row.iter()) {
             let col_name = self.interner.resolve(&col_info.name);
-            let value = cell.as_str(&self.interner).map(std::string::ToString::to_string);
+            let value = cell
+                .as_str(&self.interner)
+                .map(std::string::ToString::to_string);
             result.insert(col_name.to_string(), value);
         }
 
@@ -206,7 +211,9 @@ impl TDAParser {
             .map(|row| {
                 let mut result = AHashMap::with_capacity(self.columns.len());
                 for (col_name, cell) in col_names.iter().zip(row.iter()) {
-                    let value = cell.as_str(&self.interner).map(std::string::ToString::to_string);
+                    let value = cell
+                        .as_str(&self.interner)
+                        .map(std::string::ToString::to_string);
                     result.insert(col_name.clone(), value);
                 }
                 result
@@ -224,9 +231,10 @@ impl TDAParser {
         for (row_index, row) in self.rows.iter().enumerate() {
             if let Some(cell) = row.get(col_index)
                 && let Some(cell_value) = cell.as_str(&self.interner)
-                    && cell_value == value {
-                        return Ok(Some(row_index));
-                    }
+                && cell_value == value
+            {
+                return Ok(Some(row_index));
+            }
         }
 
         Ok(None)
@@ -304,9 +312,10 @@ impl TDAParser {
     }
 
     pub fn iter_column(&self, col_index: usize) -> impl Iterator<Item = Option<&str>> + '_ {
-        self.rows
-            .iter()
-            .map(move |row| row.get(col_index).and_then(|cell| cell.as_str(&self.interner)))
+        self.rows.iter().map(move |row| {
+            row.get(col_index)
+                .and_then(|cell| cell.as_str(&self.interner))
+        })
     }
 
     pub fn iter_column_by_name(

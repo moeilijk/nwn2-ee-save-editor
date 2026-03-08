@@ -1,14 +1,14 @@
 use axum::{
-    extract::{State, Json},
-    routing::post,
     Router,
+    extract::{Json, State},
+    routing::post,
 };
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use parking_lot::RwLock;
 
-use crate::state::session_state::SessionState;
 use crate::loaders::types::GameData;
+use crate::state::session_state::SessionState;
 
 #[derive(Clone)]
 pub struct McpState {
@@ -35,10 +35,14 @@ pub async fn start(state: McpState, port: u16) {
         .with_state(state);
 
     let addr = format!("127.0.0.1:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.expect("Failed to bind MCP local port");
-    
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Failed to bind MCP local port");
+
     tracing::info!("Started Local MCP Bridge Server on {}", addr);
-    axum::serve(listener, app).await.expect("Failed to serve local MCP Bridge");
+    axum::serve(listener, app)
+        .await
+        .expect("Failed to serve local MCP Bridge");
 }
 
 async fn handle_mcp_request(
@@ -76,27 +80,29 @@ async fn handle_mcp_request(
     }
 }
 
-fn query_2da(
-    state: McpState,
-    params: serde_json::Value,
-) -> anyhow::Result<serde_json::Value> {
-    let table = params.get("table")
+fn query_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+    let table = params
+        .get("table")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: table"))?;
-    
-    let row_id = params.get("row_id")
+
+    let row_id = params
+        .get("row_id")
         .and_then(|v| v.as_i64())
         .map(|v| v as usize)
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: row_id"))?;
 
     let game_data_lock = state.game_data.read();
     if game_data_lock.table_count() == 0 {
-        return Err(anyhow::anyhow!("Game Data not initialized. Run the editor and load a character first."));
+        return Err(anyhow::anyhow!(
+            "Game Data not initialized. Run the editor and load a character first."
+        ));
     }
 
-    let table_ref = game_data_lock.get_table(table)
+    let table_ref = game_data_lock
+        .get_table(table)
         .ok_or_else(|| anyhow::anyhow!("Table {} not found", table))?;
-    
+
     match table_ref.get_row(row_id) {
         Ok(row) => {
             let mut tree = std::collections::BTreeMap::new();
@@ -104,16 +110,14 @@ fn query_2da(
                 tree.insert(k, v);
             }
             Ok(serde_json::to_value(tree)?)
-        },
-        Err(e) => Err(anyhow::anyhow!("Failed to retrieve 2DA row: {}", e))
+        }
+        Err(e) => Err(anyhow::anyhow!("Failed to retrieve 2DA row: {}", e)),
     }
 }
 
-fn query_tlk(
-    state: McpState,
-    params: serde_json::Value,
-) -> anyhow::Result<serde_json::Value> {
-    let strref = params.get("strref")
+fn query_tlk(state: McpState, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+    let strref = params
+        .get("strref")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: strref"))?;
@@ -135,7 +139,7 @@ fn query_character(
     _params: serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
     let session_lock = state.session.read();
-    
+
     if let Some(char_ref) = session_lock.character() {
         // We will output the basic character dump to start with
         Ok(serde_json::json!({
@@ -145,7 +149,9 @@ fn query_character(
             "classes": char_ref.class_entries().iter().map(|c| c.class_id.0).collect::<Vec<_>>(),
         }))
     } else {
-        Err(anyhow::anyhow!("No character is currently loaded in the session. Please open a character in the editor UI first."))
+        Err(anyhow::anyhow!(
+            "No character is currently loaded in the session. Please open a character in the editor UI first."
+        ))
     }
 }
 
@@ -259,7 +265,10 @@ fn get_inventory(state: McpState, _params: serde_json::Value) -> anyhow::Result<
     }
 }
 
-fn get_campaign_info(state: McpState, _params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+fn get_campaign_info(
+    state: McpState,
+    _params: serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
     let session_lock = state.session.read();
     if let Some(handler) = session_lock.savegame_handler.as_ref() {
         let summary = crate::services::campaign::CampaignManager::get_summary(handler)
@@ -271,23 +280,28 @@ fn get_campaign_info(state: McpState, _params: serde_json::Value) -> anyhow::Res
 }
 
 fn search_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
-    let table = params.get("table")
+    let table = params
+        .get("table")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: table"))?;
-    
-    let query = params.get("query")
+
+    let query = params
+        .get("query")
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase())
         .ok_or_else(|| anyhow::anyhow!("Missing parameter: query"))?;
 
     let game_data_lock = state.game_data.read();
     if game_data_lock.table_count() == 0 {
-        return Err(anyhow::anyhow!("Game Data not initialized. Run the editor and load a character first."));
+        return Err(anyhow::anyhow!(
+            "Game Data not initialized. Run the editor and load a character first."
+        ));
     }
 
-    let table_ref = game_data_lock.get_table(table)
+    let table_ref = game_data_lock
+        .get_table(table)
         .ok_or_else(|| anyhow::anyhow!("Table {} not found", table))?;
-    
+
     let mut results = Vec::new();
     for row_id in 0..table_ref.row_count() {
         if let Ok(row) = table_ref.get_row(row_id) {
@@ -304,7 +318,7 @@ fn search_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serd
                 let mut tree = std::collections::BTreeMap::new();
                 for (k, v) in row {
                     if let Some(s) = v {
-                        tree.insert(k.clone(), s.clone()); 
+                        tree.insert(k.clone(), s.clone());
                     } else {
                         tree.insert(k.clone(), "".to_string());
                     }
@@ -317,6 +331,6 @@ fn search_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serd
             }
         }
     }
-    
+
     Ok(serde_json::to_value(results)?)
 }

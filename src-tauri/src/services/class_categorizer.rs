@@ -103,9 +103,11 @@ fn get_field_value(row: &AHashMap<String, Option<String>>, field: &str) -> Optio
             for (key, value) in row {
                 if key.to_lowercase() == pattern_lower
                     && let Some(v) = value
-                        && !v.is_empty() && v != "****" {
-                            return Some(v.clone());
-                        }
+                    && !v.is_empty()
+                    && v != "****"
+                {
+                    return Some(v.clone());
+                }
             }
         }
     }
@@ -114,9 +116,11 @@ fn get_field_value(row: &AHashMap<String, Option<String>>, field: &str) -> Optio
     for (key, value) in row {
         if key.to_lowercase() == field_lower
             && let Some(v) = value
-                && !v.is_empty() && v != "****" {
-                    return Some(v.clone());
-                }
+            && !v.is_empty()
+            && v != "****"
+        {
+            return Some(v.clone());
+        }
     }
 
     None
@@ -174,57 +178,85 @@ fn determine_class_focus(row: &AHashMap<String, Option<String>>) -> ClassFocus {
 }
 
 fn is_placeholder_class(row: &AHashMap<String, Option<String>>) -> bool {
-    let name = get_field_value(row, "name").unwrap_or_default().to_lowercase();
-    let label = get_field_value(row, "label").unwrap_or_default().to_lowercase();
+    let name = get_field_value(row, "name")
+        .unwrap_or_default()
+        .to_lowercase();
+    let label = get_field_value(row, "label")
+        .unwrap_or_default()
+        .to_lowercase();
 
-    name == "padding" || name == "****" || name.is_empty() || name == "none"
-        || label == "padding" || label == "****" || label.is_empty() || label == "none"
+    name == "padding"
+        || name == "****"
+        || name.is_empty()
+        || name == "none"
+        || label == "padding"
+        || label == "****"
+        || label.is_empty()
+        || label == "none"
 }
 
 fn get_focus_display_info() -> HashMap<String, FocusInfo> {
     let mut info = HashMap::new();
 
-    info.insert("combat".to_string(), FocusInfo {
-        id: "combat".to_string(),
-        name: "Combat".to_string(),
-        description: "Warriors and martial specialists".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "combat".to_string(),
+        FocusInfo {
+            id: "combat".to_string(),
+            name: "Combat".to_string(),
+            description: "Warriors and martial specialists".to_string(),
+            icon: String::new(),
+        },
+    );
 
-    info.insert("arcane_caster".to_string(), FocusInfo {
-        id: "arcane_caster".to_string(),
-        name: "Arcane Caster".to_string(),
-        description: "Wizards, sorcerers, and arcane magic users".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "arcane_caster".to_string(),
+        FocusInfo {
+            id: "arcane_caster".to_string(),
+            name: "Arcane Caster".to_string(),
+            description: "Wizards, sorcerers, and arcane magic users".to_string(),
+            icon: String::new(),
+        },
+    );
 
-    info.insert("divine_caster".to_string(), FocusInfo {
-        id: "divine_caster".to_string(),
-        name: "Divine Caster".to_string(),
-        description: "Clerics, druids, and divine magic users".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "divine_caster".to_string(),
+        FocusInfo {
+            id: "divine_caster".to_string(),
+            name: "Divine Caster".to_string(),
+            description: "Clerics, druids, and divine magic users".to_string(),
+            icon: String::new(),
+        },
+    );
 
-    info.insert("skill_specialist".to_string(), FocusInfo {
-        id: "skill_specialist".to_string(),
-        name: "Skill Specialist".to_string(),
-        description: "Rogues, bards, and skill-focused classes".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "skill_specialist".to_string(),
+        FocusInfo {
+            id: "skill_specialist".to_string(),
+            name: "Skill Specialist".to_string(),
+            description: "Rogues, bards, and skill-focused classes".to_string(),
+            icon: String::new(),
+        },
+    );
 
-    info.insert("hybrid".to_string(), FocusInfo {
-        id: "hybrid".to_string(),
-        name: "Hybrid".to_string(),
-        description: "Multi-role classes and unique specialists".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "hybrid".to_string(),
+        FocusInfo {
+            id: "hybrid".to_string(),
+            name: "Hybrid".to_string(),
+            description: "Multi-role classes and unique specialists".to_string(),
+            icon: String::new(),
+        },
+    );
 
-    info.insert("stealth_infiltration".to_string(), FocusInfo {
-        id: "stealth_infiltration".to_string(),
-        name: "Stealth & Infiltration".to_string(),
-        description: "Assassins, spies, and shadow specialists".to_string(),
-        icon: String::new(),
-    });
+    info.insert(
+        "stealth_infiltration".to_string(),
+        FocusInfo {
+            id: "stealth_infiltration".to_string(),
+            name: "Stealth & Infiltration".to_string(),
+            description: "Assassins, spies, and shadow specialists".to_string(),
+            icon: String::new(),
+        },
+    );
 
     info
 }
@@ -273,8 +305,7 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
         let class_type = determine_class_type(&row);
         let class_focus = determine_class_focus(&row);
 
-        let name_strref = get_field_value(&row, "name")
-            .and_then(|v| v.parse::<i32>().ok());
+        let name_strref = get_field_value(&row, "name").and_then(|v| v.parse::<i32>().ok());
 
         let name = name_strref
             .and_then(|strref| game_data.get_string(strref))
@@ -282,8 +313,7 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             .or_else(|| get_field_value(&row, "label"))
             .unwrap_or_else(|| format!("Class{row_idx}"));
 
-        let label = get_field_value(&row, "label")
-            .unwrap_or_else(|| format!("Class{row_idx}"));
+        let label = get_field_value(&row, "label").unwrap_or_else(|| format!("Class{row_idx}"));
 
         let has_arcane = get_field_bool(&row, "has_arcane");
         let has_divine = get_field_bool(&row, "has_divine");
@@ -298,8 +328,8 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             })
             .unwrap_or(0);
 
-        let description_strref = get_field_value(&row, "description")
-            .and_then(|v| v.parse::<i32>().ok());
+        let description_strref =
+            get_field_value(&row, "description").and_then(|v| v.parse::<i32>().ok());
 
         let description = description_strref
             .and_then(|strref| game_data.get_string(strref))
@@ -348,7 +378,11 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
         total_classes += 1;
     }
 
-    for type_map in [&mut categories.base, &mut categories.prestige, &mut categories.npc] {
+    for type_map in [
+        &mut categories.base,
+        &mut categories.prestige,
+        &mut categories.npc,
+    ] {
         for list in type_map.values_mut() {
             list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         }

@@ -107,9 +107,10 @@ impl LazyStruct {
 
     pub fn force_load(&self) -> IndexMap<String, GffValue<'static>> {
         if let Ok(guard) = self.cached_fields.read()
-            && let Some(fields) = &*guard {
-                return fields.clone();
-            }
+            && let Some(fields) = &*guard
+        {
+            return fields.clone();
+        }
 
         let fields = self
             .parser
@@ -233,20 +234,14 @@ impl GffValue<'_> {
                 GffValue::ListOwned(owned_vec)
             }
             GffValue::StructOwned(map) => {
-                let owned_map: IndexMap<String, GffValue<'static>> = map
-                    .into_iter()
-                    .map(|(k, v)| (k, v.force_owned()))
-                    .collect();
+                let owned_map: IndexMap<String, GffValue<'static>> =
+                    map.into_iter().map(|(k, v)| (k, v.force_owned())).collect();
                 GffValue::StructOwned(Box::new(owned_map))
             }
             GffValue::ListOwned(vec) => {
                 let owned_vec: Vec<IndexMap<String, GffValue<'static>>> = vec
                     .into_iter()
-                    .map(|map| {
-                        map.into_iter()
-                            .map(|(k, v)| (k, v.force_owned()))
-                            .collect()
-                    })
+                    .map(|map| map.into_iter().map(|(k, v)| (k, v.force_owned())).collect())
                     .collect();
                 GffValue::ListOwned(owned_vec)
             }

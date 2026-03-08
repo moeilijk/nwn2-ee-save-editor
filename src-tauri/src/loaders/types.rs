@@ -44,7 +44,10 @@ impl LoadedTable {
 
     pub fn get_row(&self, row_index: usize) -> LoaderResult<AHashMap<String, Option<String>>> {
         self.parser.get_row_dict(row_index).map_err(|e| {
-            LoaderError::Parse(format!("Failed to get row {} from {}: {}", row_index, self.name, e))
+            LoaderError::Parse(format!(
+                "Failed to get row {} from {}: {}",
+                row_index, self.name, e
+            ))
         })
     }
 
@@ -54,12 +57,15 @@ impl LoadedTable {
     }
 
     pub fn get_cell(&self, row_index: usize, column: &str) -> LoaderResult<Option<String>> {
-        let value = self.parser.get_cell_by_name(row_index, column).map_err(|e| {
-            LoaderError::Parse(format!(
-                "Failed to get cell {}.{} row {}: {}",
-                self.name, column, row_index, e
-            ))
-        })?;
+        let value = self
+            .parser
+            .get_cell_by_name(row_index, column)
+            .map_err(|e| {
+                LoaderError::Parse(format!(
+                    "Failed to get cell {}.{} row {}: {}",
+                    self.name, column, row_index, e
+                ))
+            })?;
         Ok(value.map(std::string::ToString::to_string))
     }
 

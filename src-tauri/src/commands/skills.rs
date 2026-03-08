@@ -1,5 +1,5 @@
-use crate::character::{SkillSummaryEntry, SkillPointsSummary, ABLE_LEARNER_FEAT_ID};
-use crate::character::types::{SkillId, FeatId};
+use crate::character::types::{FeatId, SkillId};
+use crate::character::{ABLE_LEARNER_FEAT_ID, SkillPointsSummary, SkillSummaryEntry};
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,10 @@ pub async fn get_all_skills(state: State<'_, AppState>) -> CommandResult<Vec<Ski
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_skill_summary(&game_data, Some(decoder)))
 }
@@ -35,7 +38,10 @@ pub async fn get_all_skills(state: State<'_, AppState>) -> CommandResult<Vec<Ski
 #[tauri::command]
 pub async fn get_skill_ranks(state: State<'_, AppState>, skill_id: i32) -> CommandResult<i32> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.skill_rank(SkillId(skill_id)))
 }
 
@@ -43,7 +49,10 @@ pub async fn get_skill_ranks(state: State<'_, AppState>, skill_id: i32) -> Comma
 pub async fn is_class_skill(state: State<'_, AppState>, skill_id: i32) -> CommandResult<bool> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.is_class_skill(SkillId(skill_id), &game_data))
 }
 
@@ -55,18 +64,26 @@ pub async fn calculate_skill_cost(
 ) -> CommandResult<i32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let has_able_learner = character.has_feat(FeatId(ABLE_LEARNER_FEAT_ID));
     Ok(character.calculate_skill_cost(SkillId(skill_id), ranks, has_able_learner, &game_data))
 }
 
 #[tauri::command]
-pub async fn get_skill_summary(state: State<'_, AppState>) -> CommandResult<Vec<SkillSummaryEntry>> {
+pub async fn get_skill_summary(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<SkillSummaryEntry>> {
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
     Ok(character.get_skill_summary(&game_data, Some(decoder)))
 }
@@ -76,7 +93,10 @@ pub async fn get_skills_state(state: State<'_, AppState>) -> CommandResult<Skill
     super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let decoder = &session.item_property_decoder;
 
     let all_skills = character.get_skill_summary(&game_data, Some(decoder));
@@ -104,25 +124,37 @@ pub async fn set_skill_rank(
     let mut session = state.session.write();
 
     let (old_ranks, old_cost, new_cost) = {
-        let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
         let old_ranks = character.skill_rank(SkillId(skill_id));
         let has_able_learner = character.has_feat(FeatId(ABLE_LEARNER_FEAT_ID));
-        let old_cost = character.calculate_skill_cost(SkillId(skill_id), old_ranks, has_able_learner, &game_data);
-        let new_cost = character.calculate_skill_cost(SkillId(skill_id), ranks, has_able_learner, &game_data);
+        let old_cost = character.calculate_skill_cost(
+            SkillId(skill_id),
+            old_ranks,
+            has_able_learner,
+            &game_data,
+        );
+        let new_cost =
+            character.calculate_skill_cost(SkillId(skill_id), ranks, has_able_learner, &game_data);
         (old_ranks, old_cost, new_cost)
     };
 
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+
     // Instead of raw set_skill_rank, calculate point difference and deduct
     let points_spent = new_cost - old_cost;
     let mut current_unspent = character.get_available_skill_points();
-    
+
     current_unspent -= points_spent;
     if current_unspent < 0 {
         current_unspent = 0; // Prevent going negative in the backend storage
     }
-    
+
     // Set the rank
     character.set_skill_rank(SkillId(skill_id), ranks)?;
     character.set_available_skill_points(current_unspent);
@@ -141,7 +173,10 @@ pub async fn set_skill_rank(
 #[tauri::command]
 pub async fn reset_all_skills(state: State<'_, AppState>) -> CommandResult<i32> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let skill_ranks = character.skill_ranks();
     let mut total_refunded = 0;
@@ -155,9 +190,14 @@ pub async fn reset_all_skills(state: State<'_, AppState>) -> CommandResult<i32> 
 }
 
 #[tauri::command]
-pub async fn get_skill_points_remaining(state: State<'_, AppState>) -> CommandResult<SkillPointsSummary> {
+pub async fn get_skill_points_remaining(
+    state: State<'_, AppState>,
+) -> CommandResult<SkillPointsSummary> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let available_points = character.get_available_skill_points();
     let total_spent = character.total_skill_points_spent();

@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::character::{Character, CharacterError};
 use crate::loaders::GameData;
+use serde::{Deserialize, Serialize};
 
 const SAVE_MIN: i32 = -35;
 const SAVE_MAX: i32 = 255;
@@ -109,7 +109,12 @@ impl Character {
         SaveBonuses::new(fort, reflex, will)
     }
 
-    fn get_class_saves_at_level(&self, game_data: &GameData, class_id: crate::character::types::ClassId, level: i32) -> (i32, i32, i32) {
+    fn get_class_saves_at_level(
+        &self,
+        game_data: &GameData,
+        class_id: crate::character::types::ClassId,
+        level: i32,
+    ) -> (i32, i32, i32) {
         if level <= 0 {
             return (0, 0, 0);
         }
@@ -138,12 +143,24 @@ impl Character {
         };
 
         let row_index = (level - 1).clamp(0, 19) as usize;
-        let fort = save_table.get_cell(row_index, "FortSave")
-            .ok().flatten().and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-        let reflex = save_table.get_cell(row_index, "RefSave")
-            .ok().flatten().and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-        let will = save_table.get_cell(row_index, "WillSave")
-            .ok().flatten().and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+        let fort = save_table
+            .get_cell(row_index, "FortSave")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+        let reflex = save_table
+            .get_cell(row_index, "RefSave")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+        let will = save_table
+            .get_cell(row_index, "WillSave")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
 
         (fort, reflex, will)
     }
@@ -159,8 +176,8 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use crate::parsers::gff::GffValue;
+    use indexmap::IndexMap;
 
     fn create_test_character() -> Character {
         let mut fields = IndexMap::new();

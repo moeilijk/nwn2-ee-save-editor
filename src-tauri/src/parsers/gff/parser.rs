@@ -7,7 +7,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use encoding_rs::WINDOWS_1252;
 use indexmap::IndexMap;
 use memmap2::Mmap;
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use super::error::GffError;
 use super::types::{GffValue, LazyStruct, LocalizedString, LocalizedSubstring};
@@ -80,8 +80,10 @@ impl GffParser {
         let data = Arc::new(DataSource::Mmap(mmap));
 
         let parser = Self::parse_header(data)?;
-        info!("GFF file parsed: type={}, version={}, structs={}, fields={}",
-              parser.file_type, parser.file_version, parser.struct_count, parser.field_count);
+        info!(
+            "GFF file parsed: type={}, version={}, structs={}, fields={}",
+            parser.file_type, parser.file_version, parser.struct_count, parser.field_count
+        );
         Ok(Arc::new(parser))
     }
 
@@ -329,7 +331,10 @@ impl GffParser {
         Ok(LittleEndian::read_u32(&slice[offset..offset + 4]))
     }
 
-    fn read_list(self: &Arc<Self>, list_indices_byte_offset: u32) -> Result<Vec<LazyStruct>, GffError> {
+    fn read_list(
+        self: &Arc<Self>,
+        list_indices_byte_offset: u32,
+    ) -> Result<Vec<LazyStruct>, GffError> {
         let _ = self.list_indices_len; // Silence unused warning
 
         let slice = self.data.as_slice();
@@ -368,9 +373,9 @@ impl GffParser {
                     current_value = self.read_field_by_label(lazy.struct_index, part)?;
                 }
                 GffValue::List(list) => {
-                    let idx: usize = part
-                        .parse()
-                        .map_err(|_| GffError::FieldNotFound(format!("Invalid list index: {part}")))?;
+                    let idx: usize = part.parse().map_err(|_| {
+                        GffError::FieldNotFound(format!("Invalid list index: {part}"))
+                    })?;
                     if idx >= list.len() {
                         return Err(GffError::FieldNotFound(format!(
                             "List index out of bounds: {idx}"
@@ -381,7 +386,7 @@ impl GffParser {
                 _ => {
                     return Err(GffError::FieldNotFound(format!(
                         "Cannot traverse into non-structural field: {part}"
-                    )))
+                    )));
                 }
             }
         }
@@ -415,7 +420,8 @@ impl GffParser {
                 let field_idx = LittleEndian::read_u32(&slice[read_ptr..read_ptr + 4]);
 
                 let field_offset = self.field_offset + (field_idx as usize * FIELD_SIZE);
-                let label_index = LittleEndian::read_u32(&slice[field_offset + 4..field_offset + 8]);
+                let label_index =
+                    LittleEndian::read_u32(&slice[field_offset + 4..field_offset + 8]);
 
                 let label_cow = self.get_label(label_index)?;
                 if label_cow == label_to_find {

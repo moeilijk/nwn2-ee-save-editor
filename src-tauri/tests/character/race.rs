@@ -10,7 +10,9 @@ async fn test_race_data_loading() {
     // Test with Ryath Strongarm (likely Human)
     let data = common::load_test_gff("ryathstrongarm/ryathstrongarm1.bic");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
+    let fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read top level struct");
     let character = Character::from_gff(fields);
 
     // Basic consistency checks
@@ -19,13 +21,16 @@ async fn test_race_data_loading() {
     println!("Ryath race: {} (ID: {:?})", race_name, race_id);
 
     assert_ne!(race_name, "", "Race name should not be empty");
-    assert!(!race_name.contains("Race "), "Should resolve actual name, not fallback ID");
+    assert!(
+        !race_name.contains("Race "),
+        "Should resolve actual name, not fallback ID"
+    );
 
     // Humans usually have race ID 6 (Human) or similar standard ID
     // Verify ability modifiers are reasonable
     let mods = character.get_racial_ability_modifiers_for_race(race_id.0, &game_data);
     println!("Racial Mods: {:?}", mods);
-    
+
     // Humans generally have no ability modifiers
     if race_name == "Human" {
         assert_eq!(mods.str_mod, 0);
@@ -62,20 +67,32 @@ async fn test_race_progression_consistency() {
     for (i, file) in files.iter().enumerate() {
         let data = common::load_test_gff(file);
         let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-        let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
+        let fields = parser
+            .read_struct_fields(0)
+            .expect("Failed to read top level struct");
         let character = Character::from_gff(fields);
 
         let race_id = character.race_id();
         let subrace = character.subrace();
-        
-        println!("Checking {} -> Race: {:?} Subrace: {:?}", file, race_id, subrace);
+
+        println!(
+            "Checking {} -> Race: {:?} Subrace: {:?}",
+            file, race_id, subrace
+        );
 
         if i == 0 {
             first_race_id = Some(race_id);
             first_subrace = subrace.clone();
         } else {
-            assert_eq!(Some(race_id), first_race_id, "Race ID should stay consistent across saves");
-            assert_eq!(subrace, first_subrace, "Subrace should stay consistent across saves");
+            assert_eq!(
+                Some(race_id),
+                first_race_id,
+                "Race ID should stay consistent across saves"
+            );
+            assert_eq!(
+                subrace, first_subrace,
+                "Subrace should stay consistent across saves"
+            );
         }
     }
 }
@@ -97,26 +114,35 @@ async fn test_diverse_races() {
 
     for (file, name) in characters {
         if let Ok(data) = std::panic::catch_unwind(|| common::load_test_gff(file)) {
-             let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-             let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
-             let character = Character::from_gff(fields);
-             
-             let race_name = character.race_name(&game_data);
-             let size = character.size_category();
-             
-             println!("Character: {} ({}) - Race: {}, Size: {:?}", name, file, race_name, size);
-             
-             // Ensure we get valid data back
-             assert!(!race_name.is_empty());
-             
-             // Check racial feats
-             let racial_feats = character.get_all_racial_feats(&game_data);
-             println!("  Racial Feats: {}", racial_feats.len());
-             for feat in &racial_feats {
-                 // Verify we can resolve feat names
-                 let feat_name = character.get_feat_name(*feat, &game_data);
-                 assert!(!feat_name.is_empty(), "Racial feat {:?} should have a name", feat);
-             }
+            let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
+            let fields = parser
+                .read_struct_fields(0)
+                .expect("Failed to read top level struct");
+            let character = Character::from_gff(fields);
+
+            let race_name = character.race_name(&game_data);
+            let size = character.size_category();
+
+            println!(
+                "Character: {} ({}) - Race: {}, Size: {:?}",
+                name, file, race_name, size
+            );
+
+            // Ensure we get valid data back
+            assert!(!race_name.is_empty());
+
+            // Check racial feats
+            let racial_feats = character.get_all_racial_feats(&game_data);
+            println!("  Racial Feats: {}", racial_feats.len());
+            for feat in &racial_feats {
+                // Verify we can resolve feat names
+                let feat_name = character.get_feat_name(*feat, &game_data);
+                assert!(
+                    !feat_name.is_empty(),
+                    "Racial feat {:?} should have a name",
+                    feat
+                );
+            }
         } else {
             println!("Skipping {}, file not found", file);
         }
@@ -131,7 +157,9 @@ async fn test_race_change_validation() {
     // Load a character
     let data = common::load_test_gff("ryathstrongarm/ryathstrongarm1.bic");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
+    let fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read top level struct");
     let character = Character::from_gff(fields);
 
     // Validate a known valid change (to Human, ID 6)
@@ -142,19 +170,22 @@ async fn test_race_change_validation() {
     let invalid_race_id = 99999;
     let validation_invalid = character.validate_race_change(invalid_race_id, None, &game_data);
     assert!(!validation_invalid.valid, "Should reject invalid race ID");
-    
+
     // Validate subrace check
     // "Shield Dwarf" is subrace of Dwarf. Dwarf is 0.
     // "Gold Dwarf" is subrace of Dwarf.
     // "Drow" is subrace of Elf (1).
-    
+
     // Drow base race is Elf; applying Drow subrace to a Human base race should fail.
     let drow_validation = character.validate_subrace(6, "drow", &game_data);
     if drow_validation.valid {
-         let drow_data = character.get_subrace_data("drow", &game_data);
-         if drow_data.is_some() {
-             assert!(!drow_validation.valid, "Should not allow Drow subrace on Human base race");
-         }
+        let drow_data = character.get_subrace_data("drow", &game_data);
+        if drow_data.is_some() {
+            assert!(
+                !drow_validation.valid,
+                "Should not allow Drow subrace on Human base race"
+            );
+        }
     }
 }
 
@@ -166,7 +197,9 @@ async fn test_race_change_execution() {
     // Load Ryath (Human) - Load into memory ONLY, original file is untouched
     let data = common::load_test_gff("ryathstrongarm/ryathstrongarm1.bic");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
+    let fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read top level struct");
     let mut character = Character::from_gff(fields);
     character.set_age(30).ok(); // Arbitrary age since set_game_data is gone
 
@@ -176,24 +209,35 @@ async fn test_race_change_execution() {
     let initial_cha = character.base_ability(app_lib::character::AbilityIndex::CHA);
     let _initial_feats_count = character.feat_ids().len();
 
-    println!("Initial Race: {:?}, CON: {}, CHA: {}", initial_race, initial_con, initial_cha);
+    println!(
+        "Initial Race: {:?}, CON: {}, CHA: {}",
+        initial_race, initial_con, initial_cha
+    );
 
     // Ensure we are starting with Human (ID 6) for this test to be predictable
     if initial_race.0 != 6 {
-        println!("WARNING: Test character is not Human (ID 6), assertions might need adjustment. Actual: {:?}", initial_race);
+        println!(
+            "WARNING: Test character is not Human (ID 6), assertions might need adjustment. Actual: {:?}",
+            initial_race
+        );
     }
 
     // Change to Dwarf (ID 0)
     // Dwarf Mods: CON +2, CHA -2
     let dwarf_id = 0;
-    
-    let result = character.change_race(dwarf_id, None, false, &game_data)
+
+    let result = character
+        .change_race(dwarf_id, None, false, &game_data)
         .expect("Failed to change race to Dwarf");
 
     println!("Race Change Result: {:?}", result);
 
     // Verify Race ID
-    assert_eq!(character.race_id().0, dwarf_id, "Race ID should be Dwarf (0)");
+    assert_eq!(
+        character.race_id().0,
+        dwarf_id,
+        "Race ID should be Dwarf (0)"
+    );
 
     // Verify Ability Adjustments
     let new_con = character.base_ability(app_lib::character::AbilityIndex::CON);
@@ -202,8 +246,16 @@ async fn test_race_change_execution() {
     println!("New CON: {}, New CHA: {}", new_con, new_cha);
 
     // Dwarves have +2 CON, -2 CHA (Humans have no adjustments)
-    assert_eq!(new_con, initial_con + 2, "Constitution should increase by 2 for Dwarf");
-    assert_eq!(new_cha, initial_cha - 2, "Charisma should decrease by 2 for Dwarf");
+    assert_eq!(
+        new_con,
+        initial_con + 2,
+        "Constitution should increase by 2 for Dwarf"
+    );
+    assert_eq!(
+        new_cha,
+        initial_cha - 2,
+        "Charisma should decrease by 2 for Dwarf"
+    );
 
     // Verify Feat Changes
     // Darkvision (Feat 228) should be added
@@ -216,16 +268,26 @@ async fn test_race_change_execution() {
     let quick_to_master = app_lib::character::FeatId(258);
     let has_quick_to_master = character.has_feat(quick_to_master);
     println!("Has Quick to Master: {}", has_quick_to_master);
-    assert!(!has_quick_to_master, "Dwarf should NOT have Quick to Master (Human trait)");
+    assert!(
+        !has_quick_to_master,
+        "Dwarf should NOT have Quick to Master (Human trait)"
+    );
 
     // Verify result struct accuracy
     let con_change = result.ability_changes.iter().find(|c| c.attribute == "Con");
     assert!(con_change.is_some(), "Result should record Con change");
-    assert_eq!(con_change.unwrap().modifier, 2, "Result should record +2 Con mod");
-    
+    assert_eq!(
+        con_change.unwrap().modifier,
+        2,
+        "Result should record +2 Con mod"
+    );
+
     // Check removal log
     let feat_removed = result.feats_removed.iter().any(|f| f.feat_id == 258);
-    assert!(feat_removed, "Result should record removal of Quick to Master");
+    assert!(
+        feat_removed,
+        "Result should record removal of Quick to Master"
+    );
 }
 
 #[tokio::test]
@@ -235,7 +297,9 @@ async fn test_aasimar_subrace_from_byte_index() {
 
     let data = common::load_test_gff("player.bic");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let fields = parser.read_struct_fields(0).expect("Failed to read top level struct");
+    let fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read top level struct");
     let character = Character::from_gff(fields);
 
     // player.bic has Race=21 (Planetouched) and Subrace=13 (Byte index for Aasimar)
@@ -245,16 +309,30 @@ async fn test_aasimar_subrace_from_byte_index() {
 
     let subrace_idx = character.subrace_index();
     println!("Subrace Index: {:?}", subrace_idx);
-    assert_eq!(subrace_idx, Some(13), "Should have subrace index 13 (Aasimar)");
+    assert_eq!(
+        subrace_idx,
+        Some(13),
+        "Should have subrace index 13 (Aasimar)"
+    );
 
     let subrace_name = character.subrace_name(&game_data);
     println!("Subrace Name: {:?}", subrace_name);
     assert!(subrace_name.is_some(), "Should resolve subrace name");
-    assert!(subrace_name.as_ref().unwrap().to_lowercase().contains("aasimar"),
-        "Subrace name should be Aasimar, got: {:?}", subrace_name);
+    assert!(
+        subrace_name
+            .as_ref()
+            .unwrap()
+            .to_lowercase()
+            .contains("aasimar"),
+        "Subrace name should be Aasimar, got: {:?}",
+        subrace_name
+    );
 
     let race_name = character.race_name(&game_data);
     println!("Race Name (display): {}", race_name);
-    assert!(race_name.to_lowercase().contains("aasimar"),
-        "Race display name should be Aasimar, got: {}", race_name);
+    assert!(
+        race_name.to_lowercase().contains("aasimar"),
+        "Race display name should be Aasimar, got: {}",
+        race_name
+    );
 }

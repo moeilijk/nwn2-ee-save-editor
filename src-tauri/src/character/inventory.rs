@@ -1,22 +1,20 @@
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use crate::parsers::gff::GffValue;
-use crate::character::gff_helpers::gff_value_to_i32;
 use crate::character::CharacterError;
+use crate::character::gff_helpers::gff_value_to_i32;
 use crate::character::types::BaseItemId;
 use crate::loaders::GameData;
-use indexmap::IndexMap;
-use std::collections::HashMap;
-use serde_json::Value as JsonValue;
-use serde_json::Number;
-use crate::services::item_property_decoder::{DecodedProperty, ItemBonuses, ItemPropertyDecoder};
+use crate::parsers::gff::GffValue;
 use crate::services::ItemCostCalculator;
-
+use crate::services::item_property_decoder::{DecodedProperty, ItemBonuses, ItemPropertyDecoder};
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use serde_json::Number;
+use serde_json::Value as JsonValue;
+use specta::Type;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[specta(transparent)]
 pub struct RawItemData(pub HashMap<String, JsonValue>);
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -56,7 +54,6 @@ impl EquipmentSlot {
             Self::Bolts => 0x2000,
         }
     }
-
 
     pub fn display_name(&self) -> &'static str {
         match self {
@@ -157,7 +154,6 @@ pub enum WeightStatus {
     Heavy,
     Overloaded,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct BaseItemData {
@@ -327,23 +323,21 @@ impl super::Character {
     }
 
     pub fn inventory_count(&self) -> usize {
-        self.get_list_owned("ItemList")
-            .map_or(0, |v| v.len())
+        self.get_list_owned("ItemList").map_or(0, |v| v.len())
     }
 
     pub fn equipped_count(&self) -> usize {
-        self.get_list_owned("Equip_ItemList")
-            .map_or(0, |list| {
-                list.iter()
-                    .filter(|item| {
-                        let struct_id = item
-                            .get("__struct_id__")
-                            .and_then(gff_value_to_i32)
-                            .unwrap_or(0) as u32;
-                        struct_id > 0
-                    })
-                    .count()
-            })
+        self.get_list_owned("Equip_ItemList").map_or(0, |list| {
+            list.iter()
+                .filter(|item| {
+                    let struct_id = item
+                        .get("__struct_id__")
+                        .and_then(gff_value_to_i32)
+                        .unwrap_or(0) as u32;
+                    struct_id > 0
+                })
+                .count()
+        })
     }
 
     pub fn inventory_items(&self) -> Vec<BasicItemInfo> {
@@ -371,15 +365,17 @@ impl super::Character {
                             return None;
                         }
 
-                        self.parse_basic_item_info(item)
-                            .map(|info| (index, info))
+                        self.parse_basic_item_info(item).map(|info| (index, info))
                     })
                     .collect()
             })
             .unwrap_or_default()
     }
 
-    fn parse_basic_item_info(&self, item_struct: &IndexMap<String, GffValue<'static>>) -> Option<BasicItemInfo> {
+    fn parse_basic_item_info(
+        &self,
+        item_struct: &IndexMap<String, GffValue<'static>>,
+    ) -> Option<BasicItemInfo> {
         let tag = item_struct
             .get("Tag")
             .and_then(|v| match v {
@@ -439,22 +435,23 @@ impl super::Character {
             }
 
             if let Some(props_list) = item_struct.get("PropertiesList")
-                && let GffValue::ListOwned(props) = props_list {
-                    for prop in props {
-                        let property_id = prop
-                            .get("PropertyName")
-                            .and_then(gff_value_to_i32)
-                            .unwrap_or(0) as u32;
+                && let GffValue::ListOwned(props) = props_list
+            {
+                for prop in props {
+                    let property_id = prop
+                        .get("PropertyName")
+                        .and_then(gff_value_to_i32)
+                        .unwrap_or(0) as u32;
 
-                        if property_id == PROPERTY_ID_AC_BONUS {
-                            let cost_value = prop
-                                .get("CostValue")
-                                .and_then(gff_value_to_i32)
-                                .unwrap_or(0);
-                            total_ac += cost_value;
-                        }
+                    if property_id == PROPERTY_ID_AC_BONUS {
+                        let cost_value = prop
+                            .get("CostValue")
+                            .and_then(gff_value_to_i32)
+                            .unwrap_or(0);
+                        total_ac += cost_value;
                     }
                 }
+            }
         }
 
         total_ac
@@ -556,7 +553,11 @@ impl super::Character {
         }
     }
 
-    pub fn get_base_item_data(&self, base_item_id: i32, game_data: &GameData) -> Option<BaseItemData> {
+    pub fn get_base_item_data(
+        &self,
+        base_item_id: i32,
+        game_data: &GameData,
+    ) -> Option<BaseItemData> {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
@@ -705,7 +706,10 @@ impl super::Character {
         let mut inventory_items = Vec::new();
         let mut equipped_items = Vec::new();
 
-        debug!("Getting ItemList from character. Has field: {}", self.has_field("ItemList"));
+        debug!(
+            "Getting ItemList from character. Has field: {}",
+            self.has_field("ItemList")
+        );
         if let Some(inv_list) = self.get_list_owned("ItemList") {
             debug!("ItemList found with {} items", inv_list.len());
             for (index, item_struct) in inv_list.iter().enumerate() {
@@ -715,20 +719,23 @@ impl super::Character {
                     .unwrap_or(0);
 
                 let base_item_data = self.get_base_item_data(base_item_id, game_data);
-                let base_item_name = base_item_data.as_ref().map_or_else(
-                    || format!("Item {base_item_id}"),
-                    |d| d.name.clone(),
-                );
+                let base_item_name = base_item_data
+                    .as_ref()
+                    .map_or_else(|| format!("Item {base_item_id}"), |d| d.name.clone());
 
                 let is_custom = base_item_data.is_none();
 
-                let name = self.get_item_localized_name(item_struct, game_data)
+                let name = self
+                    .get_item_localized_name(item_struct, game_data)
                     .unwrap_or_else(|| base_item_name.clone());
 
-                let description = self.get_item_localized_description(item_struct, game_data)
+                let description = self
+                    .get_item_localized_description(item_struct, game_data)
                     .unwrap_or_default();
 
-                let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
+                let weight = self
+                    .get_base_item_weight(base_item_id, game_data)
+                    .unwrap_or(0.0);
 
                 let stack_size = item_struct
                     .get("StackSize")
@@ -758,39 +765,43 @@ impl super::Character {
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
 
-                let charges = item_struct
-                    .get("Charges")
-                    .and_then(gff_value_to_i32);
+                let charges = item_struct.get("Charges").and_then(gff_value_to_i32);
 
                 let identified = item_struct
                     .get("Identified")
                     .and_then(gff_value_to_i32)
-                    .unwrap_or(1) != 0;
+                    .unwrap_or(1)
+                    != 0;
 
                 let plot = item_struct
                     .get("Plot")
                     .and_then(gff_value_to_i32)
-                    .unwrap_or(0) == 1;
+                    .unwrap_or(0)
+                    == 1;
 
                 let cursed = item_struct
                     .get("Cursed")
                     .and_then(gff_value_to_i32)
-                    .unwrap_or(0) == 1;
+                    .unwrap_or(0)
+                    == 1;
 
                 let stolen = item_struct
                     .get("Stolen")
                     .and_then(gff_value_to_i32)
-                    .unwrap_or(0) == 1;
+                    .unwrap_or(0)
+                    == 1;
 
                 let base_ac = self.get_base_item_ac(base_item_id, game_data);
 
-                let category = base_item_data.as_ref()
+                let category = base_item_data
+                    .as_ref()
                     .and_then(|_| game_data.get_table("baseitems"))
                     .and_then(|t| t.get_by_id(base_item_id))
                     .map(|row| get_item_category(&row))
                     .unwrap_or_else(|| "Miscellaneous".to_string());
 
-                let (equippable_slots, default_slot) = self.get_equippable_slots(base_item_id, game_data);
+                let (equippable_slots, default_slot) =
+                    self.get_equippable_slots(base_item_id, game_data);
 
                 let decoded_properties = self.decode_item_properties(item_struct, decoder);
 
@@ -824,7 +835,10 @@ impl super::Character {
             warn!("ItemList not found or empty");
         }
 
-        debug!("Getting Equip_ItemList. Has field: {}", self.has_field("Equip_ItemList"));
+        debug!(
+            "Getting Equip_ItemList. Has field: {}",
+            self.has_field("Equip_ItemList")
+        );
         if let Some(equip_list) = self.get_list_owned("Equip_ItemList") {
             debug!("Equip_ItemList found with {} slots", equip_list.len());
             for item_struct in &equip_list {
@@ -845,20 +859,23 @@ impl super::Character {
                     .unwrap_or(0);
 
                 let base_item_data = self.get_base_item_data(base_item_id, game_data);
-                let base_item_name = base_item_data.as_ref().map_or_else(
-                    || format!("Item {base_item_id}"),
-                    |d| d.name.clone(),
-                );
+                let base_item_name = base_item_data
+                    .as_ref()
+                    .map_or_else(|| format!("Item {base_item_id}"), |d| d.name.clone());
 
                 let is_custom = base_item_data.is_none();
 
-                let name = self.get_item_localized_name(item_struct, game_data)
+                let name = self
+                    .get_item_localized_name(item_struct, game_data)
                     .unwrap_or_else(|| base_item_name.clone());
 
-                let description = self.get_item_localized_description(item_struct, game_data)
+                let description = self
+                    .get_item_localized_description(item_struct, game_data)
                     .unwrap_or_default();
 
-                let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
+                let weight = self
+                    .get_base_item_weight(base_item_id, game_data)
+                    .unwrap_or(0.0);
 
                 let value = {
                     let calculator = ItemCostCalculator::new();
@@ -911,7 +928,8 @@ impl super::Character {
                 EncumbranceStatus::Medium => "medium",
                 EncumbranceStatus::Heavy => "heavy",
                 EncumbranceStatus::Overloaded => "overloaded",
-            }.to_string(),
+            }
+            .to_string(),
         };
 
         FullInventorySummary {
@@ -962,7 +980,11 @@ impl super::Character {
         None
     }
 
-    fn get_equippable_slots(&self, base_item_id: i32, game_data: &GameData) -> (Vec<String>, Option<String>) {
+    fn get_equippable_slots(
+        &self,
+        base_item_id: i32,
+        game_data: &GameData,
+    ) -> (Vec<String>, Option<String>) {
         let Some(baseitems) = game_data.get_table("baseitems") else {
             return (vec![], None);
         };
@@ -1020,17 +1042,24 @@ impl super::Character {
             prop_maps.push(map);
         }
 
-        decoder.decode_all_properties(&prop_maps)
+        decoder
+            .decode_all_properties(&prop_maps)
             .into_iter()
             .map(|dp| {
-                let cost_value = dp.raw_data.get("CostValue")
+                let cost_value = dp
+                    .raw_data
+                    .get("CostValue")
                     .and_then(|v| v.as_i64())
                     .map(|v| v as i32)
                     .unwrap_or(0);
-                let param1_value = dp.raw_data.get("Param1Value")
+                let param1_value = dp
+                    .raw_data
+                    .get("Param1Value")
                     .and_then(|v| v.as_i64())
                     .map(|v| v as i32);
-                let subtype = dp.raw_data.get("Subtype")
+                let subtype = dp
+                    .raw_data
+                    .get("Subtype")
                     .and_then(|v| v.as_i64())
                     .map(|v| v as i32);
 
@@ -1045,7 +1074,11 @@ impl super::Character {
             .collect()
     }
 
-    pub fn get_equipment_bonuses(&self, game_data: &GameData, decoder: &ItemPropertyDecoder) -> ItemBonuses {
+    pub fn get_equipment_bonuses(
+        &self,
+        game_data: &GameData,
+        decoder: &ItemPropertyDecoder,
+    ) -> ItemBonuses {
         let mut total_bonuses = ItemBonuses::default();
 
         let Some(equip_list) = self.get_list_owned("Equip_ItemList") else {
@@ -1071,29 +1104,44 @@ impl super::Character {
             // Logic matching Python:
             // Armor (16)
             if base_item_id == BASE_ITEM_ARMOR {
-                if let Some(armor_rules_type) = item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
-                     && let Some(stats) = game_data.get_table("armorrulestats").and_then(|t| t.get_by_id(armor_rules_type))
-                         && let Some(ac_bonus) = stats.get("ACBONUS")
-                            .or_else(|| stats.get("acbonus"))
-                            .and_then(|s| s.as_ref())
-                            .and_then(|s| s.parse::<f32>().ok()) // Python uses float parse then int cast if likely
-                            .map(|f| f as i32)
-                             && ac_bonus > 0 {
-                                 total_bonuses.ac_armor_bonus += ac_bonus;
-                             }
+                if let Some(armor_rules_type) =
+                    item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
+                    && let Some(stats) = game_data
+                        .get_table("armorrulestats")
+                        .and_then(|t| t.get_by_id(armor_rules_type))
+                    && let Some(ac_bonus) = stats
+                        .get("ACBONUS")
+                        .or_else(|| stats.get("acbonus"))
+                        .and_then(|s| s.as_ref())
+                        .and_then(|s| s.parse::<f32>().ok()) // Python uses float parse then int cast if likely
+                        .map(|f| f as i32)
+                    && ac_bonus > 0
+                {
+                    total_bonuses.ac_armor_bonus += ac_bonus;
+                }
             }
             // Shields (14, 56, 57)
-            else if [BASE_ITEM_SMALL_SHIELD, BASE_ITEM_LARGE_SHIELD, BASE_ITEM_TOWER_SHIELD].contains(&base_item_id)
-                && let Some(armor_rules_type) = item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
-                     && let Some(stats) = game_data.get_table("armorrulestats").and_then(|t| t.get_by_id(armor_rules_type))
-                         && let Some(ac_bonus) = stats.get("ACBONUS")
-                            .or_else(|| stats.get("acbonus"))
-                            .and_then(|s| s.as_ref())
-                            .and_then(|s| s.parse::<f32>().ok())
-                            .map(|f| f as i32)
-                             && ac_bonus > 0 {
-                                 total_bonuses.ac_shield_bonus += ac_bonus;
-                             }
+            else if [
+                BASE_ITEM_SMALL_SHIELD,
+                BASE_ITEM_LARGE_SHIELD,
+                BASE_ITEM_TOWER_SHIELD,
+            ]
+            .contains(&base_item_id)
+                && let Some(armor_rules_type) =
+                    item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
+                && let Some(stats) = game_data
+                    .get_table("armorrulestats")
+                    .and_then(|t| t.get_by_id(armor_rules_type))
+                && let Some(ac_bonus) = stats
+                    .get("ACBONUS")
+                    .or_else(|| stats.get("acbonus"))
+                    .and_then(|s| s.as_ref())
+                    .and_then(|s| s.parse::<f32>().ok())
+                    .map(|f| f as i32)
+                && ac_bonus > 0
+            {
+                total_bonuses.ac_shield_bonus += ac_bonus;
+            }
 
             // 2. Item Properties
             if let Some(GffValue::ListOwned(props)) = item_struct.get("PropertiesList") {
@@ -1103,12 +1151,12 @@ impl super::Character {
                     // Convert GFF struct fields to simple JSON map for decoder
                     for (k, v) in prop {
                         if let Some(json_val) = gff_to_json_primitive(v) {
-                             map.insert(k.clone(), json_val);
+                            map.insert(k.clone(), json_val);
                         }
                     }
                     prop_maps.push(map);
                 }
-                
+
                 let item_bonuses = decoder.get_item_bonuses(&prop_maps, base_item_id);
 
                 // Aggregate
@@ -1129,18 +1177,20 @@ impl super::Character {
                 total_bonuses.fortitude_bonus += item_bonuses.fortitude_bonus;
                 total_bonuses.reflex_bonus += item_bonuses.reflex_bonus;
                 total_bonuses.will_bonus += item_bonuses.will_bonus;
-                total_bonuses.spell_resistance = total_bonuses.spell_resistance.max(item_bonuses.spell_resistance);
-                
+                total_bonuses.spell_resistance = total_bonuses
+                    .spell_resistance
+                    .max(item_bonuses.spell_resistance);
+
                 for (skill, val) in item_bonuses.skill_bonuses {
                     *total_bonuses.skill_bonuses.entry(skill).or_insert(0) += val;
                 }
-                 for (dtype, val) in item_bonuses.damage_resistances {
-                    *total_bonuses.damage_resistances.entry(dtype).or_insert(0) = 
+                for (dtype, val) in item_bonuses.damage_resistances {
+                    *total_bonuses.damage_resistances.entry(dtype).or_insert(0) =
                         (*total_bonuses.damage_resistances.get(&dtype).unwrap_or(&0)).max(val);
                 }
             }
         }
-        
+
         total_bonuses
     }
 
@@ -1173,42 +1223,47 @@ impl super::Character {
             .and_then(|s| s.parse::<i32>().ok())
     }
 
-    fn get_encumbrance_thresholds(&self, strength: i32, game_data: &GameData) -> (f32, f32, f32, f32) {
+    fn get_encumbrance_thresholds(
+        &self,
+        strength: i32,
+        game_data: &GameData,
+    ) -> (f32, f32, f32, f32) {
         let clamped_str = strength.clamp(1, 100);
 
         if let Some(encumbrance) = game_data.get_table("encumbrance")
-            && let Some(row) = encumbrance.get_by_id(clamped_str) {
-                let light = row
-                    .get("Light")
-                    .or_else(|| row.get("light"))
-                    .or_else(|| row.get("LightLoad"))
-                    .or_else(|| row.get("lightload"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| s.parse::<f32>().ok())
-                    .unwrap_or(0.0);
+            && let Some(row) = encumbrance.get_by_id(clamped_str)
+        {
+            let light = row
+                .get("Light")
+                .or_else(|| row.get("light"))
+                .or_else(|| row.get("LightLoad"))
+                .or_else(|| row.get("lightload"))
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.parse::<f32>().ok())
+                .unwrap_or(0.0);
 
-                let medium = row
-                    .get("Medium")
-                    .or_else(|| row.get("medium"))
-                    .or_else(|| row.get("MediumLoad"))
-                    .or_else(|| row.get("mediumload"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| s.parse::<f32>().ok())
-                    .unwrap_or(0.0);
+            let medium = row
+                .get("Medium")
+                .or_else(|| row.get("medium"))
+                .or_else(|| row.get("MediumLoad"))
+                .or_else(|| row.get("mediumload"))
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.parse::<f32>().ok())
+                .unwrap_or(0.0);
 
-                let heavy = row
-                    .get("Heavy")
-                    .or_else(|| row.get("heavy"))
-                    .or_else(|| row.get("HeavyLoad"))
-                    .or_else(|| row.get("heavyload"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| s.parse::<f32>().ok())
-                    .unwrap_or(0.0);
+            let heavy = row
+                .get("Heavy")
+                .or_else(|| row.get("heavy"))
+                .or_else(|| row.get("HeavyLoad"))
+                .or_else(|| row.get("heavyload"))
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.parse::<f32>().ok())
+                .unwrap_or(0.0);
 
-                let max = heavy * 2.0;
+            let max = heavy * 2.0;
 
-                return (light, medium, heavy, max);
-            }
+            return (light, medium, heavy, max);
+        }
 
         let base = 10.0 * clamped_str as f32;
         (base * 0.33, base * 0.66, base, base * 2.0)
@@ -1258,8 +1313,14 @@ impl super::Character {
         None
     }
 
-    pub fn equip_item(&mut self, inventory_index: usize, slot: EquipmentSlot, game_data: &GameData) -> Result<EquipResult, CharacterError> {
-        let mut inv_list = self.get_list_owned("ItemList")
+    pub fn equip_item(
+        &mut self,
+        inventory_index: usize,
+        slot: EquipmentSlot,
+        game_data: &GameData,
+    ) -> Result<EquipResult, CharacterError> {
+        let mut inv_list = self
+            .get_list_owned("ItemList")
             .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
         if inventory_index >= inv_list.len() {
@@ -1300,7 +1361,10 @@ impl super::Character {
 
         let mut equip_list = self.get_list_owned("Equip_ItemList").unwrap_or_default();
         let mut equipped_struct = item_struct.clone();
-        equipped_struct.insert("__struct_id__".to_string(), GffValue::Dword(slot.to_bitmask()));
+        equipped_struct.insert(
+            "__struct_id__".to_string(),
+            GffValue::Dword(slot.to_bitmask()),
+        );
         equip_list.push(equipped_struct);
         self.set_list("Equip_ItemList", equip_list);
 
@@ -1323,8 +1387,11 @@ impl super::Character {
     }
 
     pub fn unequip_item(&mut self, slot: EquipmentSlot) -> Result<UnequipResult, CharacterError> {
-        let mut equip_list = self.get_list_owned("Equip_ItemList")
-            .ok_or(CharacterError::FieldMissing { field: "Equip_ItemList" })?;
+        let mut equip_list =
+            self.get_list_owned("Equip_ItemList")
+                .ok_or(CharacterError::FieldMissing {
+                    field: "Equip_ItemList",
+                })?;
 
         let slot_bitmask = slot.to_bitmask();
         let mut item_to_unequip = None;
@@ -1383,12 +1450,15 @@ impl super::Character {
         })
     }
 
-    pub fn add_item(&mut self, base_item_id: i32, stack_size: i32, game_data: &GameData) -> Result<AddItemResult, CharacterError> {
+    pub fn add_item(
+        &mut self,
+        base_item_id: i32,
+        stack_size: i32,
+        game_data: &GameData,
+    ) -> Result<AddItemResult, CharacterError> {
         let base_item_data = self.get_base_item_data(base_item_id, game_data);
 
-        let max_stack = base_item_data
-            .as_ref()
-            .map_or(1, |d| d.max_stack);
+        let max_stack = base_item_data.as_ref().map_or(1, |d| d.max_stack);
 
         if max_stack > 1 {
             let mut inv_list = self.get_list_owned("ItemList").unwrap_or_default();
@@ -1407,7 +1477,8 @@ impl super::Character {
 
                     if current_stack < max_stack {
                         let new_stack = (current_stack + stack_size).min(max_stack);
-                        item_struct.insert("StackSize".to_string(), GffValue::Short(new_stack as i16));
+                        item_struct
+                            .insert("StackSize".to_string(), GffValue::Short(new_stack as i16));
                         self.set_list("ItemList", inv_list);
 
                         return Ok(AddItemResult {
@@ -1425,7 +1496,10 @@ impl super::Character {
         let mut inv_list = self.get_list_owned("ItemList").unwrap_or_default();
         let mut new_item = IndexMap::new();
         new_item.insert("BaseItem".to_string(), GffValue::Int(base_item_id));
-        new_item.insert("StackSize".to_string(), GffValue::Short(stack_size.min(max_stack) as i16));
+        new_item.insert(
+            "StackSize".to_string(),
+            GffValue::Short(stack_size.min(max_stack) as i16),
+        );
         new_item.insert("Identified".to_string(), GffValue::Byte(1));
         new_item.insert("Charges".to_string(), GffValue::Byte(0));
         new_item.insert("Cost".to_string(), GffValue::Int(0));
@@ -1444,7 +1518,8 @@ impl super::Character {
     }
 
     pub fn remove_item(&mut self, index: usize) -> Result<RemoveItemResult, CharacterError> {
-        let mut inv_list = self.get_list_owned("ItemList")
+        let mut inv_list = self
+            .get_list_owned("ItemList")
             .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
         if index >= inv_list.len() {
@@ -1474,7 +1549,12 @@ impl super::Character {
         })
     }
 
-    fn can_item_equip_in_slot(&self, base_item_id: i32, slot: EquipmentSlot, game_data: &GameData) -> bool {
+    fn can_item_equip_in_slot(
+        &self,
+        base_item_id: i32,
+        slot: EquipmentSlot,
+        game_data: &GameData,
+    ) -> bool {
         let Some(baseitems) = game_data.get_table("baseitems") else {
             return false;
         };
@@ -1499,16 +1579,26 @@ impl super::Character {
         equip_slots & slot.to_bitmask() != 0
     }
 
-    pub fn get_item_proficiency_info(&self, base_item_id: i32, game_data: &GameData) -> ItemProficiencyInfo {
+    pub fn get_item_proficiency_info(
+        &self,
+        base_item_id: i32,
+        game_data: &GameData,
+    ) -> ItemProficiencyInfo {
         let mut requirements = Vec::new();
         let mut is_proficient = true;
 
         let Some(baseitems) = game_data.get_table("baseitems") else {
-             return ItemProficiencyInfo { is_proficient: true, requirements: vec![] };
+            return ItemProficiencyInfo {
+                is_proficient: true,
+                requirements: vec![],
+            };
         };
-        
+
         let Some(row) = baseitems.get_by_id(base_item_id) else {
-             return ItemProficiencyInfo { is_proficient: true, requirements: vec![] };
+            return ItemProficiencyInfo {
+                is_proficient: true,
+                requirements: vec![],
+            };
         };
 
         // Helper to check feat
@@ -1539,39 +1629,43 @@ impl super::Character {
         // 1. Check ReqFeat0-4
         for i in 0..5 {
             let col = format!("ReqFeat{i}");
-            if let Some(feat_id_val) = row.get(&col)
+            if let Some(feat_id_val) = row
+                .get(&col)
                 .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok()) 
+                .and_then(|s| s.parse::<i32>().ok())
             {
-                 // -1 means no requirement
-                 if feat_id_val >= 0 {
-                     let feat_id = feat_id_val as u16;
-                     let met = has_feat(feat_id);
-                     if !met { is_proficient = false; }
+                // -1 means no requirement
+                if feat_id_val >= 0 {
+                    let feat_id = feat_id_val as u16;
+                    let met = has_feat(feat_id);
+                    if !met {
+                        is_proficient = false;
+                    }
 
-                     requirements.push(ProficiencyRequirement {
-                         feat_id: Some(feat_id),
-                         feat_name: get_feat_name(feat_id),
-                         met,
-                     });
-                 }
+                    requirements.push(ProficiencyRequirement {
+                        feat_id: Some(feat_id),
+                        feat_name: get_feat_name(feat_id),
+                        met,
+                    });
+                }
             }
         }
 
         // 2. Check WeaponType
-         if let Some(weapon_type) = row.get("WeaponType")
+        if let Some(weapon_type) = row
+            .get("WeaponType")
             .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok()) 
+            .and_then(|s| s.parse::<i32>().ok())
         {
             let mut required_feat = None;
             match weapon_type {
                 1 => required_feat = Some(FEAT_WEAPON_PROFICIENCY_SIMPLE),
                 2 => required_feat = Some(FEAT_WEAPON_PROFICIENCY_MARTIAL),
-                3 => required_feat = Some(FEAT_WEAPON_PROFICIENCY_EXOTIC), 
+                3 => required_feat = Some(FEAT_WEAPON_PROFICIENCY_EXOTIC),
                 // Note: Exotic usually has specific ReqFeat, but this is general category fallback
                 _ => {}
             }
-            
+
             // Special cases for Shields
             if [BASE_ITEM_SMALL_SHIELD, BASE_ITEM_LARGE_SHIELD].contains(&base_item_id) {
                 required_feat = Some(FEAT_SHIELD_PROFICIENCY);
@@ -1594,7 +1688,7 @@ impl super::Character {
 
         ItemProficiencyInfo {
             is_proficient,
-            requirements
+            requirements,
         }
     }
 
@@ -1610,15 +1704,19 @@ impl super::Character {
                 .unwrap_or(0) as u32;
 
             if struct_id == EquipmentSlot::Chest.to_bitmask() {
-                if let Some(armor_rules_type) = item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
-                    && let Some(stats) = game_data.get_table("armorrulestats").and_then(|t| t.get_by_id(armor_rules_type))
-                        && let Some(max_dex) = stats.get("MAXDEXBONUS")
-                            .or_else(|| stats.get("maxdexbonus"))
-                            .and_then(|s| s.as_ref())
-                            .and_then(|s| s.parse::<i32>().ok())
-                        {
-                            return max_dex;
-                        }
+                if let Some(armor_rules_type) =
+                    item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
+                    && let Some(stats) = game_data
+                        .get_table("armorrulestats")
+                        .and_then(|t| t.get_by_id(armor_rules_type))
+                    && let Some(max_dex) = stats
+                        .get("MAXDEXBONUS")
+                        .or_else(|| stats.get("maxdexbonus"))
+                        .and_then(|s| s.as_ref())
+                        .and_then(|s| s.parse::<i32>().ok())
+                {
+                    return max_dex;
+                }
                 break;
             }
         }
@@ -1638,14 +1736,18 @@ impl super::Character {
                 .unwrap_or(0) as u32;
 
             if struct_id == EquipmentSlot::Chest.to_bitmask() {
-                if let Some(armor_rules_type) = item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
-                    && let Some(stats) = game_data.get_table("armorrulestats").and_then(|t| t.get_by_id(armor_rules_type))
-                        && let Some(rank) = stats.get("RANK")
-                            .or_else(|| stats.get("rank"))
-                            .and_then(|s| s.as_ref())
-                        {
-                            return rank.clone();
-                        }
+                if let Some(armor_rules_type) =
+                    item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
+                    && let Some(stats) = game_data
+                        .get_table("armorrulestats")
+                        .and_then(|t| t.get_by_id(armor_rules_type))
+                    && let Some(rank) = stats
+                        .get("RANK")
+                        .or_else(|| stats.get("rank"))
+                        .and_then(|s| s.as_ref())
+                {
+                    return rank.clone();
+                }
                 break;
             }
         }
@@ -1665,9 +1767,13 @@ impl super::Character {
                     .unwrap_or(1);
 
                 if stack_size < 0 {
-                    errors.push(format!("Inventory item {idx}: Invalid negative stack size {stack_size}"));
+                    errors.push(format!(
+                        "Inventory item {idx}: Invalid negative stack size {stack_size}"
+                    ));
                 } else if stack_size > 999 {
-                    errors.push(format!("Inventory item {idx}: Stack size {stack_size} too large (max 999)"));
+                    errors.push(format!(
+                        "Inventory item {idx}: Stack size {stack_size} too large (max 999)"
+                    ));
                 }
 
                 let base_item = item_struct
@@ -1676,7 +1782,9 @@ impl super::Character {
                     .unwrap_or(0);
 
                 if base_item < 0 {
-                    errors.push(format!("Inventory item {idx}: Invalid negative base item ID {base_item}"));
+                    errors.push(format!(
+                        "Inventory item {idx}: Invalid negative base item ID {base_item}"
+                    ));
                 }
             }
         }
@@ -1699,7 +1807,9 @@ impl super::Character {
 
                 if base_item < 0 {
                     let slot_name = get_slot_name(struct_id);
-                    errors.push(format!("Equipped item in {slot_name}: Invalid negative base item ID {base_item}"));
+                    errors.push(format!(
+                        "Equipped item in {slot_name}: Invalid negative base item ID {base_item}"
+                    ));
                 }
             }
         }
@@ -1731,16 +1841,15 @@ impl super::Character {
                     .unwrap_or(0);
 
                 let baseitems = game_data.get_table("baseitems");
-                let is_custom = baseitems
-                    .and_then(|t| t.get_by_id(base_item_id))
-                    .is_none();
+                let is_custom = baseitems.and_then(|t| t.get_by_id(base_item_id)).is_none();
 
                 if is_custom {
                     let slot_name = get_slot_name(struct_id);
                     custom_items.push(CustomItemInfo {
                         location: format!("equipped_{slot_name}"),
                         base_item_id,
-                        tag: item_struct.get("Tag")
+                        tag: item_struct
+                            .get("Tag")
                             .and_then(|v| match v {
                                 GffValue::String(s) => Some(s.to_string()),
                                 _ => None,
@@ -1759,15 +1868,14 @@ impl super::Character {
                     .unwrap_or(0);
 
                 let baseitems = game_data.get_table("baseitems");
-                let is_custom = baseitems
-                    .and_then(|t| t.get_by_id(base_item_id))
-                    .is_none();
+                let is_custom = baseitems.and_then(|t| t.get_by_id(base_item_id)).is_none();
 
                 if is_custom {
                     custom_items.push(CustomItemInfo {
                         location: format!("inventory_{idx}"),
                         base_item_id,
-                        tag: item_struct.get("Tag")
+                        tag: item_struct
+                            .get("Tag")
                             .and_then(|v| match v {
                                 GffValue::String(s) => Some(s.to_string()),
                                 _ => None,
@@ -1886,7 +1994,11 @@ impl super::Character {
         armor
     }
 
-    pub fn filter_items_by_category(&self, game_data: &GameData, category: &str) -> Vec<BaseItemInfo> {
+    pub fn filter_items_by_category(
+        &self,
+        game_data: &GameData,
+        category: &str,
+    ) -> Vec<BaseItemInfo> {
         let mut items = Vec::new();
 
         let Some(baseitems) = game_data.get_table("baseitems") else {
@@ -1931,7 +2043,10 @@ impl super::Character {
         items
     }
 
-    pub fn get_equipment_summary_by_slot(&self, game_data: &GameData) -> HashMap<String, Option<EquippedItemInfo>> {
+    pub fn get_equipment_summary_by_slot(
+        &self,
+        game_data: &GameData,
+    ) -> HashMap<String, Option<EquippedItemInfo>> {
         let mut summary: HashMap<String, Option<EquippedItemInfo>> = HashMap::new();
 
         for (_bitmask, name) in EQUIPMENT_SLOTS {
@@ -1953,13 +2068,14 @@ impl super::Character {
             }
 
             let slot_name = get_slot_name(struct_id);
-            
+
             let base_item_id = item_struct
                 .get("BaseItem")
                 .and_then(gff_value_to_i32)
                 .unwrap_or(0);
 
-            let tag = item_struct.get("Tag")
+            let tag = item_struct
+                .get("Tag")
                 .and_then(|v| match v {
                     GffValue::String(s) => Some(s.to_string()),
                     _ => None,
@@ -1967,9 +2083,7 @@ impl super::Character {
                 .unwrap_or_default();
 
             let baseitems = game_data.get_table("baseitems");
-            let is_custom = baseitems
-                .and_then(|t| t.get_by_id(base_item_id))
-                .is_none();
+            let is_custom = baseitems.and_then(|t| t.get_by_id(base_item_id)).is_none();
 
             let name = if let Some(row) = baseitems.and_then(|t| t.get_by_id(base_item_id)) {
                 resolve_base_item_name(&row, base_item_id, game_data)
@@ -1977,15 +2091,20 @@ impl super::Character {
                 format!("Custom Item {base_item_id}")
             };
 
-            let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
+            let weight = self
+                .get_base_item_weight(base_item_id, game_data)
+                .unwrap_or(0.0);
 
-            summary.insert(slot_name.to_string(), Some(EquippedItemInfo {
-                base_item_id,
-                tag,
-                name,
-                weight,
-                is_custom,
-            }));
+            summary.insert(
+                slot_name.to_string(),
+                Some(EquippedItemInfo {
+                    base_item_id,
+                    tag,
+                    name,
+                    weight,
+                    is_custom,
+                }),
+            );
         }
 
         summary
@@ -2025,7 +2144,8 @@ impl super::Character {
             .and_then(gff_value_to_i32)
             .unwrap_or(0);
 
-        let tag = item_struct.get("Tag")
+        let tag = item_struct
+            .get("Tag")
             .and_then(|v| match v {
                 GffValue::String(s) => Some(s.to_string()),
                 _ => None,
@@ -2033,9 +2153,7 @@ impl super::Character {
             .unwrap_or_default();
 
         let baseitems = game_data.get_table("baseitems");
-        let is_custom = baseitems
-            .and_then(|t| t.get_by_id(base_item_id))
-            .is_none();
+        let is_custom = baseitems.and_then(|t| t.get_by_id(base_item_id)).is_none();
 
         let name = if let Some(row) = baseitems.and_then(|t| t.get_by_id(base_item_id)) {
             resolve_base_item_name(&row, base_item_id, game_data)
@@ -2048,29 +2166,31 @@ impl super::Character {
             .and_then(gff_value_to_i32)
             .unwrap_or(0);
 
-        let charges = item_struct
-            .get("Charges")
-            .and_then(gff_value_to_i32);
+        let charges = item_struct.get("Charges").and_then(gff_value_to_i32);
 
         let identified = item_struct
             .get("Identified")
             .and_then(gff_value_to_i32)
-            .unwrap_or(1) != 0;
+            .unwrap_or(1)
+            != 0;
 
         let plot = item_struct
             .get("Plot")
             .and_then(gff_value_to_i32)
-            .unwrap_or(0) == 1;
+            .unwrap_or(0)
+            == 1;
 
         let cursed = item_struct
             .get("Cursed")
             .and_then(gff_value_to_i32)
-            .unwrap_or(0) == 1;
+            .unwrap_or(0)
+            == 1;
 
         let stolen = item_struct
             .get("Stolen")
             .and_then(gff_value_to_i32)
-            .unwrap_or(0) == 1;
+            .unwrap_or(0)
+            == 1;
 
         let stack_size = item_struct
             .get("StackSize")
@@ -2079,7 +2199,9 @@ impl super::Character {
 
         let properties = self.get_item_property_descriptions(item_struct, decoder);
 
-        let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
+        let weight = self
+            .get_base_item_weight(base_item_id, game_data)
+            .unwrap_or(0.0);
 
         let value = {
             let calculator = ItemCostCalculator::new();
@@ -2124,13 +2246,14 @@ impl super::Character {
         index: usize,
         updated_data: &HashMap<String, JsonValue>,
     ) -> Result<(), CharacterError> {
-        let mut inv_list = self.get_list_owned("ItemList")
+        let mut inv_list = self
+            .get_list_owned("ItemList")
             .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
         if index >= inv_list.len() {
-            return Err(CharacterError::InvalidOperation(
-                format!("No item at index {index}")
-            ));
+            return Err(CharacterError::InvalidOperation(format!(
+                "No item at index {index}"
+            )));
         }
 
         merge_json_into_gff_struct(&mut inv_list[index], updated_data);
@@ -2143,17 +2266,25 @@ impl super::Character {
         slot: EquipmentSlot,
         updated_data: &HashMap<String, JsonValue>,
     ) -> Result<(), CharacterError> {
-        let mut equip_list = self.get_list_owned("Equip_ItemList")
-            .ok_or(CharacterError::FieldMissing { field: "Equip_ItemList" })?;
+        let mut equip_list =
+            self.get_list_owned("Equip_ItemList")
+                .ok_or(CharacterError::FieldMissing {
+                    field: "Equip_ItemList",
+                })?;
 
         let slot_bitmask = slot.to_bitmask();
-        let item_idx = equip_list.iter().position(|item| {
-            item.get("__struct_id__")
-                .and_then(gff_value_to_i32)
-                .unwrap_or(0) as u32 == slot_bitmask
-        }).ok_or(CharacterError::InvalidOperation(
-            format!("No equipped item in slot {}", slot.display_name())
-        ))?;
+        let item_idx = equip_list
+            .iter()
+            .position(|item| {
+                item.get("__struct_id__")
+                    .and_then(gff_value_to_i32)
+                    .unwrap_or(0) as u32
+                    == slot_bitmask
+            })
+            .ok_or(CharacterError::InvalidOperation(format!(
+                "No equipped item in slot {}",
+                slot.display_name()
+            )))?;
 
         merge_json_into_gff_struct(&mut equip_list[item_idx], updated_data);
         self.set_list("Equip_ItemList", equip_list);
@@ -2233,7 +2364,10 @@ impl super::Character {
         items
     }
 
-    pub fn get_inventory_item_at(&self, index: usize) -> Option<IndexMap<String, GffValue<'static>>> {
+    pub fn get_inventory_item_at(
+        &self,
+        index: usize,
+    ) -> Option<IndexMap<String, GffValue<'static>>> {
         let inv_list = self.get_list_owned("ItemList")?;
         inv_list.get(index).cloned()
     }
@@ -2246,12 +2380,11 @@ impl super::Character {
         if !self.has_field("ItemList") {
             self.set_list("ItemList", Vec::new());
         }
-        let inv_list = self.get_list_mut("ItemList").ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
+        let inv_list = self
+            .get_list_mut("ItemList")
+            .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
-        let base_item_id = item
-            .get("BaseItem")
-            .and_then(gff_value_to_i32)
-            .unwrap_or(0);
+        let base_item_id = item.get("BaseItem").and_then(gff_value_to_i32).unwrap_or(0);
 
         let tag = item
             .get("Tag")
@@ -2260,7 +2393,7 @@ impl super::Character {
                 _ => None,
             })
             .unwrap_or_default();
-            
+
         let stack_size = item
             .get("StackSize")
             .and_then(|v| match v {
@@ -2273,7 +2406,7 @@ impl super::Character {
 
         // TODO: Implement stacking logic here using game_data if needed
         // For now, simpler implementation appends as new stack
-        
+
         inv_list.push(item);
 
         let index = inv_list.len() - 1;
@@ -2292,7 +2425,10 @@ impl super::Character {
         })
     }
 
-    pub fn get_equipped_item_raw(&self, slot: EquipmentSlot) -> Option<IndexMap<String, GffValue<'static>>> {
+    pub fn get_equipped_item_raw(
+        &self,
+        slot: EquipmentSlot,
+    ) -> Option<IndexMap<String, GffValue<'static>>> {
         let equip_list = self.get_list_owned("Equip_ItemList")?;
         let slot_bitmask = slot.to_bitmask();
 
@@ -2396,10 +2532,15 @@ fn get_item_category(row: &ahash::AHashMap<String, Option<String>>) -> String {
         2 => "Magic Items",
         3 => "Accessories",
         _ => "Miscellaneous",
-    }.to_string()
+    }
+    .to_string()
 }
 
-fn resolve_base_item_name(row: &ahash::AHashMap<String, Option<String>>, row_id: i32, game_data: &GameData) -> String {
+fn resolve_base_item_name(
+    row: &ahash::AHashMap<String, Option<String>>,
+    row_id: i32,
+    game_data: &GameData,
+) -> String {
     let name_ref = row
         .get("Name")
         .or_else(|| row.get("name"))
@@ -2408,12 +2549,12 @@ fn resolve_base_item_name(row: &ahash::AHashMap<String, Option<String>>, row_id:
 
     if let Some(str_ref) = name_ref
         && let Some(resolved) = game_data.get_string(str_ref)
-            && !is_invalid_base_item_label(&resolved) {
-                return resolved;
-            }
+        && !is_invalid_base_item_label(&resolved)
+    {
+        return resolved;
+    }
 
-    row
-        .get("Label")
+    row.get("Label")
         .or_else(|| row.get("label"))
         .and_then(|s| s.as_ref())
         .cloned()
@@ -2433,27 +2574,35 @@ fn gff_to_json_primitive(val: &GffValue) -> Option<JsonValue> {
         GffValue::String(v) => Some(JsonValue::String(v.to_string())),
         GffValue::ResRef(v) => Some(JsonValue::String(v.to_string())),
         GffValue::LocString(ls) => {
-            let substrings: Vec<JsonValue> = ls.substrings.iter().map(|sub| {
-                serde_json::json!({
-                    "language": sub.language,
-                    "gender": sub.gender,
-                    "string": sub.string.to_string()
+            let substrings: Vec<JsonValue> = ls
+                .substrings
+                .iter()
+                .map(|sub| {
+                    serde_json::json!({
+                        "language": sub.language,
+                        "gender": sub.gender,
+                        "string": sub.string.to_string()
+                    })
                 })
-            }).collect();
+                .collect();
             Some(serde_json::json!({
                 "string_ref": ls.string_ref,
                 "substrings": substrings
             }))
-        },
+        }
         GffValue::ListOwned(list) => {
-            let items: Vec<JsonValue> = list.iter().map(|item| {
-                let obj: serde_json::Map<String, JsonValue> = item.iter()
-                    .filter_map(|(k, v)| gff_to_json_primitive(v).map(|jv| (k.clone(), jv)))
-                    .collect();
-                JsonValue::Object(obj)
-            }).collect();
+            let items: Vec<JsonValue> = list
+                .iter()
+                .map(|item| {
+                    let obj: serde_json::Map<String, JsonValue> = item
+                        .iter()
+                        .filter_map(|(k, v)| gff_to_json_primitive(v).map(|jv| (k.clone(), jv)))
+                        .collect();
+                    JsonValue::Object(obj)
+                })
+                .collect();
             Some(JsonValue::Array(items))
-        },
+        }
         GffValue::StructOwned(map) => {
             let mut obj = serde_json::Map::new();
             for (k, v) in map.iter() {
@@ -2468,7 +2617,9 @@ fn gff_to_json_primitive(val: &GffValue) -> Option<JsonValue> {
     }
 }
 
-fn gff_struct_to_json(item_struct: &IndexMap<String, GffValue<'static>>) -> HashMap<String, JsonValue> {
+fn gff_struct_to_json(
+    item_struct: &IndexMap<String, GffValue<'static>>,
+) -> HashMap<String, JsonValue> {
     let mut map = HashMap::new();
     for (k, v) in item_struct {
         if let Some(json_val) = gff_to_json_primitive(v) {
@@ -2478,7 +2629,10 @@ fn gff_struct_to_json(item_struct: &IndexMap<String, GffValue<'static>>) -> Hash
     map
 }
 
-fn coerce_json_to_gff_type(json_val: &JsonValue, existing: GffValue<'static>) -> Option<GffValue<'static>> {
+fn coerce_json_to_gff_type(
+    json_val: &JsonValue,
+    existing: GffValue<'static>,
+) -> Option<GffValue<'static>> {
     match existing {
         GffValue::Byte(_) => json_val.as_u64().map(|n| GffValue::Byte(n as u8)),
         GffValue::Char(_) => json_val.as_u64().map(|n| GffValue::Char(n as u8 as char)),
@@ -2490,16 +2644,16 @@ fn coerce_json_to_gff_type(json_val: &JsonValue, existing: GffValue<'static>) ->
         GffValue::Int64(_) => json_val.as_i64().map(GffValue::Int64),
         GffValue::Float(_) => json_val.as_f64().map(|n| GffValue::Float(n as f32)),
         GffValue::Double(_) => json_val.as_f64().map(GffValue::Double),
-        GffValue::String(_) => json_val.as_str()
+        GffValue::String(_) => json_val
+            .as_str()
             .map(|s| GffValue::String(std::borrow::Cow::Owned(s.to_string()))),
-        GffValue::ResRef(_) => json_val.as_str()
+        GffValue::ResRef(_) => json_val
+            .as_str()
             .map(|s| GffValue::ResRef(std::borrow::Cow::Owned(s.to_string()))),
         GffValue::LocString(_) => json_to_locstring(json_val),
-        GffValue::ListOwned(existing_list) => {
-            json_val.as_array().map(|arr|
-                GffValue::ListOwned(merge_json_list_into_gff_list(&existing_list, arr))
-            )
-        }
+        GffValue::ListOwned(existing_list) => json_val
+            .as_array()
+            .map(|arr| GffValue::ListOwned(merge_json_list_into_gff_list(&existing_list, arr))),
         GffValue::StructOwned(_) => json_to_struct_owned(json_val),
         _ => json_to_gff_best_guess(json_val),
     }
@@ -2508,31 +2662,37 @@ fn coerce_json_to_gff_type(json_val: &JsonValue, existing: GffValue<'static>) ->
 fn json_to_locstring(json_val: &JsonValue) -> Option<GffValue<'static>> {
     let obj = json_val.as_object()?;
     let string_ref = obj.get("string_ref")?.as_i64()? as i32;
-    let substrings = obj.get("substrings")
+    let substrings = obj
+        .get("substrings")
         .and_then(|v| v.as_array())
         .map(|arr| {
-            arr.iter().filter_map(|sub| {
-                let sub_obj = sub.as_object()?;
-                Some(crate::parsers::gff::types::LocalizedSubstring {
-                    language: sub_obj.get("language")?.as_u64()? as u32,
-                    gender: sub_obj.get("gender")?.as_u64()? as u32,
-                    string: std::borrow::Cow::Owned(
-                        sub_obj.get("string")?.as_str()?.to_string()
-                    ),
+            arr.iter()
+                .filter_map(|sub| {
+                    let sub_obj = sub.as_object()?;
+                    Some(crate::parsers::gff::types::LocalizedSubstring {
+                        language: sub_obj.get("language")?.as_u64()? as u32,
+                        gender: sub_obj.get("gender")?.as_u64()? as u32,
+                        string: std::borrow::Cow::Owned(
+                            sub_obj.get("string")?.as_str()?.to_string(),
+                        ),
+                    })
                 })
-            }).collect()
+                .collect()
         })
         .unwrap_or_default();
 
-    Some(GffValue::LocString(crate::parsers::gff::types::LocalizedString {
-        string_ref,
-        substrings,
-    }))
+    Some(GffValue::LocString(
+        crate::parsers::gff::types::LocalizedString {
+            string_ref,
+            substrings,
+        },
+    ))
 }
 
 fn json_to_list(json_val: &JsonValue) -> Option<GffValue<'static>> {
     let arr = json_val.as_array()?;
-    let structs: Vec<IndexMap<String, GffValue<'static>>> = arr.iter()
+    let structs: Vec<IndexMap<String, GffValue<'static>>> = arr
+        .iter()
         .filter_map(|item| {
             let obj = item.as_object()?;
             let mut map = IndexMap::new();
@@ -2606,33 +2766,36 @@ fn merge_json_list_into_gff_list(
     existing_list: &[IndexMap<String, GffValue<'static>>],
     json_arr: &[JsonValue],
 ) -> Vec<IndexMap<String, GffValue<'static>>> {
-    json_arr.iter().enumerate().map(|(i, json_item)| {
-        let Some(obj) = json_item.as_object() else {
-            return if i < existing_list.len() {
-                existing_list[i].clone()
-            } else {
-                IndexMap::new()
+    json_arr
+        .iter()
+        .enumerate()
+        .map(|(i, json_item)| {
+            let Some(obj) = json_item.as_object() else {
+                return if i < existing_list.len() {
+                    existing_list[i].clone()
+                } else {
+                    IndexMap::new()
+                };
             };
-        };
 
-        let updates: HashMap<String, JsonValue> = obj.iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+            let updates: HashMap<String, JsonValue> =
+                obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-        if i < existing_list.len() {
-            let mut item = existing_list[i].clone();
-            merge_json_into_gff_struct(&mut item, &updates);
-            item
-        } else {
-            let mut item = IndexMap::new();
-            for (k, v) in &updates {
-                if let Some(gff_val) = json_to_gff_best_guess(v) {
-                    item.insert(k.clone(), gff_val);
+            if i < existing_list.len() {
+                let mut item = existing_list[i].clone();
+                merge_json_into_gff_struct(&mut item, &updates);
+                item
+            } else {
+                let mut item = IndexMap::new();
+                for (k, v) in &updates {
+                    if let Some(gff_val) = json_to_gff_best_guess(v) {
+                        item.insert(k.clone(), gff_val);
+                    }
                 }
+                item
             }
-            item
-        }
-    }).collect()
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -2647,7 +2810,10 @@ mod tests {
 
         let item1 = {
             let mut item = IndexMap::new();
-            item.insert("Tag".to_string(), GffValue::String(Cow::Owned("test_sword".to_string())));
+            item.insert(
+                "Tag".to_string(),
+                GffValue::String(Cow::Owned("test_sword".to_string())),
+            );
             item.insert("BaseItem".to_string(), GffValue::Int(42));
             item.insert("StackSize".to_string(), GffValue::Short(1));
             item.insert("Identified".to_string(), GffValue::Byte(1));
@@ -2656,19 +2822,28 @@ mod tests {
 
         let item2 = {
             let mut item = IndexMap::new();
-            item.insert("Tag".to_string(), GffValue::String(Cow::Owned("potion".to_string())));
+            item.insert(
+                "Tag".to_string(),
+                GffValue::String(Cow::Owned("potion".to_string())),
+            );
             item.insert("BaseItem".to_string(), GffValue::Int(100));
             item.insert("StackSize".to_string(), GffValue::Short(5));
             item.insert("Identified".to_string(), GffValue::Byte(0));
             item
         };
 
-        fields.insert("ItemList".to_string(), GffValue::ListOwned(vec![item1, item2]));
+        fields.insert(
+            "ItemList".to_string(),
+            GffValue::ListOwned(vec![item1, item2]),
+        );
 
         let equipped_item = {
             let mut item = IndexMap::new();
             item.insert("__struct_id__".to_string(), GffValue::Word(0x0010));
-            item.insert("Tag".to_string(), GffValue::String(Cow::Owned("equipped_sword".to_string())));
+            item.insert(
+                "Tag".to_string(),
+                GffValue::String(Cow::Owned("equipped_sword".to_string())),
+            );
             item.insert("BaseItem".to_string(), GffValue::Int(50));
             item.insert("StackSize".to_string(), GffValue::Short(1));
             item.insert("Identified".to_string(), GffValue::Byte(1));
@@ -2681,7 +2856,10 @@ mod tests {
             item
         };
 
-        fields.insert("Equip_ItemList".to_string(), GffValue::ListOwned(vec![equipped_item, empty_slot]));
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![equipped_item, empty_slot]),
+        );
 
         fields
     }
@@ -2815,14 +2993,14 @@ mod tests {
     #[test]
     fn test_get_item_proficiency_info() {
         use crate::loaders::GameData;
-        use crate::parsers::tlk::TLKParser;
-        use std::sync::{Arc, RwLock};
         use crate::loaders::types::LoadedTable;
         use crate::parsers::tda::TDAParser;
+        use crate::parsers::tlk::TLKParser;
+        use std::sync::{Arc, RwLock};
 
         // Setup GameData
         let mut game_data = GameData::new(Arc::new(RwLock::new(TLKParser::default())));
-        
+
         // Mock baseitems table via 2DA content
         // Item 0: Simple Weapon (Type 1), No specific feat
         // Item 1: Exotic Weapon (Type 3), Requires Feat 100
@@ -2833,9 +3011,13 @@ mod tests {
 1      Item1       3          100
 ";
         let mut baseitems_parser = TDAParser::new();
-        baseitems_parser.parse_from_bytes(baseitems_content.as_bytes()).unwrap();
+        baseitems_parser
+            .parse_from_bytes(baseitems_content.as_bytes())
+            .unwrap();
         let baseitems_table = LoadedTable::new("baseitems".to_string(), Arc::new(baseitems_parser));
-        game_data.tables.insert("baseitems".to_string(), baseitems_table);
+        game_data
+            .tables
+            .insert("baseitems".to_string(), baseitems_table);
 
         // Mock feat table
         // We need entry 100
@@ -2843,9 +3025,11 @@ mod tests {
         for i in 0..=100 {
             feat_content.push_str(&format!("{}      Feat{}      {}\n", i, i, i));
         }
-        
+
         let mut feat_parser = TDAParser::new();
-        feat_parser.parse_from_bytes(feat_content.as_bytes()).unwrap();
+        feat_parser
+            .parse_from_bytes(feat_content.as_bytes())
+            .unwrap();
         let feat_table = LoadedTable::new("feat".to_string(), Arc::new(feat_parser));
         game_data.tables.insert("feat".to_string(), feat_table);
 
@@ -2854,7 +3038,7 @@ mod tests {
         let mut feat44 = IndexMap::new();
         feat44.insert("Feat".to_string(), GffValue::Word(44));
         fields.insert("FeatList".to_string(), GffValue::ListOwned(vec![feat44]));
-        
+
         let character = Character::from_gff(fields);
 
         // Test Simple Weapon (Item 0)
@@ -2864,6 +3048,11 @@ mod tests {
         // Test Exotic Weapon (Item 1)
         let info_exotic = character.get_item_proficiency_info(1, &game_data);
         assert!(!info_exotic.is_proficient);
-        assert!(info_exotic.requirements.iter().any(|r| r.feat_id == Some(100) && !r.met));
+        assert!(
+            info_exotic
+                .requirements
+                .iter()
+                .any(|r| r.feat_id == Some(100) && !r.met)
+        );
     }
 }

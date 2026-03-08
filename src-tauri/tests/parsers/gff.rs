@@ -23,8 +23,14 @@ async fn test_gff_header_parsing() {
     let bytes = load_test_gff("occidiooctavon/occidiooctavon1.bic");
     let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
 
-    assert!(!parser.file_type.is_empty(), "File type should not be empty");
-    assert!(!parser.file_version.is_empty(), "File version should not be empty");
+    assert!(
+        !parser.file_type.is_empty(),
+        "File type should not be empty"
+    );
+    assert!(
+        !parser.file_version.is_empty(),
+        "File version should not be empty"
+    );
 }
 
 #[tokio::test]
@@ -32,7 +38,9 @@ async fn test_gff_root_struct_access() {
     let bytes = load_test_gff("occidiooctavon/occidiooctavon1.bic");
     let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
 
-    let root_fields = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let root_fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
 
     assert!(!root_fields.is_empty(), "Root struct should have fields");
     println!("Root struct has {} fields", root_fields.len());
@@ -178,7 +186,10 @@ async fn test_gff_list_field() {
 
     if let Some(GffValue::List(items)) = root.get("ClassList") {
         println!("ClassList has {} entries", items.len());
-        assert!(!items.is_empty(), "Character should have at least one class");
+        assert!(
+            !items.is_empty(),
+            "Character should have at least one class"
+        );
 
         for (i, lazy_struct) in items.iter().enumerate() {
             let fields = lazy_struct.force_load();
@@ -281,7 +292,10 @@ async fn test_gff_read_field_by_label() {
     let result = parser.read_field_by_label(0, "Str");
     if let Ok(GffValue::Byte(str_val)) = result {
         println!("Str via read_field_by_label: {}", str_val);
-        assert!(str_val >= 3 && str_val <= 50, "Strength should be in reasonable range");
+        assert!(
+            str_val >= 3 && str_val <= 50,
+            "Strength should be in reasonable range"
+        );
     }
 }
 
@@ -297,7 +311,9 @@ async fn test_gff_round_trip() {
 
     let parser = GffParser::from_bytes(bytes.clone()).expect("Failed to parse GFF");
 
-    let root_fields = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let root_fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
 
     let mut root_owned = indexmap::IndexMap::new();
     for (k, v) in root_fields {
@@ -307,7 +323,11 @@ async fn test_gff_round_trip() {
     let mut writer = GffWriter::new(&parser.file_type, &parser.file_version);
     let new_bytes = writer.write(root_owned).expect("Failed to write GFF");
 
-    println!("Original: {} bytes, Reserialized: {} bytes", bytes.len(), new_bytes.len());
+    println!(
+        "Original: {} bytes, Reserialized: {} bytes",
+        bytes.len(),
+        new_bytes.len()
+    );
 
     let parser2 = GffParser::from_bytes(new_bytes.clone()).expect("Failed to re-parse GFF");
 
@@ -316,7 +336,10 @@ async fn test_gff_round_trip() {
 
     let root2 = parser2.read_struct_fields(0).unwrap();
     if let Some(GffValue::LocString(ls)) = root2.get("FirstName") {
-        assert!(!ls.substrings.is_empty(), "FirstName should have substrings after round-trip");
+        assert!(
+            !ls.substrings.is_empty(),
+            "FirstName should have substrings after round-trip"
+        );
     }
 }
 
@@ -356,7 +379,10 @@ async fn test_gff_round_trip_preserves_data() {
         _ => 0,
     };
 
-    assert_eq!(original_exp, round_trip_exp, "Experience should be preserved");
+    assert_eq!(
+        original_exp, round_trip_exp,
+        "Experience should be preserved"
+    );
     assert_eq!(original_str, round_trip_str, "Str should be preserved");
 }
 
@@ -386,7 +412,10 @@ async fn test_gff_parse_multiple_characters() {
                 let root = p.read_struct_fields(0).expect("Failed to read root");
 
                 let name = if let Some(GffValue::LocString(ls)) = root.get("FirstName") {
-                    ls.substrings.first().map(|s| s.string.to_string()).unwrap_or_default()
+                    ls.substrings
+                        .first()
+                        .map(|s| s.string.to_string())
+                        .unwrap_or_default()
                 } else {
                     String::new()
                 };
@@ -501,7 +530,11 @@ async fn test_gff_ability_scores() {
     for ability in abilities {
         if let Some(GffValue::Byte(value)) = root.get(ability) {
             println!("  {}: {}", ability, value);
-            assert!(*value >= 1 && *value <= 100, "{} should be in valid range", ability);
+            assert!(
+                *value >= 1 && *value <= 100,
+                "{} should be in valid range",
+                ability
+            );
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use tracing::{info, debug, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::config::{AppConfig, NWN2Paths};
 use crate::loaders::GameData;
@@ -59,7 +59,9 @@ impl AppState {
         debug!("ResourceManager created");
 
         debug!("Initializing TLK parser");
-        let tlk = Arc::new(std::sync::RwLock::new(crate::parsers::tlk::TLKParser::default()));
+        let tlk = Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        ));
         debug!("TLK parser initialized");
 
         debug!("Creating GameData");

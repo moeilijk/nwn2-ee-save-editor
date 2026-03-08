@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use crate::character::Character;
 use crate::character::types::{AbilityIndex, ClassId, calculate_modifier};
 use crate::loaders::GameData;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 const CLASS_ID_BARBARIAN: i32 = 0;
 const CLASS_ID_MONK: i32 = 5;
@@ -169,7 +169,8 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> ArmorClass {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let dex_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
         let size_mod = self.size_modifier();
         let natural_ac = self.natural_ac();
         let feat_ac = self.get_feat_ac_bonuses(game_data);
@@ -229,8 +230,10 @@ impl Character {
     ) -> AttackBonuses {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod = calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
-        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let str_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
+        let dex_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
         let size_mod = self.size_modifier();
 
         let melee_breakdown = AttackBreakdown {
@@ -276,7 +279,8 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> Initiative {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let dex_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
         let feat_bonus = self.get_feat_initiative_bonus(game_data);
         let misc = self.get_i32("initbonus").unwrap_or(0);
 
@@ -295,7 +299,8 @@ impl Character {
     ) -> CombatManeuverBonus {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod = calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
+        let str_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
         let size_mod = self.size_modifier();
 
         CombatManeuverBonus {
@@ -309,9 +314,13 @@ impl Character {
     pub fn get_movement_speed(&self, game_data: &GameData) -> MovementSpeed {
         let base = self.get_i32("MovementRate").unwrap_or(30);
         let armor_rank = self.get_equipped_armor_rank(game_data);
-        
+
         let armor_penalty = armor_rank == "Medium" || armor_rank == "Heavy";
-        let mut current = if armor_penalty { (base as f32 * 0.75) as i32 } else { base };
+        let mut current = if armor_penalty {
+            (base as f32 * 0.75) as i32
+        } else {
+            base
+        };
 
         let barb_level = self.get_class_level(ClassId(CLASS_ID_BARBARIAN));
         if barb_level > 0 {
@@ -347,9 +356,9 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use crate::parsers::gff::GffValue;
     use crate::parsers::tlk::TLKParser;
+    use indexmap::IndexMap;
     use std::sync::{Arc, RwLock};
 
     fn create_test_character() -> Character {
@@ -367,8 +376,8 @@ mod tests {
     }
 
     fn create_test_decoder() -> crate::services::item_property_decoder::ItemPropertyDecoder {
-        use crate::services::resource_manager::ResourceManager;
         use crate::config::nwn2_paths::NWN2Paths;
+        use crate::services::resource_manager::ResourceManager;
         use tauri::async_runtime::RwLock;
         let paths = Arc::new(RwLock::new(NWN2Paths::default()));
         let rm = Arc::new(RwLock::new(ResourceManager::new(paths)));

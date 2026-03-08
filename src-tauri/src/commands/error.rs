@@ -101,22 +101,22 @@ impl From<crate::services::savegame_handler::SaveGameError> for CommandError {
             SaveGameError::FileNotInSave { filename } => Self::NotFound {
                 item: format!("File in save: {filename}"),
             },
-            SaveGameError::PermissionDenied(msg) | SaveGameError::BackupFailed(msg) | SaveGameError::RestoreFailed(msg) => {
-                Self::FileError {
-                    message: msg,
-                    path: None,
-                }
-            }
+            SaveGameError::PermissionDenied(msg)
+            | SaveGameError::BackupFailed(msg)
+            | SaveGameError::RestoreFailed(msg) => Self::FileError {
+                message: msg,
+                path: None,
+            },
             SaveGameError::Io(io_err) => Self::FileError {
                 message: io_err.to_string(),
                 path: None,
             },
-            SaveGameError::CorruptedZip(msg) | SaveGameError::GffParse(msg) | SaveGameError::InvalidStructure(msg) => {
-                Self::ParseError {
-                    message: msg,
-                    context: None,
-                }
-            }
+            SaveGameError::CorruptedZip(msg)
+            | SaveGameError::GffParse(msg)
+            | SaveGameError::InvalidStructure(msg) => Self::ParseError {
+                message: msg,
+                context: None,
+            },
             SaveGameError::ValidationFailed { filename, reason } => Self::ValidationError {
                 field: filename,
                 reason,

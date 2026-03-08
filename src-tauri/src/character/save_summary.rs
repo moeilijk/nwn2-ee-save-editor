@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use crate::character::Character;
 use crate::character::types::{AbilityIndex, FeatId, SaveBonuses, calculate_modifier};
 use crate::loaders::GameData;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub enum SaveType {
@@ -164,10 +164,10 @@ impl Character {
     ) -> SavingThrows {
         // Base Saves: Derived exclusively from Class Levels (Heroic + Epic)
         let base_saves = self.calculate_base_saves(game_data);
-        
+
         // Misc/Magic Bonuses: Stored in the GFF fields (fortbonus, refbonus, willbonus)
         let misc_bonuses = self.save_bonuses();
-        
+
         let feat_bonuses = self.get_feat_save_bonuses(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
         let racial_bonuses = self.get_racial_save_bonuses(game_data);
@@ -256,7 +256,9 @@ impl Character {
         const DIVINE_GRACE_FEAT_ID: FeatId = FeatId(214);
         const DARK_ONES_LUCK_FEAT_ID: FeatId = FeatId(400);
 
-        let cha_mod = calculate_modifier(self.base_ability(AbilityIndex::CHA) + item_bonuses.cha_bonus).max(0);
+        let cha_mod =
+            calculate_modifier(self.base_ability(AbilityIndex::CHA) + item_bonuses.cha_bonus)
+                .max(0);
 
         if self.has_feat(DIVINE_GRACE_FEAT_ID) {
             bonuses.fortitude += cha_mod;
@@ -291,9 +293,9 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use crate::parsers::gff::GffValue;
     use crate::parsers::tlk::TLKParser;
+    use indexmap::IndexMap;
     use std::sync::{Arc, RwLock};
 
     fn create_test_character() -> Character {
@@ -312,8 +314,8 @@ mod tests {
     }
 
     fn create_test_decoder() -> crate::services::item_property_decoder::ItemPropertyDecoder {
-        use crate::services::resource_manager::ResourceManager;
         use crate::config::nwn2_paths::NWN2Paths;
+        use crate::services::resource_manager::ResourceManager;
         use tauri::async_runtime::RwLock;
         let paths = Arc::new(RwLock::new(NWN2Paths::default()));
         let rm = Arc::new(RwLock::new(ResourceManager::new(paths)));
@@ -395,8 +397,8 @@ mod tests {
         let summary = character.get_save_summary(&game_data, &decoder);
 
         assert!(summary.fortitude >= 2); // 0 misc + 2 ability
-        assert!(summary.reflex >= 1);    // 0 misc + 1 ability
-        assert!(summary.will >= 3);      // 0 misc + 3 ability
+        assert!(summary.reflex >= 1); // 0 misc + 1 ability
+        assert!(summary.will >= 3); // 0 misc + 3 ability
     }
 
     #[test]

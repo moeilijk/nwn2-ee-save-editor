@@ -31,7 +31,7 @@ async fn test_resource_manager_resolution() {
 async fn test_resource_manager_initialization() {
     let context = common::create_test_context().await;
     let resource_manager = context.resource_manager.read().await;
-    
+
     let files = resource_manager.get_available_2da_files();
     println!("Indexed 2da count: {}", files.len());
 }

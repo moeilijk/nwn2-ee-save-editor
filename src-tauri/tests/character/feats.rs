@@ -1,7 +1,7 @@
 use super::super::common::{create_test_context, load_test_gff};
 use app_lib::character::{AbilityIndex, Character, DomainId, FeatId, FeatSource};
-use app_lib::parsers::gff::GffParser;
 use app_lib::loaders::types::LoadedTable;
+use app_lib::parsers::gff::GffParser;
 
 fn load_character(fixture_path: &str) -> Character {
     let bytes = load_test_gff(fixture_path);
@@ -43,10 +43,20 @@ async fn test_feat_count_across_fixtures() {
         println!("{:<15}: {} feats (Level {})", name, feat_count, total_level);
 
         assert!(feat_count >= 1, "{} should have at least 1 feat", name);
-        assert!(feat_count <= 200, "{} has unreasonable feat count: {}", name, feat_count);
+        assert!(
+            feat_count <= 200,
+            "{} has unreasonable feat count: {}",
+            name,
+            feat_count
+        );
 
         if name.contains("L30") {
-            assert!(feat_count >= 10, "{} should have many feats at L30, got {}", name, feat_count);
+            assert!(
+                feat_count >= 10,
+                "{} should have many feats at L30, got {}",
+                name,
+                feat_count
+            );
         }
     }
 }
@@ -93,7 +103,11 @@ async fn test_has_feat_consistency() {
     let feat_ids = character.feat_ids();
     let entries = character.feat_entries();
 
-    println!("{}: {} feats via feat_ids()", character.first_name(), feat_ids.len());
+    println!(
+        "{}: {} feats via feat_ids()",
+        character.first_name(),
+        feat_ids.len()
+    );
 
     for feat_id in &feat_ids {
         assert!(
@@ -111,7 +125,10 @@ async fn test_has_feat_consistency() {
         );
     }
 
-    assert!(!character.has_feat(FeatId(99999)), "has_feat() should return false for non-existent feat");
+    assert!(
+        !character.has_feat(FeatId(99999)),
+        "has_feat() should return false for non-existent feat"
+    );
 }
 
 #[tokio::test]
@@ -119,10 +136,26 @@ async fn test_feat_progression_comparison() {
     println!("\n=== Feat Progression Comparison (L1 vs L30) ===");
 
     let characters = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
-        ("sagemelchior/sagemelchior1.bic", "sagemelchior/sagemelchior4.bic", "Melchior"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
+        (
+            "sagemelchior/sagemelchior1.bic",
+            "sagemelchior/sagemelchior4.bic",
+            "Melchior",
+        ),
     ];
 
     for (l1_path, l30_path, name) in characters {
@@ -136,10 +169,19 @@ async fn test_feat_progression_comparison() {
 
         println!(
             "{}: L1 = {} feats (lvl {}), L30 = {} feats (lvl {}), gained = {}",
-            name, feats_l1, level_l1, feats_l30, level_l30, feats_l30 - feats_l1
+            name,
+            feats_l1,
+            level_l1,
+            feats_l30,
+            level_l30,
+            feats_l30 - feats_l1
         );
 
-        assert!(feats_l30 >= feats_l1, "{} L30 should have >= feats than L1", name);
+        assert!(
+            feats_l30 >= feats_l1,
+            "{} L30 should have >= feats than L1",
+            name
+        );
 
         let l1_feat_ids = char_l1.feat_ids();
         let l30_feat_ids = char_l30.feat_ids();
@@ -149,7 +191,11 @@ async fn test_feat_progression_comparison() {
             .filter(|id| l30_feat_ids.contains(id))
             .collect();
 
-        println!("  {} of {} L1 feats retained at L30", retained.len(), l1_feat_ids.len());
+        println!(
+            "  {} of {} L1 feats retained at L30",
+            retained.len(),
+            l1_feat_ids.len()
+        );
     }
 }
 
@@ -163,7 +209,11 @@ async fn test_feat_info_resolution() {
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
     let feat_ids = character.feat_ids();
 
-    println!("{}: Resolving info for {} feats", character.first_name(), feat_ids.len());
+    println!(
+        "{}: Resolving info for {} feats",
+        character.first_name(),
+        feat_ids.len()
+    );
 
     let mut resolved_count = 0;
     for feat_id in feat_ids.iter().take(10) {
@@ -262,7 +312,10 @@ async fn test_feat_slots_calculation() {
         );
 
         assert!(slots.total_slots >= 0, "Total slots should be non-negative");
-        assert!(slots.filled_slots >= 0, "Filled slots should be non-negative");
+        assert!(
+            slots.filled_slots >= 0,
+            "Filled slots should be non-negative"
+        );
         assert_eq!(
             slots.total_slots,
             slots.total_general_slots + slots.total_bonus_slots,
@@ -288,7 +341,10 @@ async fn test_feat_prerequisite_validation() {
 
     let mut character = load_character("occidiooctavon/occidiooctavon4.bic");
 
-    println!("Testing with high-level character: {}", character.first_name());
+    println!(
+        "Testing with high-level character: {}",
+        character.first_name()
+    );
 
     let power_attack_id = FeatId(28);
     let result = character.validate_feat_prerequisites(power_attack_id, game_data);
@@ -321,25 +377,53 @@ async fn test_add_remove_feat_real_character() {
     let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
     let initial_count = character.feat_count();
 
-    println!("{}: Starting with {} feats", character.first_name(), initial_count);
+    println!(
+        "{}: Starting with {} feats",
+        character.first_name(),
+        initial_count
+    );
 
     let test_feat = FeatId(389);
 
     if character.has_feat(test_feat) {
-        character.remove_feat(test_feat).expect("Failed to remove pre-existing test feat");
+        character
+            .remove_feat(test_feat)
+            .expect("Failed to remove pre-existing test feat");
         println!("  Removed pre-existing test feat");
     }
 
     let count_before_add = character.feat_count();
     character.add_feat(test_feat).expect("Failed to add feat");
     assert!(character.has_feat(test_feat), "Should have feat after add");
-    assert_eq!(character.feat_count(), count_before_add + 1, "Feat count should increase by 1");
-    println!("  Added FeatId({}), count: {} -> {}", test_feat.0, count_before_add, character.feat_count());
+    assert_eq!(
+        character.feat_count(),
+        count_before_add + 1,
+        "Feat count should increase by 1"
+    );
+    println!(
+        "  Added FeatId({}), count: {} -> {}",
+        test_feat.0,
+        count_before_add,
+        character.feat_count()
+    );
 
-    character.remove_feat(test_feat).expect("Failed to remove feat");
-    assert!(!character.has_feat(test_feat), "Should not have feat after remove");
-    assert_eq!(character.feat_count(), count_before_add, "Feat count should return to original");
-    println!("  Removed FeatId({}), count: {}", test_feat.0, character.feat_count());
+    character
+        .remove_feat(test_feat)
+        .expect("Failed to remove feat");
+    assert!(
+        !character.has_feat(test_feat),
+        "Should not have feat after remove"
+    );
+    assert_eq!(
+        character.feat_count(),
+        count_before_add,
+        "Feat count should return to original"
+    );
+    println!(
+        "  Removed FeatId({}), count: {}",
+        test_feat.0,
+        character.feat_count()
+    );
 
     let dup_result = character.add_feat(test_feat);
     assert!(dup_result.is_ok());
@@ -387,8 +471,10 @@ async fn test_feat_save_bonuses_after_adding() {
     let mut character = load_character("qaraofblacklake/qaraofblacklake4.bic");
 
     let before = character.get_feat_save_bonuses(game_data);
-    println!("Before adding feats: Fort {:+}, Ref {:+}, Will {:+}",
-        before.fortitude, before.reflex, before.will);
+    println!(
+        "Before adding feats: Fort {:+}, Ref {:+}, Will {:+}",
+        before.fortitude, before.reflex, before.will
+    );
 
     // Look up Great Fortitude, Iron Will, Lightning Reflexes by label
     let feat_table = game_data.get_table("feat").expect("feat table");
@@ -397,8 +483,11 @@ async fn test_feat_save_bonuses_after_adding() {
     let mut lightning_ref_id = None;
 
     for i in 0..feat_table.row_count() {
-        let Some(row) = feat_table.get_by_id(i as i32) else { continue };
-        let label = row.get("label")
+        let Some(row) = feat_table.get_by_id(i as i32) else {
+            continue;
+        };
+        let label = row
+            .get("label")
             .or_else(|| row.get("Label"))
             .or_else(|| row.get("LABEL"))
             .and_then(|s| s.as_ref().map(|s| s.to_string()))
@@ -422,7 +511,10 @@ async fn test_feat_save_bonuses_after_adding() {
     let gf = great_fort_id.expect("Great Fortitude not found in feat.2da");
     let iw = iron_will_id.expect("Iron Will not found in feat.2da");
     let lr = lightning_ref_id.expect("Lightning Reflexes not found in feat.2da");
-    println!("Feat IDs: Great Fortitude={}, Iron Will={}, Lightning Reflexes={}", gf, iw, lr);
+    println!(
+        "Feat IDs: Great Fortitude={}, Iron Will={}, Lightning Reflexes={}",
+        gf, iw, lr
+    );
 
     // Remove them first in case Qara already has them
     let _ = character.remove_feat(FeatId(gf));
@@ -430,25 +522,40 @@ async fn test_feat_save_bonuses_after_adding() {
     let _ = character.remove_feat(FeatId(lr));
 
     let baseline = character.get_feat_save_bonuses(game_data);
-    println!("Baseline (after removal): Fort {:+}, Ref {:+}, Will {:+}",
-        baseline.fortitude, baseline.reflex, baseline.will);
+    println!(
+        "Baseline (after removal): Fort {:+}, Ref {:+}, Will {:+}",
+        baseline.fortitude, baseline.reflex, baseline.will
+    );
 
     // Add the three feats
     character.add_feat(FeatId(gf)).expect("add Great Fortitude");
     character.add_feat(FeatId(iw)).expect("add Iron Will");
-    character.add_feat(FeatId(lr)).expect("add Lightning Reflexes");
+    character
+        .add_feat(FeatId(lr))
+        .expect("add Lightning Reflexes");
 
     let after = character.get_feat_save_bonuses(game_data);
-    println!("After adding feats: Fort {:+}, Ref {:+}, Will {:+}",
-        after.fortitude, after.reflex, after.will);
+    println!(
+        "After adding feats: Fort {:+}, Ref {:+}, Will {:+}",
+        after.fortitude, after.reflex, after.will
+    );
 
     // Each should add +2 to its respective save
-    assert_eq!(after.fortitude, baseline.fortitude + 2,
-        "Great Fortitude should add +2 to Fort save");
-    assert_eq!(after.reflex, baseline.reflex + 2,
-        "Lightning Reflexes should add +2 to Reflex save");
-    assert_eq!(after.will, baseline.will + 2,
-        "Iron Will should add +2 to Will save");
+    assert_eq!(
+        after.fortitude,
+        baseline.fortitude + 2,
+        "Great Fortitude should add +2 to Fort save"
+    );
+    assert_eq!(
+        after.reflex,
+        baseline.reflex + 2,
+        "Lightning Reflexes should add +2 to Reflex save"
+    );
+    assert_eq!(
+        after.will,
+        baseline.will + 2,
+        "Iron Will should add +2 to Will save"
+    );
 }
 
 #[tokio::test]
@@ -489,9 +596,16 @@ async fn test_feat_initiative_bonus() {
         let character = load_character(path);
         let init_bonus = character.get_feat_initiative_bonus(game_data);
 
-        println!("{}: Feat Initiative bonus = {:+}", character.first_name(), init_bonus);
+        println!(
+            "{}: Feat Initiative bonus = {:+}",
+            character.first_name(),
+            init_bonus
+        );
 
-        assert!(init_bonus >= 0, "Initiative bonus from feats should be non-negative");
+        assert!(
+            init_bonus >= 0,
+            "Initiative bonus from feats should be non-negative"
+        );
     }
 }
 
@@ -502,7 +616,11 @@ async fn test_feat_source_tracking() {
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
     let entries = character.feat_entries();
 
-    println!("{}: Analyzing {} feat sources", character.first_name(), entries.len());
+    println!(
+        "{}: Analyzing {} feat sources",
+        character.first_name(),
+        entries.len()
+    );
 
     let mut unknown = 0;
     let mut manual = 0;
@@ -524,8 +642,10 @@ async fn test_feat_source_tracking() {
         }
     }
 
-    println!("  Unknown: {}, Manual: {}, Class: {}, Race: {}, Domain: {}, Level: {}, Background: {}",
-        unknown, manual, class, race, domain, level, background);
+    println!(
+        "  Unknown: {}, Manual: {}, Class: {}, Race: {}, Domain: {}, Level: {}, Background: {}",
+        unknown, manual, class, race, domain, level, background
+    );
 
     for entry in entries.iter().take(5) {
         let source_via_method = character.feat_source(entry.feat_id);
@@ -538,7 +658,10 @@ async fn test_feat_source_tracking() {
     }
 
     let non_existent = character.feat_source(FeatId(99999));
-    assert!(non_existent.is_none(), "Non-existent feat should have no source");
+    assert!(
+        non_existent.is_none(),
+        "Non-existent feat should have no source"
+    );
 }
 
 #[tokio::test]
@@ -551,7 +674,11 @@ async fn test_protected_feats() {
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
     let entries = character.feat_entries();
 
-    println!("{}: Checking protection for {} feats", character.first_name(), entries.len());
+    println!(
+        "{}: Checking protection for {} feats",
+        character.first_name(),
+        entries.len()
+    );
 
     let mut protected_count = 0;
 
@@ -561,7 +688,8 @@ async fn test_protected_feats() {
             protected_count += 1;
         }
 
-        let is_racial_or_background = matches!(entry.source, FeatSource::Race | FeatSource::Background);
+        let is_racial_or_background =
+            matches!(entry.source, FeatSource::Race | FeatSource::Background);
         if is_racial_or_background {
             assert!(
                 is_protected,
@@ -619,17 +747,28 @@ async fn test_add_domain_and_feats() {
     let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
     let initial_feat_count = character.feat_count();
 
-    println!("{}: {} initial feats", character.first_name(), initial_feat_count);
+    println!(
+        "{}: {} initial feats",
+        character.first_name(),
+        initial_feat_count
+    );
 
     if let Some(domains_table) = game_data.get_table("domains") {
         if domains_table.row_count() > 1 {
             let domain_id = DomainId(1);
             match character.add_domain(domain_id, game_data) {
                 Ok(added_feats) => {
-                    println!("  Added Domain {}, granted {} feats", domain_id.0, added_feats.len());
+                    println!(
+                        "  Added Domain {}, granted {} feats",
+                        domain_id.0,
+                        added_feats.len()
+                    );
                     for feat_id in &added_feats {
                         println!("    - FeatId({})", feat_id.0);
-                        assert!(character.has_feat(*feat_id), "Granted feat should be present");
+                        assert!(
+                            character.has_feat(*feat_id),
+                            "Granted feat should be present"
+                        );
                     }
                     assert!(
                         character.feat_count() >= initial_feat_count,
@@ -637,7 +776,10 @@ async fn test_add_domain_and_feats() {
                     );
                 }
                 Err(e) => {
-                    println!("  Domain add failed (may be invalid ID for this data): {:?}", e);
+                    println!(
+                        "  Domain add failed (may be invalid ID for this data): {:?}",
+                        e
+                    );
                 }
             }
         }
@@ -650,20 +792,28 @@ async fn test_feat_name_resolution() {
 
     println!("\n=== Feat Name Resolution (via feat.2da + TLK) ===");
 
-    let feat_table = ctx.loader.get_table("feat").expect("feat.2da should be loaded");
+    let feat_table = ctx
+        .loader
+        .get_table("feat")
+        .expect("feat.2da should be loaded");
     println!("Feat table loaded: {} rows", feat_table.row_count());
 
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
     let feat_ids = character.feat_ids();
 
-    println!("{}: Resolving names for {} feats", character.first_name(), feat_ids.len());
+    println!(
+        "{}: Resolving names for {} feats",
+        character.first_name(),
+        feat_ids.len()
+    );
 
     let mut label_resolved = 0;
     let mut tlk_resolved = 0;
 
     for feat_id in feat_ids.iter().take(15) {
         let row = feat_id.0 as usize;
-        let label = cell_value(feat_table, row, "LABEL").unwrap_or_else(|| format!("Feat {}", feat_id.0));
+        let label =
+            cell_value(feat_table, row, "LABEL").unwrap_or_else(|| format!("Feat {}", feat_id.0));
         let strref = cell_int(feat_table, row, "FEAT");
 
         let tlk_name = strref
@@ -683,11 +833,20 @@ async fn test_feat_name_resolution() {
             label.clone()
         };
 
-        println!("  FeatId({:>4}): {} [label: {}]", feat_id.0, display_name, label);
+        println!(
+            "  FeatId({:>4}): {} [label: {}]",
+            feat_id.0, display_name, label
+        );
     }
 
-    println!("  Labels resolved: {}/15, TLK names resolved: {}/15", label_resolved, tlk_resolved);
-    assert!(label_resolved > 0, "Should resolve at least some feat labels from 2DA");
+    println!(
+        "  Labels resolved: {}/15, TLK names resolved: {}/15",
+        label_resolved, tlk_resolved
+    );
+    assert!(
+        label_resolved > 0,
+        "Should resolve at least some feat labels from 2DA"
+    );
 }
 
 #[tokio::test]
@@ -697,7 +856,11 @@ async fn test_feat_uses() {
     let mut character = load_character("occidiooctavon/occidiooctavon4.bic");
     let entries = character.feat_entries();
 
-    println!("{}: Checking uses for {} feats", character.first_name(), entries.len());
+    println!(
+        "{}: Checking uses for {} feats",
+        character.first_name(),
+        entries.len()
+    );
 
     let feats_with_uses: Vec<_> = entries.iter().filter(|e| e.uses.is_some()).collect();
     println!("  {} feats have uses defined", feats_with_uses.len());
@@ -710,7 +873,10 @@ async fn test_feat_uses() {
         );
 
         let uses_via_method = character.get_feat_uses(entry.feat_id);
-        assert_eq!(uses_via_method, entry.uses, "get_feat_uses should match entry.uses");
+        assert_eq!(
+            uses_via_method, entry.uses,
+            "get_feat_uses should match entry.uses"
+        );
     }
 
     if let Some(first_feat) = entries.first() {
@@ -718,8 +884,15 @@ async fn test_feat_uses() {
         let success = character.set_feat_uses(first_feat.feat_id, new_uses);
         if success {
             let retrieved = character.get_feat_uses(first_feat.feat_id);
-            assert_eq!(retrieved, Some(new_uses), "set_feat_uses should update the value");
-            println!("  set_feat_uses for FeatId({}) = {} verified", first_feat.feat_id.0, new_uses);
+            assert_eq!(
+                retrieved,
+                Some(new_uses),
+                "set_feat_uses should update the value"
+            );
+            println!(
+                "  set_feat_uses for FeatId({}) = {} verified",
+                first_feat.feat_id.0, new_uses
+            );
         }
     }
 }
@@ -772,9 +945,6 @@ async fn test_bonus_feat_slots_calculation() {
 
         println!("{}: {} bonus feat slots from classes", name, bonus_slots);
 
-        assert!(
-            bonus_slots >= 0,
-            "Bonus slots should be non-negative"
-        );
+        assert!(bonus_slots >= 0, "Bonus slots should be non-negative");
     }
 }

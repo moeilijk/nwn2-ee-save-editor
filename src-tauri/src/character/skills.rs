@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 use super::{Character, CharacterError};
 use crate::character::gff_helpers::gff_value_to_i32;
-use crate::character::types::{SkillId, AbilityIndex, AbilityModifiers};
+use crate::character::types::{AbilityIndex, AbilityModifiers, SkillId};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
 use crate::services::item_property_decoder::ItemPropertyDecoder;
@@ -90,24 +90,24 @@ impl Character {
             let mut found = false;
             for i in 0..class_skills_table.row_count() {
                 if let Some(row) = class_skills_table.get_by_id(i as i32) {
-                     let row_skill_idx = row
+                    let row_skill_idx = row
                         .get("SkillIndex")
                         .or_else(|| row.get("skillindex"))
                         .and_then(|v| v.as_deref())
                         .and_then(|v| v.parse::<i32>().ok());
-                     
-                     if row_skill_idx == Some(skill_id.0) {
-                         let is_class_skill = row
+
+                    if row_skill_idx == Some(skill_id.0) {
+                        let is_class_skill = row
                             .get("ClassSkill")
                             .or_else(|| row.get("classskill"))
                             .and_then(|v| v.as_deref())
                             .is_some_and(|v| v == "1");
-                         
-                         if is_class_skill {
-                             found = true;
-                         }
-                         break; // Found the entry for this skill
-                     }
+
+                        if is_class_skill {
+                            found = true;
+                        }
+                        break; // Found the entry for this skill
+                    }
                 }
             }
 
@@ -168,7 +168,7 @@ impl Character {
     ) -> i32 {
         let ranks = self.skill_rank(skill_id);
         let key_ability = self.get_skill_key_ability(skill_id, game_data);
-        
+
         // Base ability modifier
         let mut ability_mod = self.ability_modifier(key_ability);
         let mut item_skill_bonus = 0;
@@ -180,7 +180,7 @@ impl Character {
 
             // Get specific skill modifiers from equipment (properties 52, etc.)
             let bonuses = self.get_equipment_bonuses(game_data, decoder);
-            
+
             // Skill properties are keyed by "Skill_<ID>"
             let skill_key = format!("Skill_{}", skill_id.0);
             item_skill_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
@@ -281,23 +281,29 @@ impl Character {
             let skill_id = SkillId(skill_id as i32);
             let ranks = self.skill_rank(skill_id);
             let max_ranks = self.get_max_skill_ranks(skill_id, game_data);
-            
+
             let key_ability = self.get_skill_key_ability(skill_id, game_data);
             let ability_name = key_ability.short_name().to_string();
 
             let feat_bonus = Self::lookup_feat_skill_bonus(&feat_skill_bonuses, label, &name);
             if feat_bonus != 0 {
-                tracing::debug!("[skill_summary] Skill '{}' (label='{}') got feat_bonus={}", name, label, feat_bonus);
+                tracing::debug!(
+                    "[skill_summary] Skill '{}' (label='{}') got feat_bonus={}",
+                    name,
+                    label,
+                    feat_bonus
+                );
             }
 
-            let (ability_mod, item_skill_bonus) = if let (Some(mods), Some(bonuses)) = (&ability_modifiers, &item_bonuses) {
-                let ability_mod = mods.get(key_ability);
-                let skill_key = format!("Skill_{}", skill_id.0);
-                let item_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
-                (ability_mod, item_bonus)
-            } else {
-                (self.ability_modifier(key_ability), 0)
-            };
+            let (ability_mod, item_skill_bonus) =
+                if let (Some(mods), Some(bonuses)) = (&ability_modifiers, &item_bonuses) {
+                    let ability_mod = mods.get(key_ability);
+                    let skill_key = format!("Skill_{}", skill_id.0);
+                    let item_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
+                    (ability_mod, item_bonus)
+                } else {
+                    (self.ability_modifier(key_ability), 0)
+                };
 
             let untrained = skill_data
                 .get("untrained")
@@ -360,19 +366,13 @@ impl Character {
             return 0;
         }
 
-        let normalized_label = label
-            .trim()
-            .to_uppercase()
-            .replace([' ', '-', '_'], "");
+        let normalized_label = label.trim().to_uppercase().replace([' ', '-', '_'], "");
 
         if let Some(&bonus) = feat_bonuses.get(&normalized_label) {
             return bonus;
         }
 
-        let normalized_name = name
-            .trim()
-            .to_uppercase()
-            .replace([' ', '-', '_'], "");
+        let normalized_name = name.trim().to_uppercase().replace([' ', '-', '_'], "");
 
         if normalized_name != normalized_label {
             if let Some(&bonus) = feat_bonuses.get(&normalized_name) {
@@ -391,16 +391,16 @@ impl Character {
         is_first_level: bool,
         game_data: &GameData,
     ) -> Result<i32, CharacterError> {
-        let classes_table = game_data.get_table("classes").ok_or_else(|| {
-            CharacterError::TableNotFound("classes.2da".to_string())
-        })?;
+        let classes_table = game_data
+            .get_table("classes")
+            .ok_or_else(|| CharacterError::TableNotFound("classes.2da".to_string()))?;
 
-        let class_data = classes_table.get_by_id(i32::from(class_id)).ok_or_else(|| {
-            CharacterError::ValidationFailed {
+        let class_data = classes_table
+            .get_by_id(i32::from(class_id))
+            .ok_or_else(|| CharacterError::ValidationFailed {
                 field: "Class",
                 message: format!("Class ID {class_id} not found"),
-            }
-        })?;
+            })?;
 
         let base_points = class_data
             .get("SkillPointBase")
@@ -414,17 +414,18 @@ impl Character {
 
         // Racial Bonus
         let race_id = self.race_id();
-        let racial_bonus = if let Some(racial_table) = game_data.get_table("racialtypes") 
-            && let Some(race_data) = racial_table.get_by_id(race_id.0) {
-                race_data
-                    .get("SkillPointModifier")
-                    .or_else(|| race_data.get("skillpointmodifier"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| s.parse::<i32>().ok())
-                    .unwrap_or(0)
-            } else {
-                0
-            };
+        let racial_bonus = if let Some(racial_table) = game_data.get_table("racialtypes")
+            && let Some(race_data) = racial_table.get_by_id(race_id.0)
+        {
+            race_data
+                .get("SkillPointModifier")
+                .or_else(|| race_data.get("skillpointmodifier"))
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0)
+        } else {
+            0
+        };
 
         let mut points = base_points + int_modifier + racial_bonus;
         // Minimum 1 point per level, even with negative modifiers
@@ -433,7 +434,7 @@ impl Character {
         if is_first_level {
             points *= 4;
             // Minimum 4 points at level 1
-            points = points.max(4); 
+            points = points.max(4);
         }
 
         Ok(points)
@@ -449,9 +450,10 @@ impl Character {
 
         for (idx, entry) in skill_list.iter().enumerate() {
             if let Some(rank) = entry.get("Rank").and_then(gff_value_to_i32)
-                 && rank < 0 {
-                     errors.push(format!("Skill {idx}: Negative rank ({rank}) is invalid"));
-                 }
+                && rank < 0
+            {
+                errors.push(format!("Skill {idx}: Negative rank ({rank}) is invalid"));
+            }
         }
 
         errors
@@ -484,9 +486,10 @@ impl Character {
 
         if let Some(strref) = name_strref
             && let Some(name) = game_data.get_string(strref)
-                && !name.is_empty() {
-                    return name;
-                }
+            && !name.is_empty()
+        {
+            return name;
+        }
 
         skill_data
             .get("label")
@@ -601,7 +604,8 @@ impl Character {
 
     /// Get the number of unspent skill points from the GFF field.
     pub fn get_available_skill_points(&self) -> i32 {
-        self.gff.get("SkillPoints")
+        self.gff
+            .get("SkillPoints")
             .and_then(gff_value_to_i32)
             .unwrap_or(0)
     }
@@ -634,7 +638,8 @@ impl Character {
         let current_rank = self.skill_rank(skill_id);
         let has_able_learner = self.has_feat(super::FeatId(ABLE_LEARNER_FEAT_ID));
 
-        let current_cost = self.calculate_skill_cost(skill_id, current_rank, has_able_learner, game_data);
+        let current_cost =
+            self.calculate_skill_cost(skill_id, current_rank, has_able_learner, game_data);
         let new_cost = self.calculate_skill_cost(skill_id, new_rank, has_able_learner, game_data);
         let net_cost = new_cost - current_cost;
 
@@ -642,9 +647,7 @@ impl Character {
         if net_cost > available {
             return Err(CharacterError::ValidationFailed {
                 field: "SkillPoints",
-                message: format!(
-                    "Insufficient skill points: need {net_cost}, have {available}"
-                ),
+                message: format!("Insufficient skill points: need {net_cost}, have {available}"),
             });
         }
 
@@ -692,7 +695,12 @@ impl Character {
             .map(|(idx, entry)| {
                 let ranks = entry.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
                 if ranks > 0 {
-                    self.calculate_skill_cost(SkillId(idx as i32), ranks, has_able_learner, game_data)
+                    self.calculate_skill_cost(
+                        SkillId(idx as i32),
+                        ranks,
+                        has_able_learner,
+                        game_data,
+                    )
                 } else {
                     0
                 }
@@ -840,7 +848,9 @@ mod tests {
     fn test_set_skill_rank_max_value() {
         let mut character = create_test_character();
 
-        character.set_skill_rank(SkillId(0), MAX_SKILL_RANK).unwrap();
+        character
+            .set_skill_rank(SkillId(0), MAX_SKILL_RANK)
+            .unwrap();
         assert_eq!(character.skill_rank(SkillId(0)), MAX_SKILL_RANK);
 
         let result = character.set_skill_rank(SkillId(0), MAX_SKILL_RANK + 1);
@@ -974,9 +984,9 @@ mod tests {
 
     #[test]
     fn test_skill_modifier_with_equipment_bonus() {
-        use crate::services::item_property_decoder::ItemPropertyDecoder;
         use crate::loaders::LoadedTable;
         use crate::parsers::tda::TDAParser;
+        use crate::services::item_property_decoder::ItemPropertyDecoder;
 
         let mut fields = IndexMap::new();
         // Base Dex 10 (+0)
@@ -990,63 +1000,86 @@ mod tests {
         // Skill 0: Rank 5
         let mut skill0 = IndexMap::new();
         skill0.insert("Rank".to_string(), GffValue::Byte(5));
-        fields.insert(
-            "SkillList".to_string(),
-            GffValue::ListOwned(vec![skill0]),
-        );
+        fields.insert("SkillList".to_string(), GffValue::ListOwned(vec![skill0]));
 
         // Equip Item: +4 Dex -> Total Dex 14 (+2)
         let mut props = Vec::new();
         let mut prop = IndexMap::new();
         prop.insert("PropertyName".to_string(), GffValue::Word(0)); // Ability Bonus
-        prop.insert("Subtype".to_string(), GffValue::Word(1));      // Dex
-        prop.insert("CostValue".to_string(), GffValue::Byte(4));    // +4
+        prop.insert("Subtype".to_string(), GffValue::Word(1)); // Dex
+        prop.insert("CostValue".to_string(), GffValue::Byte(4)); // +4
         props.push(prop);
 
         let mut item_struct = IndexMap::new();
         item_struct.insert("__struct_id__".to_string(), GffValue::Dword(16)); // Right Hand
         item_struct.insert("PropertiesList".to_string(), GffValue::ListOwned(props));
-        fields.insert("Equip_ItemList".to_string(), GffValue::ListOwned(vec![item_struct]));
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![item_struct]),
+        );
 
         let character = Character::from_gff(fields);
-        
+
         let mut game_data = create_mock_game_data();
-        
+
         // Mock skills.2da
         // Row 0: Label=MoveSilently, KeyAbility=Dex
         let mut tda_parser = TDAParser::new();
         tda_parser.add_column("Label");
         tda_parser.add_column("KeyAbility");
-        
+
         use ahash::AHashMap;
         let mut row0 = AHashMap::new();
         row0.insert("Label".to_string(), Some("MoveSilently".to_string()));
         row0.insert("KeyAbility".to_string(), Some("Dex".to_string()));
         tda_parser.add_row(row0);
 
-        game_data.tables.insert("skills".to_string(), LoadedTable::new("skills.2da".to_string(), std::sync::Arc::new(tda_parser)));
-        
-        let paths = std::sync::Arc::new(tokio::sync::RwLock::new(crate::config::NWN2Paths::default()));
-        let rm = std::sync::Arc::new(tokio::sync::RwLock::new(crate::services::resource_manager::ResourceManager::new(paths)));
+        game_data.tables.insert(
+            "skills".to_string(),
+            LoadedTable::new("skills.2da".to_string(), std::sync::Arc::new(tda_parser)),
+        );
+
+        let paths =
+            std::sync::Arc::new(tokio::sync::RwLock::new(crate::config::NWN2Paths::default()));
+        let rm = std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::services::resource_manager::ResourceManager::new(paths),
+        ));
         let mut decoder = ItemPropertyDecoder::new(rm);
         use std::collections::HashMap;
         let abilities = HashMap::from([
-            (0, "Str".to_string()), (1, "Dex".to_string()), (2, "Con".to_string()),
-            (3, "Int".to_string()), (4, "Wis".to_string()), (5, "Cha".to_string()),
+            (0, "Str".to_string()),
+            (1, "Dex".to_string()),
+            (2, "Con".to_string()),
+            (3, "Int".to_string()),
+            (4, "Wis".to_string()),
+            (5, "Cha".to_string()),
         ]);
         decoder.set_2da_tables(
-            abilities, HashMap::new(), HashMap::new(), HashMap::new(),
-            HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new(),
+            abilities,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
         );
 
         // Test WITHOUT decoder (Base Dex 10 -> Mod +0)
         // Skill Mod = Rank 5 + Mod 0 = 5
         let mod_no_equip = character.calculate_skill_modifier(SkillId(0), &game_data, None);
-        assert_eq!(mod_no_equip, 5, "Without equipment, modifier should be rank + base_ability_mod");
+        assert_eq!(
+            mod_no_equip, 5,
+            "Without equipment, modifier should be rank + base_ability_mod"
+        );
 
         // Test WITH decoder (Total Dex 14 -> Mod +2)
         // Skill Mod = Rank 5 + Mod 2 = 7
-        let mod_with_equip = character.calculate_skill_modifier(SkillId(0), &game_data, Some(&decoder));
-        assert_eq!(mod_with_equip, 7, "With equipment, modifier should be rank + total_ability_mod");
+        let mod_with_equip =
+            character.calculate_skill_modifier(SkillId(0), &game_data, Some(&decoder));
+        assert_eq!(
+            mod_with_equip, 7,
+            "With equipment, modifier should be rank + total_ability_mod"
+        );
     }
 }

@@ -111,11 +111,7 @@ impl AbilityIndex {
     }
 
     pub fn from_index(index: u8) -> Option<Self> {
-        if index < 6 {
-            Some(Self(index))
-        } else {
-            None
-        }
+        if index < 6 { Some(Self(index)) } else { None }
     }
 }
 
@@ -242,7 +238,14 @@ pub struct AbilityModifiers {
 }
 
 impl AbilityModifiers {
-    pub fn new(str_mod: i32, dex_mod: i32, con_mod: i32, int_mod: i32, wis_mod: i32, cha_mod: i32) -> Self {
+    pub fn new(
+        str_mod: i32,
+        dex_mod: i32,
+        con_mod: i32,
+        int_mod: i32,
+        wis_mod: i32,
+        cha_mod: i32,
+    ) -> Self {
         Self {
             str_mod,
             dex_mod,

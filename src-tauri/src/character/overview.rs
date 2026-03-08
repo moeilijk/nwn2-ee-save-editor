@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::loaders::GameData;
 
+use super::Character;
 use super::classes::{ClassSummaryEntry, XpProgress};
 use super::feats::DomainInfo;
 use super::identity::Alignment;
 use super::types::{HitPoints, SaveBonuses};
-use super::Character;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OverviewState {
@@ -50,7 +50,8 @@ impl Character {
             _ => "Unknown",
         };
 
-        let domains = self.get_available_domains(game_data)
+        let domains = self
+            .get_available_domains(game_data)
             .into_iter()
             .filter(|d| d.has_domain)
             .collect();

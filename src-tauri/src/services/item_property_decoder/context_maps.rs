@@ -57,20 +57,20 @@ pub static INVALID_LABEL_PATTERNS: LazyLock<Vec<&'static str>> = LazyLock::new(|
 
 pub static HIDDEN_PROPERTY_IDS: LazyLock<HashSet<u32>> = LazyLock::new(|| {
     let mut s = HashSet::new();
-    s.insert(30);  // DoubleStack - inventory system flag
-    s.insert(31);  // EnhancedContainer BonusSlot - flat, no options
-    s.insert(33);  // DamageMelee - has type but no damage amount
-    s.insert(34);  // DamageRanged - has type but no damage amount
-    s.insert(47);  // DamageNone - remove damage properties instead
-    s.insert(54);  // SpellSchool Immunity - flat, no school selection
-    s.insert(72);  // On Monster Hit
-    s.insert(76);  // Poison - misconfigured options
-    s.insert(77);  // Monster Damage
-    s.insert(79);  // Special Walk - only "Default"
+    s.insert(30); // DoubleStack - inventory system flag
+    s.insert(31); // EnhancedContainer BonusSlot - flat, no options
+    s.insert(33); // DamageMelee - has type but no damage amount
+    s.insert(34); // DamageRanged - has type but no damage amount
+    s.insert(47); // DamageNone - remove damage properties instead
+    s.insert(54); // SpellSchool Immunity - flat, no school selection
+    s.insert(72); // On Monster Hit
+    s.insert(76); // Poison - misconfigured options
+    s.insert(77); // Monster Damage
+    s.insert(79); // Special Walk - only "Default"
     s.insert(82);
-    s.insert(83);  // Visual Effect - flat, no options
-    s.insert(90);  // Damage Reduction - ambiguous options
-    s.insert(92);  // Damage Vulnerability duplicate of 24
+    s.insert(83); // Visual Effect - flat, no options
+    s.insert(90); // Damage Reduction - ambiguous options
+    s.insert(92); // Damage Vulnerability duplicate of 24
     s.insert(94);
     s.insert(96);
     s.insert(100);

@@ -99,7 +99,9 @@ pub async fn export_debug_log(state: State<'_, AppState>) -> CommandResult<Strin
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
-        timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        timestamp: chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string(),
         paths: paths_debug,
         session: session_debug,
     };

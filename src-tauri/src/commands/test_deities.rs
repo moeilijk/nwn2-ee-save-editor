@@ -33,11 +33,19 @@ pub async fn debug_deities(state: State<'_, AppState>) -> Result<String, String>
         output.push_str("\n=== Trying variations ===\n");
         for variant in ["nwn2_deities", "NWN2_Deities", "nwn2_DEITIES"] {
             let found = game_data.get_table(variant).is_some();
-            let _ = writeln!(output, "  '{variant}': {}", if found { "FOUND" } else { "not found" });
+            let _ = writeln!(
+                output,
+                "  '{variant}': {}",
+                if found { "FOUND" } else { "not found" }
+            );
         }
     }
 
-    let _ = writeln!(output, "\n=== Total tables loaded: {} ===", game_data.table_count());
+    let _ = writeln!(
+        output,
+        "\n=== Total tables loaded: {} ===",
+        game_data.table_count()
+    );
 
     Ok(output)
 }

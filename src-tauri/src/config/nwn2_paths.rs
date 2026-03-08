@@ -53,10 +53,12 @@ impl NWN2Paths {
             custom_hak_folders: Vec::new(),
         };
         paths.load_config();
-        info!("NWN2Paths initialized: game={:?}, docs={:?}, workshop={:?}",
-              paths.game_folder.as_ref().map(|p| p.display()),
-              paths.documents_folder.as_ref().map(|p| p.display()),
-              paths.steam_workshop_folder.as_ref().map(|p| p.display()));
+        info!(
+            "NWN2Paths initialized: game={:?}, docs={:?}, workshop={:?}",
+            paths.game_folder.as_ref().map(|p| p.display()),
+            paths.documents_folder.as_ref().map(|p| p.display()),
+            paths.steam_workshop_folder.as_ref().map(|p| p.display())
+        );
         paths
     }
 
@@ -65,48 +67,49 @@ impl NWN2Paths {
         debug!("Loading NWN2 path configuration");
         if let Some(config_path) = Self::get_config_path()
             && config_path.exists()
-                && let Ok(content) = std::fs::read_to_string(&config_path)
-                    && let Ok(config) = serde_json::from_str::<NWN2PathsConfig>(&content) {
-                        if let Some(game) = config.game_folder {
-                            let path = PathBuf::from(&game);
-                            if path.exists() {
-                                self.game_folder = Some(path);
-                                self.game_folder_source = PathSource::Config;
-                            }
-                        }
-                        if let Some(docs) = config.documents_folder {
-                            let path = PathBuf::from(&docs);
-                            if path.exists() {
-                                self.documents_folder = Some(path);
-                                self.documents_folder_source = PathSource::Config;
-                            }
-                        }
-                        if let Some(workshop) = config.steam_workshop_folder {
-                            let path = PathBuf::from(&workshop);
-                            if path.exists() {
-                                self.steam_workshop_folder = Some(path);
-                                self.steam_workshop_folder_source = PathSource::Config;
-                            }
-                        }
-                        self.custom_override_folders = config
-                            .custom_override_folders
-                            .into_iter()
-                            .map(PathBuf::from)
-                            .filter(|p| p.exists())
-                            .collect();
-                        self.custom_module_folders = config
-                            .custom_module_folders
-                            .into_iter()
-                            .map(PathBuf::from)
-                            .filter(|p| p.exists())
-                            .collect();
-                        self.custom_hak_folders = config
-                            .custom_hak_folders
-                            .into_iter()
-                            .map(PathBuf::from)
-                            .filter(|p| p.exists())
-                            .collect();
-                    }
+            && let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(config) = serde_json::from_str::<NWN2PathsConfig>(&content)
+        {
+            if let Some(game) = config.game_folder {
+                let path = PathBuf::from(&game);
+                if path.exists() {
+                    self.game_folder = Some(path);
+                    self.game_folder_source = PathSource::Config;
+                }
+            }
+            if let Some(docs) = config.documents_folder {
+                let path = PathBuf::from(&docs);
+                if path.exists() {
+                    self.documents_folder = Some(path);
+                    self.documents_folder_source = PathSource::Config;
+                }
+            }
+            if let Some(workshop) = config.steam_workshop_folder {
+                let path = PathBuf::from(&workshop);
+                if path.exists() {
+                    self.steam_workshop_folder = Some(path);
+                    self.steam_workshop_folder_source = PathSource::Config;
+                }
+            }
+            self.custom_override_folders = config
+                .custom_override_folders
+                .into_iter()
+                .map(PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            self.custom_module_folders = config
+                .custom_module_folders
+                .into_iter()
+                .map(PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            self.custom_hak_folders = config
+                .custom_hak_folders
+                .into_iter()
+                .map(PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+        }
 
         if let Ok(game_folder) = std::env::var("NWN2_GAME_FOLDER") {
             let path = PathBuf::from(&game_folder);
@@ -139,7 +142,10 @@ impl NWN2Paths {
     fn auto_discover(&mut self) {
         debug!("Auto-discovering NWN2 installation paths");
         if let Ok(result) = discover_nwn2_paths_rust(None) {
-            debug!("Path discovery found {} candidates", result.nwn2_paths.len());
+            debug!(
+                "Path discovery found {} candidates",
+                result.nwn2_paths.len()
+            );
             for path in &result.nwn2_paths {
                 let path = PathBuf::from(path);
                 if !path.to_string_lossy().contains("Documents")
@@ -182,17 +188,23 @@ impl NWN2Paths {
             }
             let config = NWN2PathsConfig {
                 game_folder: if self.game_folder_source == PathSource::Config {
-                    self.game_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                    self.game_folder
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
                 } else {
                     None
                 },
                 documents_folder: if self.documents_folder_source == PathSource::Config {
-                    self.documents_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                    self.documents_folder
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
                 } else {
                     None
                 },
                 steam_workshop_folder: if self.steam_workshop_folder_source == PathSource::Config {
-                    self.steam_workshop_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                    self.steam_workshop_folder
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
                 } else {
                     None
                 },
@@ -257,15 +269,14 @@ impl NWN2Paths {
     fn find_steam_workshop() -> Option<PathBuf> {
         #[cfg(windows)]
         {
-            let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| "C:/Program Files".to_string());
-            let program_files_x86 =
-                std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:/Program Files (x86)".to_string());
+            let program_files =
+                std::env::var("ProgramFiles").unwrap_or_else(|_| "C:/Program Files".to_string());
+            let program_files_x86 = std::env::var("ProgramFiles(x86)")
+                .unwrap_or_else(|_| "C:/Program Files (x86)".to_string());
 
             let candidates = [
-                PathBuf::from(&program_files)
-                    .join("Steam/steamapps/workshop/content/2738630"),
-                PathBuf::from(&program_files_x86)
-                    .join("Steam/steamapps/workshop/content/2738630"),
+                PathBuf::from(&program_files).join("Steam/steamapps/workshop/content/2738630"),
+                PathBuf::from(&program_files_x86).join("Steam/steamapps/workshop/content/2738630"),
             ];
 
             for path in candidates {
@@ -344,7 +355,9 @@ impl NWN2Paths {
     }
 
     pub fn servervault(&self) -> Option<PathBuf> {
-        self.documents_folder.as_ref().map(|d| d.join("servervault"))
+        self.documents_folder
+            .as_ref()
+            .map(|d| d.join("servervault"))
     }
 
     pub fn override_dir(&self) -> Option<PathBuf> {
@@ -364,15 +377,15 @@ impl NWN2Paths {
     }
 
     pub fn is_enhanced_edition(&self) -> bool {
-        self.game_folder.as_ref().is_some_and(|g| {
-            g.join("enhanced").exists() || g.join("enhanced/Data").exists()
-        })
+        self.game_folder
+            .as_ref()
+            .is_some_and(|g| g.join("enhanced").exists() || g.join("enhanced/Data").exists())
     }
 
     pub fn is_steam_installation(&self) -> bool {
-        self.game_folder.as_ref().is_some_and(|g| {
-            g.join("steam_api.dll").exists() || g.join("steam_api64.dll").exists()
-        })
+        self.game_folder
+            .as_ref()
+            .is_some_and(|g| g.join("steam_api.dll").exists() || g.join("steam_api64.dll").exists())
     }
 
     pub fn is_gog_installation(&self) -> bool {
@@ -387,7 +400,9 @@ impl NWN2Paths {
         self.game_folder.as_ref().and_then(|g| {
             let version_file = g.join("version.txt");
             if version_file.exists() {
-                std::fs::read_to_string(version_file).ok().map(|s| s.trim().to_string())
+                std::fs::read_to_string(version_file)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }

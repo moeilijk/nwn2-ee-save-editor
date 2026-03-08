@@ -20,19 +20,21 @@ impl TDAParser {
 
         self.clear();
 
-        let content =
-            std::str::from_utf8(data).map_err(|e| TDAError::InvalidUtf8 {
-                position: e.valid_up_to(),
-            })?;
+        let content = std::str::from_utf8(data).map_err(|e| TDAError::InvalidUtf8 {
+            position: e.valid_up_to(),
+        })?;
 
         self.parse_content(content)?;
 
         self.metadata_mut().file_size = data.len();
         self.metadata_mut().parse_time_ns = start_time.elapsed().as_nanos() as u64;
 
-        trace!("2DA parsed: {} rows, {} columns, {:.2}ms",
-              self.row_count(), self.column_count(),
-              start_time.elapsed().as_secs_f64() * 1000.0);
+        trace!(
+            "2DA parsed: {} rows, {} columns, {:.2}ms",
+            self.row_count(),
+            self.column_count(),
+            start_time.elapsed().as_secs_f64() * 1000.0
+        );
 
         Ok(())
     }
@@ -67,19 +69,21 @@ impl TDAParser {
 
         self.clear();
 
-        let content =
-            std::str::from_utf8(&mmap).map_err(|e| TDAError::InvalidUtf8 {
-                position: e.valid_up_to(),
-            })?;
+        let content = std::str::from_utf8(&mmap).map_err(|e| TDAError::InvalidUtf8 {
+            position: e.valid_up_to(),
+        })?;
 
         self.parse_content(content)?;
 
         self.metadata_mut().file_size = mmap.len();
         self.metadata_mut().parse_time_ns = start_time.elapsed().as_nanos() as u64;
 
-        trace!("2DA parsed (mmap): {} rows, {} columns, {:.2}ms",
-              self.row_count(), self.column_count(),
-              start_time.elapsed().as_secs_f64() * 1000.0);
+        trace!(
+            "2DA parsed (mmap): {} rows, {} columns, {:.2}ms",
+            self.row_count(),
+            self.column_count(),
+            start_time.elapsed().as_secs_f64() * 1000.0
+        );
 
         Ok(())
     }
@@ -233,7 +237,7 @@ impl TDAParser {
     }
 
     pub fn to_msgpack_compressed(&self) -> TDAResult<Vec<u8>> {
-        use flate2::{write::ZlibEncoder, Compression};
+        use flate2::{Compression, write::ZlibEncoder};
         use std::io::Write;
 
         let serializable = SerializableTDAParser::from_parser(self);
@@ -276,17 +280,19 @@ impl TDAParser {
     ) -> TDAResult<bool> {
         if let Some(ref cache_path) = cache_path
             && let Ok(cache_data) = std::fs::read(cache_path)
-                && let Ok(cached_parser) = Self::from_msgpack_compressed(&cache_data) {
-                    *self = cached_parser;
-                    return Ok(true);
-                }
+            && let Ok(cached_parser) = Self::from_msgpack_compressed(&cache_data)
+        {
+            *self = cached_parser;
+            return Ok(true);
+        }
 
         self.parse_from_file(source_path)?;
 
         if let Some(cache_path) = cache_path
-            && let Ok(compressed_data) = self.to_msgpack_compressed() {
-                std::fs::write(cache_path, compressed_data)?;
-            }
+            && let Ok(compressed_data) = self.to_msgpack_compressed()
+        {
+            std::fs::write(cache_path, compressed_data)?;
+        }
 
         Ok(false)
     }
@@ -376,10 +382,7 @@ Label       Name        Description
         assert_eq!(parser.get_cell(0, 1).unwrap(), Some("Test Item 1"));
         assert_eq!(parser.get_cell(1, 1).unwrap(), Some("Test Item 2"));
 
-        assert_eq!(
-            parser.get_cell_by_name(0, "Label").unwrap(),
-            Some("test1")
-        );
+        assert_eq!(parser.get_cell_by_name(0, "Label").unwrap(), Some("test1"));
         assert_eq!(
             parser.get_cell_by_name(0, "Name").unwrap(),
             Some("Test Item 1")

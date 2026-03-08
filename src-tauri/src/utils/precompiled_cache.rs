@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CacheMetadata {
@@ -36,7 +36,11 @@ impl CacheBuilder {
         Ok(CacheBuilder { cache_dir })
     }
 
-    pub fn build_cache(&self, tables_data: HashMap<String, HashMap<String, serde_json::Value>>, cache_key: String) -> Result<bool, String> {
+    pub fn build_cache(
+        &self,
+        tables_data: HashMap<String, HashMap<String, serde_json::Value>>,
+        cache_key: String,
+    ) -> Result<bool, String> {
         let start = SystemTime::now();
 
         let mut base_game_cache = CacheSection::new();
@@ -46,11 +50,13 @@ impl CacheBuilder {
         let mut total_tables = 0;
 
         for (table_name, table_info) in tables_data {
-            let section = table_info.get("section")
+            let section = table_info
+                .get("section")
                 .and_then(|v| v.as_str())
                 .unwrap_or("base_game");
 
-            let data = table_info.get("data")
+            let data = table_info
+                .get("data")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
@@ -59,7 +65,8 @@ impl CacheBuilder {
                 })
                 .unwrap_or_default();
 
-            let row_count = table_info.get("row_count")
+            let row_count = table_info
+                .get("row_count")
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(0) as usize;
 
@@ -106,13 +113,19 @@ impl CacheBuilder {
         self.write_metadata(&metadata)?;
 
         let elapsed = start.elapsed().unwrap();
-        println!("Cache build complete in {:.2}s. Total tables: {}",
-                 elapsed.as_secs_f64(), total_tables);
+        println!(
+            "Cache build complete in {:.2}s. Total tables: {}",
+            elapsed.as_secs_f64(),
+            total_tables
+        );
 
         Ok(true)
     }
 
-    pub fn generate_cache_key(&self, mod_state: HashMap<String, serde_json::Value>) -> Result<String, String> {
+    pub fn generate_cache_key(
+        &self,
+        mod_state: HashMap<String, serde_json::Value>,
+    ) -> Result<String, String> {
         let mut hasher = Sha256::new();
 
         if let Some(install_dir) = mod_state.get("install_dir").and_then(|v| v.as_str()) {
@@ -120,7 +133,8 @@ impl CacheBuilder {
         }
 
         if let Some(workshop_files) = mod_state.get("workshop_files").and_then(|v| v.as_array()) {
-            let mut sorted_files: Vec<String> = workshop_files.iter()
+            let mut sorted_files: Vec<String> = workshop_files
+                .iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect();
             sorted_files.sort();
@@ -128,7 +142,8 @@ impl CacheBuilder {
         }
 
         if let Some(override_files) = mod_state.get("override_files").and_then(|v| v.as_array()) {
-            let mut sorted_files: Vec<String> = override_files.iter()
+            let mut sorted_files: Vec<String> = override_files
+                .iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect();
             sorted_files.sort();
@@ -144,11 +159,15 @@ impl CacheBuilder {
         let data = rmp_serde::to_vec(section)
             .map_err(|e| format!("Failed to serialize cache section: {e}"))?;
 
-        fs::write(&path, &data)
-            .map_err(|e| format!("Failed to write cache file: {e}"))?;
+        fs::write(&path, &data).map_err(|e| format!("Failed to write cache file: {e}"))?;
 
         let size_mb = data.len() as f64 / (1024.0 * 1024.0);
-        println!("Wrote {} cache: {:.2} MB ({} tables)", name, size_mb, section.len());
+        println!(
+            "Wrote {} cache: {:.2} MB ({} tables)",
+            name,
+            size_mb,
+            section.len()
+        );
 
         Ok(())
     }
@@ -158,8 +177,7 @@ impl CacheBuilder {
         let json = serde_json::to_string_pretty(metadata)
             .map_err(|e| format!("Failed to serialize metadata: {e}"))?;
 
-        fs::write(&path, json)
-            .map_err(|e| format!("Failed to write metadata: {e}"))?;
+        fs::write(&path, json).map_err(|e| format!("Failed to write metadata: {e}"))?;
         Ok(())
     }
 }
@@ -200,9 +218,10 @@ impl CacheManager {
             }
 
             if let Some(section_data) = self.loaded_sections.get(*section)
-                && let Some(cached_table) = section_data.get(&table_name) {
-                    return Ok(Some(cached_table.data.clone()));
-                }
+                && let Some(cached_table) = section_data.get(&table_name)
+            {
+                return Ok(Some(cached_table.data.clone()));
+            }
         }
 
         Ok(None)
@@ -250,29 +269,49 @@ impl CacheManager {
     pub fn get_cache_stats(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
 
-        stats.insert("valid".to_string(), serde_json::json!(self.cache_valid.unwrap_or(false)));
-        stats.insert("loaded_sections".to_string(), serde_json::json!(self.loaded_sections.len()));
+        stats.insert(
+            "valid".to_string(),
+            serde_json::json!(self.cache_valid.unwrap_or(false)),
+        );
+        stats.insert(
+            "loaded_sections".to_string(),
+            serde_json::json!(self.loaded_sections.len()),
+        );
 
-        let total_tables: usize = self.loaded_sections
+        let total_tables: usize = self
+            .loaded_sections
             .values()
             .map(std::collections::HashMap::len)
             .sum();
-        stats.insert("total_tables_loaded".to_string(), serde_json::json!(total_tables));
+        stats.insert(
+            "total_tables_loaded".to_string(),
+            serde_json::json!(total_tables),
+        );
 
         let mut total_size = 0u64;
         for section in &["base_game", "workshop", "override"] {
             let path = self.cache_dir.join(format!("{section}_cache.msgpack"));
             if path.exists()
-                && let Ok(metadata) = fs::metadata(&path) {
-                    total_size += metadata.len();
-                }
+                && let Ok(metadata) = fs::metadata(&path)
+            {
+                total_size += metadata.len();
+            }
         }
 
-        stats.insert("cache_size_mb".to_string(), serde_json::json!(total_size as f64 / (1024.0 * 1024.0)));
+        stats.insert(
+            "cache_size_mb".to_string(),
+            serde_json::json!(total_size as f64 / (1024.0 * 1024.0)),
+        );
 
         if let Some(metadata) = &self.metadata {
-            stats.insert("cache_key".to_string(), serde_json::json!(&metadata.cache_key));
-            stats.insert("created_at".to_string(), serde_json::json!(metadata.created_at));
+            stats.insert(
+                "cache_key".to_string(),
+                serde_json::json!(&metadata.cache_key),
+            );
+            stats.insert(
+                "created_at".to_string(),
+                serde_json::json!(metadata.created_at),
+            );
             stats.insert("version".to_string(), serde_json::json!(&metadata.version));
         }
 
@@ -286,10 +325,10 @@ impl CacheManager {
             return Ok(None);
         }
 
-        let json = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read metadata: {e}"))?;
-        let metadata = serde_json::from_str(&json)
-            .map_err(|e| format!("Failed to parse metadata: {e}"))?;
+        let json =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let metadata =
+            serde_json::from_str(&json).map_err(|e| format!("Failed to parse metadata: {e}"))?;
 
         Ok(Some(metadata))
     }
@@ -298,20 +337,25 @@ impl CacheManager {
         let path = self.cache_dir.join(format!("{section}_cache.msgpack"));
 
         if !path.exists() {
-            self.loaded_sections.insert(section.to_string(), CacheSection::new());
+            self.loaded_sections
+                .insert(section.to_string(), CacheSection::new());
             return Ok(());
         }
 
-        let data = fs::read(&path)
-            .map_err(|e| format!("Failed to read cache section: {e}"))?;
+        let data = fs::read(&path).map_err(|e| format!("Failed to read cache section: {e}"))?;
         let section_data: CacheSection = rmp_serde::from_slice(&data)
             .map_err(|e| format!("Failed to deserialize cache section: {e}"))?;
 
         let size_mb = data.len() as f64 / (1024.0 * 1024.0);
-        println!("Loaded {} cache: {:.2} MB ({} tables)",
-                 section, size_mb, section_data.len());
+        println!(
+            "Loaded {} cache: {:.2} MB ({} tables)",
+            section,
+            size_mb,
+            section_data.len()
+        );
 
-        self.loaded_sections.insert(section.to_string(), section_data);
+        self.loaded_sections
+            .insert(section.to_string(), section_data);
         Ok(())
     }
 }

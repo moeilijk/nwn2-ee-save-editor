@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::services::campaign::settings::*;
     use crate::config::NWN2Paths;
+    use crate::services::campaign::settings::*;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -14,9 +14,9 @@ mod tests {
 
         let cam_file = my_campaign_dir.join("campaign.cam");
 
-        use crate::parsers::gff::{GffWriter, GffValue};
+        use crate::parsers::gff::{GffValue, GffWriter};
         use indexmap::IndexMap;
-        
+
         let mut fields = IndexMap::new();
         fields.insert("LvlCap".to_string(), GffValue::Dword(30));
         fields.insert("XPCap".to_string(), GffValue::Dword(0));
@@ -34,8 +34,7 @@ mod tests {
             }],
         };
         fields.insert("DisplayName".to_string(), GffValue::LocString(loc_string));
-        
-        
+
         let mut writer = GffWriter::new("CAM ", "V3.2");
         let bytes = writer.write(fields).unwrap();
         fs::write(&cam_file, bytes).unwrap();
@@ -50,8 +49,12 @@ mod tests {
     fn test_read_campaign_settings() {
         let (_tmp, paths, _cam_file) = setup_test_campaign();
         let result = read_campaign_settings("test-guid", &paths);
-        assert!(result.is_ok(), "Failed to read campaign settings: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to read campaign settings: {:?}",
+            result.err()
+        );
+
         let settings = result.unwrap();
         assert_eq!(settings.level_cap, 30);
         assert_eq!(settings.companion_xp_weight, 1.0);

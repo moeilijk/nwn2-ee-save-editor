@@ -4,6 +4,6 @@ pub mod tokenizer;
 pub mod types;
 
 pub use error::{SecurityLimits, TDAError, TDAResult};
-pub use parser::{load_multiple_files, ParserStatistics};
+pub use parser::{ParserStatistics, load_multiple_files};
 pub use tokenizer::TDATokenizer;
 pub use types::{CellValue, SerializableCellValue, SerializableTDAParser, TDAParser};

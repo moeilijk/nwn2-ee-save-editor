@@ -1,12 +1,12 @@
+use crate::character::gff_helpers::gff_value_to_i32;
+use crate::character::types::{
+    ABILITY_INCREASE_INTERVAL, ABILITY_MAX, ABILITY_MIN, AbilityIndex, AbilityModifiers,
+    AbilityScores, HitPoints, calculate_modifier,
+};
+use crate::character::{Character, CharacterError};
+use crate::loaders::GameData;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use crate::character::{Character, CharacterError};
-use crate::character::types::{
-    AbilityIndex, AbilityScores, AbilityModifiers, HitPoints,
-    calculate_modifier, ABILITY_MIN, ABILITY_MAX, ABILITY_INCREASE_INTERVAL,
-};
-use crate::character::gff_helpers::gff_value_to_i32;
-use crate::loaders::GameData;
 
 use crate::services::item_property_decoder::ItemPropertyDecoder;
 
@@ -41,8 +41,7 @@ pub struct AbilityIncrease {
     pub ability: AbilityIndex,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Default)]
 pub struct AbilityPointsSummary {
     pub base_scores: AbilityScores,
     pub level_increases: Vec<AbilityIncrease>,
@@ -91,7 +90,6 @@ impl Default for EncumbranceInfo {
     }
 }
 
-
 impl Character {
     pub fn base_ability(&self, ability: AbilityIndex) -> i32 {
         self.get_byte(ability.gff_field())
@@ -120,10 +118,10 @@ impl Character {
         _game_data: &GameData,
     ) -> Result<(), CharacterError> {
         let old_value = self.base_ability(ability);
-        
+
         // 1. Set the raw value first
         self.set_ability(ability, value)?;
-        
+
         // 2. Handle Cascades
         // For now, only Constitution changes trigger persistent updates (HP)
         if ability == AbilityIndex::CON {
@@ -141,7 +139,7 @@ impl Character {
     fn recalculate_hit_points(&mut self, old_con: i32, new_con: i32) {
         let old_mod = calculate_modifier(old_con);
         let new_mod = calculate_modifier(new_con);
-        
+
         if old_mod == new_mod {
             return;
         }
@@ -222,11 +220,7 @@ impl Character {
     }
 
     pub fn hit_points(&self) -> HitPoints {
-        HitPoints::new(
-            self.current_hp(),
-            self.max_hp(),
-            self.temp_hp(),
-        )
+        HitPoints::new(self.current_hp(), self.max_hp(), self.temp_hp())
     }
 
     pub fn get_effective_abilities(&self, game_data: &GameData) -> AbilityScores {
@@ -275,9 +269,9 @@ impl Character {
     }
 
     pub fn get_effective_ability_modifier(
-        &self, 
-        ability: AbilityIndex, 
-        game_data: &GameData
+        &self,
+        ability: AbilityIndex,
+        game_data: &GameData,
     ) -> i32 {
         let scores = self.get_effective_abilities(game_data);
         calculate_modifier(scores.get(ability))
@@ -300,12 +294,13 @@ impl Character {
             if let Some(ability_value) = entry.get("LvlStatAbility") {
                 let ability_index = gff_value_to_i32(ability_value).unwrap_or(-1);
                 if (0..6).contains(&ability_index)
-                    && let Some(ability) = AbilityIndex::from_index(ability_index as u8) {
-                        history.push(AbilityIncrease {
-                            level: char_level,
-                            ability,
-                        });
-                    }
+                    && let Some(ability) = AbilityIndex::from_index(ability_index as u8)
+                {
+                    history.push(AbilityIncrease {
+                        level: char_level,
+                        ability,
+                    });
+                }
             }
         }
 
@@ -564,7 +559,12 @@ mod tests {
         let result = character.set_ability(AbilityIndex::STR, 2);
         assert!(result.is_err());
         match result {
-            Err(CharacterError::OutOfRange { field, value, min, max }) => {
+            Err(CharacterError::OutOfRange {
+                field,
+                value,
+                min,
+                max,
+            }) => {
                 assert_eq!(field, "Str");
                 assert_eq!(value, 2);
                 assert_eq!(min, 3);
@@ -651,9 +651,9 @@ mod tests {
         fields.insert("Str".to_string(), GffValue::Byte(16));
         let character = Character::from_gff(fields);
 
-        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(
-            std::sync::RwLock::new(crate::parsers::tlk::TLKParser::default()),
-        ));
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
 
         let info = character.calculate_encumbrance(&game_data);
         assert_eq!(info.heavy_limit, 230.0);
@@ -685,7 +685,10 @@ mod tests {
             lvl_stat_list.push(entry);
         }
 
-        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(lvl_stat_list));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
         let character = Character::from_gff(fields);
 
         let history = character.get_level_up_ability_history();
@@ -723,7 +726,10 @@ mod tests {
             }
             lvl_stat_list.push(entry);
         }
-        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(lvl_stat_list));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
 
         let character = Character::from_gff(fields);
         let summary = character.get_ability_points_summary();
@@ -738,7 +744,7 @@ mod tests {
     fn test_con_change_updates_hp() {
         let mut fields = IndexMap::new();
         fields.insert("Con".to_string(), GffValue::Byte(14));
-        
+
         let mut class_list = Vec::new();
         let mut class_entry = IndexMap::new();
         class_entry.insert("Class".to_string(), GffValue::Byte(0));
@@ -746,39 +752,38 @@ mod tests {
         class_list.push(class_entry);
         fields.insert("ClassList".to_string(), GffValue::ListOwned(class_list));
 
-        fields.insert("MaxHitPoints".to_string(), GffValue::Int(100));     
-        fields.insert("CurrentHitPoints".to_string(), GffValue::Int(80)); 
+        fields.insert("MaxHitPoints".to_string(), GffValue::Int(100));
+        fields.insert("CurrentHitPoints".to_string(), GffValue::Int(80));
         fields.insert("HitPoints".to_string(), GffValue::Int(100));
 
         let mut character = Character::from_gff(fields);
-        
-        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(
-            std::sync::RwLock::new(crate::parsers::tlk::TLKParser::default()),
-        ));
 
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
 
         let result = character.set_ability_with_cascades(AbilityIndex::CON, 16, &game_data);
-        
+
         assert!(result.is_ok());
         assert_eq!(character.base_ability(AbilityIndex::CON), 16);
-        assert_eq!(character.max_hp(), 110);      
-        assert_eq!(character.base_hp(), 110);   
-        assert_eq!(character.current_hp(), 90); 
-        
+        assert_eq!(character.max_hp(), 110);
+        assert_eq!(character.base_hp(), 110);
+        assert_eq!(character.current_hp(), 90);
+
         let result = character.set_ability_with_cascades(AbilityIndex::CON, 12, &game_data);
-        
+
         assert!(result.is_ok());
         assert_eq!(character.base_ability(AbilityIndex::CON), 12);
-        assert_eq!(character.max_hp(), 90);      
-        assert_eq!(character.current_hp(), 70);   
+        assert_eq!(character.max_hp(), 90);
+        assert_eq!(character.current_hp(), 70);
     }
 
     #[test]
     fn test_get_total_abilities_with_equipment() {
         use crate::services::item_property_decoder::ItemPropertyDecoder;
-        
+
         let mut fields = IndexMap::new();
-        fields.insert("Str".to_string(), GffValue::Byte(14)); 
+        fields.insert("Str".to_string(), GffValue::Byte(14));
         fields.insert("Dex".to_string(), GffValue::Byte(12));
         fields.insert("Con".to_string(), GffValue::Byte(10));
         fields.insert("Int".to_string(), GffValue::Byte(10));
@@ -789,36 +794,51 @@ mod tests {
         let mut props = Vec::new();
         let mut prop = IndexMap::new();
         prop.insert("PropertyName".to_string(), GffValue::Word(0)); // Ability Bonus (0)
-        prop.insert("Subtype".to_string(), GffValue::Word(0));      // Str (0)
-        prop.insert("CostValue".to_string(), GffValue::Byte(2));    // +2
+        prop.insert("Subtype".to_string(), GffValue::Word(0)); // Str (0)
+        prop.insert("CostValue".to_string(), GffValue::Byte(2)); // +2
         props.push(prop);
 
         let mut item_struct = IndexMap::new();
         item_struct.insert("__struct_id__".to_string(), GffValue::Dword(16)); // Right Hand (0x10)
         item_struct.insert("BaseItem".to_string(), GffValue::Int(0)); // Shortsword or generic
         item_struct.insert("PropertiesList".to_string(), GffValue::ListOwned(props));
-        
-        fields.insert("Equip_ItemList".to_string(), GffValue::ListOwned(vec![item_struct]));
+
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![item_struct]),
+        );
 
         let character = Character::from_gff(fields);
-        
-        
-        let paths = std::sync::Arc::new(tokio::sync::RwLock::new(crate::config::NWN2Paths::default()));
-        let rm = std::sync::Arc::new(tokio::sync::RwLock::new(crate::services::resource_manager::ResourceManager::new(paths)));
-        
-        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(
-             std::sync::RwLock::new(crate::parsers::tlk::TLKParser::default()),
+
+        let paths =
+            std::sync::Arc::new(tokio::sync::RwLock::new(crate::config::NWN2Paths::default()));
+        let rm = std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::services::resource_manager::ResourceManager::new(paths),
         ));
-        
+
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
+
         let mut decoder = ItemPropertyDecoder::new(rm);
         use std::collections::HashMap;
         let abilities = HashMap::from([
-            (0, "Str".to_string()), (1, "Dex".to_string()), (2, "Con".to_string()),
-            (3, "Int".to_string()), (4, "Wis".to_string()), (5, "Cha".to_string()),
+            (0, "Str".to_string()),
+            (1, "Dex".to_string()),
+            (2, "Con".to_string()),
+            (3, "Int".to_string()),
+            (4, "Wis".to_string()),
+            (5, "Cha".to_string()),
         ]);
         decoder.set_2da_tables(
-            abilities, HashMap::new(), HashMap::new(), HashMap::new(),
-            HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new(),
+            abilities,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
         );
 
         let total = character.get_total_abilities(&game_data, &decoder);

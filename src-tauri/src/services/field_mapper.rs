@@ -2,94 +2,447 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-pub static FIELD_PATTERNS: std::sync::LazyLock<HashMap<&'static str, Vec<&'static str>>> = std::sync::LazyLock::new(|| {
-    let mut m = HashMap::new();
-    m.insert("str_adjust", vec!["str_adjust", "StrAdjust", "strength_adjust", "STRAdjust", "StrMod"]);
-    m.insert("dex_adjust", vec!["dex_adjust", "DexAdjust", "dexterity_adjust", "DEXAdjust", "DexMod"]);
-    m.insert("con_adjust", vec!["con_adjust", "ConAdjust", "constitution_adjust", "CONAdjust", "ConMod"]);
-    m.insert("int_adjust", vec!["int_adjust", "IntAdjust", "intelligence_adjust", "INTAdjust", "IntMod"]);
-    m.insert("wis_adjust", vec!["wis_adjust", "WisAdjust", "wisdom_adjust", "WISAdjust", "WisMod"]);
-    m.insert("cha_adjust", vec!["cha_adjust", "ChaAdjust", "charisma_adjust", "CHAAdjust", "ChaMod"]);
-    m.insert("fort_save", vec!["fort_save", "fortitude_save", "FortSave", "Fort", "FortitudeBonus", "FortBonus"]);
-    m.insert("ref_save", vec!["ref_save", "reflex_save", "RefSave", "Ref", "ReflexBonus", "RefBonus"]);
-    m.insert("will_save", vec!["will_save", "WillSave", "Will", "WillBonus"]);
-    m.insert("creature_size", vec!["creature_size", "size", "CreatureSize", "Size", "RaceSize"]);
-    m.insert("movement_rate", vec!["movement_rate", "base_speed", "speed", "MovementRate", "BaseSpeed", "Speed", "Endurance"]);
-    m.insert("ac_attack_mod", vec!["ACATTACKMOD", "ac_attack_mod", "AcAttackMod", "ACAttackMod", "ACMod"]);
-    m.insert("label", vec!["LABEL", "label", "Label"]);
-    m.insert("name", vec!["NAME", "name", "Name", "label", "Label", "NameRef"]);
-    m.insert("feat_name_strref", vec!["FEAT", "Feat"]);
-    m.insert("key_ability", vec!["KeyAbility", "key_ability", "keyability", "KEYABILITY"]);
-    m.insert("skill_index", vec!["SkillIndex", "skill_index", "skillindex", "SKILLINDEX", "Skill"]);
-    m.insert("class_skill", vec!["ClassSkill", "class_skill", "classskill", "CLASSSKILL", "IsClassSkill"]);
-    m.insert("prereq_str", vec!["prereq_str", "PreReqStr", "MinStr", "min_str", "ReqStr"]);
-    m.insert("prereq_dex", vec!["prereq_dex", "PreReqDex", "MinDex", "min_dex", "ReqDex"]);
-    m.insert("prereq_con", vec!["prereq_con", "PreReqCon", "MinCon", "min_con", "ReqCon"]);
-    m.insert("prereq_int", vec!["prereq_int", "PreReqInt", "MinInt", "min_int", "ReqInt"]);
-    m.insert("prereq_wis", vec!["prereq_wis", "PreReqWis", "MinWis", "min_wis", "ReqWis"]);
-    m.insert("prereq_cha", vec!["prereq_cha", "PreReqCha", "MinCha", "min_cha", "ReqCha"]);
-    m.insert("prereq_feat1", vec!["prereq_feat1", "PreReqFeat1", "ReqFeat1", "prereqfeat1", "PREREQFEAT1"]);
-    m.insert("prereq_feat2", vec!["prereq_feat2", "PreReqFeat2", "ReqFeat2", "prereqfeat2", "PREREQFEAT2"]);
-    m.insert("prereq_bab", vec!["prereq_bab", "PreReqBAB", "MinAttackBonus", "MinBAB", "ReqBAB"]);
-    m.insert("required_class", vec!["required_class", "reqclass", "ReqClass", "ClassReq", "MinLevelClass"]);
-    m.insert("min_level", vec!["min_level", "minlevel", "MinLevel", "LevelReq", "ReqLevel"]);
-    m.insert("prereq_spell_level", vec!["prereq_spell_level", "MinSpell", "SpellLevel", "ReqSpellLevel"]);
-    m.insert("favored_class", vec!["favored_class", "FavoredClass", "favoured_class", "FavouredClass"]);
-    m.insert("feat_index", vec!["FeatIndex", "feat_index", "featindex", "feat_id"]);
-    m.insert("granted_on_level", vec!["GrantedOnLevel", "granted_on_level", "grantedlevel", "level"]);
-    m.insert("racial_feats", vec!["racial_feats", "feats", "special_abilities", "RacialFeats", "Feats"]);
-    m.insert("feat0", vec!["Feat0", "feat0", "Feat", "feat"]);
-    m.insert("feat1", vec!["Feat1", "feat1"]);
-    m.insert("feat2", vec!["Feat2", "feat2"]);
-    m.insert("feat3", vec!["Feat3", "feat3"]);
-    m.insert("feat4", vec!["Feat4", "feat4"]);
-    m.insert("feat5", vec!["Feat5", "feat5"]);
-    m.insert("attack_bonus_table", vec!["AttackBonusTable", "attack_bonus_table", "AttackTable", "BABTable"]);
-    m.insert("saving_throw_table", vec!["SavingThrowTable", "saving_throw_table", "SaveTable", "SavTable"]);
-    m.insert("skills_table", vec!["SkillsTable", "skills_table", "SkillTable"]);
-    m.insert("feats_table", vec!["FeatsTable", "feats_table", "FeatTable", "featstable", "FEATSTABLE"]);
-    m.insert("bonus_feats_table", vec!["BonusFeatsTable", "bonus_feats_table", "BonusFeatTable", "bonus_feat_table"]);
-    m.insert("hit_die", vec!["HitDie", "hit_die", "HD", "HitDice"]);
-    m.insert("skill_point_base", vec!["SkillPointBase", "skill_point_base", "SkillPoints", "SP"]);
-    m.insert("max_level", vec!["MaxLevel", "max_level", "max_lvl", "MaxLvl"]);
-    m.insert("has_arcane", vec!["HasArcane", "has_arcane", "arcane", "Arcane"]);
-    m.insert("has_divine", vec!["HasDivine", "has_divine", "divine", "Divine"]);
-    m.insert("primary_ability", vec!["PrimaryAbil", "primary_ability", "primary_abil", "PrimAbil"]);
-    m.insert("bab", vec!["BAB", "bab", "AttackBonus", "BaseAttack"]);
-    m.insert("fort_save_table", vec!["FortSave", "fort_save", "fort", "Fort", "FortitudeBonus"]);
-    m.insert("ref_save_table", vec!["RefSave", "ref_save", "ref", "Ref", "ReflexBonus"]);
-    m.insert("will_save_table", vec!["WillSave", "will_save", "will", "Will", "WillBonus"]);
-    m.insert("spell_caster", vec!["SpellCaster", "spell_caster", "IsCaster", "Caster"]);
-    m.insert("prereq_table", vec!["PreReqTable", "prereq_table", "prereqtable", "PrerequisiteTable"]);
-    m.insert("spell_gain_table", vec!["spell_gain_table", "SpellGainTable", "SpellTable"]);
-    m.insert("spell_known_table", vec!["spell_known_table", "SpellKnownTable", "KnownTable"]);
-    m.insert("align_restrict", vec!["align_restrict", "AlignRestrict", "AlignmentRestrict"]);
-    m.insert("align_restrict_type", vec!["align_restrict_type", "AlignRstrctType", "AlignmentType"]);
-    m.insert("player_race", vec!["player_race", "PlayerRace", "PCRace", "Playable"]);
-    m.insert("player_class", vec!["player_class", "PlayerClass", "PCClass", "Playable"]);
-    m.insert("icon", vec!["ICON", "icon", "Icon", "IconResRef", "IconRef"]);
-    m.insert("bordered_icon", vec!["bordered_icon", "BorderedIcon", "IconBordered"]);
-    m.insert("damage_type", vec!["damage_type", "DamageType", "DmgType"]);
-    m.insert("damage_die", vec!["damage_die", "DamageDie", "DmgDie"]);
-    m.insert("crit_threat", vec!["crit_threat", "CritThreat", "ThreatRange"]);
-    m.insert("crit_mult", vec!["crit_mult", "CritMult", "CritMultiplier"]);
-    m.insert("base_item", vec!["base_item", "BaseItem", "ItemType", "Type"]);
-    m.insert("item_class", vec!["item_class", "ItemClass", "Class"]);
-    m.insert("weapon_type", vec!["weapon_type", "WeaponType", "WpnType"]);
-    m.insert("cost", vec!["cost", "Cost", "Price", "Value"]);
-    m.insert("weight", vec!["weight", "Weight", "Wt"]);
-    m.insert("base_race", vec!["base_race", "BaseRace", "baserace", "BASERACE"]);
-    m.insert("subrace_name", vec!["Name", "name", "Label", "label"]);
-    m.insert("subrace_label", vec!["Label", "label", "Name", "name"]);
-    m.insert("effective_character_level", vec!["ecl", "ECL", "effective_character_level", "EffectiveCharacterLevel"]);
-    m.insert("has_favored_class", vec!["has_favored_class", "HasFavoredClass", "hasfavoredclass", "HASFAVOREDCLASS"]);
-    m.insert("description", vec!["DESCRIPTION", "description", "Description", "Desc", "DescRef"]);
-    m.insert("category", vec!["category", "Category", "Cat", "Type"]);
-    m.insert("type", vec!["CATEGORY", "FeatCategory", "Category", "Type", "category"]);
-    m.insert("constant", vec!["constant", "Constant", "Const", "ConstantValue"]);
-    m.insert("bonus", vec!["Bonus", "bonus", "BONUS"]);
-    m
-});
+pub static FIELD_PATTERNS: std::sync::LazyLock<HashMap<&'static str, Vec<&'static str>>> =
+    std::sync::LazyLock::new(|| {
+        let mut m = HashMap::new();
+        m.insert(
+            "str_adjust",
+            vec![
+                "str_adjust",
+                "StrAdjust",
+                "strength_adjust",
+                "STRAdjust",
+                "StrMod",
+            ],
+        );
+        m.insert(
+            "dex_adjust",
+            vec![
+                "dex_adjust",
+                "DexAdjust",
+                "dexterity_adjust",
+                "DEXAdjust",
+                "DexMod",
+            ],
+        );
+        m.insert(
+            "con_adjust",
+            vec![
+                "con_adjust",
+                "ConAdjust",
+                "constitution_adjust",
+                "CONAdjust",
+                "ConMod",
+            ],
+        );
+        m.insert(
+            "int_adjust",
+            vec![
+                "int_adjust",
+                "IntAdjust",
+                "intelligence_adjust",
+                "INTAdjust",
+                "IntMod",
+            ],
+        );
+        m.insert(
+            "wis_adjust",
+            vec![
+                "wis_adjust",
+                "WisAdjust",
+                "wisdom_adjust",
+                "WISAdjust",
+                "WisMod",
+            ],
+        );
+        m.insert(
+            "cha_adjust",
+            vec![
+                "cha_adjust",
+                "ChaAdjust",
+                "charisma_adjust",
+                "CHAAdjust",
+                "ChaMod",
+            ],
+        );
+        m.insert(
+            "fort_save",
+            vec![
+                "fort_save",
+                "fortitude_save",
+                "FortSave",
+                "Fort",
+                "FortitudeBonus",
+                "FortBonus",
+            ],
+        );
+        m.insert(
+            "ref_save",
+            vec![
+                "ref_save",
+                "reflex_save",
+                "RefSave",
+                "Ref",
+                "ReflexBonus",
+                "RefBonus",
+            ],
+        );
+        m.insert(
+            "will_save",
+            vec!["will_save", "WillSave", "Will", "WillBonus"],
+        );
+        m.insert(
+            "creature_size",
+            vec!["creature_size", "size", "CreatureSize", "Size", "RaceSize"],
+        );
+        m.insert(
+            "movement_rate",
+            vec![
+                "movement_rate",
+                "base_speed",
+                "speed",
+                "MovementRate",
+                "BaseSpeed",
+                "Speed",
+                "Endurance",
+            ],
+        );
+        m.insert(
+            "ac_attack_mod",
+            vec![
+                "ACATTACKMOD",
+                "ac_attack_mod",
+                "AcAttackMod",
+                "ACAttackMod",
+                "ACMod",
+            ],
+        );
+        m.insert("label", vec!["LABEL", "label", "Label"]);
+        m.insert(
+            "name",
+            vec!["NAME", "name", "Name", "label", "Label", "NameRef"],
+        );
+        m.insert("feat_name_strref", vec!["FEAT", "Feat"]);
+        m.insert(
+            "key_ability",
+            vec!["KeyAbility", "key_ability", "keyability", "KEYABILITY"],
+        );
+        m.insert(
+            "skill_index",
+            vec![
+                "SkillIndex",
+                "skill_index",
+                "skillindex",
+                "SKILLINDEX",
+                "Skill",
+            ],
+        );
+        m.insert(
+            "class_skill",
+            vec![
+                "ClassSkill",
+                "class_skill",
+                "classskill",
+                "CLASSSKILL",
+                "IsClassSkill",
+            ],
+        );
+        m.insert(
+            "prereq_str",
+            vec!["prereq_str", "PreReqStr", "MinStr", "min_str", "ReqStr"],
+        );
+        m.insert(
+            "prereq_dex",
+            vec!["prereq_dex", "PreReqDex", "MinDex", "min_dex", "ReqDex"],
+        );
+        m.insert(
+            "prereq_con",
+            vec!["prereq_con", "PreReqCon", "MinCon", "min_con", "ReqCon"],
+        );
+        m.insert(
+            "prereq_int",
+            vec!["prereq_int", "PreReqInt", "MinInt", "min_int", "ReqInt"],
+        );
+        m.insert(
+            "prereq_wis",
+            vec!["prereq_wis", "PreReqWis", "MinWis", "min_wis", "ReqWis"],
+        );
+        m.insert(
+            "prereq_cha",
+            vec!["prereq_cha", "PreReqCha", "MinCha", "min_cha", "ReqCha"],
+        );
+        m.insert(
+            "prereq_feat1",
+            vec![
+                "prereq_feat1",
+                "PreReqFeat1",
+                "ReqFeat1",
+                "prereqfeat1",
+                "PREREQFEAT1",
+            ],
+        );
+        m.insert(
+            "prereq_feat2",
+            vec![
+                "prereq_feat2",
+                "PreReqFeat2",
+                "ReqFeat2",
+                "prereqfeat2",
+                "PREREQFEAT2",
+            ],
+        );
+        m.insert(
+            "prereq_bab",
+            vec![
+                "prereq_bab",
+                "PreReqBAB",
+                "MinAttackBonus",
+                "MinBAB",
+                "ReqBAB",
+            ],
+        );
+        m.insert(
+            "required_class",
+            vec![
+                "required_class",
+                "reqclass",
+                "ReqClass",
+                "ClassReq",
+                "MinLevelClass",
+            ],
+        );
+        m.insert(
+            "min_level",
+            vec!["min_level", "minlevel", "MinLevel", "LevelReq", "ReqLevel"],
+        );
+        m.insert(
+            "prereq_spell_level",
+            vec![
+                "prereq_spell_level",
+                "MinSpell",
+                "SpellLevel",
+                "ReqSpellLevel",
+            ],
+        );
+        m.insert(
+            "favored_class",
+            vec![
+                "favored_class",
+                "FavoredClass",
+                "favoured_class",
+                "FavouredClass",
+            ],
+        );
+        m.insert(
+            "feat_index",
+            vec!["FeatIndex", "feat_index", "featindex", "feat_id"],
+        );
+        m.insert(
+            "granted_on_level",
+            vec![
+                "GrantedOnLevel",
+                "granted_on_level",
+                "grantedlevel",
+                "level",
+            ],
+        );
+        m.insert(
+            "racial_feats",
+            vec![
+                "racial_feats",
+                "feats",
+                "special_abilities",
+                "RacialFeats",
+                "Feats",
+            ],
+        );
+        m.insert("feat0", vec!["Feat0", "feat0", "Feat", "feat"]);
+        m.insert("feat1", vec!["Feat1", "feat1"]);
+        m.insert("feat2", vec!["Feat2", "feat2"]);
+        m.insert("feat3", vec!["Feat3", "feat3"]);
+        m.insert("feat4", vec!["Feat4", "feat4"]);
+        m.insert("feat5", vec!["Feat5", "feat5"]);
+        m.insert(
+            "attack_bonus_table",
+            vec![
+                "AttackBonusTable",
+                "attack_bonus_table",
+                "AttackTable",
+                "BABTable",
+            ],
+        );
+        m.insert(
+            "saving_throw_table",
+            vec![
+                "SavingThrowTable",
+                "saving_throw_table",
+                "SaveTable",
+                "SavTable",
+            ],
+        );
+        m.insert(
+            "skills_table",
+            vec!["SkillsTable", "skills_table", "SkillTable"],
+        );
+        m.insert(
+            "feats_table",
+            vec![
+                "FeatsTable",
+                "feats_table",
+                "FeatTable",
+                "featstable",
+                "FEATSTABLE",
+            ],
+        );
+        m.insert(
+            "bonus_feats_table",
+            vec![
+                "BonusFeatsTable",
+                "bonus_feats_table",
+                "BonusFeatTable",
+                "bonus_feat_table",
+            ],
+        );
+        m.insert("hit_die", vec!["HitDie", "hit_die", "HD", "HitDice"]);
+        m.insert(
+            "skill_point_base",
+            vec!["SkillPointBase", "skill_point_base", "SkillPoints", "SP"],
+        );
+        m.insert(
+            "max_level",
+            vec!["MaxLevel", "max_level", "max_lvl", "MaxLvl"],
+        );
+        m.insert(
+            "has_arcane",
+            vec!["HasArcane", "has_arcane", "arcane", "Arcane"],
+        );
+        m.insert(
+            "has_divine",
+            vec!["HasDivine", "has_divine", "divine", "Divine"],
+        );
+        m.insert(
+            "primary_ability",
+            vec!["PrimaryAbil", "primary_ability", "primary_abil", "PrimAbil"],
+        );
+        m.insert("bab", vec!["BAB", "bab", "AttackBonus", "BaseAttack"]);
+        m.insert(
+            "fort_save_table",
+            vec!["FortSave", "fort_save", "fort", "Fort", "FortitudeBonus"],
+        );
+        m.insert(
+            "ref_save_table",
+            vec!["RefSave", "ref_save", "ref", "Ref", "ReflexBonus"],
+        );
+        m.insert(
+            "will_save_table",
+            vec!["WillSave", "will_save", "will", "Will", "WillBonus"],
+        );
+        m.insert(
+            "spell_caster",
+            vec!["SpellCaster", "spell_caster", "IsCaster", "Caster"],
+        );
+        m.insert(
+            "prereq_table",
+            vec![
+                "PreReqTable",
+                "prereq_table",
+                "prereqtable",
+                "PrerequisiteTable",
+            ],
+        );
+        m.insert(
+            "spell_gain_table",
+            vec!["spell_gain_table", "SpellGainTable", "SpellTable"],
+        );
+        m.insert(
+            "spell_known_table",
+            vec!["spell_known_table", "SpellKnownTable", "KnownTable"],
+        );
+        m.insert(
+            "align_restrict",
+            vec!["align_restrict", "AlignRestrict", "AlignmentRestrict"],
+        );
+        m.insert(
+            "align_restrict_type",
+            vec!["align_restrict_type", "AlignRstrctType", "AlignmentType"],
+        );
+        m.insert(
+            "player_race",
+            vec!["player_race", "PlayerRace", "PCRace", "Playable"],
+        );
+        m.insert(
+            "player_class",
+            vec!["player_class", "PlayerClass", "PCClass", "Playable"],
+        );
+        m.insert(
+            "icon",
+            vec!["ICON", "icon", "Icon", "IconResRef", "IconRef"],
+        );
+        m.insert(
+            "bordered_icon",
+            vec!["bordered_icon", "BorderedIcon", "IconBordered"],
+        );
+        m.insert("damage_type", vec!["damage_type", "DamageType", "DmgType"]);
+        m.insert("damage_die", vec!["damage_die", "DamageDie", "DmgDie"]);
+        m.insert(
+            "crit_threat",
+            vec!["crit_threat", "CritThreat", "ThreatRange"],
+        );
+        m.insert("crit_mult", vec!["crit_mult", "CritMult", "CritMultiplier"]);
+        m.insert(
+            "base_item",
+            vec!["base_item", "BaseItem", "ItemType", "Type"],
+        );
+        m.insert("item_class", vec!["item_class", "ItemClass", "Class"]);
+        m.insert("weapon_type", vec!["weapon_type", "WeaponType", "WpnType"]);
+        m.insert("cost", vec!["cost", "Cost", "Price", "Value"]);
+        m.insert("weight", vec!["weight", "Weight", "Wt"]);
+        m.insert(
+            "base_race",
+            vec!["base_race", "BaseRace", "baserace", "BASERACE"],
+        );
+        m.insert("subrace_name", vec!["Name", "name", "Label", "label"]);
+        m.insert("subrace_label", vec!["Label", "label", "Name", "name"]);
+        m.insert(
+            "effective_character_level",
+            vec![
+                "ecl",
+                "ECL",
+                "effective_character_level",
+                "EffectiveCharacterLevel",
+            ],
+        );
+        m.insert(
+            "has_favored_class",
+            vec![
+                "has_favored_class",
+                "HasFavoredClass",
+                "hasfavoredclass",
+                "HASFAVOREDCLASS",
+            ],
+        );
+        m.insert(
+            "description",
+            vec![
+                "DESCRIPTION",
+                "description",
+                "Description",
+                "Desc",
+                "DescRef",
+            ],
+        );
+        m.insert("category", vec!["category", "Category", "Cat", "Type"]);
+        m.insert(
+            "type",
+            vec!["CATEGORY", "FeatCategory", "Category", "Type", "category"],
+        );
+        m.insert(
+            "constant",
+            vec!["constant", "Constant", "Const", "ConstantValue"],
+        );
+        m.insert("bonus", vec!["Bonus", "bonus", "BONUS"]);
+        m
+    });
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AbilityModifiers {
@@ -269,7 +622,10 @@ impl FieldMapper {
         }
     }
 
-    pub fn get_ability_modifiers(&self, data: &AHashMap<String, Option<String>>) -> AbilityModifiers {
+    pub fn get_ability_modifiers(
+        &self,
+        data: &AHashMap<String, Option<String>>,
+    ) -> AbilityModifiers {
         AbilityModifiers {
             str_mod: Self::safe_int(self.get_field_value(data, "str_adjust").as_deref()),
             dex_mod: Self::safe_int(self.get_field_value(data, "dex_adjust").as_deref()),
@@ -308,8 +664,10 @@ impl FieldMapper {
             }
         }
 
-        prereqs.required_class =
-            Self::safe_int_with_default(self.get_field_value(data, "required_class").as_deref(), -1);
+        prereqs.required_class = Self::safe_int_with_default(
+            self.get_field_value(data, "required_class").as_deref(),
+            -1,
+        );
         prereqs.min_level = Self::safe_int(self.get_field_value(data, "min_level").as_deref());
         prereqs.bab = Self::safe_int(self.get_field_value(data, "prereq_bab").as_deref());
         prereqs.spell_level =
@@ -342,7 +700,9 @@ impl FieldMapper {
     }
 
     pub fn get_class_properties(&self, data: &AHashMap<String, Option<String>>) -> ClassProperties {
-        let prereq_table = self.get_field_value(data, "prereq_table").unwrap_or_default();
+        let prereq_table = self
+            .get_field_value(data, "prereq_table")
+            .unwrap_or_default();
 
         ClassProperties {
             label: self.get_field_value(data, "label").unwrap_or_default(),
@@ -365,8 +725,12 @@ impl FieldMapper {
             saving_throw_table: self
                 .get_field_value(data, "saving_throw_table")
                 .unwrap_or_default(),
-            skills_table: self.get_field_value(data, "skills_table").unwrap_or_default(),
-            feats_table: self.get_field_value(data, "feats_table").unwrap_or_default(),
+            skills_table: self
+                .get_field_value(data, "skills_table")
+                .unwrap_or_default(),
+            feats_table: self
+                .get_field_value(data, "feats_table")
+                .unwrap_or_default(),
             spell_caster: Self::safe_bool(self.get_field_value(data, "spell_caster").as_deref()),
             has_arcane: Self::safe_bool(self.get_field_value(data, "has_arcane").as_deref()),
             has_divine: Self::safe_bool(self.get_field_value(data, "has_divine").as_deref()),
@@ -456,6 +820,11 @@ mod tests {
     #[test]
     fn test_field_patterns() {
         assert!(FIELD_PATTERNS.contains_key("str_adjust"));
-        assert!(FIELD_PATTERNS.get("str_adjust").unwrap().contains(&"StrAdjust"));
+        assert!(
+            FIELD_PATTERNS
+                .get("str_adjust")
+                .unwrap()
+                .contains(&"StrAdjust")
+        );
     }
 }

@@ -42,7 +42,8 @@ pub struct CleanupResult {
 
 pub fn get_backups_dir(save_dir: &Path) -> PathBuf {
     save_dir
-        .parent().map_or_else(|| save_dir.join("backups"), |p| p.join("backups"))
+        .parent()
+        .map_or_else(|| save_dir.join("backups"), |p| p.join("backups"))
 }
 
 pub fn get_backup_dir_for_save(save_dir: &Path) -> PathBuf {
@@ -268,12 +269,13 @@ pub fn cleanup_old_backups(save_dir: &Path, keep_count: usize) -> SaveGameResult
 
     while backups.len() > keep_count {
         if let Some(oldest) = backups.pop()
-            && oldest.path.exists() {
-                freed_bytes += oldest.size_bytes;
-                fs::remove_dir_all(&oldest.path)?;
-                removed_count += 1;
-                debug!("Removed old backup: {}", oldest.path.display());
-            }
+            && oldest.path.exists()
+        {
+            freed_bytes += oldest.size_bytes;
+            fs::remove_dir_all(&oldest.path)?;
+            removed_count += 1;
+            debug!("Removed old backup: {}", oldest.path.display());
+        }
     }
 
     info!(

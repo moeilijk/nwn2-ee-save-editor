@@ -74,11 +74,8 @@ impl GameDataLoader {
             return Err(LoaderError::LoadingInterrupted("TLK parser not set".into()));
         };
 
-        let mut loader = DataModelLoader::with_options(
-            Arc::clone(&self.resource_manager),
-            true,
-            false,
-        );
+        let mut loader =
+            DataModelLoader::with_options(Arc::clone(&self.resource_manager), true, false);
 
         match loader.load_game_data(Arc::clone(tlk)).await {
             Ok(new_data) => {
@@ -125,11 +122,11 @@ impl GameDataLoader {
         table_name: &str,
         row_index: usize,
     ) -> LoaderResult<AHashMap<String, Option<String>>> {
-        let table = self.get_table(table_name).ok_or_else(|| {
-            LoaderError::TableNotFound {
+        let table = self
+            .get_table(table_name)
+            .ok_or_else(|| LoaderError::TableNotFound {
                 name: table_name.to_string(),
-            }
-        })?;
+            })?;
         table.get_row(row_index)
     }
 
@@ -153,7 +150,11 @@ impl GameDataLoader {
 
     pub fn get_stats(&self) -> LoadingStats {
         if let Some(ref data) = self.game_data {
-            let total_rows: usize = data.tables.values().map(super::types::LoadedTable::row_count).sum();
+            let total_rows: usize = data
+                .tables
+                .values()
+                .map(super::types::LoadedTable::row_count)
+                .sum();
             LoadingStats {
                 tables_loaded: data.tables.len(),
                 total_rows,
@@ -204,9 +205,9 @@ mod tests {
 
     #[test]
     fn test_loader_not_ready_initially() {
-        let rm = Arc::new(RwLock::new(ResourceManager::new(Arc::new(
-            RwLock::new(crate::config::NWN2Paths::new()),
-        ))));
+        let rm = Arc::new(RwLock::new(ResourceManager::new(Arc::new(RwLock::new(
+            crate::config::NWN2Paths::new(),
+        )))));
         let loader = GameDataLoader::new(rm);
         assert!(!loader.is_ready());
         assert_eq!(loader.table_count(), 0);

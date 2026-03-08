@@ -1,16 +1,16 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 use tracing::debug;
 
-use crate::parsers::gff::GffValue;
-use crate::loaders::GameData;
-use super::{Character, CharacterError};
-use super::types::{FeatId, DomainId, ClassId, SaveBonuses};
 use super::gff_helpers::gff_value_to_i32;
+use super::types::{ClassId, DomainId, FeatId, SaveBonuses};
+use super::{Character, CharacterError};
+use crate::loaders::GameData;
+use crate::parsers::gff::GffValue;
 
 use crate::services::field_mapper::FieldMapper;
 
@@ -482,17 +482,31 @@ static FEAT_PROGRESSION_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(.*?)[\s_]?(\d+)$").unwrap());
 
 const SAVE_CONDITIONAL_KEYWORDS: &[&str] = &[
-    "against", "vs ", "versus", "to avoid", "made to",
-    "while raging", "while in a rage", "while in a frenzy",
-    "during rage", "during frenzy", "when raging",
+    "against",
+    "vs ",
+    "versus",
+    "to avoid",
+    "made to",
+    "while raging",
+    "while in a rage",
+    "while in a frenzy",
+    "during rage",
+    "during frenzy",
+    "when raging",
 ];
 
 /// Keywords in feat descriptions indicating bonuses require a temporary active state.
 const ACTIVATION_CONDITIONAL_KEYWORDS: &[&str] = &[
-    "while raging", "while in a rage", "while in a frenzy",
-    "during rage", "during frenzy", "when raging",
-    "while in defensive stance", "during defensive stance",
-    "while frenzied", "when frenzied",
+    "while raging",
+    "while in a rage",
+    "while in a frenzy",
+    "during rage",
+    "during frenzy",
+    "when raging",
+    "while in defensive stance",
+    "during defensive stance",
+    "while frenzied",
+    "when frenzied",
 ];
 const AC_CONDITIONAL_KEYWORDS: &[&str] = &[
     "against",
@@ -543,7 +557,12 @@ pub fn build_domain_feat_sets(game_data: &GameData) -> (HashSet<i32>, HashSet<i3
             continue;
         };
 
-        for field in ["granted_feat", "castable_feat", "GrantedFeat", "CastableFeat"] {
+        for field in [
+            "granted_feat",
+            "castable_feat",
+            "GrantedFeat",
+            "CastableFeat",
+        ] {
             if let Some(feat_id) = domain_data
                 .get(field)
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
@@ -620,15 +639,18 @@ impl Character {
     }
 
     pub fn feat_count(&self) -> usize {
-        self.get_list("FeatList")
-            .map_or(0, std::vec::Vec::len)
+        self.get_list("FeatList").map_or(0, std::vec::Vec::len)
     }
 
     pub fn add_feat(&mut self, feat_id: FeatId) -> Result<(), CharacterError> {
         self.add_feat_with_source(feat_id, FeatSource::Manual)
     }
 
-    pub fn add_feat_with_source(&mut self, feat_id: FeatId, source: FeatSource) -> Result<(), CharacterError> {
+    pub fn add_feat_with_source(
+        &mut self,
+        feat_id: FeatId,
+        source: FeatSource,
+    ) -> Result<(), CharacterError> {
         if self.has_feat(feat_id) {
             return Err(CharacterError::FeatAlreadyExists(feat_id.0));
         }
@@ -772,13 +794,18 @@ impl Character {
 
     /// Check if a feat is part of a progression chain (e.g., Toughness_1 -> Toughness_2).
     /// Returns the old feat ID that should be removed, or None if no progression detected.
-    pub fn check_feat_progression(&self, new_feat_id: FeatId, game_data: &GameData) -> Option<FeatId> {
+    pub fn check_feat_progression(
+        &self,
+        new_feat_id: FeatId,
+        game_data: &GameData,
+    ) -> Option<FeatId> {
         let feats_table = game_data.get_table("feat")?;
         let new_feat_data = feats_table.get_by_id(new_feat_id.0)?;
 
         let new_label = new_feat_data
             .get("label")
-            .and_then(|s| s.as_ref()).cloned()?;
+            .and_then(|s| s.as_ref())
+            .cloned()?;
 
         let captures = FEAT_PROGRESSION_PATTERN.captures(&new_label)?;
         let base_name = captures.get(1)?.as_str().trim_end_matches('_');
@@ -826,7 +853,6 @@ impl Character {
 
     // ========== FEAT USES ==========
 
-
     pub fn get_feat_uses(&self, feat_id: FeatId) -> Option<i32> {
         let feat_list = self.get_list("FeatList")?;
 
@@ -871,9 +897,10 @@ impl Character {
 
     pub fn is_feat_protected(&self, feat_id: FeatId, game_data: &GameData) -> bool {
         if let Some(source) = self.feat_source(feat_id)
-            && matches!(source, FeatSource::Race | FeatSource::Background) {
-                return true;
-            }
+            && matches!(source, FeatSource::Race | FeatSource::Background)
+        {
+            return true;
+        }
 
         self.is_domain_epithet_feat(feat_id, game_data)
     }
@@ -888,23 +915,31 @@ impl Character {
             return domains;
         };
 
-        debug!("get_character_domains: Found {} class entries", class_list.len());
+        debug!(
+            "get_character_domains: Found {} class entries",
+            class_list.len()
+        );
 
         for (idx, class_entry) in class_list.iter().enumerate() {
             let domain1_raw = class_entry.get("Domain1");
             let domain2_raw = class_entry.get("Domain2");
-            debug!("get_character_domains: Class {} - Domain1 raw: {:?}, Domain2 raw: {:?}", idx, domain1_raw, domain2_raw);
+            debug!(
+                "get_character_domains: Class {} - Domain1 raw: {:?}, Domain2 raw: {:?}",
+                idx, domain1_raw, domain2_raw
+            );
 
             if let Some(domain1) = class_entry.get("Domain1").and_then(gff_value_to_i32)
-                && domain1 >= 0 {
-                    debug!("get_character_domains: Adding Domain1 = {}", domain1);
-                    domains.push(DomainId(domain1));
-                }
+                && domain1 >= 0
+            {
+                debug!("get_character_domains: Adding Domain1 = {}", domain1);
+                domains.push(DomainId(domain1));
+            }
             if let Some(domain2) = class_entry.get("Domain2").and_then(gff_value_to_i32)
-                && domain2 >= 0 {
-                    debug!("get_character_domains: Adding Domain2 = {}", domain2);
-                    domains.push(DomainId(domain2));
-                }
+                && domain2 >= 0
+            {
+                debug!("get_character_domains: Adding Domain2 = {}", domain2);
+                domains.push(DomainId(domain2));
+            }
         }
 
         debug!("get_character_domains: Total domains found: {:?}", domains);
@@ -922,9 +957,15 @@ impl Character {
             };
 
             let feats = [
-                domain_data.get("granted_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
-                domain_data.get("castable_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
-                domain_data.get("epithet_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("granted_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("castable_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("epithet_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
             ];
 
             for domain_feat in feats.into_iter().flatten() {
@@ -959,7 +1000,11 @@ impl Character {
         false
     }
 
-    pub fn add_domain(&mut self, domain_id: DomainId, game_data: &GameData) -> Result<Vec<FeatId>, CharacterError> {
+    pub fn add_domain(
+        &mut self,
+        domain_id: DomainId,
+        game_data: &GameData,
+    ) -> Result<Vec<FeatId>, CharacterError> {
         let Some(domains_table) = game_data.get_table("domains") else {
             return Err(CharacterError::TableNotFound("domains".to_string()));
         };
@@ -991,7 +1036,10 @@ impl Character {
             .filter(|&id| id >= 0)
             .map(FeatId);
 
-        for feat_id in [granted_feat, castable_feat, epithet_feat].into_iter().flatten() {
+        for feat_id in [granted_feat, castable_feat, epithet_feat]
+            .into_iter()
+            .flatten()
+        {
             if !self.has_feat(feat_id) {
                 self.add_feat_with_source(feat_id, FeatSource::Domain)?;
                 added_feats.push(feat_id);
@@ -1001,7 +1049,11 @@ impl Character {
         Ok(added_feats)
     }
 
-    pub fn remove_domain(&mut self, domain_id: DomainId, game_data: &GameData) -> Result<Vec<FeatId>, CharacterError> {
+    pub fn remove_domain(
+        &mut self,
+        domain_id: DomainId,
+        game_data: &GameData,
+    ) -> Result<Vec<FeatId>, CharacterError> {
         // Remove domain spells first (before feats) - cascade from Python implementation
         let _removed_spells = self.remove_domain_spells(domain_id, game_data)?;
 
@@ -1036,7 +1088,10 @@ impl Character {
             .filter(|&id| id >= 0)
             .map(FeatId);
 
-        for feat_id in [granted_feat, castable_feat, epithet_feat].into_iter().flatten() {
+        for feat_id in [granted_feat, castable_feat, epithet_feat]
+            .into_iter()
+            .flatten()
+        {
             if self.has_feat(feat_id) {
                 self.remove_feat(feat_id)?;
                 removed_feats.push(feat_id);
@@ -1060,17 +1115,25 @@ impl Character {
             };
 
             let feats = [
-                domain_data.get("granted_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
-                domain_data.get("castable_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
-                domain_data.get("epithet_feat").and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("granted_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("castable_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
+                domain_data
+                    .get("epithet_feat")
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
             ];
 
             for domain_feat in feats.into_iter().flatten() {
                 let feat_id = FeatId(domain_feat);
-                if domain_feat >= 0 && current_feats.contains(&feat_id)
-                    && self.remove_feat(feat_id).is_ok() {
-                        removed.push(feat_id);
-                    }
+                if domain_feat >= 0
+                    && current_feats.contains(&feat_id)
+                    && self.remove_feat(feat_id).is_ok()
+                {
+                    removed.push(feat_id);
+                }
             }
         }
 
@@ -1124,8 +1187,12 @@ impl Character {
         let mut filled_general_slots = 0;
         let mut filled_bonus_slots = 0;
 
-        let mut class_level_tracker: std::collections::HashMap<i32, i32> = std::collections::HashMap::new();
-        let mut class_feat_table_cache: std::collections::HashMap<i32, std::collections::HashMap<i32, i32>> = std::collections::HashMap::new();
+        let mut class_level_tracker: std::collections::HashMap<i32, i32> =
+            std::collections::HashMap::new();
+        let mut class_feat_table_cache: std::collections::HashMap<
+            i32,
+            std::collections::HashMap<i32, i32>,
+        > = std::collections::HashMap::new();
 
         for (total_level_idx, level_entry) in level_history.iter().enumerate() {
             let total_level = (total_level_idx + 1) as i32;
@@ -1136,10 +1203,9 @@ impl Character {
 
             let level_feat_ids: Vec<i32> = level_entry.feats_gained.iter().map(|f| f.0).collect();
 
-            class_feat_table_cache.entry(class_id).or_insert_with(|| {
-                
-                self.load_class_feat_table(ClassId(class_id), game_data)
-            });
+            class_feat_table_cache
+                .entry(class_id)
+                .or_insert_with(|| self.load_class_feat_table(ClassId(class_id), game_data));
             let class_feat_table = &class_feat_table_cache[&class_id];
 
             let mut selectable_feats: Vec<i32> = Vec::new();
@@ -1149,9 +1215,10 @@ impl Character {
                 }
 
                 if let Some(feat_type) = self.get_feat_type(FeatId(*feat_id), game_data)
-                    && Self::AUTO_GRANTED_FEAT_TYPES.contains(&feat_type.0) {
-                        continue;
-                    }
+                    && Self::AUTO_GRANTED_FEAT_TYPES.contains(&feat_type.0)
+                {
+                    continue;
+                }
 
                 selectable_feats.push(*feat_id);
             }
@@ -1171,7 +1238,8 @@ impl Character {
                 }
             }
 
-            let has_bonus_slot = self.check_bonus_feat_slot(ClassId(class_id), class_level, game_data);
+            let has_bonus_slot =
+                self.check_bonus_feat_slot(ClassId(class_id), class_level, game_data);
 
             if has_bonus_slot {
                 if !selectable_feats.is_empty() {
@@ -1203,7 +1271,11 @@ impl Character {
         }
     }
 
-    fn load_class_feat_table(&self, class_id: ClassId, game_data: &GameData) -> std::collections::HashMap<i32, i32> {
+    fn load_class_feat_table(
+        &self,
+        class_id: ClassId,
+        game_data: &GameData,
+    ) -> std::collections::HashMap<i32, i32> {
         let mut feat_table = std::collections::HashMap::new();
 
         let Some(classes_table) = game_data.get_table("classes") else {
@@ -1214,7 +1286,8 @@ impl Character {
             return feat_table;
         };
 
-        let feats_table_name_opt = class_data.get("FeatsTable")
+        let feats_table_name_opt = class_data
+            .get("FeatsTable")
             .or_else(|| class_data.get("feats_table"))
             .and_then(|s| s.as_ref());
 
@@ -1255,7 +1328,12 @@ impl Character {
         feat_table
     }
 
-    fn check_bonus_feat_slot(&self, class_id: ClassId, class_level: i32, game_data: &GameData) -> bool {
+    fn check_bonus_feat_slot(
+        &self,
+        class_id: ClassId,
+        class_level: i32,
+        game_data: &GameData,
+    ) -> bool {
         let Some(classes_table) = game_data.get_table("classes") else {
             return false;
         };
@@ -1264,7 +1342,8 @@ impl Character {
             return false;
         };
 
-        let bonus_table_name_opt = class_data.get("BonusFeatsTable")
+        let bonus_table_name_opt = class_data
+            .get("BonusFeatsTable")
             .or_else(|| class_data.get("bonus_feats_table"))
             .and_then(|s| s.as_ref());
 
@@ -1343,7 +1422,12 @@ impl Character {
         total_bonus
     }
 
-    pub fn get_bonus_feats_for_class(&self, class_id: ClassId, level: i32, game_data: &GameData) -> i32 {
+    pub fn get_bonus_feats_for_class(
+        &self,
+        class_id: ClassId,
+        level: i32,
+        game_data: &GameData,
+    ) -> i32 {
         let mut count = 0;
         for lvl in 1..=level {
             if self.check_bonus_feat_slot(class_id, lvl, game_data) {
@@ -1355,7 +1439,11 @@ impl Character {
 
     // ========== PREREQUISITE VALIDATION ==========
 
-    pub fn validate_feat_prerequisites(&self, feat_id: FeatId, game_data: &GameData) -> PrerequisiteResult {
+    pub fn validate_feat_prerequisites(
+        &self,
+        feat_id: FeatId,
+        game_data: &GameData,
+    ) -> PrerequisiteResult {
         let Some(feats_table) = game_data.get_table("feat") else {
             return PrerequisiteResult::failure(vec!["Feat table not loaded".to_string()]);
         };
@@ -1376,16 +1464,20 @@ impl Character {
             .and_then(|s| s.as_ref()?.parse::<i32>().ok());
 
         if let Some(prereq_id) = prereq_feat1
-            && prereq_id >= 0 && !self.has_feat(FeatId(prereq_id)) {
-                let prereq_name = self.get_feat_name(FeatId(prereq_id), game_data);
-                missing.push(format!("Requires: {prereq_name}"));
-            }
+            && prereq_id >= 0
+            && !self.has_feat(FeatId(prereq_id))
+        {
+            let prereq_name = self.get_feat_name(FeatId(prereq_id), game_data);
+            missing.push(format!("Requires: {prereq_name}"));
+        }
 
         if let Some(prereq_id) = prereq_feat2
-            && prereq_id >= 0 && !self.has_feat(FeatId(prereq_id)) {
-                let prereq_name = self.get_feat_name(FeatId(prereq_id), game_data);
-                missing.push(format!("Requires: {prereq_name}"));
-            }
+            && prereq_id >= 0
+            && !self.has_feat(FeatId(prereq_id))
+        {
+            let prereq_name = self.get_feat_name(FeatId(prereq_id), game_data);
+            missing.push(format!("Requires: {prereq_name}"));
+        }
 
         let str_score = self.get_i32("Str").unwrap_or(10);
         let dex_score = self.get_i32("Dex").unwrap_or(10);
@@ -1394,51 +1486,90 @@ impl Character {
         let wis_score = self.get_i32("Wis").unwrap_or(10);
         let cha_score = self.get_i32("Cha").unwrap_or(10);
 
-        if let Some(min_str) = feat_data.get("MINSTR").or_else(|| feat_data.get("prereq_str")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_str > 0 && str_score < min_str {
-                missing.push(format!("Requires Strength {min_str}"));
-            }
+        if let Some(min_str) = feat_data
+            .get("MINSTR")
+            .or_else(|| feat_data.get("prereq_str"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_str > 0
+            && str_score < min_str
+        {
+            missing.push(format!("Requires Strength {min_str}"));
+        }
 
-        if let Some(min_dex) = feat_data.get("MINDEX").or_else(|| feat_data.get("prereq_dex")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_dex > 0 && dex_score < min_dex {
-                missing.push(format!("Requires Dexterity {min_dex}"));
-            }
+        if let Some(min_dex) = feat_data
+            .get("MINDEX")
+            .or_else(|| feat_data.get("prereq_dex"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_dex > 0
+            && dex_score < min_dex
+        {
+            missing.push(format!("Requires Dexterity {min_dex}"));
+        }
 
-        if let Some(min_con) = feat_data.get("MINCON").or_else(|| feat_data.get("prereq_con")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_con > 0 && con_score < min_con {
-                missing.push(format!("Requires Constitution {min_con}"));
-            }
+        if let Some(min_con) = feat_data
+            .get("MINCON")
+            .or_else(|| feat_data.get("prereq_con"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_con > 0
+            && con_score < min_con
+        {
+            missing.push(format!("Requires Constitution {min_con}"));
+        }
 
-        if let Some(min_int) = feat_data.get("MININT").or_else(|| feat_data.get("prereq_int")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_int > 0 && int_score < min_int {
-                missing.push(format!("Requires Intelligence {min_int}"));
-            }
+        if let Some(min_int) = feat_data
+            .get("MININT")
+            .or_else(|| feat_data.get("prereq_int"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_int > 0
+            && int_score < min_int
+        {
+            missing.push(format!("Requires Intelligence {min_int}"));
+        }
 
-        if let Some(min_wis) = feat_data.get("MINWIS").or_else(|| feat_data.get("prereq_wis")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_wis > 0 && wis_score < min_wis {
-                missing.push(format!("Requires Wisdom {min_wis}"));
-            }
+        if let Some(min_wis) = feat_data
+            .get("MINWIS")
+            .or_else(|| feat_data.get("prereq_wis"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_wis > 0
+            && wis_score < min_wis
+        {
+            missing.push(format!("Requires Wisdom {min_wis}"));
+        }
 
-        if let Some(min_cha) = feat_data.get("MINCHA").or_else(|| feat_data.get("prereq_cha")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_cha > 0 && cha_score < min_cha {
-                missing.push(format!("Requires Charisma {min_cha}"));
-            }
+        if let Some(min_cha) = feat_data
+            .get("MINCHA")
+            .or_else(|| feat_data.get("prereq_cha"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_cha > 0
+            && cha_score < min_cha
+        {
+            missing.push(format!("Requires Charisma {min_cha}"));
+        }
 
-        if let Some(min_bab) = feat_data.get("MINATTACKBONUS").or_else(|| feat_data.get("prereq_bab")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_bab > 0 {
-                let bab = self.calculate_bab(game_data);
-                if bab < min_bab {
-                    missing.push(format!("Requires Base Attack Bonus +{min_bab}"));
-                }
+        if let Some(min_bab) = feat_data
+            .get("MINATTACKBONUS")
+            .or_else(|| feat_data.get("prereq_bab"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_bab > 0
+        {
+            let bab = self.calculate_bab(game_data);
+            if bab < min_bab {
+                missing.push(format!("Requires Base Attack Bonus +{min_bab}"));
             }
+        }
 
-        if let Some(min_level) = feat_data.get("MinLevel").or_else(|| feat_data.get("MINLEVEL")).or_else(|| feat_data.get("min_level")).and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            && min_level > 0 {
-                let level = self.total_level();
-                if level < min_level {
-                    missing.push(format!("Requires Level {min_level}"));
-                }
+        if let Some(min_level) = feat_data
+            .get("MinLevel")
+            .or_else(|| feat_data.get("MINLEVEL"))
+            .or_else(|| feat_data.get("min_level"))
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            && min_level > 0
+        {
+            let level = self.total_level();
+            if level < min_level {
+                missing.push(format!("Requires Level {min_level}"));
             }
+        }
 
         if missing.is_empty() {
             PrerequisiteResult::success()
@@ -1446,7 +1577,6 @@ impl Character {
             PrerequisiteResult::failure(missing)
         }
     }
-
 
     pub fn get_feat_name(&self, feat_id: FeatId, game_data: &GameData) -> String {
         let Some(feats_table) = game_data.get_table("feat") else {
@@ -1468,9 +1598,10 @@ impl Character {
 
         if let Some(strref) = name_strref
             && let Some(name) = game_data.get_string(strref)
-                && !name.is_empty() {
-                    return name;
-                }
+            && !name.is_empty()
+        {
+            return name;
+        }
 
         // Use FieldMapper to find "label" field (handles case "Label", "LABEL", etc.)
         field_mapper
@@ -1507,29 +1638,53 @@ impl Character {
             for (pattern, save_type) in SAVE_PATTERNS.iter() {
                 if let Some(captures) = pattern.captures(&description)
                     && let Some(bonus_str) = captures.get(1)
-                        && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>() {
-                            
-                            match save_type {
-                                SaveType::Universal => {
-                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
-                                    if !found_ref { bonuses.reflex += bonus_value; found_ref = true; }
-                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
-                                }
-                                SaveType::Fortitude => {
-                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
-                                }
-                                SaveType::Reflex => {
-                                    if !found_ref { bonuses.reflex += bonus_value; found_ref = true; }
-                                }
-                                SaveType::Will => {
-                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
-                                }
-                                SaveType::FortitudeAndWill => {
-                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
-                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
-                                }
+                    && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
+                {
+                    match save_type {
+                        SaveType::Universal => {
+                            if !found_fort {
+                                bonuses.fortitude += bonus_value;
+                                found_fort = true;
+                            }
+                            if !found_ref {
+                                bonuses.reflex += bonus_value;
+                                found_ref = true;
+                            }
+                            if !found_will {
+                                bonuses.will += bonus_value;
+                                found_will = true;
                             }
                         }
+                        SaveType::Fortitude => {
+                            if !found_fort {
+                                bonuses.fortitude += bonus_value;
+                                found_fort = true;
+                            }
+                        }
+                        SaveType::Reflex => {
+                            if !found_ref {
+                                bonuses.reflex += bonus_value;
+                                found_ref = true;
+                            }
+                        }
+                        SaveType::Will => {
+                            if !found_will {
+                                bonuses.will += bonus_value;
+                                found_will = true;
+                            }
+                        }
+                        SaveType::FortitudeAndWill => {
+                            if !found_fort {
+                                bonuses.fortitude += bonus_value;
+                                found_fort = true;
+                            }
+                            if !found_will {
+                                bonuses.will += bonus_value;
+                                found_will = true;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1565,10 +1720,11 @@ impl Character {
             if label.contains("dodge") || label.contains("mobility") {
                 if let Some(captures) = AC_DODGE_PATTERN.captures(&description) {
                     if let Some(bonus_str) = captures.get(1)
-                        && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>() {
-                            total_ac += bonus_value;
-                            continue;
-                        }
+                        && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
+                    {
+                        total_ac += bonus_value;
+                        continue;
+                    }
                 } else if label.contains("dodge") {
                     total_ac += 1;
                     continue;
@@ -1578,10 +1734,11 @@ impl Character {
             for pattern in AC_PATTERNS.iter() {
                 if let Some(captures) = pattern.captures(&description)
                     && let Some(bonus_str) = captures.get(1)
-                        && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>() {
-                            total_ac += bonus_value;
-                            break;
-                        }
+                    && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
+                {
+                    total_ac += bonus_value;
+                    break;
+                }
             }
         }
 
@@ -1618,17 +1775,21 @@ impl Character {
             for pattern in INITIATIVE_PATTERNS.iter() {
                 if let Some(captures) = pattern.captures(&description)
                     && let Some(bonus_str) = captures.get(1)
-                        && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>() {
-                            bonus += bonus_value;
-                            break;
-                        }
+                    && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
+                {
+                    bonus += bonus_value;
+                    break;
+                }
             }
         }
 
         bonus
     }
 
-    pub fn get_feat_skill_bonuses(&self, game_data: &GameData) -> std::collections::HashMap<String, i32> {
+    pub fn get_feat_skill_bonuses(
+        &self,
+        game_data: &GameData,
+    ) -> std::collections::HashMap<String, i32> {
         use std::collections::HashMap;
 
         static SKILL_BONUS_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
@@ -1686,12 +1847,21 @@ impl Character {
             if description_lower.contains("effects:") {
                 let effects_start = description_lower.find("effects:").unwrap();
                 let effects_text = &description[effects_start..];
-                debug!("[feat_skill] Feat '{}' has effects line: {:?}", feat_label, effects_text);
+                debug!(
+                    "[feat_skill] Feat '{}' has effects line: {:?}",
+                    feat_label, effects_text
+                );
 
                 for cap in EFFECTS_ENTRY_PATTERN.captures_iter(effects_text) {
-                    let Some(value_str) = cap.get(1) else { continue };
-                    let Some(name_match) = cap.get(2) else { continue };
-                    let Ok(bonus_value) = value_str.as_str().parse::<i32>() else { continue };
+                    let Some(value_str) = cap.get(1) else {
+                        continue;
+                    };
+                    let Some(name_match) = cap.get(2) else {
+                        continue;
+                    };
+                    let Ok(bonus_value) = value_str.as_str().parse::<i32>() else {
+                        continue;
+                    };
 
                     let normalized = Self::normalize_skill_name(name_match.as_str());
                     if known_skills.contains(&normalized) {
@@ -1757,16 +1927,17 @@ impl Character {
     }
 
     fn normalize_skill_name(name: &str) -> String {
-        let mut normalized = name.trim()
-            .to_uppercase()
-            .replace([' ', '-', '_'], "");
+        let mut normalized = name.trim().to_uppercase().replace([' ', '-', '_'], "");
         if normalized.ends_with("TRAPS") {
             normalized = normalized.trim_end_matches('S').to_string();
         }
         normalized
     }
 
-    fn resolve_feat_description(feat_data: &ahash::AHashMap<String, Option<String>>, game_data: &GameData) -> String {
+    fn resolve_feat_description(
+        feat_data: &ahash::AHashMap<String, Option<String>>,
+        game_data: &GameData,
+    ) -> String {
         let field_mapper = FieldMapper::new();
         let desc_strref = field_mapper
             .get_field_value(feat_data, "description")
@@ -1774,17 +1945,17 @@ impl Character {
 
         if let Some(strref) = desc_strref
             && let Some(desc) = game_data.get_string(strref)
-            && !desc.is_empty() {
-                return Self::strip_html_tags(&desc);
-            }
+            && !desc.is_empty()
+        {
+            return Self::strip_html_tags(&desc);
+        }
 
         String::new()
     }
 
     fn strip_html_tags(text: &str) -> String {
-        static RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"<[^>]+>").expect("Invalid HTML regex")
-        });
+        static RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"<[^>]+>").expect("Invalid HTML regex"));
         RE.replace_all(text, "").to_string()
     }
 
@@ -1860,7 +2031,9 @@ impl Character {
 
             if !found_in_class {
                 result.available = false;
-                result.reasons.push("Not available for your classes".to_string());
+                result
+                    .reasons
+                    .push("Not available for your classes".to_string());
             }
         }
 
@@ -1870,10 +2043,24 @@ impl Character {
     fn check_label_class_restriction(&self, label: &str, game_data: &GameData) -> FeatAvailability {
         static CLASS_KEYWORDS: &[(&str, &[&str])] = &[
             ("Bard", &["bard song", "bardic", "extra bard"]),
-            ("Paladin", &["smite", "divine grace", "lay on hands", "aura of"]),
+            (
+                "Paladin",
+                &["smite", "divine grace", "lay on hands", "aura of"],
+            ),
             ("Barbarian", &["rage", "tireless rage", "greater rage"]),
-            ("Rogue", &["sneak attack", "crippling strike", "opportunist"]),
-            ("Monk", &["flurry", "stunning fist", "wholeness of body", "quivering palm"]),
+            (
+                "Rogue",
+                &["sneak attack", "crippling strike", "opportunist"],
+            ),
+            (
+                "Monk",
+                &[
+                    "flurry",
+                    "stunning fist",
+                    "wholeness of body",
+                    "quivering palm",
+                ],
+            ),
             ("Cleric", &["turn undead", "divine might", "divine shield"]),
             ("Druid", &["wild shape", "wildshape"]),
             ("Ranger", &["favored enemy", "woodland stride"]),
@@ -1950,9 +2137,10 @@ impl Character {
                         .collect();
 
                     if !class_names.is_empty() {
-                        result
-                            .reasons
-                            .push(format!("Requires class ability from: {}", class_names.join(" or ")));
+                        result.reasons.push(format!(
+                            "Requires class ability from: {}",
+                            class_names.join(" or ")
+                        ));
                     }
                     return result;
                 }
@@ -1992,7 +2180,11 @@ impl Character {
             .map_or_else(|| format!("feat_{}", feat_id.0), |s| s.clone());
         let name = Self::resolve_feat_name_from_data(&feat_data, game_data);
         let description = Self::resolve_feat_description(&feat_data, game_data);
-        let icon = feat_data.get("icon").and_then(|s| s.as_ref()).map_or("", std::string::String::as_str).to_string();
+        let icon = feat_data
+            .get("icon")
+            .and_then(|s| s.as_ref())
+            .map_or("", std::string::String::as_str)
+            .to_string();
 
         let mut feat_type = Self::parse_feat_type(&feat_data, &description);
 
@@ -2052,7 +2244,11 @@ impl Character {
             .map_or_else(|| format!("feat_{}", feat_id.0), |s| s.clone());
         let name = Self::resolve_feat_name_from_data(&feat_data, game_data);
         let description = Self::resolve_feat_description(&feat_data, game_data);
-        let icon = feat_data.get("icon").and_then(|s| s.as_ref()).map_or("", std::string::String::as_str).to_string();
+        let icon = feat_data
+            .get("icon")
+            .and_then(|s| s.as_ref())
+            .map_or("", std::string::String::as_str)
+            .to_string();
 
         let mut feat_type = Self::parse_feat_type(&feat_data, &description);
 
@@ -2087,11 +2283,17 @@ impl Character {
             can_take: true,
             missing_requirements: vec![],
             prerequisites: FeatPrerequisites::default(),
-            availability: FeatAvailability { available: true, reasons: vec![] },
+            availability: FeatAvailability {
+                available: true,
+                reasons: vec![],
+            },
         })
     }
 
-    pub(crate) fn parse_feat_type(feat_data: &ahash::AHashMap<String, Option<String>>, description: &str) -> FeatType {
+    pub(crate) fn parse_feat_type(
+        feat_data: &ahash::AHashMap<String, Option<String>>,
+        description: &str,
+    ) -> FeatType {
         if let Some(type_str) = feat_data
             .get("TOOLCATEGORIES")
             .or_else(|| feat_data.get("ToolsCategories"))
@@ -2110,9 +2312,8 @@ impl Character {
             return FeatType::from_string(type_str);
         }
 
-        static TYPE_OF_FEAT_RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"Type of Feat:\s*(\w+)").expect("Invalid regex")
-        });
+        static TYPE_OF_FEAT_RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"Type of Feat:\s*(\w+)").expect("Invalid regex"));
 
         if let Some(caps) = TYPE_OF_FEAT_RE.captures(description)
             && let Some(type_match) = caps.get(1)
@@ -2176,7 +2377,11 @@ impl Character {
                 let feat_id = FeatId(prereq_id);
                 let name = self.get_feat_name(feat_id, game_data);
                 let met = self.has_feat(feat_id);
-                prereqs.feats.push(PrereqFeat { id: feat_id, name, met });
+                prereqs.feats.push(PrereqFeat {
+                    id: feat_id,
+                    name,
+                    met,
+                });
             }
         }
 
@@ -2295,7 +2500,8 @@ impl Character {
     }
 
     pub fn get_feats_state(&self, game_data: &GameData) -> FeatsState {
-        let domains = self.get_available_domains(game_data)
+        let domains = self
+            .get_available_domains(game_data)
             .into_iter()
             .filter(|d| d.has_domain)
             .collect();
@@ -2314,17 +2520,26 @@ impl Character {
         };
 
         let character_domains = self.get_character_domains();
-        debug!("get_available_domains: character_domains = {:?}", character_domains);
+        debug!(
+            "get_available_domains: character_domains = {:?}",
+            character_domains
+        );
         let mut available = Vec::new();
         let row_count = domains_table.row_count();
-        debug!("get_available_domains: domains_table row_count = {}", row_count);
+        debug!(
+            "get_available_domains: domains_table row_count = {}",
+            row_count
+        );
 
         for domain_id in 0..row_count {
             let domain_id = DomainId(domain_id as i32);
 
             let Some(domain_data) = domains_table.get_by_id(domain_id.0) else {
                 if domain_id.0 == 25 || domain_id.0 == 18 {
-                    debug!("get_available_domains: domain_id {} - no domain_data found", domain_id.0);
+                    debug!(
+                        "get_available_domains: domain_id {} - no domain_data found",
+                        domain_id.0
+                    );
                 }
                 continue;
             };
@@ -2363,7 +2578,10 @@ impl Character {
             let has_domain = character_domains.contains(&domain_id);
 
             if has_domain {
-                debug!("get_available_domains: Domain {} ({}) has_domain=true", domain_id.0, name);
+                debug!(
+                    "get_available_domains: Domain {} ({}) has_domain=true",
+                    domain_id.0, name
+                );
             }
 
             available.push(DomainInfo {
@@ -2378,12 +2596,20 @@ impl Character {
         }
 
         let with_domain: Vec<_> = available.iter().filter(|d| d.has_domain).collect();
-        debug!("get_available_domains: Total available={}, with has_domain=true: {}", available.len(), with_domain.len());
+        debug!(
+            "get_available_domains: Total available={}, with has_domain=true: {}",
+            available.len(),
+            with_domain.len()
+        );
 
         available
     }
 
-    pub fn swap_feat(&mut self, old_feat_id: FeatId, new_feat_id: FeatId) -> Result<(FeatId, FeatId), CharacterError> {
+    pub fn swap_feat(
+        &mut self,
+        old_feat_id: FeatId,
+        new_feat_id: FeatId,
+    ) -> Result<(FeatId, FeatId), CharacterError> {
         self.remove_feat(old_feat_id)?;
         self.add_feat(new_feat_id)?;
         Ok((old_feat_id, new_feat_id))
@@ -2403,9 +2629,10 @@ impl Character {
 
         if let Some(strref) = name_strref
             && let Some(name) = game_data.get_string(strref)
-            && !name.is_empty() {
-                return Self::strip_html_tags(&name);
-            }
+            && !name.is_empty()
+        {
+            return Self::strip_html_tags(&name);
+        }
 
         // Fallback to label
         field_mapper
@@ -2423,9 +2650,10 @@ impl Character {
 
         if let Some(strref) = name_strref
             && let Some(name) = game_data.get_string(strref)
-                && !name.is_empty() {
-                    return name;
-                }
+            && !name.is_empty()
+        {
+            return name;
+        }
 
         domain_data
             .get("Label")
@@ -2444,9 +2672,10 @@ impl Character {
 
         if let Some(strref) = desc_strref
             && let Some(desc) = game_data.get_string(strref)
-                && !desc.is_empty() {
-                    return desc;
-                }
+            && !desc.is_empty()
+        {
+            return desc;
+        }
 
         String::new()
     }
@@ -2663,19 +2892,28 @@ mod tests {
         let captures = pattern.captures("Toughness_2");
         assert!(captures.is_some());
         let caps = captures.unwrap();
-        assert_eq!(caps.get(1).unwrap().as_str().trim_end_matches('_'), "Toughness");
+        assert_eq!(
+            caps.get(1).unwrap().as_str().trim_end_matches('_'),
+            "Toughness"
+        );
         assert_eq!(caps.get(2).unwrap().as_str(), "2");
 
         let captures = pattern.captures("GreatFortitude3");
         assert!(captures.is_some());
         let caps = captures.unwrap();
-        assert_eq!(caps.get(1).unwrap().as_str().trim_end_matches('_'), "GreatFortitude");
+        assert_eq!(
+            caps.get(1).unwrap().as_str().trim_end_matches('_'),
+            "GreatFortitude"
+        );
         assert_eq!(caps.get(2).unwrap().as_str(), "3");
 
         let captures = pattern.captures("ResistEnergy 1");
         assert!(captures.is_some());
         let caps = captures.unwrap();
-        assert_eq!(caps.get(1).unwrap().as_str().trim_end_matches(' '), "ResistEnergy");
+        assert_eq!(
+            caps.get(1).unwrap().as_str().trim_end_matches(' '),
+            "ResistEnergy"
+        );
         assert_eq!(caps.get(2).unwrap().as_str(), "1");
 
         let captures = pattern.captures("PowerAttack");

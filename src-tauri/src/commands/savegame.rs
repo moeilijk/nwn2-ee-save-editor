@@ -1,20 +1,26 @@
 use crate::commands::{CommandError, CommandResult};
 use crate::services::savegame_handler::{BackupInfo, FileInfo, RestoreResult};
 use crate::state::AppState;
-use tauri::State;
 use std::path::PathBuf;
+use tauri::State;
 
 #[tauri::command]
 pub async fn list_backups(state: State<'_, AppState>) -> CommandResult<Vec<BackupInfo>> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(handler.list_backups()?)
 }
 
 #[tauri::command]
 pub async fn create_backup(state: State<'_, AppState>) -> CommandResult<()> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     crate::services::savegame_handler::backup::create_backup(handler.save_dir())?;
     Ok(())
 }
@@ -26,7 +32,10 @@ pub async fn restore_backup(
     create_pre_restore_backup: bool,
 ) -> CommandResult<RestoreResult> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     Ok(handler.restore_from_backup(&PathBuf::from(backup_path), create_pre_restore_backup)?)
 }
@@ -37,9 +46,17 @@ pub async fn restore_modules_from_backup(
     backup_path: String,
 ) -> CommandResult<RestoreResult> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let backup = PathBuf::from(backup_path);
-    Ok(crate::services::savegame_handler::backup::restore_modules_from_backup(&backup, handler.save_dir())?)
+    Ok(
+        crate::services::savegame_handler::backup::restore_modules_from_backup(
+            &backup,
+            handler.save_dir(),
+        )?,
+    )
 }
 
 #[tauri::command]
@@ -48,14 +65,20 @@ pub async fn cleanup_backups(
     keep_count: usize,
 ) -> CommandResult<crate::services::savegame_handler::CleanupResult> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(handler.cleanup_old_backups(keep_count)?)
 }
 
 #[tauri::command]
 pub async fn list_save_files(state: State<'_, AppState>) -> CommandResult<Vec<FileInfo>> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(handler.list_files()?)
 }
 
@@ -64,15 +87,15 @@ pub async fn get_save_info(
     state: State<'_, AppState>,
 ) -> CommandResult<Option<crate::services::savegame_handler::CharacterSummary>> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(handler.read_character_summary()?)
 }
 
 #[tauri::command]
-pub async fn delete_backup(
-    state: State<'_, AppState>,
-    backup_path: String,
-) -> CommandResult<bool> {
+pub async fn delete_backup(state: State<'_, AppState>, backup_path: String) -> CommandResult<bool> {
     let _session = state.session.read();
     let path = PathBuf::from(&backup_path);
 

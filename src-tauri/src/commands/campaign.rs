@@ -1,28 +1,30 @@
-use tauri::State;
 use crate::commands::{CommandError, CommandResult};
+use crate::parsers::xml::{CompanionStatus, FullSummary, XmlData};
 use crate::services::campaign::CampaignManager;
-use crate::parsers::xml::{FullSummary, CompanionStatus, XmlData};
 use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
-use crate::state::AppState;
 use crate::services::campaign::journal::QuestDefinition;
 use crate::services::campaign::settings::CampaignSettings;
+use crate::state::AppState;
 use std::collections::HashMap;
+use tauri::State;
 
 #[tauri::command]
-pub async fn get_campaign_summary(
-    state: State<'_, AppState>,
-) -> CommandResult<FullSummary> {
+pub async fn get_campaign_summary(state: State<'_, AppState>) -> CommandResult<FullSummary> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_summary(handler).map_err(CommandError::from)
 }
 
 #[tauri::command]
-pub async fn get_campaign_variables(
-    state: State<'_, AppState>,
-) -> CommandResult<XmlData> {
+pub async fn get_campaign_variables(state: State<'_, AppState>) -> CommandResult<XmlData> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_campaign_variables(handler).map_err(CommandError::from)
 }
 
@@ -32,7 +34,10 @@ pub async fn get_module_info(
 ) -> CommandResult<(ModuleInfo, ModuleVariables)> {
     let paths = state.paths.read();
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_module_info(handler, &paths).map_err(CommandError::from)
 }
 
@@ -41,7 +46,10 @@ pub async fn get_journal(
     state: State<'_, AppState>,
 ) -> CommandResult<HashMap<String, QuestDefinition>> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_journal(handler).map_err(CommandError::from)
 }
 
@@ -52,7 +60,10 @@ pub async fn update_global_int(
     value: i32,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_global_int(handler, &name, value).map_err(CommandError::from)
 }
 
@@ -63,7 +74,10 @@ pub async fn update_global_float(
     value: f32,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_global_float(handler, &name, value).map_err(CommandError::from)
 }
 
@@ -74,7 +88,10 @@ pub async fn update_global_string(
     value: String,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_global_string(handler, &name, &value).map_err(CommandError::from)
 }
 
@@ -90,7 +107,7 @@ pub async fn get_campaign_settings(
 #[tauri::command]
 pub async fn update_campaign_settings(
     state: State<'_, AppState>,
-    settings: CampaignSettings
+    settings: CampaignSettings,
 ) -> CommandResult<()> {
     let paths = state.paths.read();
     CampaignManager::update_campaign_settings(&settings, &paths).map_err(CommandError::from)
@@ -101,7 +118,10 @@ pub async fn get_companion_influence(
     state: State<'_, AppState>,
 ) -> CommandResult<HashMap<String, CompanionStatus>> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_companion_influence(handler).map_err(CommandError::from)
 }
 
@@ -112,8 +132,12 @@ pub async fn update_companion_influence(
     new_influence: i32,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    CampaignManager::update_companion_influence(handler, &companion_id, new_influence).map_err(CommandError::from)
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::update_companion_influence(handler, &companion_id, new_influence)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -125,14 +149,18 @@ pub async fn update_module_variable(
     module_id: Option<String>,
 ) -> CommandResult<()> {
     let session = state.session.read();
-    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_module_variable(
         handler,
         &variable_name,
         &value,
         &variable_type,
         module_id.as_deref(),
-    ).map_err(CommandError::from)
+    )
+    .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -143,11 +171,10 @@ pub async fn update_campaign_variable(
     variable_type: String,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
-    CampaignManager::update_campaign_variable(
-        handler,
-        &variable_name,
-        &value,
-        &variable_type,
-    ).map_err(CommandError::from)
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::update_campaign_variable(handler, &variable_name, &value, &variable_type)
+        .map_err(CommandError::from)
 }

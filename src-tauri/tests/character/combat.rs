@@ -37,7 +37,12 @@ async fn test_bab_across_fixtures() {
         assert!(bab >= 0, "{} should have non-negative BAB", name);
 
         if name.contains("L30") {
-            assert!(bab >= 10, "{} should have BAB >= 10 at high level, got {}", name, bab);
+            assert!(
+                bab >= 10,
+                "{} should have BAB >= 10 at high level, got {}",
+                name,
+                bab
+            );
         }
     }
 }
@@ -50,10 +55,26 @@ async fn test_bab_progression_l1_vs_l30() {
     println!("\n=== BAB Progression L1 vs L30 ===");
 
     let progressions = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
-        ("okkugodofbears/okkugodofbears1.bic", "okkugodofbears/okkugodofbears4.bic", "Okku"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
+        (
+            "okkugodofbears/okkugodofbears1.bic",
+            "okkugodofbears/okkugodofbears4.bic",
+            "Okku",
+        ),
     ];
 
     for (l1_path, l30_path, name) in progressions {
@@ -107,7 +128,11 @@ async fn test_attack_sequence_generation() {
             sequence
         );
 
-        assert!(!sequence.is_empty(), "{} should have at least one attack", name);
+        assert!(
+            !sequence.is_empty(),
+            "{} should have at least one attack",
+            name
+        );
         assert_eq!(sequence[0], bab, "{} first attack should equal BAB", name);
 
         for i in 1..sequence.len() {
@@ -120,7 +145,12 @@ async fn test_attack_sequence_generation() {
         }
 
         if let Some(&last) = sequence.last() {
-            assert!(last >= 1, "{} last attack should be >= 1, got {}", name, last);
+            assert!(
+                last >= 1,
+                "{} last attack should be >= 1, got {}",
+                name,
+                last
+            );
         }
     }
 }
@@ -212,7 +242,11 @@ async fn test_damage_bonuses() {
             name, str_mod, damage.melee, damage.two_handed, damage.off_hand, damage.ranged
         );
 
-        assert_eq!(damage.melee, str_mod, "{} melee damage should equal STR mod", name);
+        assert_eq!(
+            damage.melee, str_mod,
+            "{} melee damage should equal STR mod",
+            name
+        );
         assert_eq!(
             damage.two_handed,
             (str_mod * 3) / 2,
@@ -288,7 +322,11 @@ async fn test_base_ac_calculation() {
             "{} base AC should be 10 + natural AC",
             name
         );
-        assert!(natural_ac >= 0, "{} natural AC should be non-negative", name);
+        assert!(
+            natural_ac >= 0,
+            "{} natural AC should be non-negative",
+            name
+        );
     }
 }
 
@@ -316,7 +354,11 @@ async fn test_hit_points_consistency() {
         );
 
         assert!(max_hp >= 1, "{} max HP should be at least 1", name);
-        assert!(current_hp <= max_hp + temp_hp, "{} current HP should not exceed max + temp", name);
+        assert!(
+            current_hp <= max_hp + temp_hp,
+            "{} current HP should not exceed max + temp",
+            name
+        );
         assert!(temp_hp >= 0, "{} temp HP should be non-negative", name);
     }
 }
@@ -326,9 +368,21 @@ async fn test_hp_progression_l1_vs_l30() {
     println!("\n=== HP Progression L1 vs L30 ===");
 
     let progressions = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
     ];
 
     for (l1_path, l30_path, name) in progressions {
@@ -373,11 +427,11 @@ async fn test_size_modifier() {
         let size_mod = character.size_modifier();
 
         let expected_mod = match size {
-            2 => 2,   // Tiny
-            3 => 1,   // Small
-            4 => 0,   // Medium
-            5 => -1,  // Large
-            6 => -2,  // Huge
+            2 => 2,  // Tiny
+            3 => 1,  // Small
+            4 => 0,  // Medium
+            5 => -1, // Large
+            6 => -2, // Huge
             _ => 0,
         };
 
@@ -507,11 +561,11 @@ async fn test_spell_resistance() {
 // ============================================================
 
 async fn create_decoder() -> app_lib::services::item_property_decoder::ItemPropertyDecoder {
-    use app_lib::services::resource_manager::ResourceManager;
     use app_lib::config::nwn2_paths::NWN2Paths;
+    use app_lib::services::resource_manager::ResourceManager;
     use std::sync::Arc;
     use tokio::sync::RwLock;
-    
+
     let paths = Arc::new(RwLock::new(NWN2Paths::new()));
     let rm = Arc::new(RwLock::new(ResourceManager::new(paths.clone())));
     {
@@ -541,8 +595,11 @@ async fn test_combat_summary_across_fixtures() {
 
         println!(
             "{:<15}: BAB={}, AC={}, MeleeAB={}, RangedAB={}",
-            name, summary.bab, summary.armor_class.total, 
-            summary.attack_bonuses.melee, summary.attack_bonuses.ranged
+            name,
+            summary.bab,
+            summary.armor_class.total,
+            summary.attack_bonuses.melee,
+            summary.attack_bonuses.ranged
         );
 
         assert_eq!(summary.bab, character.calculate_bab(game_data));
@@ -575,19 +632,37 @@ async fn test_armor_class_breakdown() {
         );
         println!(
             "  Breakdown: Base={}, Armor={}, Shield={}, Dex={}, Natural={}, Size={}",
-            ac.breakdown.base, ac.breakdown.armor, ac.breakdown.shield,
-            ac.breakdown.dex, ac.breakdown.natural, ac.breakdown.size
+            ac.breakdown.base,
+            ac.breakdown.armor,
+            ac.breakdown.shield,
+            ac.breakdown.dex,
+            ac.breakdown.natural,
+            ac.breakdown.size
         );
 
         assert_eq!(ac.breakdown.base, 10, "{} base AC should be 10", name);
-        
-        let expected_total = ac.breakdown.base + ac.breakdown.armor + ac.breakdown.shield
-            + ac.breakdown.dex + ac.breakdown.natural + ac.breakdown.dodge
-            + ac.breakdown.deflection + ac.breakdown.size + ac.breakdown.misc;
-        assert_eq!(ac.total, expected_total, "{} AC total should match breakdown sum", name);
+
+        let expected_total = ac.breakdown.base
+            + ac.breakdown.armor
+            + ac.breakdown.shield
+            + ac.breakdown.dex
+            + ac.breakdown.natural
+            + ac.breakdown.dodge
+            + ac.breakdown.deflection
+            + ac.breakdown.size
+            + ac.breakdown.misc;
+        assert_eq!(
+            ac.total, expected_total,
+            "{} AC total should match breakdown sum",
+            name
+        );
 
         assert!(ac.touch <= ac.total, "{} touch AC should be <= total", name);
-        assert!(ac.flat_footed <= ac.total, "{} flat-footed AC should be <= total", name);
+        assert!(
+            ac.flat_footed <= ac.total,
+            "{} flat-footed AC should be <= total",
+            name
+        );
     }
 }
 
@@ -614,16 +689,24 @@ async fn test_attack_bonuses_breakdown() {
         );
         println!(
             "  Melee: Base={}, Ability={}, Size={}, Equip={}",
-            attacks.melee_breakdown.base, attacks.melee_breakdown.ability,
-            attacks.melee_breakdown.size, attacks.melee_breakdown.equipment
+            attacks.melee_breakdown.base,
+            attacks.melee_breakdown.ability,
+            attacks.melee_breakdown.size,
+            attacks.melee_breakdown.equipment
         );
 
         assert_eq!(attacks.bab, character.calculate_bab(game_data));
-        
-        let expected_melee = attacks.melee_breakdown.base + attacks.melee_breakdown.ability
-            + attacks.melee_breakdown.size + attacks.melee_breakdown.equipment
+
+        let expected_melee = attacks.melee_breakdown.base
+            + attacks.melee_breakdown.ability
+            + attacks.melee_breakdown.size
+            + attacks.melee_breakdown.equipment
             + attacks.melee_breakdown.misc;
-        assert_eq!(attacks.melee, expected_melee, "{} melee should match breakdown", name);
+        assert_eq!(
+            attacks.melee, expected_melee,
+            "{} melee should match breakdown",
+            name
+        );
     }
 }
 
@@ -652,7 +735,11 @@ async fn test_initiative_breakdown() {
         );
 
         let expected_total = init.dex + init.feat + init.misc;
-        assert_eq!(init.total, expected_total, "{} initiative should match breakdown", name);
+        assert_eq!(
+            init.total, expected_total,
+            "{} initiative should match breakdown",
+            name
+        );
     }
 }
 
@@ -681,7 +768,11 @@ async fn test_combat_maneuver_bonus() {
         );
 
         let expected = cmb.bab + cmb.str_mod - cmb.size_mod;
-        assert_eq!(cmb.total, expected, "{} CMB should be BAB + STR - size", name);
+        assert_eq!(
+            cmb.total, expected,
+            "{} CMB should be BAB + STR - size",
+            name
+        );
         assert_eq!(cmb.bab, character.calculate_bab(game_data));
     }
 }
@@ -710,8 +801,16 @@ async fn test_movement_speed() {
 
         // Note: MovementRate may not exist in fixtures, defaults to 0 which becomes 30 with class bonuses
         // or stays 0 if not set. Just verify the struct is populated correctly.
-        assert!(speed.base >= 0, "{} base speed should be non-negative", name);
-        assert!(speed.current >= 0, "{} current speed should be non-negative", name);
+        assert!(
+            speed.base >= 0,
+            "{} base speed should be non-negative",
+            name
+        );
+        assert!(
+            speed.current >= 0,
+            "{} current speed should be non-negative",
+            name
+        );
     }
 }
 
@@ -745,8 +844,16 @@ async fn test_combat_summary_progression() {
     println!("\n=== Combat Summary Progression L1 vs L30 ===");
 
     let progressions = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
     ];
 
     for (l1_path, l30_path, name) in progressions {
@@ -759,11 +866,19 @@ async fn test_combat_summary_progression() {
         println!(
             "{:<10}: L1: BAB={}, AC={}, Melee={} | L30: BAB={}, AC={}, Melee={}",
             name,
-            summary_l1.bab, summary_l1.armor_class.total, summary_l1.attack_bonuses.melee,
-            summary_l30.bab, summary_l30.armor_class.total, summary_l30.attack_bonuses.melee
+            summary_l1.bab,
+            summary_l1.armor_class.total,
+            summary_l1.attack_bonuses.melee,
+            summary_l30.bab,
+            summary_l30.armor_class.total,
+            summary_l30.attack_bonuses.melee
         );
 
-        assert!(summary_l30.bab > summary_l1.bab, "{} L30 BAB should exceed L1", name);
+        assert!(
+            summary_l30.bab > summary_l1.bab,
+            "{} L30 BAB should exceed L1",
+            name
+        );
         assert!(
             summary_l30.attack_sequence.len() >= summary_l1.attack_sequence.len(),
             "{} L30 should have >= attacks than L1",
@@ -771,4 +886,3 @@ async fn test_combat_summary_progression() {
         );
     }
 }
-

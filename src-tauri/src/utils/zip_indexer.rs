@@ -18,7 +18,10 @@ impl ZipIndexer {
         }
     }
 
-    pub fn index_zip(&mut self, zip_path: &Path) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn index_zip(
+        &mut self,
+        zip_path: &Path,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let start_time = Instant::now();
         let mut resources = HashMap::new();
 
@@ -68,23 +71,36 @@ impl ZipIndexer {
 
         let index_time = start_time.elapsed();
 
-        self.stats.insert("last_zip_index_time_ms".to_string(), index_time.as_millis() as u64);
-        self.stats.insert("last_zip_size_bytes".to_string(), zip_size);
-        self.stats.insert("last_zip_files_processed".to_string(), files_processed);
-        self.stats.insert("last_zip_2da_files_found".to_string(), tda_files_found);
+        self.stats.insert(
+            "last_zip_index_time_ms".to_string(),
+            index_time.as_millis() as u64,
+        );
+        self.stats
+            .insert("last_zip_size_bytes".to_string(), zip_size);
+        self.stats
+            .insert("last_zip_files_processed".to_string(), files_processed);
+        self.stats
+            .insert("last_zip_2da_files_found".to_string(), tda_files_found);
 
         let total_zips = self.stats.get("total_zips_indexed").unwrap_or(&0) + 1;
-        let total_time = self.stats.get("total_zip_index_time_ms").unwrap_or(&0) + index_time.as_millis() as u64;
+        let total_time =
+            self.stats.get("total_zip_index_time_ms").unwrap_or(&0) + index_time.as_millis() as u64;
         let total_2das = self.stats.get("total_2da_files_indexed").unwrap_or(&0) + tda_files_found;
 
-        self.stats.insert("total_zips_indexed".to_string(), total_zips);
-        self.stats.insert("total_zip_index_time_ms".to_string(), total_time);
-        self.stats.insert("total_2da_files_indexed".to_string(), total_2das);
+        self.stats
+            .insert("total_zips_indexed".to_string(), total_zips);
+        self.stats
+            .insert("total_zip_index_time_ms".to_string(), total_time);
+        self.stats
+            .insert("total_2da_files_indexed".to_string(), total_2das);
 
         Ok(resources)
     }
 
-    pub fn index_zips_parallel(&mut self, zip_paths: Vec<&Path>) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn index_zips_parallel(
+        &mut self,
+        zip_paths: Vec<&Path>,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         use rayon::prelude::*;
 
         let start_time = Instant::now();
@@ -106,8 +122,14 @@ impl ZipIndexer {
 
         let total_time = start_time.elapsed();
 
-        self.stats.insert("last_parallel_zip_time_ms".to_string(), total_time.as_millis() as u64);
-        self.stats.insert("last_parallel_zip_count".to_string(), zip_paths.len() as u64);
+        self.stats.insert(
+            "last_parallel_zip_time_ms".to_string(),
+            total_time.as_millis() as u64,
+        );
+        self.stats.insert(
+            "last_parallel_zip_count".to_string(),
+            zip_paths.len() as u64,
+        );
 
         Ok(combined_resources)
     }

@@ -1,6 +1,6 @@
+use super::{Character, CharacterError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use super::{Character, CharacterError};
 
 use crate::services::field_mapper::FieldMapper;
 
@@ -187,8 +187,7 @@ impl Character {
         if let Some(s) = self.get_string("Deity") {
             return s.to_string();
         }
-        self.get_localized_string_value("Deity")
-            .unwrap_or_default()
+        self.get_localized_string_value("Deity").unwrap_or_default()
     }
 
     pub fn set_deity(&mut self, deity: String) {
@@ -221,8 +220,6 @@ impl Character {
         Ok(())
     }
 
-
-
     /// Get the character's background trait if present.
     /// In NWN2, backgrounds are handled via history feats or traits.
     pub fn background(&self, game_data: &GameData) -> Option<String> {
@@ -237,12 +234,13 @@ impl Character {
                 let label_opt = field_mapper.get_field_value(&_feat_data, "label");
 
                 if let Some(label) = label_opt
-                    && label.to_uppercase().contains("BACKGROUND") {
-                        return Some(self.get_feat_name(feat_id, game_data));
-                    }
+                    && label.to_uppercase().contains("BACKGROUND")
+                {
+                    return Some(self.get_feat_name(feat_id, game_data));
+                }
             }
         }
-        
+
         None
     }
 }

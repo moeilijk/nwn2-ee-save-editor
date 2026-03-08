@@ -112,7 +112,14 @@ impl XmlData {
         }
         if let Some(wrapper) = xml.vectors {
             for entry in wrapper.entries {
-                data.vectors.insert(entry.name, Vector3 { x: entry.x, y: entry.y, z: entry.z });
+                data.vectors.insert(
+                    entry.name,
+                    Vector3 {
+                        x: entry.x,
+                        y: entry.y,
+                        z: entry.z,
+                    },
+                );
             }
         }
         data
@@ -121,28 +128,42 @@ impl XmlData {
     pub fn to_xml_struct(&self) -> GlobalsXml {
         let mut integers = Vec::new();
         for (k, v) in &self.integers {
-            integers.push(IntegerEntry { name: k.clone(), value: *v });
+            integers.push(IntegerEntry {
+                name: k.clone(),
+                value: *v,
+            });
         }
-        // Sort for consistent output? The python one doesn't seem to strictly sort, 
+        // Sort for consistent output? The python one doesn't seem to strictly sort,
         // but it iterates over dict items. Python > 3.7 maintains insertion order.
         // HashMaps don't. Maybe we should sort by name to be nice.
         integers.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut strings = Vec::new();
         for (k, v) in &self.strings {
-            strings.push(StringEntry { name: k.clone(), value: v.clone() });
+            strings.push(StringEntry {
+                name: k.clone(),
+                value: v.clone(),
+            });
         }
         strings.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut floats = Vec::new();
         for (k, v) in &self.floats {
-            floats.push(FloatEntry { name: k.clone(), value: *v });
+            floats.push(FloatEntry {
+                name: k.clone(),
+                value: *v,
+            });
         }
         floats.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut vectors = Vec::new();
         for (k, v) in &self.vectors {
-            vectors.push(VectorEntry { name: k.clone(), x: v.x, y: v.y, z: v.z });
+            vectors.push(VectorEntry {
+                name: k.clone(),
+                x: v.x,
+                y: v.y,
+                z: v.z,
+            });
         }
         vectors.sort_by(|a, b| a.name.cmp(&b.name));
 

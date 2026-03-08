@@ -6,7 +6,7 @@ use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use encoding_rs::{WINDOWS_1252, UTF_8};
+use encoding_rs::{UTF_8, WINDOWS_1252};
 use indexmap::IndexMap;
 use tracing::{debug, warn};
 
@@ -80,28 +80,28 @@ impl PlayerInfo {
     pub fn get_player_name(path: impl AsRef<Path>) -> PlayerInfoResult<String> {
         let path = path.as_ref();
         let mut file = File::open(path)?;
-        
+
         let mut len_bytes = [0u8; 4];
         file.read_exact(&mut len_bytes)?;
         let length = u32::from_le_bytes(len_bytes) as usize;
-        
+
         if length == 0 {
             return Err(PlayerInfoParseError::InvalidString {
                 position: 0,
                 reason: "Empty name".to_string(),
             });
         }
-        
+
         if length > 256 {
             return Err(PlayerInfoParseError::InvalidString {
                 position: 0,
                 reason: format!("Name length {} exceeds maximum", length),
             });
         }
-        
+
         let mut name_bytes = vec![0u8; length];
         file.read_exact(&mut name_bytes)?;
-        
+
         let (decoded, _, had_errors) = WINDOWS_1252.decode(&name_bytes);
         if had_errors {
             let (utf8_decoded, _, _) = UTF_8.decode(&name_bytes);
@@ -199,10 +199,14 @@ impl PlayerInfo {
             let class_level = cursor.read_u8()?;
 
             if class_level > 60 {
-                warn!("Unusual class level {} for class {} at index {}", class_level, class_name, i);
+                warn!(
+                    "Unusual class level {} for class {} at index {}",
+                    class_level, class_name, i
+                );
             }
 
-            data.classes.push(PlayerClassEntry::new(class_name, class_level));
+            data.classes
+                .push(PlayerClassEntry::new(class_name, class_level));
         }
 
         data.deity = read_string(cursor)?;

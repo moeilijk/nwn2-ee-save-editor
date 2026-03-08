@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Type)]
 pub struct PropertyDefinition {
     pub id: u32,
@@ -16,7 +15,6 @@ pub struct PropertyDefinition {
     pub raw_label: String,
     pub raw_name: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DecodedProperty {
@@ -398,9 +396,7 @@ pub fn decode_damage_vulnerability(
     DecodedProperty {
         property_id: 24,
         label: format!("Vulnerable {damage_type} {vulnerability}%"),
-        description: format!(
-            "Damage Vulnerability: {damage_type} {vulnerability}% extra damage"
-        ),
+        description: format!("Damage Vulnerability: {damage_type} {vulnerability}% extra damage"),
         bonus_type: "damage_vulnerability".to_string(),
         decoded: true,
         damage_type: Some(damage_type.to_string()),
@@ -501,9 +497,7 @@ pub fn decode_cast_spell(
     DecodedProperty {
         property_id: 15,
         label,
-        description: format!(
-            "Cast Spell: {spell_name} at caster level {caster_level}"
-        ),
+        description: format!("Cast Spell: {spell_name} at caster level {caster_level}"),
         bonus_type: "cast_spell".to_string(),
         decoded: true,
         spell_name: Some(spell_name.to_string()),
@@ -538,9 +532,7 @@ pub fn decode_damage_reduction(
     DecodedProperty {
         property_id: 90,
         label: format!("DR {dr_value}/{bypass_type}"),
-        description: format!(
-            "Damage Reduction: {dr_value}/- (bypassed by {bypass_type})"
-        ),
+        description: format!("Damage Reduction: {dr_value}/- (bypassed by {bypass_type})"),
         bonus_type: "damage_reduction".to_string(),
         decoded: true,
         dr_value: Some(dr_value as i32),
@@ -582,9 +574,7 @@ pub fn decode_regeneration(
     }
 }
 
-pub fn decode_freedom_of_movement(
-    raw_data: HashMap<String, serde_json::Value>,
-) -> DecodedProperty {
+pub fn decode_freedom_of_movement(raw_data: HashMap<String, serde_json::Value>) -> DecodedProperty {
     DecodedProperty {
         property_id: 75,
         label: "Freedom of Movement".to_string(),

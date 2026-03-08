@@ -31,10 +31,11 @@ impl AppConfig {
     pub fn load() -> Self {
         if let Some(config_path) = Self::get_config_path()
             && config_path.exists()
-                && let Ok(content) = std::fs::read_to_string(&config_path)
-                    && let Ok(config) = serde_json::from_str(&content) {
-                        return config;
-                    }
+            && let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(config) = serde_json::from_str(&content)
+        {
+            return config;
+        }
         Self::default()
     }
 

@@ -1,6 +1,6 @@
 use super::super::common::{create_test_context, load_test_gff};
-use app_lib::character::save_summary::SaveType;
 use app_lib::character::Character;
+use app_lib::character::save_summary::SaveType;
 use app_lib::parsers::gff::GffParser;
 
 fn load_character(fixture_path: &str) -> Character {
@@ -27,7 +27,7 @@ async fn test_base_saves_calculation_sanity() {
 
     for path in fixtures {
         let character = load_character(path);
-        
+
         // GFF-stored values are misc bonuses, not class-derived base saves.
         let misc_fort = character.base_fortitude();
         let misc_ref = character.base_reflex();
@@ -39,21 +39,40 @@ async fn test_base_saves_calculation_sanity() {
         println!(
             "{}: MiscBonuses[{}/{}/{}] vs CalcBase[{}/{}/{}]",
             character.first_name(),
-            misc_fort, misc_ref, misc_will,
-            calculated.fortitude, calculated.reflex, calculated.will
+            misc_fort,
+            misc_ref,
+            misc_will,
+            calculated.fortitude,
+            calculated.reflex,
+            calculated.will
         );
 
         // We can't compare misc_bonus to base_save.
         // Instead, we verify that calculated base saves are reasonable for high level characters.
         // All these fixtures are level ~30 or at least mid-level.
-        
-        assert!(calculated.fortitude > 0, "Calculated Base Fortitude should be positive for {}", character.first_name());
-        assert!(calculated.reflex > 0, "Calculated Base Reflex should be positive for {}", character.first_name());
-        assert!(calculated.will > 0, "Calculated Base Will should be positive for {}", character.first_name());
-        
+
+        assert!(
+            calculated.fortitude > 0,
+            "Calculated Base Fortitude should be positive for {}",
+            character.first_name()
+        );
+        assert!(
+            calculated.reflex > 0,
+            "Calculated Base Reflex should be positive for {}",
+            character.first_name()
+        );
+        assert!(
+            calculated.will > 0,
+            "Calculated Base Will should be positive for {}",
+            character.first_name()
+        );
+
         // For L30 characters, base saves should be substantial (at least ~10 usually, mostly higher)
         if character.total_level() >= 20 {
-             assert!(calculated.fortitude + calculated.reflex + calculated.will > 20, "Total base saves should be significant for high level char");
+            assert!(
+                calculated.fortitude + calculated.reflex + calculated.will > 20,
+                "Total base saves should be significant for high level char"
+            );
         }
     }
 }
@@ -87,7 +106,7 @@ async fn test_total_saves_sanity() {
         assert!(summary.fortitude > -10 && summary.fortitude < 100);
         assert!(summary.reflex > -10 && summary.reflex < 100);
         assert!(summary.will > -10 && summary.will < 100);
-        
+
         // Check consistency with breakdown
         assert_eq!(summary.fortitude, summary.saves.fortitude.total);
         assert_eq!(summary.reflex, summary.saves.reflex.total);
@@ -109,22 +128,34 @@ async fn test_save_breakdown_correctness() {
 
     println!(
         "Ryath Fortitude: Total {} (Base {} + Abil {} + Equip {} + Feat {} + Race {} + Class {} + Misc {})",
-        breakdown.total, breakdown.base, breakdown.ability, breakdown.equipment, 
-        breakdown.feat, breakdown.racial, breakdown.class_bonus, breakdown.misc
+        breakdown.total,
+        breakdown.base,
+        breakdown.ability,
+        breakdown.equipment,
+        breakdown.feat,
+        breakdown.racial,
+        breakdown.class_bonus,
+        breakdown.misc
     );
 
-    let calculated_total = breakdown.base 
-        + breakdown.ability 
-        + breakdown.equipment 
-        + breakdown.feat 
-        + breakdown.racial 
-        + breakdown.class_bonus 
+    let calculated_total = breakdown.base
+        + breakdown.ability
+        + breakdown.equipment
+        + breakdown.feat
+        + breakdown.racial
+        + breakdown.class_bonus
         + breakdown.misc;
-    
-    assert_eq!(breakdown.total, calculated_total, "Breakdown total sum mismatch");
-    assert!(breakdown.base > 0, "L30 character should have base fortitude > 0");
+
+    assert_eq!(
+        breakdown.total, calculated_total,
+        "Breakdown total sum mismatch"
+    );
+    assert!(
+        breakdown.base > 0,
+        "L30 character should have base fortitude > 0"
+    );
     // Ryath is a fighter/weapons master likely, should have high base fort
-    assert!(breakdown.base >= 10); 
+    assert!(breakdown.base >= 10);
 }
 
 #[tokio::test]
@@ -136,9 +167,21 @@ async fn test_level_progression_saves() {
     println!("\n=== Level Progression Saves (L1 vs L30) ===");
 
     let fixture_pairs = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
     ];
 
     for (l1_path, l30_path, name) in fixture_pairs {
@@ -158,14 +201,26 @@ async fn test_level_progression_saves() {
         );
 
         // Saves should generally increase significantly
-        assert!(saves_l30.fortitude > saves_l1.fortitude, "{} L30 Fortitude should be higher", name);
-        assert!(saves_l30.reflex > saves_l1.reflex, "{} L30 Reflex should be higher", name);
-        assert!(saves_l30.will > saves_l1.will, "{} L30 Will should be higher", name);
-        
+        assert!(
+            saves_l30.fortitude > saves_l1.fortitude,
+            "{} L30 Fortitude should be higher",
+            name
+        );
+        assert!(
+            saves_l30.reflex > saves_l1.reflex,
+            "{} L30 Reflex should be higher",
+            name
+        );
+        assert!(
+            saves_l30.will > saves_l1.will,
+            "{} L30 Will should be higher",
+            name
+        );
+
         // Base saves specifically should definitely increase
         let base_l1 = char_l1.calculate_base_saves(game_data);
         let base_l30 = char_l30.calculate_base_saves(game_data);
-        
+
         assert!(base_l30.fortitude > base_l1.fortitude);
         assert!(base_l30.reflex > base_l1.reflex);
         assert!(base_l30.will > base_l1.will);
@@ -178,7 +233,7 @@ async fn test_epic_save_progression() {
     let game_data = ctx.loader.game_data().expect("Game data not loaded");
 
     println!("\n=== Epic Save Progression ===");
-    
+
     // Epic saves grant +1 to all saves every 2 levels after level 20 (separate from class tables).
     // L30 = 10 epic levels = +5 epic bonus.
 
@@ -188,11 +243,13 @@ async fn test_epic_save_progression() {
 
     let base_saves = character.calculate_base_saves(game_data);
 
-    println!("L30 Base Saves: F{} R{} W{}", base_saves.fortitude, base_saves.reflex, base_saves.will);
+    println!(
+        "L30 Base Saves: F{} R{} W{}",
+        base_saves.fortitude, base_saves.reflex, base_saves.will
+    );
 
     // L30 with 5 epic bonus + ~6 min class progression = at least 10 total.
     assert!(base_saves.fortitude >= 10);
     assert!(base_saves.reflex >= 10);
     assert!(base_saves.will >= 10);
 }
-

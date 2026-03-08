@@ -152,8 +152,7 @@ static FAVORED_CLASS_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)FAVORED(CLASS)?").unwrap());
 static WEAPON_TYPE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)WEAPON(TYPE)?").unwrap());
-static BASE_ITEM_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)BASEITEM").unwrap());
+static BASE_ITEM_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)BASEITEM").unwrap());
 static DOMAIN_ID_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^DOMAIN(ID)?$").unwrap());
 static SCHOOL_ID_PATTERN: LazyLock<Regex> =
@@ -319,11 +318,7 @@ impl RuleDetector {
         for column in columns {
             let purpose = self.detect_column_purpose(column);
             if let Some(target) = purpose.target_table() {
-                relationships.push((
-                    table_name.to_string(),
-                    column.clone(),
-                    target.to_string(),
-                ));
+                relationships.push((table_name.to_string(), column.clone(), target.to_string()));
             }
 
             if column.to_lowercase().ends_with("table") {

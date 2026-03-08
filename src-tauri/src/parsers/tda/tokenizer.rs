@@ -53,10 +53,7 @@ impl TDATokenizer {
                     was_quoted: false,
                     position,
                 }
-            } else if trimmed.starts_with('"')
-                && trimmed.ends_with('"')
-                && trimmed.len() >= 2
-            {
+            } else if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
                 Token {
                     content: &trimmed[1..trimmed.len() - 1],
                     was_quoted: true,
@@ -104,10 +101,7 @@ impl TDATokenizer {
                     position,
                 });
 
-                while chars
-                    .peek()
-                    .is_some_and(|(idx, _)| *idx < end_pos)
-                {
+                while chars.peek().is_some_and(|(idx, _)| *idx < end_pos) {
                     chars.next();
                 }
             } else {
@@ -118,10 +112,7 @@ impl TDATokenizer {
                     position,
                 });
 
-                while chars
-                    .peek()
-                    .is_some_and(|(idx, _)| *idx < end_pos)
-                {
+                while chars.peek().is_some_and(|(idx, _)| *idx < end_pos) {
                     chars.next();
                 }
             }
@@ -130,11 +121,7 @@ impl TDATokenizer {
         Ok(tokens)
     }
 
-    fn parse_quoted_string<'a>(
-        &self,
-        input: &'a str,
-        start: usize,
-    ) -> TDAResult<(&'a str, usize)> {
+    fn parse_quoted_string<'a>(&self, input: &'a str, start: usize) -> TDAResult<(&'a str, usize)> {
         let bytes = input.as_bytes();
         let mut pos = start + 1;
         let mut found_closing = false;

@@ -11,13 +11,15 @@ async fn test_wizard_progression() {
     let path = fixtures_path().join("gff/sagemelchior/sagemelchior4.bic");
     let data = std::fs::read(&path).expect("Failed to read fixture");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let gff = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
     let character = Character::from_gff(gff);
 
     // Find Wizard Class (ID 10)
     let wizard_id = ClassId(10);
     assert!(character.has_class(wizard_id));
-    
+
     // Verify Class Properties
     assert!(character.is_spellcaster(wizard_id, game_data));
     assert!(character.is_prepared_caster(wizard_id, game_data));
@@ -57,7 +59,9 @@ async fn test_cleric_domains() {
     let path = fixtures_path().join("gff/sagemelchior/sagemelchior4.bic");
     let data = std::fs::read(&path).expect("Failed to read fixture");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let gff = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
     let character = Character::from_gff(gff);
 
     // Find Cleric Class (ID 2)
@@ -98,13 +102,15 @@ async fn test_sorcerer_spells() {
     let path = fixtures_path().join("gff/qaraofblacklake/qaraofblacklake4.bic");
     let data = std::fs::read(&path).expect("Failed to read fixture");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let gff = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
     let character = Character::from_gff(gff);
 
     // Find Sorcerer Class (ID 9)
     let sorcerer_id = ClassId(9);
     assert!(character.has_class(sorcerer_id));
-    
+
     // Verify Properties
     assert!(character.is_spellcaster(sorcerer_id, game_data));
     assert!(!character.is_prepared_caster(sorcerer_id, game_data)); // Spontaneous
@@ -119,8 +125,8 @@ async fn test_sorcerer_spells() {
     let slots = character.calculate_spell_slots(sorcerer_id, game_data);
     println!("Qara Sorcerer Slots: {:?}", slots);
     assert!(slots[1] > 0);
-    assert!(slots[5] > 0); 
-    
+    assert!(slots[5] > 0);
+
     // Known Spells
     let known_l5 = character.known_spells(sorcerer_id, 5);
     println!("Qara Known L5: {:?}", known_l5);
@@ -136,7 +142,9 @@ async fn test_paladin_spells() {
     let path = fixtures_path().join("gff/occidiooctavon/occidiooctavon4.bic");
     let data = std::fs::read(&path).expect("Failed to read fixture");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let gff = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
     let character = Character::from_gff(gff);
 
     // Find Paladin Class (ID 6)
@@ -151,7 +159,10 @@ async fn test_paladin_spells() {
 
     // Caster Level: Paladin 2DA lookup uses class level directly for slot table.
     let cl = character.get_caster_level(paladin_id, game_data);
-    assert_eq!(cl, 20, "Paladin 20 should have Lookup Level 20 for spell slots");
+    assert_eq!(
+        cl, 20,
+        "Paladin 20 should have Lookup Level 20 for spell slots"
+    );
 
     // Slots
     let slots = character.calculate_spell_slots(paladin_id, game_data);
@@ -170,13 +181,15 @@ async fn test_paladin_spells() {
 async fn test_wizard_slots_modification() {
     let ctx = create_test_context().await;
     let game_data = ctx.loader.game_data().expect("Game data not loaded");
-    
+
     // Load Sage Melchior (Wizard 5 / Cleric 7 / Warlock 18)
     // We use a real fixture to ensure valid GFF structure foundation
     let path = fixtures_path().join("gff/sagemelchior/sagemelchior4.bic");
     let data = std::fs::read(&path).expect("Failed to read fixture");
     let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
-    let gff = parser.read_struct_fields(0).expect("Failed to read root struct");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
     let mut character = Character::from_gff(gff);
 
     let wizard_id = ClassId(10); // Wizard
@@ -184,24 +197,29 @@ async fn test_wizard_slots_modification() {
     // Verify initial state (Wizard 5)
     let initial_level = character.class_level(wizard_id);
     assert_eq!(initial_level, 5, "Melchior should start as Wizard 5");
-    
+
     let initial_slots = character.calculate_spell_slots(wizard_id, game_data);
     println!("Initial Wizard 5 Slots: {:?}", initial_slots);
     assert_eq!(initial_slots[5], 0, "Wizard 5 should not have L5 slots");
 
     // Modify to Wizard 10
     // This tests that our slot calculations respond dynamically to level changes in-memory
-    character.set_class_level(wizard_id, 10).expect("Failed to set Wizard level");
-    
+    character
+        .set_class_level(wizard_id, 10)
+        .expect("Failed to set Wizard level");
+
     let new_level = character.class_level(wizard_id);
     assert_eq!(new_level, 10);
-    
+
     // Recalculate slots
     // Wizard 10 should have L5 slots (Base progression)
     // L0:4, L1:4, L2:4, L3:3, L4:3, L5:2
     let new_slots = character.calculate_spell_slots(wizard_id, game_data);
     println!("Modified Wizard 10 Slots: {:?}", new_slots);
-    
-    assert!(new_slots[5] >= 2, "Wizard 10 should have at least 2 L5 slots");
+
+    assert!(
+        new_slots[5] >= 2,
+        "Wizard 10 should have at least 2 L5 slots"
+    );
     assert_eq!(new_slots[6], 0, "Wizard 10 should not have L6 slots");
 }

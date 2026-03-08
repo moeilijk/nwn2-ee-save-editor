@@ -11,11 +11,12 @@ async fn test_skills_progression() {
     let ctx = common::create_test_context().await;
     let game_data = ctx.loader.game_data().expect("Game data not loaded");
 
-
     // Helper to parse character from bytes since Character::from_bytes doesn't exist
     let parse_char = |bytes: Vec<u8>| {
         let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
-        let fields = parser.read_struct_fields(0).expect("Failed to read root fields");
+        let fields = parser
+            .read_struct_fields(0)
+            .expect("Failed to read root fields");
         Character::from_gff(fields)
     };
 
@@ -31,10 +32,13 @@ async fn test_skills_progression() {
     let skills_table = game_data.get_table("skills").expect("skills.2da missing");
     let mut conc_id = SkillId(0); // Default fallback
     let mut spellcraft_id = SkillId(17); // Default fallback
-    
+
     for i in 0..skills_table.row_count() {
         if let Some(row) = skills_table.get_by_id(i as i32) {
-            let label = row.get("Label").or_else(|| row.get("label")).and_then(|v| v.as_deref());
+            let label = row
+                .get("Label")
+                .or_else(|| row.get("label"))
+                .and_then(|v| v.as_deref());
             if let Some(lbl) = label {
                 if lbl == "Concentration" {
                     conc_id = SkillId(i as i32);
@@ -49,7 +53,7 @@ async fn test_skills_progression() {
     // Using dynamic IDs
     let max_conc = char_l1.get_max_skill_ranks(conc_id, &game_data);
     let max_spell = char_l1.get_max_skill_ranks(spellcraft_id, &game_data);
-    
+
     assert_eq!(max_conc, 4, "Max ranks for Concentration (L1)");
     assert_eq!(max_spell, 4, "Max ranks for Spellcraft (L1)");
 
@@ -63,15 +67,30 @@ async fn test_skills_progression() {
     let l30_conc = char_l30.skill_rank(conc_id);
     let l30_spell = char_l30.skill_rank(spellcraft_id);
 
-    assert!(l30_conc > l1_conc, "Concentration rank should increase (L1: {}, L30: {})", l1_conc, l30_conc);
-    assert!(l30_spell > l1_spell, "Spellcraft rank should increase (L1: {}, L30: {})", l1_spell, l30_spell);
+    assert!(
+        l30_conc > l1_conc,
+        "Concentration rank should increase (L1: {}, L30: {})",
+        l1_conc,
+        l30_conc
+    );
+    assert!(
+        l30_spell > l1_spell,
+        "Spellcraft rank should increase (L1: {}, L30: {})",
+        l1_spell,
+        l30_spell
+    );
 
     // 3. Check Modifiers
     // Modifiers should also increase significantly due to ability bumps + items + ranks
     let l1_conc_mod = char_l1.calculate_skill_modifier(conc_id, &game_data, Some(&ctx.decoder));
     let l30_conc_mod = char_l30.calculate_skill_modifier(conc_id, &game_data, Some(&ctx.decoder));
 
-    assert!(l30_conc_mod > l1_conc_mod, "Concentration modifier should increase (L1: {}, L30: {})", l1_conc_mod, l30_conc_mod);
+    assert!(
+        l30_conc_mod > l1_conc_mod,
+        "Concentration modifier should increase (L1: {}, L30: {})",
+        l1_conc_mod,
+        l30_conc_mod
+    );
 }
 
 #[tokio::test]
@@ -81,7 +100,9 @@ async fn test_skill_summary_parity() {
 
     let parse_char = |bytes: Vec<u8>| {
         let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
-        let fields = parser.read_struct_fields(0).expect("Failed to read root fields");
+        let fields = parser
+            .read_struct_fields(0)
+            .expect("Failed to read root fields");
         Character::from_gff(fields)
     };
 
@@ -95,14 +116,27 @@ async fn test_skill_summary_parity() {
 
     for entry in &summary {
         let expected_max = character.get_max_skill_ranks(entry.skill_id, &game_data);
-        assert_eq!(entry.max_ranks, expected_max, "Max ranks mismatch for skill {}", entry.name);
+        assert_eq!(
+            entry.max_ranks, expected_max,
+            "Max ranks mismatch for skill {}",
+            entry.name
+        );
 
         if entry.untrained || entry.ranks > 0 {
-            let calc_total = character.calculate_skill_modifier(entry.skill_id, &game_data, Some(&ctx.decoder));
+            let calc_total =
+                character.calculate_skill_modifier(entry.skill_id, &game_data, Some(&ctx.decoder));
             let expected_total = calc_total + entry.feat_bonus;
-            assert_eq!(entry.total, expected_total, "Total mismatch for skill {}", entry.name);
+            assert_eq!(
+                entry.total, expected_total,
+                "Total mismatch for skill {}",
+                entry.name
+            );
         } else {
-            assert_eq!(entry.total, 0, "Untrained skill with 0 ranks should have total 0: {}", entry.name);
+            assert_eq!(
+                entry.total, 0,
+                "Untrained skill with 0 ranks should have total 0: {}",
+                entry.name
+            );
         }
     }
 }
@@ -114,7 +148,9 @@ async fn test_skill_costs_and_points() {
 
     let parse_char = |bytes: Vec<u8>| {
         let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
-        let fields = parser.read_struct_fields(0).expect("Failed to read root fields");
+        let fields = parser
+            .read_struct_fields(0)
+            .expect("Failed to read root fields");
         Character::from_gff(fields)
     };
 
@@ -125,46 +161,66 @@ async fn test_skill_costs_and_points() {
     // Qara is Sorcerer -> Spellcraft is Class Skill, Stealth likely Cross-Class
     let mut spellcraft = SkillId(17);
     let mut stealth = SkillId(18); // Default
-    
+
     // Resolve dynamically
     let skills_table = game_data.get_table("skills").unwrap();
     for i in 0..skills_table.row_count() {
         if let Some(row) = skills_table.get_by_id(i as i32) {
-             let label = row.get("Label").or_else(|| row.get("label")).and_then(|v| v.as_deref());
-             if let Some(lbl) = label {
-                 if lbl == "Spellcraft" { spellcraft = SkillId(i as i32); }
-                 // NWN2 has Hide and Move Silently as separate skills; Hide is cross-class for Sorcerer.
-                 if lbl == "Hide" { stealth = SkillId(i as i32); }
-             }
+            let label = row
+                .get("Label")
+                .or_else(|| row.get("label"))
+                .and_then(|v| v.as_deref());
+            if let Some(lbl) = label {
+                if lbl == "Spellcraft" {
+                    spellcraft = SkillId(i as i32);
+                }
+                // NWN2 has Hide and Move Silently as separate skills; Hide is cross-class for Sorcerer.
+                if lbl == "Hide" {
+                    stealth = SkillId(i as i32);
+                }
+            }
         }
     }
 
     // Verify Class Skill Status
     let is_spell_class = character.is_class_skill(spellcraft, &game_data);
 
-    assert!(is_spell_class, "Spellcraft should be class skill for Sorcerer");
+    assert!(
+        is_spell_class,
+        "Spellcraft should be class skill for Sorcerer"
+    );
     let is_stealth_class = character.is_class_skill(stealth, &game_data);
 
     // Verify Costs
     // Class Skill: 1 pt
-    assert_eq!(character.calculate_skill_cost(spellcraft, 1, false, &game_data), 1);
-    
+    assert_eq!(
+        character.calculate_skill_cost(spellcraft, 1, false, &game_data),
+        1
+    );
+
     // Cross Class: 2 pts (if it is indeed cross class)
     if !is_stealth_class {
-        assert_eq!(character.calculate_skill_cost(stealth, 1, false, &game_data), 2);
+        assert_eq!(
+            character.calculate_skill_cost(stealth, 1, false, &game_data),
+            2
+        );
     }
 
     // Verify Ability Learner Feat interaction (Feat 406)
     // We can simulate having the feat by passing true
-    assert_eq!(character.calculate_skill_cost(stealth, 1, true, &game_data), 1, "Able Learner should reduce cross-class cost to 1");
+    assert_eq!(
+        character.calculate_skill_cost(stealth, 1, true, &game_data),
+        1,
+        "Able Learner should reduce cross-class cost to 1"
+    );
 
     // Test Point Expenditure
     let initial_points = character.get_available_skill_points();
-    
+
     // Attempt to buy 1 rank of Spellcraft
     let current_rank = character.skill_rank(spellcraft);
     let new_rank = current_rank + 1;
-    
+
     // Guard against exceeding max ranks
     let max_rank = character.get_max_skill_ranks(spellcraft, &game_data);
     if new_rank <= max_rank {
@@ -173,14 +229,20 @@ async fn test_skill_costs_and_points() {
             character.set_available_skill_points(10);
         }
 
-        let cost = character.set_skill_rank_with_cost(spellcraft, new_rank, &game_data).expect("Failed to set rank");
+        let cost = character
+            .set_skill_rank_with_cost(spellcraft, new_rank, &game_data)
+            .expect("Failed to set rank");
         assert_eq!(cost, 1);
 
         let new_points = character.get_available_skill_points();
         if initial_points < 10 {
-             assert_eq!(new_points, 9, "Points should be 9 after spending 1 from 10");
+            assert_eq!(new_points, 9, "Points should be 9 after spending 1 from 10");
         } else {
-             assert_eq!(new_points, initial_points - 1, "Points should decrease by 1");
+            assert_eq!(
+                new_points,
+                initial_points - 1,
+                "Points should decrease by 1"
+            );
         }
     }
 }

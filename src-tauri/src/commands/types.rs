@@ -43,18 +43,39 @@ pub struct CombatUpdates {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum FeatAction {
-    Add { feat_id: FeatId },
-    Remove { feat_id: FeatId },
-    Swap { old_feat_id: FeatId, new_feat_id: FeatId },
+    Add {
+        feat_id: FeatId,
+    },
+    Remove {
+        feat_id: FeatId,
+    },
+    Swap {
+        old_feat_id: FeatId,
+        new_feat_id: FeatId,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum SpellAction {
-    Learn { class_id: ClassId, spell_id: SpellId },
-    Forget { class_id: ClassId, spell_id: SpellId },
-    Prepare { class_id: ClassId, spell_id: SpellId, level: i32 },
-    Unprepare { class_id: ClassId, spell_id: SpellId, level: i32 },
+    Learn {
+        class_id: ClassId,
+        spell_id: SpellId,
+    },
+    Forget {
+        class_id: ClassId,
+        spell_id: SpellId,
+    },
+    Prepare {
+        class_id: ClassId,
+        spell_id: SpellId,
+        level: i32,
+    },
+    Unprepare {
+        class_id: ClassId,
+        spell_id: SpellId,
+        level: i32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

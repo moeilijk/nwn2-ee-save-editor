@@ -1,6 +1,6 @@
+use lasso::{Key, Rodeo, Spur};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use lasso::{Spur, Rodeo, Key};
 
 /// TLK file header information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,8 +110,7 @@ impl Default for ParserStatistics {
 }
 
 /// File metadata for debugging and analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileMetadata {
     /// Original file size in bytes
     pub file_size: usize,
@@ -126,7 +125,6 @@ pub struct FileMetadata {
     /// File path (if loaded from file)
     pub file_path: Option<String>,
 }
-
 
 /// Serializable version of TLKParser for caching
 #[derive(Serialize, Deserialize)]
@@ -195,10 +193,11 @@ impl TLKParser {
     /// Get memory usage in bytes
     pub fn memory_usage(&self) -> usize {
         let entries_size = self.entries.len() * std::mem::size_of::<TLKStringEntry>();
-        let cache_size = self.string_cache.len() * (std::mem::size_of::<usize>() + std::mem::size_of::<CachedString>());
+        let cache_size = self.string_cache.len()
+            * (std::mem::size_of::<usize>() + std::mem::size_of::<CachedString>());
         let string_data_size = self.string_data.len();
         let interner_size = self.interner.len() * 32; // Estimate
-        
+
         entries_size + cache_size + string_data_size + interner_size
     }
 
@@ -220,7 +219,9 @@ impl TLKParser {
     /// Convert to serializable format for caching
     pub fn to_serializable(&self) -> SerializableTLKParser {
         // Extract interner data
-        let interner_data: Vec<String> = self.interner.strings()
+        let interner_data: Vec<String> = self
+            .interner
+            .strings()
             .map(std::string::ToString::to_string)
             .collect();
 
@@ -260,12 +261,16 @@ impl TLKParser {
         // Restore string cache
         for (index, symbol_id) in data.string_mappings {
             if let Some(symbol) = symbol_lookup.get(symbol_id).copied()
-                && let Some(entry) = parser.entries.get(index) {
-                    parser.string_cache.insert(index, CachedString {
+                && let Some(entry) = parser.entries.get(index)
+            {
+                parser.string_cache.insert(
+                    index,
+                    CachedString {
                         symbol,
                         byte_length: entry.string_size,
-                    });
-                }
+                    },
+                );
+            }
         }
 
         parser

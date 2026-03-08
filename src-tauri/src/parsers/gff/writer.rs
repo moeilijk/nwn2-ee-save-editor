@@ -48,7 +48,10 @@ impl GffWriter {
         self.struct_ids.clear();
     }
 
-    pub fn write(&mut self, root: IndexMap<String, GffValue<'static>>) -> Result<Vec<u8>, GffError> {
+    pub fn write(
+        &mut self,
+        root: IndexMap<String, GffValue<'static>>,
+    ) -> Result<Vec<u8>, GffError> {
         self.write_with_struct_id(root, 0xFFFFFFFF)
     }
 
@@ -127,8 +130,12 @@ impl GffWriter {
     ) -> Result<GffValue<'static>, GffError> {
         match val {
             GffValue::StructOwned(map) => {
-                let idx =
-                    self.flatten_value_with_id(GffValue::StructOwned(map), 0, flat_list, struct_ids)?;
+                let idx = self.flatten_value_with_id(
+                    GffValue::StructOwned(map),
+                    0,
+                    flat_list,
+                    struct_ids,
+                )?;
                 Ok(GffValue::StructRef(idx))
             }
             GffValue::ListOwned(list) => {
@@ -202,7 +209,8 @@ impl GffWriter {
             GffValue::String(v) => {
                 let offset = self.field_data.position() as u32;
                 let bytes = v.as_bytes();
-                self.field_data.write_u32::<LittleEndian>(bytes.len() as u32)?;
+                self.field_data
+                    .write_u32::<LittleEndian>(bytes.len() as u32)?;
                 self.field_data.write_all(bytes)?;
                 (GffFieldType::String, offset)
             }
@@ -229,8 +237,10 @@ impl GffWriter {
                 }
                 let total_size = 8 + content_size;
 
-                self.field_data.write_u32::<LittleEndian>(total_size as u32)?;
-                self.field_data.write_u32::<LittleEndian>(v.string_ref as u32)?;
+                self.field_data
+                    .write_u32::<LittleEndian>(total_size as u32)?;
+                self.field_data
+                    .write_u32::<LittleEndian>(v.string_ref as u32)?;
                 self.field_data
                     .write_u32::<LittleEndian>(v.substrings.len() as u32)?;
 
@@ -238,7 +248,8 @@ impl GffWriter {
                     let id = (sub.language << 1) | (sub.gender & 1);
                     let bytes = sub.string.as_bytes();
                     self.field_data.write_u32::<LittleEndian>(id)?;
-                    self.field_data.write_u32::<LittleEndian>(bytes.len() as u32)?;
+                    self.field_data
+                        .write_u32::<LittleEndian>(bytes.len() as u32)?;
                     self.field_data.write_all(bytes)?;
                 }
                 (GffFieldType::LocString, offset)
@@ -254,7 +265,7 @@ impl GffWriter {
             _ => {
                 return Err(GffError::Serialization(format!(
                     "Unsupported type for writing: {value:?}"
-                )))
+                )));
             }
         };
 

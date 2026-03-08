@@ -55,7 +55,11 @@ async fn test_file_modify_experience_and_save() {
     };
 
     println!("Saved experience: {}", new_exp);
-    assert_eq!(new_exp, original_exp + 50000, "Experience should be increased by 50000");
+    assert_eq!(
+        new_exp,
+        original_exp + 50000,
+        "Experience should be increased by 50000"
+    );
 }
 
 #[tokio::test]
@@ -137,9 +141,11 @@ async fn test_file_modify_name_and_save() {
     let root2 = parser2.read_struct_fields(0).expect("Read root 2");
 
     let saved_name = match root2.get("FirstName") {
-        Some(GffValue::LocString(ls)) => {
-            ls.substrings.first().map(|s| s.string.to_string()).unwrap_or_default()
-        }
+        Some(GffValue::LocString(ls)) => ls
+            .substrings
+            .first()
+            .map(|s| s.string.to_string())
+            .unwrap_or_default(),
         _ => panic!("FirstName should still be LocString"),
     };
 
@@ -167,8 +173,10 @@ async fn test_file_save_preserves_lists() {
         _ => 0,
     };
 
-    println!("Original: {} classes, {} feats, {} skills",
-        original_class_count, original_feat_count, original_skill_count);
+    println!(
+        "Original: {} classes, {} feats, {} skills",
+        original_class_count, original_feat_count, original_skill_count
+    );
 
     let mut root_owned = indexmap::IndexMap::new();
     for (k, v) in root {
@@ -200,12 +208,23 @@ async fn test_file_save_preserves_lists() {
         _ => 0,
     };
 
-    println!("After save: {} classes, {} feats, {} skills",
-        saved_class_count, saved_feat_count, saved_skill_count);
+    println!(
+        "After save: {} classes, {} feats, {} skills",
+        saved_class_count, saved_feat_count, saved_skill_count
+    );
 
-    assert_eq!(original_class_count, saved_class_count, "Class count preserved");
-    assert_eq!(original_feat_count, saved_feat_count, "Feat count preserved");
-    assert_eq!(original_skill_count, saved_skill_count, "Skill count preserved");
+    assert_eq!(
+        original_class_count, saved_class_count,
+        "Class count preserved"
+    );
+    assert_eq!(
+        original_feat_count, saved_feat_count,
+        "Feat count preserved"
+    );
+    assert_eq!(
+        original_skill_count, saved_skill_count,
+        "Skill count preserved"
+    );
 }
 
 #[tokio::test]
@@ -255,7 +274,8 @@ async fn test_file_save_all_fixtures() {
 
 #[tokio::test]
 async fn test_file_multiple_saves() {
-    let (_temp_dir, temp_path, initial_bytes) = create_temp_bic("occidiooctavon/occidiooctavon1.bic");
+    let (_temp_dir, temp_path, initial_bytes) =
+        create_temp_bic("occidiooctavon/occidiooctavon1.bic");
 
     let mut current_bytes = initial_bytes;
 
@@ -292,7 +312,10 @@ async fn test_file_multiple_saves() {
         println!("Final experience after 5 saves: {}", final_exp);
     }
 
-    assert!(final_root.len() > 0, "File should still be valid after 5 saves");
+    assert!(
+        final_root.len() > 0,
+        "File should still be valid after 5 saves"
+    );
 }
 
 #[tokio::test]
@@ -314,7 +337,13 @@ async fn test_file_verify_bytes_on_disk() {
     let disk_bytes = std::fs::read(&temp_path).expect("Read from disk");
 
     assert_eq!(written_bytes.len(), disk_bytes.len(), "Byte count matches");
-    assert_eq!(written_bytes, disk_bytes, "Bytes on disk match written bytes");
+    assert_eq!(
+        written_bytes, disk_bytes,
+        "Bytes on disk match written bytes"
+    );
 
-    println!("Verified {} bytes written correctly to disk", disk_bytes.len());
+    println!(
+        "Verified {} bytes written correctly to disk",
+        disk_bytes.len()
+    );
 }

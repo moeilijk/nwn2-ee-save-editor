@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use app_lib::parsers::erf::{
-    extension_to_resource_type, resource_type_to_extension, ErfBuilder, ErfParser, ErfType,
-    ErfVersion,
+    ErfBuilder, ErfParser, ErfType, ErfVersion, extension_to_resource_type,
+    resource_type_to_extension,
 };
 
 fn get_nwn2_data_path() -> Option<PathBuf> {
@@ -126,7 +126,9 @@ fn test_unknown_resource_type() {
 
 #[test]
 fn test_new_archive_creation() {
-    let parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     assert_eq!(parser.get_statistics().total_resources, 0);
     let resources = parser.list_resources(None);
@@ -135,14 +137,18 @@ fn test_new_archive_creation() {
 
 #[test]
 fn test_new_hak_creation() {
-    let parser = ErfBuilder::new(ErfType::HAK).version(ErfVersion::V11).build();
+    let parser = ErfBuilder::new(ErfType::HAK)
+        .version(ErfVersion::V11)
+        .build();
 
     assert_eq!(parser.get_statistics().total_resources, 0);
 }
 
 #[test]
 fn test_new_mod_creation() {
-    let parser = ErfBuilder::new(ErfType::MOD).version(ErfVersion::V10).build();
+    let parser = ErfBuilder::new(ErfType::MOD)
+        .version(ErfVersion::V10)
+        .build();
 
     assert_eq!(parser.get_statistics().total_resources, 0);
 }
@@ -153,7 +159,9 @@ fn test_new_mod_creation() {
 
 #[test]
 fn test_add_single_resource() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     parser
         .add_resource("test_file", 2017, b"Test content".to_vec())
@@ -166,11 +174,19 @@ fn test_add_single_resource() {
 
 #[test]
 fn test_add_multiple_resources() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("file1", 2017, b"Content 1".to_vec()).unwrap();
-    parser.add_resource("file2", 2015, b"Content 2".to_vec()).unwrap();
-    parser.add_resource("file3", 2025, b"Content 3".to_vec()).unwrap();
+    parser
+        .add_resource("file1", 2017, b"Content 1".to_vec())
+        .unwrap();
+    parser
+        .add_resource("file2", 2015, b"Content 2".to_vec())
+        .unwrap();
+    parser
+        .add_resource("file3", 2025, b"Content 3".to_vec())
+        .unwrap();
 
     let resources = parser.list_resources(None);
     println!("After adding 3 resources: {} resources", resources.len());
@@ -179,14 +195,18 @@ fn test_add_multiple_resources() {
 
 #[test]
 fn test_add_large_resource() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let large_content = vec![0xABu8; 100_000];
     parser
         .add_resource("large_file", 2017, large_content.clone())
         .expect("Failed to add large resource");
 
-    let extracted = parser.extract_resource("large_file.2da").expect("Failed to extract");
+    let extracted = parser
+        .extract_resource("large_file.2da")
+        .expect("Failed to extract");
     assert_eq!(extracted.len(), 100_000);
 }
 
@@ -196,21 +216,33 @@ fn test_add_large_resource() {
 
 #[test]
 fn test_erf_round_trip_basic() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("test1", 2017, b"Content 1".to_vec()).unwrap();
-    parser.add_resource("test2", 2017, b"Content 2".to_vec()).unwrap();
+    parser
+        .add_resource("test1", 2017, b"Content 1".to_vec())
+        .unwrap();
+    parser
+        .add_resource("test2", 2017, b"Content 2".to_vec())
+        .unwrap();
 
     let bytes = parser.to_bytes().expect("Failed to serialize");
     assert!(!bytes.is_empty());
 
     let mut parser2 = ErfParser::new();
-    parser2.parse_from_bytes(&bytes).expect("Failed to re-parse");
+    parser2
+        .parse_from_bytes(&bytes)
+        .expect("Failed to re-parse");
 
     assert_eq!(parser2.get_statistics().total_resources, 2);
 
-    let extracted1 = parser2.extract_resource("test1.2da").expect("Missing test1");
-    let extracted2 = parser2.extract_resource("test2.2da").expect("Missing test2");
+    let extracted1 = parser2
+        .extract_resource("test1.2da")
+        .expect("Missing test1");
+    let extracted2 = parser2
+        .extract_resource("test2.2da")
+        .expect("Missing test2");
 
     assert_eq!(extracted1, b"Content 1");
     assert_eq!(extracted2, b"Content 2");
@@ -218,42 +250,60 @@ fn test_erf_round_trip_basic() {
 
 #[test]
 fn test_erf_round_trip_v11() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V11).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V11)
+        .build();
 
-    parser.add_resource("v11_test_file", 2017, b"V1.1 Content".to_vec()).unwrap();
+    parser
+        .add_resource("v11_test_file", 2017, b"V1.1 Content".to_vec())
+        .unwrap();
 
     let bytes = parser.to_bytes().expect("Failed to serialize V1.1");
 
     let mut parser2 = ErfParser::new();
-    parser2.parse_from_bytes(&bytes).expect("Failed to re-parse V1.1");
+    parser2
+        .parse_from_bytes(&bytes)
+        .expect("Failed to re-parse V1.1");
 
     assert_eq!(parser2.get_statistics().total_resources, 1);
 }
 
 #[test]
 fn test_hak_round_trip() {
-    let mut parser = ErfBuilder::new(ErfType::HAK).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::HAK)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("hak_resource", 2017, b"HAK Content".to_vec()).unwrap();
+    parser
+        .add_resource("hak_resource", 2017, b"HAK Content".to_vec())
+        .unwrap();
 
     let bytes = parser.to_bytes().expect("Failed to serialize HAK");
 
     let mut parser2 = ErfParser::new();
-    parser2.parse_from_bytes(&bytes).expect("Failed to re-parse HAK");
+    parser2
+        .parse_from_bytes(&bytes)
+        .expect("Failed to re-parse HAK");
 
     assert_eq!(parser2.get_statistics().total_resources, 1);
 }
 
 #[test]
 fn test_mod_round_trip() {
-    let mut parser = ErfBuilder::new(ErfType::MOD).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::MOD)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("module_info", 2014, b"IFO Content".to_vec()).unwrap();
+    parser
+        .add_resource("module_info", 2014, b"IFO Content".to_vec())
+        .unwrap();
 
     let bytes = parser.to_bytes().expect("Failed to serialize MOD");
 
     let mut parser2 = ErfParser::new();
-    parser2.parse_from_bytes(&bytes).expect("Failed to re-parse MOD");
+    parser2
+        .parse_from_bytes(&bytes)
+        .expect("Failed to re-parse MOD");
 
     assert_eq!(parser2.get_statistics().total_resources, 1);
 }
@@ -264,7 +314,9 @@ fn test_mod_round_trip() {
 
 #[test]
 fn test_list_resources_filter_by_type() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     parser.add_resource("file1", 2017, b"2DA".to_vec()).unwrap();
     parser.add_resource("file2", 2015, b"BIC".to_vec()).unwrap();
@@ -286,9 +338,13 @@ fn test_list_resources_filter_by_type() {
 
 #[test]
 fn test_extract_existing_resource() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("my_file", 2017, b"My Content".to_vec()).unwrap();
+    parser
+        .add_resource("my_file", 2017, b"My Content".to_vec())
+        .unwrap();
 
     let extracted = parser.extract_resource("my_file.2da");
     assert!(extracted.is_ok());
@@ -297,10 +353,15 @@ fn test_extract_existing_resource() {
 
 #[test]
 fn test_extract_nonexistent_resource() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let extracted = parser.extract_resource("doesnt_exist.2da");
-    assert!(extracted.is_err(), "Should return error for nonexistent resource");
+    assert!(
+        extracted.is_err(),
+        "Should return error for nonexistent resource"
+    );
 }
 
 // =============================================================================
@@ -309,17 +370,24 @@ fn test_extract_nonexistent_resource() {
 
 #[test]
 fn test_binary_data_preservation() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let binary_data: Vec<u8> = (0..=255).collect();
-    parser.add_resource("binary_test", 2017, binary_data.clone()).unwrap();
+    parser
+        .add_resource("binary_test", 2017, binary_data.clone())
+        .unwrap();
 
     let bytes = parser.to_bytes().unwrap();
     let mut parser2 = ErfParser::new();
     parser2.parse_from_bytes(&bytes).unwrap();
 
     let extracted = parser2.extract_resource("binary_test.2da").unwrap();
-    assert_eq!(extracted, binary_data, "Binary data should be preserved exactly");
+    assert_eq!(
+        extracted, binary_data,
+        "Binary data should be preserved exactly"
+    );
 }
 
 // =============================================================================
@@ -380,12 +448,16 @@ async fn test_read_nwn2_models_zip() {
 
 #[test]
 fn test_statistics_after_add() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let resources_before = parser.list_resources(None);
     assert_eq!(resources_before.len(), 0);
 
-    parser.add_resource("file1", 2017, b"Content".to_vec()).unwrap();
+    parser
+        .add_resource("file1", 2017, b"Content".to_vec())
+        .unwrap();
 
     let resources_after = parser.list_resources(None);
     println!("Stats after add: {} resources", resources_after.len());
@@ -398,7 +470,9 @@ fn test_statistics_after_add() {
 
 #[test]
 fn test_empty_resource_name() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let result = parser.add_resource("", 2017, b"Content".to_vec());
     println!("Empty name result: {:?}", result.is_ok());
@@ -406,7 +480,9 @@ fn test_empty_resource_name() {
 
 #[test]
 fn test_long_resource_name_v10() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
     let long_name = "a".repeat(20);
     let result = parser.add_resource(&long_name, 2017, b"Content".to_vec());
@@ -415,7 +491,9 @@ fn test_long_resource_name_v10() {
 
 #[test]
 fn test_long_resource_name_v11() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V11).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V11)
+        .build();
 
     let long_name = "a".repeat(40);
     let result = parser.add_resource(&long_name, 2017, b"Content".to_vec());
@@ -424,9 +502,13 @@ fn test_long_resource_name_v11() {
 
 #[test]
 fn test_empty_content() {
-    let mut parser = ErfBuilder::new(ErfType::ERF).version(ErfVersion::V10).build();
+    let mut parser = ErfBuilder::new(ErfType::ERF)
+        .version(ErfVersion::V10)
+        .build();
 
-    parser.add_resource("empty_file", 2017, vec![]).expect("Should allow empty content");
+    parser
+        .add_resource("empty_file", 2017, vec![])
+        .expect("Should allow empty content");
 
     let bytes = parser.to_bytes().unwrap();
     let mut parser2 = ErfParser::new();

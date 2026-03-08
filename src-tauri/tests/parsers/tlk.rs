@@ -139,7 +139,10 @@ async fn test_tlk_varied_string_lengths() {
     println!("  Medium (20-99 chars): {}", medium_count);
     println!("  Long (100+ chars): {}", long_count);
 
-    assert!(short_count > 0 || medium_count > 0 || long_count > 0, "Should find some strings");
+    assert!(
+        short_count > 0 || medium_count > 0 || long_count > 0,
+        "Should find some strings"
+    );
 }
 
 // =============================================================================
@@ -163,7 +166,10 @@ async fn test_tlk_sequential_access() {
 
     let elapsed = start.elapsed();
     println!("Read {} strings in {:?}", count, elapsed);
-    assert!(elapsed.as_millis() < 5000, "Sequential access should be fast");
+    assert!(
+        elapsed.as_millis() < 5000,
+        "Sequential access should be fast"
+    );
 }
 
 #[tokio::test]

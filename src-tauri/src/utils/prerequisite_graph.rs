@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::time::Instant;
-use rayon::prelude::*;
 use parking_lot::RwLock;
+use rayon::prelude::*;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(Clone)]
 pub struct PrerequisiteGraph {
@@ -13,8 +13,7 @@ pub struct PrerequisiteGraph {
     is_built: bool,
 }
 
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 struct Prerequisites {
     feats: Vec<u32>,
     abilities: HashMap<String, u32>,
@@ -24,16 +23,13 @@ struct Prerequisites {
     spell_level: u32,
 }
 
-
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 struct GraphStats {
     total_feats: usize,
     feats_with_prereqs: usize,
     max_chain_depth: usize,
     circular_dependencies: Vec<u32>,
 }
-
 
 impl PrerequisiteGraph {
     pub fn new() -> Self {
@@ -46,7 +42,10 @@ impl PrerequisiteGraph {
         }
     }
 
-    pub fn build_from_data(&mut self, feat_data: &[HashMap<String, serde_json::Value>]) -> Result<(), String> {
+    pub fn build_from_data(
+        &mut self,
+        feat_data: &[HashMap<String, serde_json::Value>],
+    ) -> Result<(), String> {
         let start = Instant::now();
 
         let total_feats = feat_data.len();
@@ -57,47 +56,80 @@ impl PrerequisiteGraph {
         for (index, feat_dict) in feat_data.iter().enumerate() {
             let mut prereqs = Prerequisites::default();
 
-            if let Some(feat1) = feat_dict.get("prereqfeat1").and_then(serde_json::Value::as_i64)
-                && feat1 >= 0 {
-                    prereqs.feats.push(feat1 as u32);
-                }
-            if let Some(feat2) = feat_dict.get("prereqfeat2").and_then(serde_json::Value::as_i64)
-                && feat2 >= 0 {
-                    prereqs.feats.push(feat2 as u32);
-                }
+            if let Some(feat1) = feat_dict
+                .get("prereqfeat1")
+                .and_then(serde_json::Value::as_i64)
+                && feat1 >= 0
+            {
+                prereqs.feats.push(feat1 as u32);
+            }
+            if let Some(feat2) = feat_dict
+                .get("prereqfeat2")
+                .and_then(serde_json::Value::as_i64)
+                && feat2 >= 0
+            {
+                prereqs.feats.push(feat2 as u32);
+            }
 
             if let Some(min_str) = feat_dict.get("minstr").and_then(serde_json::Value::as_u64)
-                && min_str > 0 {
-                    prereqs.abilities.insert("strength".to_string(), min_str as u32);
-                }
+                && min_str > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("strength".to_string(), min_str as u32);
+            }
             if let Some(min_dex) = feat_dict.get("mindex").and_then(serde_json::Value::as_u64)
-                && min_dex > 0 {
-                    prereqs.abilities.insert("dexterity".to_string(), min_dex as u32);
-                }
+                && min_dex > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("dexterity".to_string(), min_dex as u32);
+            }
             if let Some(min_con) = feat_dict.get("mincon").and_then(serde_json::Value::as_u64)
-                && min_con > 0 {
-                    prereqs.abilities.insert("constitution".to_string(), min_con as u32);
-                }
+                && min_con > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("constitution".to_string(), min_con as u32);
+            }
             if let Some(min_int) = feat_dict.get("minint").and_then(serde_json::Value::as_u64)
-                && min_int > 0 {
-                    prereqs.abilities.insert("intelligence".to_string(), min_int as u32);
-                }
+                && min_int > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("intelligence".to_string(), min_int as u32);
+            }
             if let Some(min_wis) = feat_dict.get("minwis").and_then(serde_json::Value::as_u64)
-                && min_wis > 0 {
-                    prereqs.abilities.insert("wisdom".to_string(), min_wis as u32);
-                }
+                && min_wis > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("wisdom".to_string(), min_wis as u32);
+            }
             if let Some(min_cha) = feat_dict.get("mincha").and_then(serde_json::Value::as_u64)
-                && min_cha > 0 {
-                    prereqs.abilities.insert("charisma".to_string(), min_cha as u32);
-                }
+                && min_cha > 0
+            {
+                prereqs
+                    .abilities
+                    .insert("charisma".to_string(), min_cha as u32);
+            }
 
-            if let Some(min_level) = feat_dict.get("minlevel").and_then(serde_json::Value::as_u64) {
+            if let Some(min_level) = feat_dict
+                .get("minlevel")
+                .and_then(serde_json::Value::as_u64)
+            {
                 prereqs.level = min_level as u32;
             }
-            if let Some(min_bab) = feat_dict.get("minattackbonus").and_then(serde_json::Value::as_u64) {
+            if let Some(min_bab) = feat_dict
+                .get("minattackbonus")
+                .and_then(serde_json::Value::as_u64)
+            {
                 prereqs.bab = min_bab as u32;
             }
-            if let Some(spell_level) = feat_dict.get("minspelllvl").and_then(serde_json::Value::as_u64) {
+            if let Some(spell_level) = feat_dict
+                .get("minspelllvl")
+                .and_then(serde_json::Value::as_u64)
+            {
                 prereqs.spell_level = spell_level as u32;
             }
 
@@ -130,7 +162,7 @@ impl PrerequisiteGraph {
                     1,
                     &direct_prereqs,
                     &max_depth,
-                    &circular_deps
+                    &circular_deps,
                 )
             })
             .collect();
@@ -151,7 +183,7 @@ impl PrerequisiteGraph {
         depth: usize,
         direct_prereqs: &[Prerequisites],
         max_depth: &Arc<RwLock<usize>>,
-        circular_deps: &Arc<RwLock<Vec<u32>>>
+        circular_deps: &Arc<RwLock<Vec<u32>>>,
     ) -> Vec<u32> {
         let idx = feat_id as usize;
 
@@ -185,7 +217,7 @@ impl PrerequisiteGraph {
                     depth + 1,
                     direct_prereqs,
                     max_depth,
-                    circular_deps
+                    circular_deps,
                 );
                 for req in nested {
                     if !all_requirements.contains(&req) {
@@ -219,14 +251,23 @@ impl PrerequisiteGraph {
         if idx < self.direct_prerequisites.len() {
             let prereqs = &self.direct_prerequisites[idx];
             result.insert("feats".to_string(), serde_json::json!(prereqs.feats));
-            result.insert("abilities".to_string(), serde_json::json!(prereqs.abilities));
+            result.insert(
+                "abilities".to_string(),
+                serde_json::json!(prereqs.abilities),
+            );
             result.insert("class".to_string(), serde_json::json!(prereqs.class));
             result.insert("level".to_string(), serde_json::json!(prereqs.level));
             result.insert("bab".to_string(), serde_json::json!(prereqs.bab));
-            result.insert("spell_level".to_string(), serde_json::json!(prereqs.spell_level));
+            result.insert(
+                "spell_level".to_string(),
+                serde_json::json!(prereqs.spell_level),
+            );
         } else {
             result.insert("feats".to_string(), serde_json::json!(Vec::<u32>::new()));
-            result.insert("abilities".to_string(), serde_json::json!(HashMap::<String, u32>::new()));
+            result.insert(
+                "abilities".to_string(),
+                serde_json::json!(HashMap::<String, u32>::new()),
+            );
             result.insert("class".to_string(), serde_json::Value::Null);
             result.insert("level".to_string(), serde_json::json!(0));
             result.insert("bab".to_string(), serde_json::json!(0));
@@ -240,7 +281,7 @@ impl PrerequisiteGraph {
         &self,
         feat_id: u32,
         character_feats: &[u32],
-        character_data: Option<&HashMap<String, serde_json::Value>>
+        character_data: Option<&HashMap<String, serde_json::Value>>,
     ) -> (bool, Vec<String>) {
         if !self.is_built {
             return (true, Vec::new());
@@ -267,28 +308,32 @@ impl PrerequisiteGraph {
         }
 
         if let Some(data) = character_data
-            && idx < self.direct_prerequisites.len() {
-                let prereqs = &self.direct_prerequisites[idx];
+            && idx < self.direct_prerequisites.len()
+        {
+            let prereqs = &self.direct_prerequisites[idx];
 
-                for (ability, min_score) in &prereqs.abilities {
-                    if let Some(current) = data.get(ability).and_then(serde_json::Value::as_u64)
-                        && (current as u32) < *min_score {
-                            errors.push(format!("Requires {} {}", ability.to_uppercase(), min_score));
-                        }
+            for (ability, min_score) in &prereqs.abilities {
+                if let Some(current) = data.get(ability).and_then(serde_json::Value::as_u64)
+                    && (current as u32) < *min_score
+                {
+                    errors.push(format!("Requires {} {}", ability.to_uppercase(), min_score));
                 }
-
-                if prereqs.level > 0
-                    && let Some(level) = data.get("level").and_then(serde_json::Value::as_u64)
-                        && (level as u32) < prereqs.level {
-                            errors.push(format!("Requires character level {}", prereqs.level));
-                        }
-
-                if prereqs.bab > 0
-                    && let Some(bab) = data.get("bab").and_then(serde_json::Value::as_u64)
-                        && (bab as u32) < prereqs.bab {
-                            errors.push(format!("Requires base attack bonus +{}", prereqs.bab));
-                        }
             }
+
+            if prereqs.level > 0
+                && let Some(level) = data.get("level").and_then(serde_json::Value::as_u64)
+                && (level as u32) < prereqs.level
+            {
+                errors.push(format!("Requires character level {}", prereqs.level));
+            }
+
+            if prereqs.bab > 0
+                && let Some(bab) = data.get("bab").and_then(serde_json::Value::as_u64)
+                && (bab as u32) < prereqs.bab
+            {
+                errors.push(format!("Requires base attack bonus +{}", prereqs.bab));
+            }
+        }
 
         (errors.is_empty(), errors)
     }
@@ -297,7 +342,7 @@ impl PrerequisiteGraph {
         &self,
         feat_ids: Vec<u32>,
         character_feats: &[u32],
-        character_data: Option<&HashMap<String, serde_json::Value>>
+        character_data: Option<&HashMap<String, serde_json::Value>>,
     ) -> HashMap<u32, (bool, Vec<String>)> {
         if !self.is_built {
             return HashMap::new();
@@ -327,28 +372,32 @@ impl PrerequisiteGraph {
             }
 
             if let Some(data) = character_data
-                && idx < self.direct_prerequisites.len() {
-                    let prereqs = &self.direct_prerequisites[idx];
+                && idx < self.direct_prerequisites.len()
+            {
+                let prereqs = &self.direct_prerequisites[idx];
 
-                    for (ability, min_score) in &prereqs.abilities {
-                        if let Some(current) = data.get(ability).and_then(serde_json::Value::as_u64)
-                            && (current as u32) < *min_score {
-                                errors.push(format!("Requires {} {}", ability.to_uppercase(), min_score));
-                            }
+                for (ability, min_score) in &prereqs.abilities {
+                    if let Some(current) = data.get(ability).and_then(serde_json::Value::as_u64)
+                        && (current as u32) < *min_score
+                    {
+                        errors.push(format!("Requires {} {}", ability.to_uppercase(), min_score));
                     }
-
-                    if prereqs.level > 0
-                        && let Some(level) = data.get("level").and_then(serde_json::Value::as_u64)
-                            && (level as u32) < prereqs.level {
-                                errors.push(format!("Requires character level {}", prereqs.level));
-                            }
-
-                    if prereqs.bab > 0
-                        && let Some(bab) = data.get("bab").and_then(serde_json::Value::as_u64)
-                            && (bab as u32) < prereqs.bab {
-                                errors.push(format!("Requires base attack bonus +{}", prereqs.bab));
-                            }
                 }
+
+                if prereqs.level > 0
+                    && let Some(level) = data.get("level").and_then(serde_json::Value::as_u64)
+                    && (level as u32) < prereqs.level
+                {
+                    errors.push(format!("Requires character level {}", prereqs.level));
+                }
+
+                if prereqs.bab > 0
+                    && let Some(bab) = data.get("bab").and_then(serde_json::Value::as_u64)
+                    && (bab as u32) < prereqs.bab
+                {
+                    errors.push(format!("Requires base attack bonus +{}", prereqs.bab));
+                }
+            }
 
             results.insert(feat_id, (errors.is_empty(), errors));
         }
@@ -359,13 +408,30 @@ impl PrerequisiteGraph {
     pub fn get_statistics(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
         stats.insert("is_built".to_string(), serde_json::json!(self.is_built));
-        stats.insert("build_time_ms".to_string(), serde_json::json!(self.build_time_ms));
-        stats.insert("total_feats".to_string(), serde_json::json!(self.stats.total_feats));
-        stats.insert("feats_with_prerequisites".to_string(), serde_json::json!(self.stats.feats_with_prereqs));
-        stats.insert("max_chain_depth".to_string(), serde_json::json!(self.stats.max_chain_depth));
-        stats.insert("circular_dependencies_count".to_string(), serde_json::json!(self.stats.circular_dependencies.len()));
-        stats.insert("memory_estimate_mb".to_string(),
-            serde_json::json!((self.feat_requirements.len() * 100) as f64 / (1024.0 * 1024.0)));
+        stats.insert(
+            "build_time_ms".to_string(),
+            serde_json::json!(self.build_time_ms),
+        );
+        stats.insert(
+            "total_feats".to_string(),
+            serde_json::json!(self.stats.total_feats),
+        );
+        stats.insert(
+            "feats_with_prerequisites".to_string(),
+            serde_json::json!(self.stats.feats_with_prereqs),
+        );
+        stats.insert(
+            "max_chain_depth".to_string(),
+            serde_json::json!(self.stats.max_chain_depth),
+        );
+        stats.insert(
+            "circular_dependencies_count".to_string(),
+            serde_json::json!(self.stats.circular_dependencies.len()),
+        );
+        stats.insert(
+            "memory_estimate_mb".to_string(),
+            serde_json::json!((self.feat_requirements.len() * 100) as f64 / (1024.0 * 1024.0)),
+        );
         stats
     }
 }

@@ -38,23 +38,48 @@ fn get_subtype_context_key(subtype_ref: &str) -> Option<&'static str> {
         "ability" | "decreaseabilityscore" | "abilitybonus" => Some("abilities"),
         "skill" | "decreasedskill" => Some("skills"),
         "castspell" | "spellimmunity_specific" | "onhitcastspell" => Some("spells"),
-        "damagetype" | "armordamagetype" | "damageresist" | "damageimmunity"
-        | "damageimmunity_fixed" | "damagepenalty" | "damage_vulnerability"
-        | "damage_vulnerability_fixed" | "damagemelee" | "damageranged" | "damage"
-        | "damagereduced" | "damagenone" | "damage_reduction" | "damagereduction"
+        "damagetype"
+        | "armordamagetype"
+        | "damageresist"
+        | "damageimmunity"
+        | "damageimmunity_fixed"
+        | "damagepenalty"
+        | "damage_vulnerability"
+        | "damage_vulnerability_fixed"
+        | "damagemelee"
+        | "damageranged"
+        | "damage"
+        | "damagereduced"
+        | "damagenone"
+        | "damage_reduction"
+        | "damagereduction"
         | "massive_criticals" => Some("damage_types"),
         "immunity" => Some("immunity_types"),
-        "savingthrow" | "improvedsavingthrowsspecific" | "reducedspecificsavingthrow"
+        "savingthrow"
+        | "improvedsavingthrowsspecific"
+        | "reducedspecificsavingthrow"
         | "reducedspecificsaving_throw" => Some("saving_throws"),
         "saveselement" | "improvedsavingthrows" | "reducedsavingthrows" => Some("save_elements"),
         "uselimitationclass" | "classes" | "singlebonusspellofle" => Some("classes"),
-        "uselimitationracial" | "racialtype" | "racialtypes" | "armorracinggroup"
-        | "armorracialgroup" | "enhancementracialgroup" | "damageracialgroup"
-        | "attackbonusracialgroup" | "damageracialtype" => Some("racial_groups"),
-        "armoralignmentgroup" | "damagealignmentgroup" | "enhancementalignmentgroup"
-        | "attackbonusalignmentgroup" | "uselimitationalignmentgroup" => Some("alignment_groups"),
-        "armorspecificalignment" | "damagespecificalignment" | "enhancementspecificalignment"
-        | "attackbonusspecificalignment" | "uselimitationspecificalignment"
+        "uselimitationracial"
+        | "racialtype"
+        | "racialtypes"
+        | "armorracinggroup"
+        | "armorracialgroup"
+        | "enhancementracialgroup"
+        | "damageracialgroup"
+        | "attackbonusracialgroup"
+        | "damageracialtype" => Some("racial_groups"),
+        "armoralignmentgroup"
+        | "damagealignmentgroup"
+        | "enhancementalignmentgroup"
+        | "attackbonusalignmentgroup"
+        | "uselimitationalignmentgroup" => Some("alignment_groups"),
+        "armorspecificalignment"
+        | "damagespecificalignment"
+        | "enhancementspecificalignment"
+        | "attackbonusspecificalignment"
+        | "uselimitationspecificalignment"
         | "specificalignment" => Some("alignments"),
         "bonusfeats" => Some("feats"),
         "light" => Some("light"),
@@ -169,7 +194,10 @@ impl ItemPropertyDecoder {
     }
 
     pub fn has_lookup_tables(&self) -> bool {
-        !self.skills.is_empty() || !self.classes.is_empty() || !self.feats.is_empty() || !self.spells.is_empty()
+        !self.skills.is_empty()
+            || !self.classes.is_empty()
+            || !self.feats.is_empty()
+            || !self.spells.is_empty()
     }
 
     pub async fn initialize(&mut self) -> ItemPropertyResult<()> {
@@ -408,9 +436,7 @@ impl ItemPropertyDecoder {
             PROPERTY_ID_ENHANCEMENT => {
                 property_types::decode_enhancement_bonus(cost_value, raw_data)
             }
-            PROPERTY_ID_ATTACK_BONUS => {
-                property_types::decode_attack_bonus(cost_value, raw_data)
-            }
+            PROPERTY_ID_ATTACK_BONUS => property_types::decode_attack_bonus(cost_value, raw_data),
             PROPERTY_ID_DAMAGE_BONUS => {
                 let name = self.damage_types.get(&subtype).map_or("Unknown", |s| s);
                 property_types::decode_damage_bonus(name, cost_value, raw_data)
@@ -462,12 +488,8 @@ impl ItemPropertyDecoder {
             PROPERTY_ID_SPELL_RESISTANCE => {
                 property_types::decode_spell_resistance(cost_value, raw_data)
             }
-            PROPERTY_ID_REGENERATION => {
-                property_types::decode_regeneration(cost_value, raw_data)
-            }
-            PROPERTY_ID_FREEDOM_OF_MOVEMENT => {
-                property_types::decode_freedom_of_movement(raw_data)
-            }
+            PROPERTY_ID_REGENERATION => property_types::decode_regeneration(cost_value, raw_data),
+            PROPERTY_ID_FREEDOM_OF_MOVEMENT => property_types::decode_freedom_of_movement(raw_data),
             PROPERTY_ID_HASTE => property_types::decode_haste(raw_data),
             PROPERTY_ID_TRUE_SEEING => property_types::decode_true_seeing(raw_data),
             PROPERTY_ID_USE_LIMIT_CLASS => {
@@ -498,8 +520,11 @@ impl ItemPropertyDecoder {
                     .and_then(|key| self.resolve_lookup(key, subtype));
 
                 property_types::decode_generic_with_context(
-                    property_id, &label, subtype_name.as_deref(),
-                    cost_value, raw_data,
+                    property_id,
+                    &label,
+                    subtype_name.as_deref(),
+                    cost_value,
+                    raw_data,
                 )
             }
         };
@@ -610,12 +635,10 @@ impl ItemPropertyDecoder {
                 "skill" => {
                     // Fix: Use Skill_<ID> key format to match skills.rs expectation
                     // The Subtype in raw_data is the Skill ID
-                    let skill_id = prop.raw_data.get("Subtype").and_then(|v| {
-                        match v {
-                            serde_json::Value::Number(n) => n.as_u64().map(|u| u as u32),
-                            serde_json::Value::String(s) => s.parse::<u32>().ok(),
-                            _ => None,
-                        }
+                    let skill_id = prop.raw_data.get("Subtype").and_then(|v| match v {
+                        serde_json::Value::Number(n) => n.as_u64().map(|u| u as u32),
+                        serde_json::Value::String(s) => s.parse::<u32>().ok(),
+                        _ => None,
                     });
 
                     if let Some(subtype) = skill_id {
@@ -623,8 +646,9 @@ impl ItemPropertyDecoder {
                             let key = format!("Skill_{}", subtype);
                             *bonuses.skill_bonuses.entry(key).or_insert(0) += value;
                         }
-                    } else if let (Some(skill), Some(value)) = (&prop.skill_name, prop.bonus_value) {
-                         // Fallback for logic where subtype might be missing but name exists (unlikely for proper items)
+                    } else if let (Some(skill), Some(value)) = (&prop.skill_name, prop.bonus_value)
+                    {
+                        // Fallback for logic where subtype might be missing but name exists (unlikely for proper items)
                         *bonuses.skill_bonuses.entry(skill.clone()).or_insert(0) += value;
                     }
                 }
@@ -634,17 +658,9 @@ impl ItemPropertyDecoder {
                     }
                 }
                 "damage_resistance" => {
-                    if let (Some(dtype), Some(value)) =
-                        (&prop.damage_type, prop.resistance_value)
-                    {
-                        *bonuses
-                            .damage_resistances
-                            .entry(dtype.clone())
-                            .or_insert(0) = (*bonuses
-                            .damage_resistances
-                            .get(dtype)
-                            .unwrap_or(&0))
-                        .max(value);
+                    if let (Some(dtype), Some(value)) = (&prop.damage_type, prop.resistance_value) {
+                        *bonuses.damage_resistances.entry(dtype.clone()).or_insert(0) =
+                            (*bonuses.damage_resistances.get(dtype).unwrap_or(&0)).max(value);
                     }
                 }
                 _ => {}
@@ -677,7 +693,8 @@ impl ItemPropertyDecoder {
                 .and_then(|s| s.parse::<i32>().ok())
                 .filter(|&n| n > 100); // TLK refs typically > 100
 
-            let name = name_str_ref.map(|str_ref| rm.get_string(str_ref))
+            let name = name_str_ref
+                .map(|str_ref| rm.get_string(str_ref))
                 .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()));
 
             let game_str = name.clone().or_else(|| {

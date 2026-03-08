@@ -1,11 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::zip_indexer::ZipIndexer;
 use super::directory_walker::DirectoryWalker;
+use super::zip_indexer::ZipIndexer;
 
 #[derive(Error, Debug)]
 pub enum ResourceScanError {
@@ -49,8 +49,12 @@ impl ResourceScanner {
         }
     }
 
-    pub fn scan_zip_files(&mut self, zip_paths: Vec<String>) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
-        let valid_paths: Vec<&Path> = zip_paths.iter()
+    pub fn scan_zip_files(
+        &mut self,
+        zip_paths: Vec<String>,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+        let valid_paths: Vec<&Path> = zip_paths
+            .iter()
             .map(Path::new)
             .filter(|p| p.exists())
             .collect();
@@ -84,7 +88,10 @@ impl ResourceScanner {
         }
     }
 
-    pub fn scan_workshop_directories(&mut self, workshop_dirs: Vec<String>) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn scan_workshop_directories(
+        &mut self,
+        workshop_dirs: Vec<String>,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let mut results = HashMap::new();
 
         for workshop_dir_str in workshop_dirs {
@@ -109,7 +116,11 @@ impl ResourceScanner {
         Ok(results)
     }
 
-    pub fn index_directory(&mut self, directory_path: String, recursive: Option<bool>) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
+    pub fn index_directory(
+        &mut self,
+        directory_path: String,
+        recursive: Option<bool>,
+    ) -> Result<HashMap<String, ResourceLocation>, ResourceScanError> {
         let dir_path = Path::new(&directory_path);
         let is_recursive = recursive.unwrap_or(true);
 
@@ -117,7 +128,10 @@ impl ResourceScanner {
             return Ok(HashMap::new());
         }
 
-        match self.directory_walker.index_directory(dir_path, is_recursive) {
+        match self
+            .directory_walker
+            .index_directory(dir_path, is_recursive)
+        {
             Ok(resources) => Ok(resources),
             Err(e) => {
                 eprintln!("Warning: Failed to index directory {directory_path}: {e}");

@@ -26,7 +26,9 @@ pub enum LoaderError {
     #[error("Missing dependency: {table} requires {dependency}")]
     MissingDependency { table: String, dependency: String },
 
-    #[error("Invalid foreign key in {table}.{column}: row {row} references non-existent {target_table} ID {target_id}")]
+    #[error(
+        "Invalid foreign key in {table}.{column}: row {row} references non-existent {target_table} ID {target_id}"
+    )]
     BrokenReference {
         table: String,
         column: String,

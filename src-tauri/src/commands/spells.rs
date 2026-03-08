@@ -1,5 +1,7 @@
-use crate::character::{MemorizedSpellRaw, SpellSummary, SpellDetails, is_displayable_spell, is_mod_prefixed_name};
 use crate::character::types::{ClassId, SpellId};
+use crate::character::{
+    MemorizedSpellRaw, SpellDetails, SpellSummary, is_displayable_spell, is_mod_prefixed_name,
+};
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -32,7 +34,10 @@ pub struct SpellSlots {
 pub async fn is_spellcaster(state: State<'_, AppState>, class_id: i32) -> CommandResult<bool> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.is_spellcaster(ClassId(class_id), &game_data))
 }
 
@@ -40,7 +45,10 @@ pub async fn is_spellcaster(state: State<'_, AppState>, class_id: i32) -> Comman
 pub async fn get_spell_summary(state: State<'_, AppState>) -> CommandResult<SpellSummary> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_spells_state(&game_data).spell_summary)
 }
 
@@ -52,7 +60,10 @@ pub async fn get_known_spells(
 ) -> CommandResult<Vec<SpellId>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_all_known_spells(ClassId(class_id), spell_level, &game_data))
 }
 
@@ -64,18 +75,21 @@ pub fn get_class_available_spells(
 ) -> CommandResult<Vec<SpellId>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_spells_available_to_class(ClassId(class_id), spell_level, &game_data))
 }
 
 #[tauri::command]
-pub fn calculate_metamagic_cost(
-    state: State<'_, AppState>,
-    metamagic: u8,
-) -> CommandResult<i32> {
+pub fn calculate_metamagic_cost(state: State<'_, AppState>, metamagic: u8) -> CommandResult<i32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.calculate_metamagic_cost(metamagic, &game_data))
 }
 
@@ -86,7 +100,10 @@ pub async fn get_memorized_spells(
     spell_level: i32,
 ) -> CommandResult<Vec<MemorizedSpellRaw>> {
     let session = state.session.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.memorized_spells(ClassId(class_id), spell_level))
 }
 
@@ -97,18 +114,29 @@ pub async fn get_domain_spells(
 ) -> CommandResult<HashMap<i32, Vec<SpellId>>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.get_domain_spells(ClassId(class_id), &game_data))
 }
 
 #[tauri::command]
-pub async fn get_spell_details(state: State<'_, AppState>, spell_id: i32) -> CommandResult<SpellDetails> {
+pub async fn get_spell_details(
+    state: State<'_, AppState>,
+    spell_id: i32,
+) -> CommandResult<SpellDetails> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     character
         .get_spell_details(SpellId(spell_id), &game_data)
-        .ok_or_else(|| CommandError::NotFound { item: format!("Spell {spell_id}") })
+        .ok_or_else(|| CommandError::NotFound {
+            item: format!("Spell {spell_id}"),
+        })
 }
 
 #[tauri::command]
@@ -118,7 +146,10 @@ pub async fn get_max_castable_spell_level(
 ) -> CommandResult<i32> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
     let slots = character.calculate_spell_slots(ClassId(class_id), &game_data);
 
     for level in (0..=9).rev() {
@@ -135,7 +166,10 @@ pub async fn calculate_spell_slots(
 ) -> CommandResult<HashMap<ClassId, SpellSlots>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let mut result = HashMap::new();
     for class_entry in character.class_entries() {
@@ -171,7 +205,10 @@ pub async fn add_known_spell(
     spell_id: i32,
 ) -> CommandResult<SpellChangeResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     match character.add_known_spell(class_index, spell_level, SpellId(spell_id)) {
         Ok(()) => Ok(SpellChangeResult {
@@ -197,7 +234,10 @@ pub async fn remove_known_spell(
     spell_id: i32,
 ) -> CommandResult<SpellChangeResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     match character.remove_known_spell(class_index, spell_level, SpellId(spell_id)) {
         Ok(()) => Ok(SpellChangeResult {
@@ -225,7 +265,10 @@ pub async fn prepare_spell(
     ready: bool,
 ) -> CommandResult<SpellChangeResult> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let spell = MemorizedSpellRaw {
         spell_id: SpellId(spell_id),
@@ -257,7 +300,10 @@ pub async fn clear_memorized_spells(
     spell_level: Option<i32>,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
-    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     match spell_level {
         Some(level) => character
@@ -321,7 +367,10 @@ pub async fn get_character_available_spells(
 ) -> CommandResult<AvailableSpellsResponse> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let page = page.unwrap_or(1).max(1);
     let limit = limit.unwrap_or(50).clamp(10, 100);
@@ -329,7 +378,9 @@ pub async fn get_character_available_spells(
 
     let spells_table = game_data
         .get_table("spells")
-        .ok_or_else(|| CommandError::NotFound { item: "spells table".to_string() })?;
+        .ok_or_else(|| CommandError::NotFound {
+            item: "spells table".to_string(),
+        })?;
 
     // Get all spellcasting classes for this character
     let class_columns: Vec<(ClassId, String, String)> = character
@@ -373,8 +424,12 @@ pub async fn get_character_available_spells(
         // invocations, Stormlord abilities, and other class features that only appear
         // in Warlock/Innate columns
         let on_caster_list = LEARNABLE_CLASS_COLUMNS.iter().any(|&(col, _)| {
-            spell_row.get(col).and_then(|v| v.as_ref())
-                .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+            spell_row
+                .get(col)
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| {
+                    !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0)
+                })
         });
         if !on_caster_list {
             continue;
@@ -391,9 +446,10 @@ pub async fn get_character_available_spells(
                     && lvl >= 0
                 {
                     if let Some(filter_level) = spell_level
-                        && lvl != filter_level {
-                            continue;
-                        }
+                        && lvl != filter_level
+                    {
+                        continue;
+                    }
                     available_classes.push(class_name.to_string());
                     if found_level.is_none() {
                         found_level = Some(lvl);
@@ -403,18 +459,20 @@ pub async fn get_character_available_spells(
         } else {
             for (cid, col, class_name) in &class_columns {
                 if let Some(filter_class) = class_id
-                    && cid.0 != filter_class {
-                        continue;
-                    }
+                    && cid.0 != filter_class
+                {
+                    continue;
+                }
 
                 if let Some(level_str) = spell_row.get(col).and_then(|v| v.as_ref())
                     && let Ok(lvl) = level_str.parse::<i32>()
                     && lvl >= 0
                 {
                     if let Some(filter_level) = spell_level
-                        && lvl != filter_level {
-                            continue;
-                        }
+                        && lvl != filter_level
+                    {
+                        continue;
+                    }
                     available_classes.push(class_name.clone());
                     if found_level.is_none() {
                         found_level = Some(lvl);
@@ -448,9 +506,10 @@ pub async fn get_character_available_spells(
 
         // Apply search filter
         if let Some(ref search_lower) = search_lower
-            && !name.to_lowercase().contains(search_lower) {
-                continue;
-            }
+            && !name.to_lowercase().contains(search_lower)
+        {
+            continue;
+        }
 
         let icon = spell_row
             .get("IconResRef")
@@ -462,9 +521,16 @@ pub async fn get_character_available_spells(
         let school_id = school_raw.and_then(|s| {
             if let Some(c) = s.chars().next() {
                 match c.to_ascii_uppercase() {
-                    'G' => Some(0), 'A' => Some(1), 'C' => Some(2), 'D' => Some(3),
-                    'E' => Some(4), 'V' => Some(5), 'I' => Some(6), 'N' => Some(7),
-                    'T' => Some(8), _ => s.parse().ok(),
+                    'G' => Some(0),
+                    'A' => Some(1),
+                    'C' => Some(2),
+                    'D' => Some(3),
+                    'E' => Some(4),
+                    'V' => Some(5),
+                    'I' => Some(6),
+                    'N' => Some(7),
+                    'T' => Some(8),
+                    _ => s.parse().ok(),
                 }
             } else {
                 None
@@ -487,7 +553,11 @@ pub async fn get_character_available_spells(
             game_data
                 .get_table("spellschools")
                 .and_then(|t| t.get_by_id(id))
-                .and_then(|row| row.get("Label").and_then(|v| v.as_ref()).map(std::string::ToString::to_string))
+                .and_then(|row| {
+                    row.get("Label")
+                        .and_then(|v| v.as_ref())
+                        .map(std::string::ToString::to_string)
+                })
         });
 
         let description = spell_row
@@ -555,7 +625,9 @@ pub struct AbilitySpellEntry {
 
 fn is_on_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
     LEARNABLE_CLASS_COLUMNS.iter().any(|&(col, _)| {
-        spell_row.get(col).and_then(|v| v.as_ref())
+        spell_row
+            .get(col)
+            .and_then(|v| v.as_ref())
             .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
     })
 }
@@ -566,11 +638,16 @@ pub async fn get_character_ability_spells(
 ) -> CommandResult<Vec<AbilitySpellEntry>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
 
     let spells_table = game_data
         .get_table("spells")
-        .ok_or_else(|| CommandError::NotFound { item: "spells table".to_string() })?;
+        .ok_or_else(|| CommandError::NotFound {
+            item: "spells table".to_string(),
+        })?;
 
     let char_feats: HashSet<i32> = character.feat_ids().iter().map(|f| f.0).collect();
 
@@ -592,16 +669,27 @@ pub async fn get_character_ability_spells(
             continue;
         };
 
-        if spell_row.get("REMOVED").and_then(|v| v.as_ref()).is_some_and(|v| v == "1") {
+        if spell_row
+            .get("REMOVED")
+            .and_then(|v| v.as_ref())
+            .is_some_and(|v| v == "1")
+        {
             continue;
         }
 
         let spell_id_val = row_id as i32;
-        let user_type = spell_row.get("UserType").and_then(|v| v.as_ref())
-            .and_then(|v| v.parse::<i32>().ok()).unwrap_or(1);
-        let feat_id = spell_row.get("FeatID").and_then(|v| v.as_ref())
+        let user_type = spell_row
+            .get("UserType")
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(1);
+        let feat_id = spell_row
+            .get("FeatID")
+            .and_then(|v| v.as_ref())
             .and_then(|v| v.parse::<i32>().ok());
-        let is_spellability = spell_row.get("Label").and_then(|v| v.as_ref())
+        let is_spellability = spell_row
+            .get("Label")
+            .and_then(|v| v.as_ref())
             .is_some_and(|v| v.starts_with("SPELLABILITY_"));
         let on_caster_list = is_on_caster_list(&spell_row);
 

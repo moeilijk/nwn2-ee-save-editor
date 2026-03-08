@@ -66,7 +66,11 @@ fn test_xml_parse_simple() {
 </Globals>"#;
 
     let result = RustXmlParser::from_string(xml);
-    assert!(result.is_ok(), "Simple XML should parse: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Simple XML should parse: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -199,9 +203,7 @@ fn test_motb_companions() {
 
     let companions = parser.get_companion_status();
 
-    let motb_companion_names = [
-        "safiya", "gann", "kaelyn", "okku", "oneofmany", "ammon",
-    ];
+    let motb_companion_names = ["safiya", "gann", "kaelyn", "okku", "oneofmany", "ammon"];
 
     for name in motb_companion_names {
         if companions.contains_key(name) {
@@ -227,7 +229,10 @@ fn test_full_summary() {
 
     println!("Full Summary:");
     println!("  General info entries: {}", summary.general_info.len());
-    println!("  Quest groups: {}", summary.quest_overview.quest_groups.len());
+    println!(
+        "  Quest groups: {}",
+        summary.quest_overview.quest_groups.len()
+    );
     println!("  Companions tracked: {}", summary.companion_status.len());
     println!("  Raw data: {:?}", summary.raw_data_counts);
 }
@@ -250,7 +255,8 @@ fn test_xml_round_trip() {
     assert!(!xml_output.is_empty(), "Output should not be empty");
     assert!(xml_output.contains("<?xml"), "Should have XML declaration");
 
-    let parser2 = RustXmlParser::from_string(&xml_output).expect("Failed to re-parse generated XML");
+    let parser2 =
+        RustXmlParser::from_string(&xml_output).expect("Failed to re-parse generated XML");
 
     let info1 = parser.get_general_info();
     let info2 = parser2.get_general_info();
@@ -435,7 +441,13 @@ fn test_xml_whitespace_handling() {
 fn test_parse_all_campaign_globals() {
     let saves_path = fixtures_path().join("saves");
 
-    let campaigns = ["MOTB", "Classic_Campaign", "Community_Campaign", "STORM_Campaign", "Westgate_Campaign"];
+    let campaigns = [
+        "MOTB",
+        "Classic_Campaign",
+        "Community_Campaign",
+        "STORM_Campaign",
+        "Westgate_Campaign",
+    ];
 
     for campaign in campaigns {
         let globals_path = saves_path.join(campaign).join("globals.xml");

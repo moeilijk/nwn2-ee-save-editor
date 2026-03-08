@@ -36,7 +36,12 @@ async fn test_total_level_across_fixtures() {
         assert!(level <= 60, "{} should have level <= 60", name);
 
         if name.contains("L30") {
-            assert!(level >= 20, "{} should be high level (>=20), got {}", name, level);
+            assert!(
+                level >= 20,
+                "{} should be high level (>=20), got {}",
+                name,
+                level
+            );
         }
     }
 }
@@ -55,19 +60,27 @@ async fn test_class_entries_structure() {
         let character = load_character(path);
         let entries = character.class_entries();
 
-        println!("{}: {} class entries", character.first_name(), entries.len());
+        println!(
+            "{}: {} class entries",
+            character.first_name(),
+            entries.len()
+        );
 
-        assert!(!entries.is_empty(), "{} should have at least one class", character.first_name());
+        assert!(
+            !entries.is_empty(),
+            "{} should have at least one class",
+            character.first_name()
+        );
         // Note: Standard NWN2 allows 3 classes, but modded/EE saves may have more
-        assert!(entries.len() <= 10, "{} has unreasonable class count", character.first_name());
-
+        assert!(
+            entries.len() <= 10,
+            "{} has unreasonable class count",
+            character.first_name()
+        );
 
         let mut total_from_entries = 0;
         for entry in &entries {
-            println!(
-                "  ClassId({}) - Level {}",
-                entry.class_id.0, entry.level
-            );
+            println!("  ClassId({}) - Level {}", entry.class_id.0, entry.level);
 
             assert!(entry.class_id.0 >= 0, "Class ID should be non-negative");
             assert!(entry.level >= 1, "Class level should be >= 1");
@@ -90,7 +103,11 @@ async fn test_class_level_per_class() {
 
     let character = load_character("ryathstrongarm/ryathstrongarm4.bic");
 
-    println!("{}: Level {}", character.first_name(), character.total_level());
+    println!(
+        "{}: Level {}",
+        character.first_name(),
+        character.total_level()
+    );
 
     let entries = character.class_entries();
     for entry in &entries {
@@ -109,7 +126,8 @@ async fn test_class_level_per_class() {
 
     let nonexistent_class = ClassId(255);
     assert_eq!(
-        character.class_level(nonexistent_class), 0,
+        character.class_level(nonexistent_class),
+        0,
         "Non-existent class should return level 0"
     );
 }
@@ -148,7 +166,8 @@ async fn test_level_history_parsing() {
 
         for (idx, entry) in history.iter().enumerate() {
             assert_eq!(
-                entry.character_level as usize, idx + 1,
+                entry.character_level as usize,
+                idx + 1,
                 "Character level should be sequential"
             );
             assert!(entry.class_level >= 1, "Class level should be >= 1");
@@ -164,7 +183,8 @@ async fn test_level_history_parsing() {
 
         for increase in &ability_increases {
             assert_eq!(
-                increase.character_level % 4, 0,
+                increase.character_level % 4,
+                0,
                 "Ability increase should be at level divisible by 4, got {}",
                 increase.character_level
             );
@@ -198,13 +218,13 @@ async fn test_multiclass_characters() {
             let has = character.has_class(entry.class_id);
             assert!(has, "has_class() should return true for existing class");
 
-            println!(
-                "  ClassId({}) - has_class: {}",
-                entry.class_id.0, has
-            );
+            println!("  ClassId({}) - has_class: {}", entry.class_id.0, has);
         }
 
-        assert!(!character.has_class(ClassId(255)), "Should not have non-existent class");
+        assert!(
+            !character.has_class(ClassId(255)),
+            "Should not have non-existent class"
+        );
     }
 }
 
@@ -250,7 +270,10 @@ async fn test_hit_die_lookup() {
         let hit_die = character.get_hit_die(entry.class_id, game_data);
         let class_name = character.get_class_name(entry.class_id, game_data);
 
-        println!("  {} (ClassId {}): d{}", class_name, entry.class_id.0, hit_die);
+        println!(
+            "  {} (ClassId {}): d{}",
+            class_name, entry.class_id.0, hit_die
+        );
 
         assert!(hit_die >= 4, "Hit die should be at least d4");
         assert!(hit_die <= 12, "Hit die should be at most d12");
@@ -327,7 +350,10 @@ async fn test_class_summary() {
 
         assert!(!entry.name.is_empty(), "Class name should not be empty");
         assert!(entry.level >= 1, "Level should be >= 1");
-        assert!(entry.hit_die >= 4 && entry.hit_die <= 12, "Hit die should be d4-d12");
+        assert!(
+            entry.hit_die >= 4 && entry.hit_die <= 12,
+            "Hit die should be d4-d12"
+        );
     }
 
     let total_from_summary: i32 = summary.iter().map(|e| e.level).sum();
@@ -343,9 +369,21 @@ async fn test_level_progression_comparison() {
     println!("\n=== Level Progression Comparison (L1 vs L30) ===");
 
     let characters = [
-        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
-        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
-        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
+        (
+            "occidiooctavon/occidiooctavon1.bic",
+            "occidiooctavon/occidiooctavon4.bic",
+            "Occidio",
+        ),
+        (
+            "qaraofblacklake/qaraofblacklake1.bic",
+            "qaraofblacklake/qaraofblacklake4.bic",
+            "Qara",
+        ),
+        (
+            "ryathstrongarm/ryathstrongarm1.bic",
+            "ryathstrongarm/ryathstrongarm4.bic",
+            "Ryath",
+        ),
     ];
 
     for (l1_path, l30_path, name) in characters {
@@ -362,8 +400,16 @@ async fn test_level_progression_comparison() {
             name, level_l1, classes_l1, level_l30, classes_l30
         );
 
-        assert!(level_l30 > level_l1, "{} L30 should be higher than L1", name);
-        assert!(classes_l30 >= classes_l1, "{} should have >= classes at L30", name);
+        assert!(
+            level_l30 > level_l1,
+            "{} L30 should be higher than L1",
+            name
+        );
+        assert!(
+            classes_l30 >= classes_l1,
+            "{} should have >= classes at L30",
+            name
+        );
 
         let l1_entries = char_l1.class_entries();
         let l30_entries = char_l30.class_entries();
@@ -406,7 +452,10 @@ async fn test_prestige_class_detection() {
     for class_id in well_known_base {
         let is_prestige = character.is_prestige_class(class_id, game_data);
         let class_name = character.get_class_name(class_id, game_data);
-        println!("  Testing {} (ClassId {}): prestige = {}", class_name, class_id.0, is_prestige);
+        println!(
+            "  Testing {} (ClassId {}): prestige = {}",
+            class_name, class_id.0, is_prestige
+        );
     }
 }
 
@@ -419,7 +468,9 @@ async fn test_xp_for_level_calculation() {
 
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
 
-    let xp_values: Vec<i32> = (1..=10).map(|lvl| character.calculate_xp_for_level(lvl, game_data)).collect();
+    let xp_values: Vec<i32> = (1..=10)
+        .map(|lvl| character.calculate_xp_for_level(lvl, game_data))
+        .collect();
 
     println!("XP requirements for levels 1-10:");
     for (i, xp) in xp_values.iter().enumerate() {
@@ -431,12 +482,16 @@ async fn test_xp_for_level_calculation() {
         assert!(
             xp_values[i] >= xp_values[i - 1],
             "XP for level {} ({}) should be >= level {} ({})",
-            i + 1, xp_values[i], i, xp_values[i - 1]
+            i + 1,
+            xp_values[i],
+            i,
+            xp_values[i - 1]
         );
     }
 
     assert_eq!(
-        character.calculate_xp_for_level(1, game_data), 0,
+        character.calculate_xp_for_level(1, game_data),
+        0,
         "Level 1 should require 0 XP"
     );
 }

@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use tracing::debug;
 
 use super::{Character, CharacterError};
-use crate::character::types::{AbilityIndex, AbilityModifiers, ClassId, FeatId, RaceId};
 use crate::character::feats::FeatSource;
+use crate::character::types::{AbilityIndex, AbilityModifiers, ClassId, FeatId, RaceId};
 use crate::loaders::GameData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -154,11 +154,17 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     pub fn success() -> Self {
-        Self { valid: true, errors: Vec::new() }
+        Self {
+            valid: true,
+            errors: Vec::new(),
+        }
     }
-    
+
     pub fn failure(errors: Vec<String>) -> Self {
-        Self { valid: false, errors }
+        Self {
+            valid: false,
+            errors,
+        }
     }
 }
 
@@ -245,21 +251,22 @@ impl Character {
         let Some(races) = game_data.get_table("racialtypes") else {
             return format!("Race {race_id}");
         };
-        
+
         let Some(row) = races.get_by_id(race_id) else {
             return format!("Race {race_id}");
         };
-        
+
         if let Some(Some(strref_str)) = row.get("Name")
             && let Ok(strref) = strref_str.parse::<i32>()
-                && let Some(name) = game_data.get_string(strref) {
-                    return name;
-                }
-        
+            && let Some(name) = game_data.get_string(strref)
+        {
+            return name;
+        }
+
         if let Some(label) = row.get("Label").and_then(std::clone::Clone::clone) {
             return label;
         }
-        
+
         format!("Race {race_id}")
     }
 
@@ -267,7 +274,11 @@ impl Character {
         self.get_available_subraces_for_race(self.race_id().0, game_data)
     }
 
-    pub fn get_available_subraces_for_race(&self, race_id: i32, game_data: &GameData) -> Vec<SubraceInfo> {
+    pub fn get_available_subraces_for_race(
+        &self,
+        race_id: i32,
+        game_data: &GameData,
+    ) -> Vec<SubraceInfo> {
         let Some(subrace_table) = game_data.get_table("racialsubtypes") else {
             return Vec::new();
         };
@@ -296,7 +307,7 @@ impl Character {
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .unwrap_or(1);
-            
+
             if player_race == 0 {
                 continue;
             }
@@ -324,7 +335,11 @@ impl Character {
         subraces
     }
 
-    pub fn get_subrace_data(&self, subrace_name: &str, game_data: &GameData) -> Option<SubraceData> {
+    pub fn get_subrace_data(
+        &self,
+        subrace_name: &str,
+        game_data: &GameData,
+    ) -> Option<SubraceData> {
         if subrace_name.is_empty() {
             return None;
         }
@@ -365,7 +380,8 @@ impl Character {
                 .or_else(|| row_data.get("player_race"))
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1) == 1;
+                .unwrap_or(1)
+                == 1;
 
             let favored_class = row_data
                 .get("FavoredClass")
@@ -412,7 +428,11 @@ impl Character {
         None
     }
 
-    pub fn get_racial_ability_modifiers_for_race(&self, race_id: i32, game_data: &GameData) -> AbilityModifiers {
+    pub fn get_racial_ability_modifiers_for_race(
+        &self,
+        race_id: i32,
+        game_data: &GameData,
+    ) -> AbilityModifiers {
         let Some(racialtypes_table) = game_data.get_table("racialtypes") else {
             return AbilityModifiers::default();
         };
@@ -447,7 +467,7 @@ impl Character {
     pub fn get_race_size(&self, race_id: i32, game_data: &GameData) -> Option<i32> {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
-        
+
         row.get("Size")
             .or_else(|| row.get("size"))
             .and_then(std::clone::Clone::clone)
@@ -462,7 +482,7 @@ impl Character {
         let Some(races) = game_data.get_table("racialtypes") else {
             return 30;
         };
-        
+
         let Some(row) = races.get_by_id(race_id) else {
             return 30;
         };
@@ -478,7 +498,11 @@ impl Character {
         self.get_favored_class_for_race(self.race_id().0, game_data)
     }
 
-    pub fn get_favored_class_for_race(&self, race_id: i32, game_data: &GameData) -> Option<ClassId> {
+    pub fn get_favored_class_for_race(
+        &self,
+        race_id: i32,
+        game_data: &GameData,
+    ) -> Option<ClassId> {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
 
@@ -506,20 +530,21 @@ impl Character {
             .or_else(|| row.get("feats_table"))
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "****")
-            && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase()) {
-                for row_idx in 0..feats_table.row_count() {
-                    if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
-                        && let Some(feat_id) = feat_row
-                            .get("FeatIndex")
-                            .or_else(|| feat_row.get("feat_index"))
-                            .and_then(|v| v.as_ref())
-                            .and_then(|s| s.parse::<i32>().ok())
-                            .filter(|&v| v >= 0)
-                        {
-                            feats.insert(FeatId(feat_id));
-                        }
+            && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
+        {
+            for row_idx in 0..feats_table.row_count() {
+                if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
+                    && let Some(feat_id) = feat_row
+                        .get("FeatIndex")
+                        .or_else(|| feat_row.get("feat_index"))
+                        .and_then(|v| v.as_ref())
+                        .and_then(|s| s.parse::<i32>().ok())
+                        .filter(|&v| v >= 0)
+                {
+                    feats.insert(FeatId(feat_id));
                 }
             }
+        }
 
         for i in 1..=5 {
             let field_name = format!("Feat{i}");
@@ -545,21 +570,22 @@ impl Character {
 
         if let Some(subrace_name) = self.subrace()
             && let Some(subrace_data) = self.get_subrace_data(&subrace_name, game_data)
-                && let Some(feats_table_name) = subrace_data.feats_table
-                    && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase()) {
-                        for row_idx in 0..feats_table.row_count() {
-                            if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
-                                && let Some(feat_id) = feat_row
-                                    .get("FeatIndex")
-                                    .or_else(|| feat_row.get("feat_index"))
-                                    .and_then(|v| v.as_ref())
-                                    .and_then(|s| s.parse::<i32>().ok())
-                                    .filter(|&v| v >= 0)
-                                {
-                                    feats.insert(FeatId(feat_id));
-                                }
-                        }
-                    }
+            && let Some(feats_table_name) = subrace_data.feats_table
+            && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
+        {
+            for row_idx in 0..feats_table.row_count() {
+                if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
+                    && let Some(feat_id) = feat_row
+                        .get("FeatIndex")
+                        .or_else(|| feat_row.get("feat_index"))
+                        .and_then(|v| v.as_ref())
+                        .and_then(|s| s.parse::<i32>().ok())
+                        .filter(|&v| v >= 0)
+                {
+                    feats.insert(FeatId(feat_id));
+                }
+            }
+        }
 
         feats.into_iter().collect()
     }
@@ -607,21 +633,21 @@ impl Character {
         }
 
         let Some(subrace_data) = self.get_subrace_data(subrace_name, game_data) else {
-            return ValidationResult::failure(vec![
-                format!("Unknown subrace: {}", subrace_name)
-            ]);
+            return ValidationResult::failure(vec![format!("Unknown subrace: {}", subrace_name)]);
         };
 
         if subrace_data.base_race != race_id {
-            return ValidationResult::failure(vec![
-                format!("Subrace '{}' does not belong to race ID {}", subrace_name, race_id)
-            ]);
+            return ValidationResult::failure(vec![format!(
+                "Subrace '{}' does not belong to race ID {}",
+                subrace_name, race_id
+            )]);
         }
 
         if !subrace_data.player_race {
-            return ValidationResult::failure(vec![
-                format!("Subrace '{}' is not available to players", subrace_name)
-            ]);
+            return ValidationResult::failure(vec![format!(
+                "Subrace '{}' is not available to players",
+                subrace_name
+            )]);
         }
 
         ValidationResult::success()
@@ -634,13 +660,12 @@ impl Character {
         preserve_feats: bool,
         game_data: &GameData,
     ) -> Result<RaceChangeResult, CharacterError> {
-        debug!("Changing race to {} (subrace: {:?})", new_race_id, new_subrace);
-
-        let validation = self.validate_race_change(
-            new_race_id,
-            new_subrace.as_deref(),
-            game_data,
+        debug!(
+            "Changing race to {} (subrace: {:?})",
+            new_race_id, new_subrace
         );
+
+        let validation = self.validate_race_change(new_race_id, new_subrace.as_deref(), game_data);
         if !validation.valid {
             return Err(CharacterError::ValidationFailed {
                 field: "race",
@@ -666,14 +691,15 @@ impl Character {
         self.apply_ability_modifier_changes(&old_racial_mods, false, "race_removed", &mut result);
 
         if let Some(ref old_sub_name) = old_subrace
-            && let Some(old_sub_data) = self.get_subrace_data(old_sub_name, game_data) {
-                self.apply_ability_modifier_changes(
-                    &old_sub_data.ability_modifiers,
-                    false,
-                    "subrace_removed",
-                    &mut result,
-                );
-            }
+            && let Some(old_sub_data) = self.get_subrace_data(old_sub_name, game_data)
+        {
+            self.apply_ability_modifier_changes(
+                &old_sub_data.ability_modifiers,
+                false,
+                "subrace_removed",
+                &mut result,
+            );
+        }
 
         self.set_race(RaceId(new_race_id));
         self.set_subrace(new_subrace.clone());
@@ -682,84 +708,91 @@ impl Character {
         self.apply_ability_modifier_changes(&new_racial_mods, true, "race", &mut result);
 
         if let Some(ref new_sub_name) = new_subrace
-            && let Some(new_sub_data) = self.get_subrace_data(new_sub_name, game_data) {
-                self.apply_ability_modifier_changes(
-                    &new_sub_data.ability_modifiers,
-                    true,
-                    "subrace",
-                    &mut result,
-                );
-            }
+            && let Some(new_sub_data) = self.get_subrace_data(new_sub_name, game_data)
+        {
+            self.apply_ability_modifier_changes(
+                &new_sub_data.ability_modifiers,
+                true,
+                "subrace",
+                &mut result,
+            );
+        }
 
         let old_size = self.creature_size();
         if let Some(new_size) = self.get_race_size(new_race_id, game_data)
-            && old_size != new_size {
-                self.set_creature_size(new_size);
-                result.size_change = Some(SizeChange {
-                    old_size,
-                    new_size,
-                    old_name: self.get_size_name_from_2da(old_size, game_data),
-                    new_name: self.get_size_name_from_2da(new_size, game_data),
-                });
-            }
+            && old_size != new_size
+        {
+            self.set_creature_size(new_size);
+            result.size_change = Some(SizeChange {
+                old_size,
+                new_size,
+                old_name: self.get_size_name_from_2da(old_size, game_data),
+                new_name: self.get_size_name_from_2da(new_size, game_data),
+            });
+        }
 
         let old_speed = self.get_base_speed_for_race(old_race_id, game_data);
         let new_speed = self.get_base_speed_for_race(new_race_id, game_data);
         if old_speed != new_speed {
-            result.speed_change = Some(SpeedChange { old_speed, new_speed });
+            result.speed_change = Some(SpeedChange {
+                old_speed,
+                new_speed,
+            });
         }
 
         if !preserve_feats {
             let old_racial_feats = self.get_racial_feats_for_race(old_race_id, game_data);
             for feat_id in old_racial_feats {
-                if self.has_feat(feat_id)
-                    && self.remove_feat(feat_id).is_ok() {
-                        result.feats_removed.push(FeatChange {
-                            feat_id: feat_id.0,
-                            feat_name: self.get_feat_name(feat_id, game_data),
-                            source: "race".to_string(),
-                        });
-                    }
+                if self.has_feat(feat_id) && self.remove_feat(feat_id).is_ok() {
+                    result.feats_removed.push(FeatChange {
+                        feat_id: feat_id.0,
+                        feat_name: self.get_feat_name(feat_id, game_data),
+                        source: "race".to_string(),
+                    });
+                }
             }
         }
 
         let new_racial_feats = self.get_racial_feats_for_race(new_race_id, game_data);
         for feat_id in new_racial_feats {
             if !self.has_feat(feat_id)
-                && self.add_feat_with_source(feat_id, FeatSource::Race).is_ok() {
-                    result.feats_added.push(FeatChange {
-                        feat_id: feat_id.0,
-                        feat_name: self.get_feat_name(feat_id, game_data),
-                        source: "race".to_string(),
-                    });
-                }
+                && self.add_feat_with_source(feat_id, FeatSource::Race).is_ok()
+            {
+                result.feats_added.push(FeatChange {
+                    feat_id: feat_id.0,
+                    feat_name: self.get_feat_name(feat_id, game_data),
+                    source: "race".to_string(),
+                });
+            }
         }
 
         if let Some(ref new_sub_name) = new_subrace
             && let Some(new_sub_data) = self.get_subrace_data(new_sub_name, game_data)
-                && let Some(feats_table_name) = new_sub_data.feats_table
-                    && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase()) {
-                        for row_idx in 0..feats_table.row_count() {
-                            if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
-                                && let Some(feat_id) = feat_row
-                                    .get("FeatIndex")
-                                    .or_else(|| feat_row.get("feat_index"))
-                                    .and_then(|v| v.as_ref())
-                                    .and_then(|s| s.parse::<i32>().ok())
-                                    .filter(|&v| v >= 0)
-                                {
-                                    let feat = FeatId(feat_id);
-                                    if !self.has_feat(feat)
-                                        && self.add_feat_with_source(feat, FeatSource::Race).is_ok() {
-                                            result.feats_added.push(FeatChange {
-                                                feat_id,
-                                                feat_name: self.get_feat_name(feat, game_data),
-                                                source: "subrace".to_string(),
-                                            });
-                                        }
-                                }
-                        }
+            && let Some(feats_table_name) = new_sub_data.feats_table
+            && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
+        {
+            for row_idx in 0..feats_table.row_count() {
+                if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
+                    && let Some(feat_id) = feat_row
+                        .get("FeatIndex")
+                        .or_else(|| feat_row.get("feat_index"))
+                        .and_then(|v| v.as_ref())
+                        .and_then(|s| s.parse::<i32>().ok())
+                        .filter(|&v| v >= 0)
+                {
+                    let feat = FeatId(feat_id);
+                    if !self.has_feat(feat)
+                        && self.add_feat_with_source(feat, FeatSource::Race).is_ok()
+                    {
+                        result.feats_added.push(FeatChange {
+                            feat_id,
+                            feat_name: self.get_feat_name(feat, game_data),
+                            source: "subrace".to_string(),
+                        });
                     }
+                }
+            }
+        }
 
         debug!("Race change complete: {:?}", result);
         Ok(result)
@@ -805,8 +838,6 @@ impl Character {
         }
     }
 
-
-
     pub fn get_racial_properties(&self, game_data: &GameData) -> RacialProperties {
         let race_id = self.race_id().0;
         let subrace = self.subrace();
@@ -814,16 +845,17 @@ impl Character {
         let mut ability_modifiers = self.get_racial_ability_modifiers_for_race(race_id, game_data);
 
         if let Some(ref subrace_name) = subrace
-            && let Some(subrace_data) = self.get_subrace_data(subrace_name, game_data) {
-                ability_modifiers = AbilityModifiers::new(
-                    ability_modifiers.str_mod + subrace_data.ability_modifiers.str_mod,
-                    ability_modifiers.dex_mod + subrace_data.ability_modifiers.dex_mod,
-                    ability_modifiers.con_mod + subrace_data.ability_modifiers.con_mod,
-                    ability_modifiers.int_mod + subrace_data.ability_modifiers.int_mod,
-                    ability_modifiers.wis_mod + subrace_data.ability_modifiers.wis_mod,
-                    ability_modifiers.cha_mod + subrace_data.ability_modifiers.cha_mod,
-                );
-            }
+            && let Some(subrace_data) = self.get_subrace_data(subrace_name, game_data)
+        {
+            ability_modifiers = AbilityModifiers::new(
+                ability_modifiers.str_mod + subrace_data.ability_modifiers.str_mod,
+                ability_modifiers.dex_mod + subrace_data.ability_modifiers.dex_mod,
+                ability_modifiers.con_mod + subrace_data.ability_modifiers.con_mod,
+                ability_modifiers.int_mod + subrace_data.ability_modifiers.int_mod,
+                ability_modifiers.wis_mod + subrace_data.ability_modifiers.wis_mod,
+                ability_modifiers.cha_mod + subrace_data.ability_modifiers.cha_mod,
+            );
+        }
 
         let size = self.creature_size();
 
@@ -835,7 +867,11 @@ impl Character {
             size_name: SizeCategory::from_id(size).name().to_string(),
             base_speed: self.get_base_speed(game_data),
             ability_modifiers,
-            racial_feats: self.get_all_racial_feats(game_data).into_iter().map(|f| f.0).collect(),
+            racial_feats: self
+                .get_all_racial_feats(game_data)
+                .into_iter()
+                .map(|f| f.0)
+                .collect(),
             favored_class: self.get_favored_class(game_data).map(|c| c.0),
             available_subraces: self.available_subraces(game_data),
         }
@@ -875,7 +911,10 @@ impl Character {
             let mut chars = label.chars();
             match chars.next() {
                 None => label,
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str().to_lowercase().as_str(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>()
+                        + chars.as_str().to_lowercase().as_str()
+                }
             }
         } else {
             SizeCategory::from_id(size_id).name().to_string()
@@ -903,7 +942,11 @@ impl Character {
         }
     }
 
-    pub fn get_subrace_data_by_index(&self, index: i32, game_data: &GameData) -> Option<SubraceData> {
+    pub fn get_subrace_data_by_index(
+        &self,
+        index: i32,
+        game_data: &GameData,
+    ) -> Option<SubraceData> {
         let subrace_table = game_data.get_table("racialsubtypes")?;
         let row_data = subrace_table.parser.get_row_dict(index as usize).ok()?;
 
@@ -931,7 +974,8 @@ impl Character {
             .or_else(|| row_data.get("player_race"))
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(1) == 1;
+            .unwrap_or(1)
+            == 1;
 
         let favored_class = row_data
             .get("FavoredClass")
@@ -981,19 +1025,28 @@ impl Character {
         if let Some(ref subrace_name) = self.subrace_string()
             && let Some(subrace_data) = self.get_subrace_data(subrace_name, game_data)
         {
-            debug!("get_racial_modifier_deltas: found subrace by name '{}': {:?}", subrace_name, subrace_data.ability_modifiers);
+            debug!(
+                "get_racial_modifier_deltas: found subrace by name '{}': {:?}",
+                subrace_name, subrace_data.ability_modifiers
+            );
             return subrace_data.ability_modifiers;
         }
 
         if let Some(idx) = self.subrace_index()
             && let Some(subrace_data) = self.get_subrace_data_by_index(idx, game_data)
         {
-            debug!("get_racial_modifier_deltas: found subrace by index {}: {:?}", idx, subrace_data.ability_modifiers);
+            debug!(
+                "get_racial_modifier_deltas: found subrace by index {}: {:?}",
+                idx, subrace_data.ability_modifiers
+            );
             return subrace_data.ability_modifiers;
         }
 
         let mods = self.get_racial_ability_modifiers_for_race(race_id, game_data);
-        debug!("get_racial_modifier_deltas: using base race modifiers: {:?}", mods);
+        debug!(
+            "get_racial_modifier_deltas: using base race modifiers: {:?}",
+            mods
+        );
         mods
     }
 }
@@ -1001,14 +1054,17 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use crate::parsers::gff::GffValue;
+    use indexmap::IndexMap;
     use std::borrow::Cow;
 
     fn create_test_character() -> Character {
         let mut fields = IndexMap::new();
         fields.insert("Race".to_string(), GffValue::Byte(1));
-        fields.insert("Subrace".to_string(), GffValue::String(Cow::Owned("Moon Elf".to_string())));
+        fields.insert(
+            "Subrace".to_string(),
+            GffValue::String(Cow::Owned("Moon Elf".to_string())),
+        );
         fields.insert("CreatureSize".to_string(), GffValue::Int(4));
         Character::from_gff(fields)
     }
@@ -1037,7 +1093,10 @@ mod tests {
     fn test_subrace_empty() {
         let mut fields = IndexMap::new();
         fields.insert("Race".to_string(), GffValue::Byte(1));
-        fields.insert("Subrace".to_string(), GffValue::String(Cow::Owned(String::new())));
+        fields.insert(
+            "Subrace".to_string(),
+            GffValue::String(Cow::Owned(String::new())),
+        );
         let character = Character::from_gff(fields);
         assert_eq!(character.subrace(), None);
     }

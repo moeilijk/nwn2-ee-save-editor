@@ -54,18 +54,14 @@ fn build_path_config(paths: &crate::config::NWN2Paths) -> PathConfig {
             path: paths
                 .documents_folder()
                 .map(|p| p.to_string_lossy().to_string()),
-            exists: paths
-                .documents_folder()
-                .is_some_and(|p| p.exists()),
+            exists: paths.documents_folder().is_some_and(|p| p.exists()),
             source: source_to_string(paths.documents_folder_source()),
         },
         steam_workshop_folder: PathInfo {
             path: paths
                 .steam_workshop_folder()
                 .map(|p| p.to_string_lossy().to_string()),
-            exists: paths
-                .steam_workshop_folder()
-                .is_some_and(|p| p.exists()),
+            exists: paths.steam_workshop_folder().is_some_and(|p| p.exists()),
             source: source_to_string(paths.steam_workshop_folder_source()),
         },
         localvault_folder: PathInfo {
@@ -119,7 +115,9 @@ pub async fn set_game_folder(
 
     paths.set_game_folder(&path).map_err(|e| {
         if e.contains("does not exist") {
-            CommandError::NotFound { item: format!("Path: {path}") }
+            CommandError::NotFound {
+                item: format!("Path: {path}"),
+            }
         } else {
             CommandError::OperationFailed {
                 operation: "set_game_folder".to_string(),
@@ -146,7 +144,9 @@ pub async fn set_documents_folder(
 
     paths.set_documents_folder(&path).map_err(|e| {
         if e.contains("does not exist") {
-            CommandError::NotFound { item: format!("Path: {path}") }
+            CommandError::NotFound {
+                item: format!("Path: {path}"),
+            }
         } else {
             CommandError::OperationFailed {
                 operation: "set_documents_folder".to_string(),
@@ -173,7 +173,9 @@ pub async fn set_steam_workshop_folder(
 
     paths.set_steam_workshop_folder(&path).map_err(|e| {
         if e.contains("does not exist") {
-            CommandError::NotFound { item: format!("Path: {path}") }
+            CommandError::NotFound {
+                item: format!("Path: {path}"),
+            }
         } else {
             CommandError::OperationFailed {
                 operation: "set_steam_workshop_folder".to_string(),
@@ -200,7 +202,9 @@ pub async fn add_override_folder(
 
     paths.add_custom_override_folder(&path).map_err(|e| {
         if e.contains("does not exist") {
-            CommandError::NotFound { item: format!("Path: {path}") }
+            CommandError::NotFound {
+                item: format!("Path: {path}"),
+            }
         } else {
             CommandError::OperationFailed {
                 operation: "add_override_folder".to_string(),
@@ -225,12 +229,12 @@ pub async fn remove_override_folder(
     debug!("Removing override folder: {}", path);
     let mut paths = state.paths.write();
 
-    paths.remove_custom_override_folder(&path).map_err(|e| {
-        CommandError::OperationFailed {
+    paths
+        .remove_custom_override_folder(&path)
+        .map_err(|e| CommandError::OperationFailed {
             operation: "remove_override_folder".to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(PathUpdateResponse {
         success: true,
@@ -250,7 +254,9 @@ pub async fn add_hak_folder(
 
     paths.add_custom_hak_folder(&path).map_err(|e| {
         if e.contains("does not exist") {
-            CommandError::NotFound { item: format!("Path: {path}") }
+            CommandError::NotFound {
+                item: format!("Path: {path}"),
+            }
         } else {
             CommandError::OperationFailed {
                 operation: "add_hak_folder".to_string(),
@@ -275,12 +281,12 @@ pub async fn remove_hak_folder(
     debug!("Removing HAK folder: {}", path);
     let mut paths = state.paths.write();
 
-    paths.remove_custom_hak_folder(&path).map_err(|e| {
-        CommandError::OperationFailed {
+    paths
+        .remove_custom_hak_folder(&path)
+        .map_err(|e| CommandError::OperationFailed {
             operation: "remove_hak_folder".to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(PathUpdateResponse {
         success: true,
@@ -295,12 +301,12 @@ pub async fn reset_game_folder(state: State<'_, AppState>) -> CommandResult<Path
     debug!("Resetting game folder to auto-detected");
     let mut paths = state.paths.write();
 
-    paths.reset_game_folder().map_err(|e| {
-        CommandError::OperationFailed {
+    paths
+        .reset_game_folder()
+        .map_err(|e| CommandError::OperationFailed {
             operation: "reset_game_folder".to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(PathUpdateResponse {
         success: true,
@@ -317,12 +323,12 @@ pub async fn reset_documents_folder(
     debug!("Resetting documents folder to auto-detected");
     let mut paths = state.paths.write();
 
-    paths.reset_documents_folder().map_err(|e| {
-        CommandError::OperationFailed {
+    paths
+        .reset_documents_folder()
+        .map_err(|e| CommandError::OperationFailed {
             operation: "reset_documents_folder".to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(PathUpdateResponse {
         success: true,
@@ -339,12 +345,12 @@ pub async fn reset_steam_workshop_folder(
     debug!("Resetting Steam workshop folder to auto-detected");
     let mut paths = state.paths.write();
 
-    paths.reset_steam_workshop_folder().map_err(|e| {
-        CommandError::OperationFailed {
+    paths
+        .reset_steam_workshop_folder()
+        .map_err(|e| CommandError::OperationFailed {
             operation: "reset_steam_workshop_folder".to_string(),
             reason: e,
-        }
-    })?;
+        })?;
 
     Ok(PathUpdateResponse {
         success: true,

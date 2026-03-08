@@ -17,4 +17,3 @@ pub mod test_deities;
 pub mod types;
 
 pub use error::{CommandError, CommandResult};
-

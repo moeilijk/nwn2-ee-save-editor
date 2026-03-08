@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use hex;
 use indexmap::IndexMap;
 use tracing::{debug, warn};
-use hex;
 
 use crate::parsers::erf::ErfParser;
 use crate::parsers::gff::{GffParser, GffValue};
@@ -37,23 +37,16 @@ pub fn extract_module_info(module_path: &Path) -> ResourceManagerResult<ModuleIn
             ))
         })?;
 
-        let ifo_resource = erf
-            .resources
-            .iter()
-            .find(|(name, res)| {
-                res.key.resource_type == ERF_TYPE_IFO
-                    || name.to_lowercase() == "module.ifo"
-                    || name.to_lowercase().ends_with(".ifo")
-            });
-
-        
+        let ifo_resource = erf.resources.iter().find(|(name, res)| {
+            res.key.resource_type == ERF_TYPE_IFO
+                || name.to_lowercase() == "module.ifo"
+                || name.to_lowercase().ends_with(".ifo")
+        });
 
         ifo_resource
             .and_then(|(_, res)| res.data.clone())
             .ok_or_else(|| {
-                ResourceManagerError::InvalidGffFormat(
-                    "module.ifo not found in module".to_string(),
-                )
+                ResourceManagerError::InvalidGffFormat("module.ifo not found in module".to_string())
             })?
     };
 
@@ -80,9 +73,10 @@ pub fn extract_module_info(module_path: &Path) -> ResourceManagerResult<ModuleIn
     if let Some(GffValue::ListOwned(hak_entries)) = root_fields.get("Mod_HakList") {
         for entry in hak_entries {
             if let Some(hak_name) = extract_string(entry, "Mod_Hak")
-                && !hak_name.is_empty() {
-                    info.hak_list.push(hak_name);
-                }
+                && !hak_name.is_empty()
+            {
+                info.hak_list.push(hak_name);
+            }
         }
     }
 
@@ -104,24 +98,25 @@ pub fn load_module_2das(
         for entry in std::fs::read_dir(module_path)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("2da"))
-                && let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    match parse_2da_file(&path) {
-                        Ok(parser) => {
-                            overrides.insert(name.to_lowercase(), Arc::new(parser));
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse module 2DA {}: {}", path.display(), e);
-                        }
+            if path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("2da"))
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+            {
+                match parse_2da_file(&path) {
+                    Ok(parser) => {
+                        overrides.insert(name.to_lowercase(), Arc::new(parser));
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse module 2DA {}: {}", path.display(), e);
                     }
                 }
+            }
         }
     } else {
         let mut erf = ErfParser::new();
         erf.read(module_path).map_err(|e| {
-            ResourceManagerError::InvalidErfFormat(format!(
-                "Failed to parse module: {e}"
-            ))
+            ResourceManagerError::InvalidErfFormat(format!("Failed to parse module: {e}"))
         })?;
 
         for (name, resource) in &erf.resources {
@@ -234,9 +229,7 @@ pub fn extract_campaign_info(campaign_path: &Path) -> ResourceManagerResult<Camp
     })?;
 
     let root_fields = gff.read_struct_fields(0).map_err(|e| {
-        ResourceManagerError::InvalidGffFormat(format!(
-            "Failed to read campaign.cam fields: {e}"
-        ))
+        ResourceManagerError::InvalidGffFormat(format!("Failed to read campaign.cam fields: {e}"))
     })?;
 
     let mut info = CampaignInfo {
@@ -254,9 +247,10 @@ pub fn extract_campaign_info(campaign_path: &Path) -> ResourceManagerResult<Camp
     if let Some(GffValue::ListOwned(mod_entries)) = root_fields.get("ModNames") {
         for entry in mod_entries {
             if let Some(mod_name) = extract_string(entry, "ModuleName")
-                && !mod_name.is_empty() {
-                    info.module_names.push(mod_name);
-                }
+                && !mod_name.is_empty()
+            {
+                info.module_names.push(mod_name);
+            }
         }
     }
 
@@ -370,9 +364,10 @@ pub fn find_campaign_by_guid(
                     let cam_file = campaign_path.join("campaign.cam");
                     if cam_file.exists()
                         && let Ok(info) = extract_campaign_info(&campaign_path)
-                            && info.guid.eq_ignore_ascii_case(guid) {
-                                return Some(campaign_path);
-                            }
+                        && info.guid.eq_ignore_ascii_case(guid)
+                    {
+                        return Some(campaign_path);
+                    }
                 }
             }
         }
