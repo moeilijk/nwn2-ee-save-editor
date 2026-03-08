@@ -1,13 +1,9 @@
 import { useMemo } from 'react';
 import { safeToNumber } from '@/utils/dataHelpers';
+import type { FullEncumbrance } from '@/lib/bindings';
 
-export interface EncumbranceData {
-  total_weight: number | string;
-  light_load: number | string;
-  medium_load: number | string;
-  heavy_load: number | string;
-  encumbrance_level: string;
-}
+// Use FullEncumbrance from bindings as the encumbrance data type
+export type EncumbranceData = FullEncumbrance;
 
 export interface EncumbranceResult {
   currentWeight: number;

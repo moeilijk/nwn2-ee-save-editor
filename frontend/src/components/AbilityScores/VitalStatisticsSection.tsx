@@ -83,7 +83,9 @@ export default function VitalStatisticsSection({
     }
   };
 
-  const healthPercentage = Math.min(100, (stats.hitPoints / stats.maxHitPoints) * 100);
+  const healthPercentage = stats.maxHitPoints > 0
+    ? Math.min(100, (stats.hitPoints / stats.maxHitPoints) * 100)
+    : 0;
 
   const getModifierClass = (modifier: number) => {
     if (modifier > 0) return 'positive';

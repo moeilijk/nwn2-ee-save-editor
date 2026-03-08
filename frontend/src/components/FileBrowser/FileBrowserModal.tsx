@@ -2,11 +2,20 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { FixedSizeList as List, ListOnItemsRenderedProps } from 'react-window';
 import InfiniteLoader from 'react-window-infinite-loader';
 import { open } from '@tauri-apps/plugin-dialog';
+import { readDir, stat } from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { apiClient } from '@/lib/api/client';
+
 import { display, formatNumber } from '@/utils/dataHelpers';
+
+interface BackupInfo {
+  path: string;
+  timestamp: string;
+  size_bytes: number;
+  created_at: number;
+}
 
 const X = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,91 +124,82 @@ export default function FileBrowserModal({
   }, [isOpen]);
 
   const loadFiles = useCallback(async (isInitial = true, forceRefresh = false) => {
-    // Unique ID for this specific request to prevent race conditions
-    const requestId = Math.random().toString(36).substring(7);
-    currentRequestRef.current = requestId;
-
-    // Cancel any pending requests
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (!currentPath) {
+      setFiles([]);
+      setTotalFiles(0);
+      setLoading(false);
+      return;
     }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
 
     if (isInitial) {
-      // Only show spinner if we're forced to or have no data
-      // This prevents the flicker when re-opening or normalized path updates
-      if (files.length === 0 || forceRefresh) {
-        setLoading(true);
-      }
+      setLoading(true);
       setError(null);
     } else {
       setLoadingMore(true);
     }
 
     try {
-      const endpoint = mode === 'load-saves'
-        ? '/saves/list'
-        : '/backups/list';
-
-      const params = new URLSearchParams();
-      if (currentPath) params.append('path', currentPath);
-      params.append('limit', ITEMS_PER_PAGE.toString());
-      
-      const offset = isInitial ? 0 : files.length;
-      params.append('offset', offset.toString());
-      params.append('_t', Date.now().toString());
-
-      const data = await apiClient.get<FileListResponse>(
-        `${endpoint}?${params.toString()}`,
-        { signal: controller.signal }
-      );
-
-      // Only proceed if this is still the latest request
-      if (currentRequestRef.current !== requestId) return;
-
-      const newFiles = data.files || [];
-      
-      if (isInitial) {
-        setFiles(newFiles);
-        setTotalFiles(data.total_count);
-        if (forceRefresh || files.length === 0) {
-          listRef.current?.scrollTo(0);
-        }
+      if (mode === 'manage-backups') {
+        const backups = await invoke<BackupInfo[]>('list_backups');
+        const fileInfos: FileInfo[] = backups.map(b => {
+          const pathParts = b.path.split(/[/\\]/);
+          const name = pathParts[pathParts.length - 1] || b.timestamp;
+          return {
+            name,
+            path: b.path,
+            size: b.size_bytes,
+            modified: String(b.created_at),
+            is_directory: true,
+            save_name: `Backup ${b.timestamp}`,
+            character_name: undefined,
+          };
+        });
+        setFiles(fileInfos);
+        setTotalFiles(fileInfos.length);
       } else {
-        setFiles(prev => [...prev, ...newFiles]);
-        setTotalFiles(data.total_count);
-      }
+        const entries = await readDir(currentPath);
+        const fileInfos: FileInfo[] = await Promise.all(
+          entries.map(async (entry) => {
+            const name = entry.name || '';
+            const fullPath = currentPath.endsWith('/') || currentPath.endsWith('\\')
+              ? `${currentPath}${name}`
+              : `${currentPath}/${name}`;
 
-      // Track that we've loaded this path
-      lastPath.current = currentPath;
+            let size = 0;
+            let modified = '0';
+            try {
+              const info = await stat(fullPath);
+              size = info.size || 0;
+              modified = String((info.mtime?.getTime() || 0) / 1000);
+            } catch {
+              // Ignore stat errors
+            }
 
-      if (isInitial && selectedFile && !newFiles.find(f => f.path === selectedFile.path)) {
-        setSelectedFile(null);
-      }
-
-      // Manage path normalization from backend
-      if (data.current_path && currentPath !== data.current_path) {
-        // Update lastPath locally BEFORE informing parent to prevent normalization loop flickers
-        lastPath.current = data.current_path;
-        if (!currentPath) {
-          onPathChange?.(data.current_path);
-        }
+            return {
+              name,
+              path: fullPath,
+              size,
+              modified,
+              is_directory: entry.isDirectory || false,
+              save_name: undefined,
+              character_name: undefined,
+            };
+          })
+        );
+        setFiles(fileInfos);
+        setTotalFiles(fileInfos.length);
+        onPathChange?.(currentPath);
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      if (currentRequestRef.current !== requestId) return;
-
       console.error('Failed to load files:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load files');
-      if (isInitial) setFiles([]);
+      setError(err instanceof Error ? err.message : 'Failed to read directory');
+      setFiles([]);
+      setTotalFiles(0);
     } finally {
-      if (currentRequestRef.current === requestId) {
-        setLoading(false);
-        setLoadingMore(false);
-      }
+      setLoading(false);
+      setLoadingMore(false);
     }
-  }, [mode, currentPath, files.length, onPathChange, selectedFile]);
+  }, [mode, currentPath, onPathChange]);
 
   useEffect(() => {
     if (isOpen) {
@@ -456,7 +456,7 @@ export default function FileBrowserModal({
                     <List
                       key={`list-${currentPath}`} // Only reset on path change, not totalFiles change
                       ref={(node) => {
-                        // @ts-expect-error listRef.current type mismatch with react-window
+
                         listRef.current = node;
                         ref(node);
                       }}

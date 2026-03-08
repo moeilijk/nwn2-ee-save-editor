@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useTauri } from '@/providers/TauriProvider';
-import DynamicAPI from '@/lib/utils/dynamicApi';
+import { TauriAPI } from '@/lib/tauri-api';
+
 import CustomTitleBar from '@/components/ui/CustomTitleBar';
 import Sidebar from '@/components/ui/Sidebar';
 import { GameLaunchDialog } from '@/components/GameLaunchDialog';
@@ -66,7 +67,9 @@ function AppContent() {
 
   // Sync viewMode when character ID changes (new load)
   useEffect(() => {
+    console.log('[App] Character ID changed:', character?.id, 'Current viewMode:', viewMode);
     if (character?.id) {
+       console.log('[App] Switching to editor view');
        setViewMode('editor');
     }
   }, [character?.id]);
@@ -155,16 +158,23 @@ function AppContent() {
 
   const handleOpenFolder = async () => {
       try {
-        const saves = await api?.findNWN2Saves();
-        if (saves && saves.length > 0) {
-          const firstSavePath = saves[0].path;
-          const separator = firstSavePath.includes('\\') ? '\\' : '/';
-          const lastSeparatorIndex = firstSavePath.lastIndexOf(separator);
-          const folderPath = firstSavePath.substring(0, lastSeparatorIndex);
-          
-          await api?.openFolderInExplorer(folderPath);
+        const config = await api?.getPathsConfig();
+        // Prefer documents folder where saves usually are
+        const savePath = config?.documents_folder?.path;
+        
+        if (savePath) {
+           await api?.openFolderInExplorer(savePath);
         } else {
-             console.warn("No saves found to determine folder path.");
+             console.warn("No documents folder configured.");
+             // Fallback to trying to find saves if config fails
+             const saves = await api?.findNWN2Saves();
+             if (saves && saves.length > 0) {
+               const firstSavePath = saves[0].path;
+               const separator = firstSavePath.includes('\\') ? '\\' : '/';
+               const lastSeparatorIndex = firstSavePath.lastIndexOf(separator);
+               const folderPath = firstSavePath.substring(0, lastSeparatorIndex);
+               await api?.openFolderInExplorer(folderPath);
+             }
         }
       } catch (err) {
         console.error("Failed to open saves folder:", err);
@@ -238,66 +248,38 @@ function AppContent() {
 
 
   useEffect(() => {
-    if (!api) return;
-    
-    let timeoutId: NodeJS.Timeout;
-    let isActive = true;
-    let pollDelay = 500; // Start at 500ms
-    const maxDelay = 5000; // Max 5 seconds between polls
-    const maxTotalTime = 60000; // 60 second total timeout
-    const startTime = Date.now();
-    
-    const checkInitStatus = async () => {
-      try {
-        await DynamicAPI.initialize();
-        const response = await DynamicAPI.fetch('/system/initialization/status/');
-        if (!response.ok) return;
-        
-        const data = await response.json();
-        
-        if (isActive) {
-          setInitProgress({
-            step: data.stage,
-            progress: data.progress,
-            message: data.message
-          });
-          
-          if (data.stage === 'ready') {
-            setBackendReady(true);
-            return; // Stop polling
-          }
-        }
-      } catch (_) { // eslint-disable-line @typescript-eslint/no-unused-vars
-        // Django might not be ready yet
-      }
-      
-      // Check total timeout
-      if (Date.now() - startTime > maxTotalTime) {
-        console.error('Backend initialization timeout after 60 seconds');
-        return;
-      }
-      
-      if (isActive) {
-        timeoutId = setTimeout(() => {
-          checkInitStatus();
-          pollDelay = Math.min(pollDelay * 1.5, maxDelay);
-        }, pollDelay);
-      }
+    // Rust backend initialization
+    const init = async () => {
+       try {
+         // Trigger initialization
+         await TauriAPI.initializeGameData();
+         
+         const checkStatus = async () => {
+            const status = await TauriAPI.getInitializationStatus();
+            
+            setInitProgress({
+               step: status.step,
+               progress: status.progress,
+               message: status.message
+            });
+            
+            if (status.step === 'ready') {
+                setBackendReady(true);
+                setAppReady(true);
+                return;
+            }
+            
+            setTimeout(checkStatus, 500);
+         };
+         
+         checkStatus();
+       } catch (err) {
+         console.error("Failed to initialize backend:", err);
+       }
     };
-
-    checkInitStatus();
     
-    return () => {
-      isActive = false;
-      clearTimeout(timeoutId);
-    };
-  }, [api]);
-
-  useEffect(() => {
-    if (isAvailable && api && backendReady) {
-      setAppReady(true);
-    }
-  }, [isAvailable, api, backendReady]);
+    init();
+  }, []);
 
   if (!appReady || isLoading || !isAvailable || !api) {
     return (
@@ -558,47 +540,7 @@ export default function ClientOnlyApp() {
   const [, setBackendReady] = useState(false);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    let isActive = true;
-    let pollDelay = 500;
-    const maxDelay = 5000;
-    const maxTotalTime = 60000;
-    const startTime = Date.now();
-
-    const checkInitStatus = async () => {
-      try {
-        await DynamicAPI.initialize();
-        const response = await DynamicAPI.fetch('/system/initialization/status/');
-        if (!response.ok) return;
-
-        const data = await response.json();
-
-        if (isActive && data.stage === 'ready') {
-          setBackendReady(true);
-          return;
-        }
-      } catch (_) { // eslint-disable-line @typescript-eslint/no-unused-vars
-      }
-
-      if (Date.now() - startTime > maxTotalTime) {
-        console.error('Backend initialization timeout after 60 seconds');
-        return;
-      }
-
-      if (isActive) {
-        timeoutId = setTimeout(() => {
-          checkInitStatus();
-          pollDelay = Math.min(pollDelay * 1.5, maxDelay);
-        }, pollDelay);
-      }
-    };
-
-    checkInitStatus();
-
-    return () => {
-      isActive = false;
-      clearTimeout(timeoutId);
-    };
+    // No backend polling needed for pure Rust app
   }, []);
 
   return (

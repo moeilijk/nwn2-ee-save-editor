@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
-import { apiClient } from '@/lib/api/client';
+
 import { display, formatNumber } from '@/utils/dataHelpers';
 
 // SVG Icon Components
@@ -111,25 +111,22 @@ export default function ClassSelectorModal({
 
 
   useEffect(() => {
-    const performSearch = async () => {
-      if (!searchQuery.trim() || !characterId) {
-        setSearchResults([]);
-        return;
-      }
-
-      try {
-        const data = await apiClient.get<SearchResult>(
-          `/characters/${characterId}/classes/categorized?search=${encodeURIComponent(searchQuery)}`
-        );
-        setSearchResults(data.search_results);
-      } catch {
-        setSearchResults([]);
-      }
-    };
-
-    const timeoutId = setTimeout(performSearch, 300); // Debounce
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, characterId]);
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    // Client-side search implementation using categorizedClasses prop
+    if (categorizedClasses) {
+        const query = searchQuery.toLowerCase();
+        const all: ClassInfo[] = [];
+        Object.values(categorizedClasses.categories.base).forEach(arr => all.push(...arr));
+        Object.values(categorizedClasses.categories.prestige).forEach(arr => all.push(...arr));
+        Object.values(categorizedClasses.categories.npc).forEach(arr => all.push(...arr));
+        
+        const results = all.filter(c => c.name.toLowerCase().includes(query) || c.label.toLowerCase().includes(query));
+        setSearchResults(results);
+    }
+  }, [searchQuery, categorizedClasses]);
 
   useEffect(() => {
     if (isOpen) {

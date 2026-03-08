@@ -367,8 +367,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                             <div className="font-medium text-[rgb(var(--color-text-primary))]">
                                 {abilities.isLoading ? <span className="text-xs">...</span> : (
                                     <>
-                                        {display(abilities.data?.derived_stats?.hit_points?.current || character.hitPoints || 0)}
-                                        <span className="text-[rgb(var(--color-text-muted))]">/{display(abilities.data?.derived_stats?.hit_points?.maximum || character.maxHitPoints || 0)}</span>
+                                        {display(abilities.data?.hit_points?.current || character.hitPoints || 0)}
+                                        <span className="text-[rgb(var(--color-text-muted))]">/{display(abilities.data?.hit_points?.max || character.maxHitPoints || 0)}</span>
                                     </>
                                 )}
                             </div>
@@ -481,14 +481,20 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       <div className="space-y-4">
         
         {/* Core Abilities - Always important for RPG */}
-        <CollapsibleSection 
-          title={t('navigation.abilityScores')} 
+        <CollapsibleSection
+          title={t('navigation.abilityScores')}
           defaultOpen={true}
-          badge={(abilities.data?.effective_attributes ? formatModifier(Object.values(abilities.data.attribute_modifiers || {}).reduce((sum: number, val: number) => sum + val, 0)) : '-')}
+          badge={abilities.data?.modifiers ? formatModifier(abilities.data.modifiers.Str + abilities.data.modifiers.Dex + abilities.data.modifiers.Con + abilities.data.modifiers.Int + abilities.data.modifiers.Wis + abilities.data.modifiers.Cha) : '-'}
         >
           <div className="grid grid-cols-3 md:grid-cols-6 gap-y-6 gap-x-4">
-            {(abilities.data?.effective_attributes ? Object.entries(abilities.data.effective_attributes) : character.abilities ? Object.entries(character.abilities) : []).map(([key, value]) => {
-              const modifier = abilities.data?.attribute_modifiers?.[key] ?? Math.floor((value - 10) / 2);
+            {(abilities.data?.effective_scores ? [
+              ['Str', abilities.data.effective_scores.Str, abilities.data.modifiers?.Str ?? 0],
+              ['Dex', abilities.data.effective_scores.Dex, abilities.data.modifiers?.Dex ?? 0],
+              ['Con', abilities.data.effective_scores.Con, abilities.data.modifiers?.Con ?? 0],
+              ['Int', abilities.data.effective_scores.Int, abilities.data.modifiers?.Int ?? 0],
+              ['Wis', abilities.data.effective_scores.Wis, abilities.data.modifiers?.Wis ?? 0],
+              ['Cha', abilities.data.effective_scores.Cha, abilities.data.modifiers?.Cha ?? 0],
+            ] as [string, number, number][] : character.abilities ? Object.entries(character.abilities).map(([key, value]) => [key, value, Math.floor((value - 10) / 2)] as [string, number, number]) : []).map(([key, value, modifier]) => {
               const modifierColor = modifier > 0 ? 'var(--color-success)' : modifier < 0 ? 'var(--color-error)' : 'var(--color-text-muted)';
               return (
                 <div key={key} className="">
@@ -513,10 +519,10 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
 
 
         {/* Combat & Progression */}
-        <CollapsibleSection 
-          title="Combat & Progression" 
+        <CollapsibleSection
+          title="Combat & Progression"
           defaultOpen={false}
-          badge={(skills.data?.skill_points_available ?? character.availableSkillPoints ?? 0) > 0 ? `${skills.data?.skill_points_available || character.availableSkillPoints} skill points` : `AC ${combat.data?.armor_class?.total || character.armorClass}`}
+          badge={(skills.data?.total_available ?? character.availableSkillPoints ?? 0) > 0 ? `${skills.data?.total_available || character.availableSkillPoints} skill points` : `AC ${combat.data?.armor_class?.total || character.armorClass}`}
         >
           <div className="space-y-6">
             {/* Combat Stats */}
@@ -529,9 +535,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                       <span className="text-sm">...</span>
                     ) : (
                       formatModifier(
-                        (typeof combat.data?.base_attack_bonus === 'object' && combat.data?.base_attack_bonus?.total_bab) || 
-                        combat.data?.summary?.base_attack_bonus || 
-                        character.baseAttackBonus || 
+                        combat.data?.base_attack_bonus ??
+                        character.baseAttackBonus ??
                         0
                       )
                     )}
@@ -539,11 +544,11 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.meleeAttack')}</div>
-                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.melee_attack_bonus || character.meleeAttackBonus || 0)}</div>
+                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.melee ?? character.meleeAttackBonus ?? 0)}</div>
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.rangedAttack')}</div>
-                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.ranged_attack_bonus || character.rangedAttackBonus || 0)}</div>
+                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.ranged ?? character.rangedAttackBonus ?? 0)}</div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -554,8 +559,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                       <span className="text-sm">...</span>
                     ) : (
                       formatModifier(
-                        (typeof saves.data?.fortitude === 'object' && saves.data.fortitude !== null ? (saves.data.fortitude as { total?: number })?.total : undefined) || 
-                        (typeof saves.data?.fortitude === 'number' ? saves.data.fortitude : 0) || 
+                        saves.data?.saves?.fortitude?.total ??
                         (typeof character.saves?.fortitude === 'number' ? character.saves.fortitude : 0)
                       )
                     )}
@@ -568,8 +572,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                       <span className="text-sm">...</span>
                     ) : (
                       formatModifier(
-                        (typeof saves.data?.reflex === 'object' && saves.data.reflex !== null ? (saves.data.reflex as { total?: number })?.total : undefined) || 
-                        (typeof saves.data?.reflex === 'number' ? saves.data.reflex : 0) || 
+                        saves.data?.saves?.reflex?.total ??
                         (typeof character.saves?.reflex === 'number' ? character.saves.reflex : 0)
                       )
                     )}
@@ -582,8 +585,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                       <span className="text-sm">...</span>
                     ) : (
                       formatModifier(
-                        (typeof saves.data?.will === 'object' && saves.data.will !== null ? (saves.data.will as { total?: number })?.total : undefined) || 
-                        (typeof saves.data?.will === 'number' ? saves.data.will : 0) || 
+                        saves.data?.saves?.will?.total ??
                         (typeof character.saves?.will === 'number' ? character.saves.will : 0)
                       )
                     )}
@@ -601,7 +603,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.totalFeats')}</div>
-                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(feats.data?.summary?.total || character.totalFeats || 0)}</div>
+                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(feats.data?.summary?.total_count || character.totalFeats || 0)}</div>
                 </div>
                 {character.knownSpells !== undefined && (
                   <div className="">
@@ -622,9 +624,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.initiative')}</div>
                     <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">
                       {formatModifier(
-                        (typeof combat.data?.initiative === 'object' && combat.data?.initiative?.total) || 
-                        (typeof combat.data?.initiative === 'number' ? combat.data?.initiative : 0) || 
-                        character.initiative || 
+                        combat.data?.initiative?.total ??
+                        character.initiative ?? 
                         0
                       )}
                     </div>

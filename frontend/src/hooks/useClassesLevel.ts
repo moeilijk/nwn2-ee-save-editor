@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import { apiClient } from '@/lib/api/client';
+import { invoke } from '@tauri-apps/api/core';
+import type { XpProgress } from '@/lib/bindings';
 
 export interface ClassLevel {
   id: number;
@@ -40,19 +41,6 @@ export interface ClassInfo {
   prerequisites?: Record<string, unknown>;
 }
 
-export interface CombatStats {
-  base_attack_bonus: number;
-  melee_attack_bonus: number;
-  ranged_attack_bonus: number;
-  multiple_attacks: number[];
-  fortitude_save: number;
-  reflex_save: number;
-  will_save: number;
-  base_fortitude: number;
-  base_reflex: number;
-  base_will: number;
-}
-
 export interface FocusInfo {
   id: string;
   name: string;
@@ -76,40 +64,16 @@ export interface CategorizedClassesResponse {
   };
 }
 
-export interface ClassesData {
-  classes: Array<{
-    id: number;
-    level: number;
-    name: string;
-    skill_points?: number;
-    bab?: number;
-    fort_save?: number;
-    ref_save?: number;
-    will_save?: number;
-    hit_die?: number;
-  }>;
-  total_level: number;
-  multiclass: boolean;
-  can_multiclass: boolean;
-  combat_stats: CombatStats;
-  xp_progress?: XPProgress;
-}
+// Re-export ClassesState from bindings as ClassesData for compatibility
+import type { ClassesState } from '@/lib/bindings';
+export type ClassesData = ClassesState;
 
-export interface XPProgress {
-  current_xp: number;
-  current_xp_level: number;
-  total_class_level: number;
-  next_level_xp: number | null;
-  xp_to_next: number | null;
-  current_level_min_xp: number;
-  next_level_min_xp: number;
-  progress_percent: number;
-}
+export type { XpProgress } from '@/lib/bindings';
 
 export function useClassesLevel(classesData?: ClassesData | null) {
   const { characterId, invalidateSubsystems, categorizedClasses, isMetadataLoading } = useCharacterContext();
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isLoadingXP, _setIsLoadingXP] = useState(false);
+  const [isLoadingXP] = useState(false);
 
   // Helper function to find class info from categorized data
   const findClassInfoById = useCallback((classId: number): ClassInfo | undefined => {
@@ -125,25 +89,27 @@ export function useClassesLevel(classesData?: ClassesData | null) {
   }, [categorizedClasses]);
 
   // Transform classesData into frontend format
+  // Note: categorizedClasses is optional - basic display works without it
   const classes = useMemo((): ClassLevel[] => {
-    if (!classesData || !categorizedClasses) return [];
-    
-    return classesData.classes.map(cls => {
-      const classInfo = findClassInfoById(cls.id);
-      
-      // Use backend calculated skill points directly (now typically available)
-      const skillPoints = cls.skill_points || 0;
-      
+    if (!classesData) return [];
+
+    // classesData is ClassesState from backend, which has 'entries' field
+    const entries = classesData.entries || [];
+
+    return entries.map(entry => {
+      // Try to get enriched metadata from categorizedClasses if available
+      const classInfo = categorizedClasses ? findClassInfoById(entry.class_id) : undefined;
+
       return {
-        id: cls.id,
-        name: cls.name,
-        level: cls.level,
-        hitDie: cls.hit_die ?? classInfo?.hit_die ?? 8,
-        baseAttackBonus: cls.bab ?? 0,
-        fortitudeSave: cls.fort_save ?? 0,
-        reflexSave: cls.ref_save ?? 0,
-        willSave: cls.will_save ?? 0,
-        skillPoints: skillPoints,
+        id: entry.class_id,
+        name: entry.name,
+        level: entry.level,
+        hitDie: entry.hit_die || classInfo?.hit_die || 8,
+        baseAttackBonus: entry.base_attack_bonus ?? 0,
+        fortitudeSave: entry.fortitude_save ?? 0,
+        reflexSave: entry.reflex_save ?? 0,
+        willSave: entry.will_save ?? 0,
+        skillPoints: entry.skill_points_per_level ?? 0,
         spellcaster: classInfo?.is_spellcaster || false,
         spellType: classInfo?.has_arcane ? 'arcane' : classInfo?.has_divine ? 'divine' : undefined,
         primaryAbility: classInfo?.primary_ability || 'STR',
@@ -174,17 +140,18 @@ export function useClassesLevel(classesData?: ClassesData | null) {
     setIsUpdating(true);
 
     try {
-      const response = await apiClient.post(`/characters/${characterId}/classes/level-up`, {
-        class_id: classId,
-        level_change: delta,
-      });
+      if (delta > 0) {
+          await invoke('add_class_level', { classId, count: delta });
+      } else {
+          await invoke('remove_class_levels', { classId, count: Math.abs(delta) });
+      }
 
       // Silently refresh all dependent subsystems
       await invalidateSubsystems(['classes', 'abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
       
-      return response;
     } catch (err) {
-      throw err;
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        throw new Error(errorMsg);
     } finally {
       setIsUpdating(false);
     }
@@ -201,16 +168,17 @@ export function useClassesLevel(classesData?: ClassesData | null) {
     setIsUpdating(true);
 
     try {
-      await apiClient.post(`/characters/${characterId}/classes/change`, {
-        old_class_id: classId,
-        class_id: newClassInfo.id,
-        preserve_level: true,
+      await invoke('change_class', { 
+        oldClassId: classId, 
+        newClassId: newClassInfo.id, 
+        preserveLevel: true 
       });
 
       // Silently refresh all dependent subsystems
       await invalidateSubsystems(['classes', 'abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
     } catch (err) {
-      throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(errorMsg);
     } finally {
       setIsUpdating(false);
     }
@@ -236,16 +204,17 @@ export function useClassesLevel(classesData?: ClassesData | null) {
     setIsUpdating(true);
 
     try {
-      const response = await apiClient.post(`/characters/${characterId}/classes/add`, {
-        class_id: classInfo.id,
+      await invoke('add_class_entry', { 
+        classId: classInfo.id, 
+        level: 1 
       });
 
       // Silently refresh all dependent subsystems
       await invalidateSubsystems(['classes', 'abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
       
-      return response;
     } catch (err) {
-      throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(errorMsg);
     } finally {
       setIsUpdating(false);
     }
@@ -261,12 +230,13 @@ export function useClassesLevel(classesData?: ClassesData | null) {
     setIsUpdating(true);
 
     try {
-      await apiClient.post(`/characters/${characterId}/classes/remove/${classId}`, {});
+      await invoke('remove_class_entry', { classId });
 
       // Silently refresh all dependent subsystems
       await invalidateSubsystems(['classes', 'abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
     } catch (err) {
-      throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(errorMsg);
     } finally {
       setIsUpdating(false);
     }
@@ -327,33 +297,26 @@ export function useClassesLevel(classesData?: ClassesData | null) {
 
     setIsUpdating(true);
     try {
-      await apiClient.post(`/characters/${characterId}/classes/experience`, { xp });
+      await invoke('set_experience', { xp });
       await fetchXPProgress();
     } catch (err) {
-      throw err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(errorMsg); // Propagate error
     } finally {
       setIsUpdating(false);
     }
   }, [characterId, fetchXPProgress]);
 
+  // Derive multiclass status from entries
+  const isMulticlass = (classesData?.entries?.length || 0) > 1;
+  const canAddMoreClasses = (classesData?.entries?.length || 0) < 4;
+
   return {
     // Data from subsystem
     classes,
     totalLevel: classesData?.total_level || 0,
-    multiclass: classesData?.multiclass || false,
-    canMulticlass: classesData?.can_multiclass || false,
-    combatStats: classesData?.combat_stats || {
-      base_attack_bonus: 0,
-      melee_attack_bonus: 0,
-      ranged_attack_bonus: 0,
-      multiple_attacks: [],
-      fortitude_save: 0,
-      reflex_save: 0,
-      will_save: 0,
-      base_fortitude: 0,
-      base_reflex: 0,
-      base_will: 0,
-    },
+    multiclass: isMulticlass,
+    canMulticlass: canAddMoreClasses,
 
     // XP data
     xpProgress,

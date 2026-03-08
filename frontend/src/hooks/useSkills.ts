@@ -5,12 +5,11 @@ import { useCharacterContext } from '@/contexts/CharacterContext';
 interface Skill {
   id: number;
   name: string;
-  rank: number;
-  max_rank: number;
-  total_bonus: number;
-  ability_modifier: number;
-  misc_modifier: number;
+  current_ranks: number;
+  max_ranks: number;
+  total_modifier: number;
   is_class_skill: boolean;
+  untrained: boolean;
 }
 
 
@@ -72,29 +71,29 @@ export function useSkills(): UseSkillsReturn {
     const skill = skills.find(s => s.id === skillId);
     if (!skill) return;
 
-    const oldRank = skill.rank;
+    const oldRank = skill.current_ranks;
     const rankDifference = newRank - oldRank;
-    
+
     // Calculate cost based on whether it's a class skill
     // Class skills cost 1 point per rank, cross-class skills cost 2 points per rank
     const costPerRank = skill.is_class_skill ? 1 : 2;
     const totalCost = rankDifference * costPerRank;
-    
+
     // Check if we have enough points (when increasing)
     if (rankDifference > 0 && totalCost > availableSkillPoints) {
       setError(`Not enough skill points. Need ${totalCost} points but only have ${availableSkillPoints}`);
       return;
     }
-    
+
     // Optimistically update UI
-    setSkills(prevSkills => 
-      prevSkills.map(s => 
-        s.id === skillId 
-          ? { 
-              ...s, 
-              rank: newRank,
-              // Recalculate total bonus: ranks + ability modifier + misc bonuses
-              total_bonus: newRank + s.ability_modifier + (s.total_bonus - s.rank - s.ability_modifier)
+    setSkills(prevSkills =>
+      prevSkills.map(s =>
+        s.id === skillId
+          ? {
+              ...s,
+              current_ranks: newRank,
+              // Recalculate total_modifier: add rank difference
+              total_modifier: s.total_modifier + rankDifference
             }
           : s
       )

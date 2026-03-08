@@ -1,16 +1,7 @@
-import DynamicAPI from '../utils/dynamicApi';
+// Stubs for icon handling - waiting for DDS renderer implementation
 
 export function buildIconUrl(iconName: string): string {
-  if (!iconName) {
-    return '';
-  }
-
-  const cachedBase = DynamicAPI.getCachedBaseUrl();
-  if (!cachedBase) {
-    return '';
-  }
-
-  return `${cachedBase}/api/gamedata/icons/${iconName}/`;
+  return '';
 }
 
 export async function fetchIconStats(): Promise<{
@@ -28,13 +19,21 @@ export async function fetchIconStats(): Promise<{
   format: string;
   mimetype: string;
 }> {
-  const response = await DynamicAPI.fetch(`/gamedata/icons/`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch icon statistics');
-  }
-  
-  return response.json();
+  return {
+    initialized: true,
+    initializing: false,
+    statistics: {
+      base_count: 0,
+      override_count: 0,
+      workshop_count: 0,
+      hak_count: 0,
+      module_count: 0,
+      total_count: 0,
+      total_size: 0,
+    },
+    format: 'dds',
+    mimetype: 'image/vnd.ms-dds',
+  };
 }
 
 export async function updateModuleIcons(hakList: string[]): Promise<{
@@ -42,17 +41,9 @@ export async function updateModuleIcons(hakList: string[]): Promise<{
   haks_loaded: number;
   statistics: Record<string, unknown>;
 }> {
-  const response = await DynamicAPI.fetch(`/gamedata/icons/module/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ hak_list: hakList }),
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to update module icons');
-  }
-  
-  return response.json();
+  return {
+    success: true,
+    haks_loaded: 0,
+    statistics: {},
+  };
 }

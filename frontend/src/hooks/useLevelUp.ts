@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import { apiClient } from '@/lib/api/client';
 
 export interface FeatSlotInfo {
   general: number;
@@ -90,15 +89,8 @@ export function useLevelUp(classId: number) {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const requirements = await apiClient.get<LevelUpRequirements>(
-        `/characters/${characterId}/levelup/check/${classId}`
-      );
-      setState(prev => ({
-        ...prev,
-        requirements,
-        selections: { ...prev.selections, class_id: classId },
-        isLoading: false
-      }));
+      // Stub: Rust backend needs new command for level up requirements check
+      throw new Error("Level Up check not implemented in Rust yet");
     } catch (err) {
       setState(prev => ({
         ...prev,
@@ -200,9 +192,7 @@ export function useLevelUp(classId: number) {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      await apiClient.post(`/characters/${characterId}/levelup/apply`, state.selections);
-      await invalidateSubsystems(['classes', 'abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
-      return true;
+      throw new Error("Level Up apply not implemented in Rust yet");
     } catch (err) {
       setState(prev => ({
         ...prev,

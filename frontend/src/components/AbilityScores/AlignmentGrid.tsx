@@ -1,18 +1,18 @@
-
 import { useAlignment } from '@/hooks/useAlignment';
+import type { Alignment } from '@/lib/bindings';
 import NWN2Icon from '@/components/ui/NWN2Icon';
 
 interface AlignmentGridProps {
-  onAlignmentSelect: (lawChaos: number, goodEvil: number) => void;
-  currentAlignment: { lawChaos: number; goodEvil: number };
+  onAlignmentSelect: (law_chaos: number, good_evil: number) => void;
+  currentAlignment: Alignment;
 }
 
 export default function AlignmentGrid({ onAlignmentSelect, currentAlignment }: AlignmentGridProps) {
   const { alignmentGridData, getAlignmentColor } = useAlignment(currentAlignment);
 
   const isAlignmentActive = (lawChaosRange: [number, number], goodEvilRange: [number, number]): boolean => {
-    return currentAlignment.lawChaos >= lawChaosRange[0] && currentAlignment.lawChaos <= lawChaosRange[1] &&
-           currentAlignment.goodEvil >= goodEvilRange[0] && currentAlignment.goodEvil <= goodEvilRange[1];
+    return currentAlignment.law_chaos >= lawChaosRange[0] && currentAlignment.law_chaos <= lawChaosRange[1] &&
+           currentAlignment.good_evil >= goodEvilRange[0] && currentAlignment.good_evil <= goodEvilRange[1];
   };
 
   const getAlignmentIcon = (name: string): string => {
@@ -31,12 +31,12 @@ export default function AlignmentGrid({ onAlignmentSelect, currentAlignment }: A
           alignmentInfo.ranges[0] as [number, number], 
           alignmentInfo.ranges[1] as [number, number]
         );
-        const color = getAlignmentColor(alignmentInfo.lawChaos, alignmentInfo.goodEvil);
+        const color = getAlignmentColor(alignmentInfo.law_chaos, alignmentInfo.good_evil);
 
         return (
           <button
             key={index}
-            onClick={() => onAlignmentSelect(alignmentInfo.lawChaos, alignmentInfo.goodEvil)}
+            onClick={() => onAlignmentSelect(alignmentInfo.law_chaos, alignmentInfo.good_evil)}
             className={`
               flex flex-col items-center justify-center gap-3 p-4 rounded-lg 
               border-2 transition-all duration-200 cursor-pointer

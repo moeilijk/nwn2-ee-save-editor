@@ -1,7 +1,6 @@
 import { buildIconUrl } from '@/lib/api/enhanced-icons';
 import { useState, useEffect } from 'react';
 import { useIconCache } from '@/contexts/IconCacheContext';
-import DynamicAPI from '@/lib/utils/dynamicApi';
 
 interface NWN2IconProps {
   icon: string;
@@ -47,11 +46,8 @@ export default function NWN2Icon({
     if (!fullIconUrl) {
       return null;
     }
-  } else if (fullIconUrl && !fullIconUrl.startsWith('http')) {
-    const cachedBase = DynamicAPI.getCachedBaseUrl();
-    if (!cachedBase) return null;
-    fullIconUrl = `${cachedBase}${fullIconUrl}`;
-  }
+  } 
+  // removed DynamicAPI check for local base url
   
   if (fullIconUrl) {
     const sizeConfig = sizeMap[size];

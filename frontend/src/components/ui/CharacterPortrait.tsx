@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import DynamicAPI from '@/lib/utils/dynamicApi';
+
 
 interface CharacterPortraitProps {
   portrait?: string | null;
@@ -43,13 +43,9 @@ export default function CharacterPortrait({
     }
 
     const buildUrl = async () => {
-      // Build the icon URL using the v2 endpoint
-      // Portrait IDs in NWN2 are typically like "po_hu_f_99_" or custom names
-      const iconPath = `portraits/${portraitId}`;
-      const apiBase = await DynamicAPI.getApiBaseUrl();
-      const url = `${apiBase}/gamedata/icons/v2/${iconPath}/`;
-      setLoading(true);
-      setImageUrl(url);
+      // Stubbed: Icon handling is currently disabled in backend
+      setLoading(false);
+      setImageUrl(null);
     };
 
     buildUrl();

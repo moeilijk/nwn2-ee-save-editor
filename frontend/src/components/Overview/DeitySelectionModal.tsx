@@ -45,18 +45,25 @@ export default function DeitySelectionModal({
 }: DeitySelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDeity, setSelectedDeity] = useState<Deity | null>(null);
-  const [, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [deities, setDeities] = useState<Deity[]>([]);
 
   useEffect(() => {
     const fetchDeities = async () => {
+      // If we already have data, don't fetch again
+      if (deities.length > 0) return;
+      
       try {
         setIsLoading(true);
-        const deitiesData = await CharacterAPI.getAvailableDeities(characterId);
-        setDeities(deitiesData);
+        const response = await CharacterAPI.getAvailableDeities();
+        setDeities(response.deities);
+        // Use requestAnimationFrame to ensure state update propagates before removing spinner
+        requestAnimationFrame(() => {
+            setIsLoading(false);
+        });
       } catch (error) {
         console.error('Failed to load deities:', error);
-      } finally {
+        setDeities([]);
         setIsLoading(false);
       }
     };
@@ -64,7 +71,7 @@ export default function DeitySelectionModal({
     if (isOpen) {
       fetchDeities();
     }
-  }, [isOpen, characterId]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -173,109 +180,117 @@ export default function DeitySelectionModal({
         </div>
 
         <CardContent padding="p-0" className="flex flex-col h-full">
-          
-          <div className="flex-1 flex overflow-hidden">
-            
-            <div className="w-1/3 min-w-[300px] flex flex-col border-r border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))/30]">
-              <div className="p-4 border-b border-[rgb(var(--color-surface-border))] space-y-3 pt-12">
-                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input 
-                      placeholder="Search deities..." 
-                      value={searchQuery} 
-                      onChange={e => setSearchQuery(e.target.value)} 
-                      className="pl-9 bg-[rgb(var(--color-surface-1))]"
-                      autoFocus
-                    />
-                 </div>
-                 <div className="text-xs text-[rgb(var(--color-text-muted))] text-right">
-                    {filteredDeities.length} found
-                 </div>
+          {isLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-[rgb(var(--color-text-muted))] gap-3">
+                <div className="w-12 h-12 rounded-full border-4 border-[rgb(var(--color-primary)/0.2)] border-t-[rgb(var(--color-primary))] animate-spin" />
+                <span className="text-lg font-medium">Loading deities...</span>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                <Button
-                    variant={!selectedDeity ? "secondary" : "ghost"}
-                    className={`w-full justify-start text-left font-medium transition-all duration-200 ${
-                        !selectedDeity 
-                        ? 'bg-[rgb(var(--color-primary))/10] text-[rgb(var(--color-primary-light))] border-l-2 border-[rgb(var(--color-primary))]' 
-                        : 'border-l-2 border-transparent text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] hover:text-[rgb(var(--color-text-primary))]'
-                    }`}
-                    onClick={() => setSelectedDeity(null)}
-                >
-                    None (No Deity)
-                </Button>
+          ) : (
+             <>
+              <div className="flex-1 flex overflow-hidden">
                 
-                {filteredDeities.map(deity => (
-                  <Button
-                    key={deity.id}
-                    variant={selectedDeity?.id === deity.id ? "secondary" : "ghost"}
-                    className={`w-full justify-start text-left h-auto py-3 px-4 transition-all duration-200 ${
-                        selectedDeity?.id === deity.id 
-                        ? 'bg-[rgb(var(--color-primary))/15] border-l-2 border-[rgb(var(--color-primary))] text-[rgb(var(--color-primary-light))] shadow-sm' 
-                        : 'border-l-2 border-transparent text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))] hover:border-[rgb(var(--color-surface-border))] hover:text-[rgb(var(--color-text-primary))]'
-                    }`}
-                    onClick={() => setSelectedDeity(deity)}
-                  >
-                    <div className="truncate">
-                        <span className="font-semibold block truncate">{deity.name}</span>
-                        {deity.alignment && <span className="text-xs text-[rgb(var(--color-text-muted))] block">{deity.alignment}</span>}
-                    </div>
-                  </Button>
-                ))}
-                
-                {filteredDeities.length === 0 && (
-                    <div className="p-4 text-center text-[rgb(var(--color-text-muted))]">
-                        No deities match your search.
-                    </div>
-                )}
-              </div>
-            </div>
+                <div className="w-1/3 min-w-[300px] flex flex-col border-r border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))/30]">
+                  <div className="p-4 border-b border-[rgb(var(--color-surface-border))] space-y-3 pt-12">
+                     <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input 
+                          placeholder="Search deities..." 
+                          value={searchQuery} 
+                          onChange={e => setSearchQuery(e.target.value)} 
+                          className="pl-9 bg-[rgb(var(--color-surface-1))]"
+                          autoFocus
+                        />
+                     </div>
+                     <div className="text-xs text-[rgb(var(--color-text-muted))] text-right">
+                        {filteredDeities.length} found
+                     </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                            <Button
+                                variant={!selectedDeity ? "secondary" : "ghost"}
+                                className={`w-full justify-start text-left font-medium transition-all duration-200 ${
+                                    !selectedDeity 
+                                    ? 'bg-[rgb(var(--color-primary))/10] text-[rgb(var(--color-primary-light))] border-l-2 border-[rgb(var(--color-primary))]' 
+                                    : 'border-l-2 border-transparent text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] hover:text-[rgb(var(--color-text-primary))]'
+                                }`}
+                                onClick={() => setSelectedDeity(null)}
+                            >
+                                None (No Deity)
+                            </Button>
+                            
+                            {filteredDeities.map(deity => (
+                            <Button
+                                key={deity.id}
+                                variant={selectedDeity?.id === deity.id ? "secondary" : "ghost"}
+                                className={`w-full justify-start text-left h-auto py-3 px-4 transition-all duration-200 ${
+                                    selectedDeity?.id === deity.id 
+                                    ? 'bg-[rgb(var(--color-primary))/15] border-l-2 border-[rgb(var(--color-primary))] text-[rgb(var(--color-primary-light))] shadow-sm' 
+                                    : 'border-l-2 border-transparent text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))] hover:border-[rgb(var(--color-surface-border))] hover:text-[rgb(var(--color-text-primary))]'
+                                }`}
+                                onClick={() => setSelectedDeity(deity)}
+                            >
+                                <div className="truncate">
+                                    <span className="font-semibold block truncate">{deity.name}</span>
+                                    {deity.alignment && <span className="text-xs text-[rgb(var(--color-text-muted))] block">{deity.alignment}</span>}
+                                </div>
+                            </Button>
+                            ))}
+                            
+                            {filteredDeities.length === 0 && (
+                                <div className="p-4 text-center text-[rgb(var(--color-text-muted))]">
+                                    No deities match your search.
+                                </div>
+                            )}
+                  </div>
+                </div>
 
-            <div className="flex-1 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-1))]">
-                {selectedDeity ? (
-                    <div className="flex-1 flex flex-col overflow-y-auto p-8">
-                        <div className="mb-6 flex items-start gap-4">
-                            <div>
-                                <h1 className="text-3xl font-bold text-[rgb(var(--color-primary-light))] uppercase tracking-wide mb-2">
-                                    {selectedDeity.name}
-                                </h1>
-                                <div className="h-1 w-20 bg-[rgb(var(--color-primary))] rounded-full"></div>
+                <div className="flex-1 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-1))]">
+                    {selectedDeity ? (
+                        <div className="flex-1 flex flex-col overflow-y-auto p-8">
+                            <div className="mb-6 flex items-start gap-4">
+                                <div>
+                                    <h1 className="text-3xl font-bold text-[rgb(var(--color-primary-light))] uppercase tracking-wide mb-2">
+                                        {selectedDeity.name}
+                                    </h1>
+                                    <div className="h-1 w-20 bg-[rgb(var(--color-primary))] rounded-full"></div>
+                                </div>
+                            </div>
+                            
+                            <div className="prose prose-invert max-w-none text-[rgb(var(--color-text-primary))]">
+                                 <div className="bg-[rgb(var(--color-surface-2))/20] p-6 rounded-xl border border-[rgb(var(--color-surface-border))]">
+                                    {renderDeityDetails(selectedDeity)}
+                                 </div>
                             </div>
                         </div>
-                        
-                        <div className="prose prose-invert max-w-none text-[rgb(var(--color-text-primary))]">
-                             <div className="bg-[rgb(var(--color-surface-2))/20] p-6 rounded-xl border border-[rgb(var(--color-surface-border))]">
-                                {renderDeityDetails(selectedDeity)}
-                             </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center p-8 text-center bg-[rgb(var(--color-surface-2))/20]">
+                            <div className="max-w-md">
+                                <h3 className="text-xl font-medium text-[rgb(var(--color-text-muted))] mb-2">No Deity Selected</h3>
+                                <p className="text-[rgb(var(--color-text-muted))/60]">Select a deity from the list on the left to view their details.</p>
+                                <Button className="mt-6" onClick={handleSelectNone}>Select "None"</Button>
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center p-8 text-center bg-[rgb(var(--color-surface-2))/20]">
-                        <div className="max-w-md">
-                            <h3 className="text-xl font-medium text-[rgb(var(--color-text-muted))] mb-2">No Deity Selected</h3>
-                            <p className="text-[rgb(var(--color-text-muted))/60]">Select a deity from the list on the left to view their details.</p>
-                            <Button className="mt-6" onClick={handleSelectNone}>Select "None"</Button>
-                        </div>
-                    </div>
-                )}
-            </div>
-            
-          </div>
+                    )}
+                </div>
+                
+              </div>
 
-          <div className="flex justify-end gap-3 p-4 border-t border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))/50]">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button 
-                type="button"
-                onClick={selectedDeity ? handleSelect : handleSelectNone}
-                disabled={!selectedDeity}
-                className="px-8 font-semibold"
-            >
-              Confirm Selection
-            </Button>
-          </div>
+              <div className="flex justify-end gap-3 p-4 border-t border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))/50]">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button 
+                    type="button"
+                    onClick={selectedDeity ? handleSelect : handleSelectNone}
+                    disabled={!selectedDeity}
+                    className="px-8 font-semibold"
+                >
+                  Confirm Selection
+                </Button>
+              </div>
+            </>
+          )}
 
         </CardContent>
       </Card>

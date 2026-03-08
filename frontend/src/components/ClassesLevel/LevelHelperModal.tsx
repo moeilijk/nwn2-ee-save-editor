@@ -34,9 +34,9 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
   })();
 
   const abilityPoints = (() => {
-    const data = abilityScoresSubsystem.data as { point_summary?: { available?: number } } | null;
+    const data = abilityScoresSubsystem.data as { point_summary?: { available: number } } | null;
     if (!data?.point_summary) return 0;
-    return data.point_summary.available ?? 0;
+    return data.point_summary.available;
   })();
 
   // Get feat slots from feats subsystem
@@ -46,36 +46,52 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
     return data.point_summary.available ?? 0;
   })();
 
-  // Get spell slots data
+  // Get pending spells to learn - only for spontaneous casters and wizards
   const spellData = (() => {
-    interface CasterClass {
-      slots_by_level?: Record<string, number>;
+    interface PendingSpellLearning {
+      class_id: { inner: number };
+      class_name: string;
+      caster_type: string;
+      by_level: Record<string, number>;
+      total: number;
     }
     interface SpellSubsystemData {
-      spell_summary?: {
-        caster_classes?: CasterClass[];
-      };
+      pending_spell_learning?: PendingSpellLearning[];
     }
     const data = spellsSubsystem.data as SpellSubsystemData | null;
-    if (!data?.spell_summary?.caster_classes?.length) return null;
+    if (!data?.pending_spell_learning?.length) return null;
 
-    const allSlots: Record<number, number> = {};
-    let totalSlots = 0;
+    const classes: Array<{
+      name: string;
+      casterType: string;
+      byLevel: Record<number, number>;
+      total: number;
+    }> = [];
+    let grandTotal = 0;
 
-    data.spell_summary.caster_classes.forEach((cls: CasterClass) => {
-      if (cls.slots_by_level) {
-        Object.entries(cls.slots_by_level).forEach(([level, count]) => {
-          const lvl = parseInt(level);
-          allSlots[lvl] = (allSlots[lvl] || 0) + count;
-          totalSlots += count;
+    data.pending_spell_learning.forEach((cls: PendingSpellLearning) => {
+      if (cls.total > 0) {
+        const byLevel: Record<number, number> = {};
+        if (cls.by_level) {
+          Object.entries(cls.by_level).forEach(([level, count]) => {
+            byLevel[parseInt(level)] = count;
+          });
+        }
+        classes.push({
+          name: cls.class_name,
+          casterType: cls.caster_type,
+          byLevel,
+          total: cls.total,
         });
+        grandTotal += cls.total;
       }
     });
 
-    return { slotsByLevel: allSlots, total: totalSlots };
+    return classes.length > 0 ? { classes, total: grandTotal } : null;
   })();
 
-  const hasPendingGains = skillPoints > 0 || abilityPoints > 0 || featSlots > 0;
+  const hasPendingSpells = spellData !== null && spellData.total > 0;
+  const hasPendingGains = skillPoints > 0 || abilityPoints > 0 || featSlots > 0 || hasPendingSpells;
 
   useEffect(() => {
     if (isOpen) {
@@ -185,18 +201,18 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
               </div>
             )}
 
-            {/* Spell Slots Row */}
-            {spellData && spellData.total > 0 && (
+            {/* Spells to Learn Row */}
+            {hasPendingSpells && spellData && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-2 bg-[rgb(var(--color-surface-2))] rounded hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group">
                   <div className="flex items-center gap-2 flex-1" onClick={() => handleNavigate('/spells')}>
                      <div className="p-1.5 bg-blue-500/20 text-blue-500 rounded-md">
                        <Sparkles className="w-4 h-4" />
                      </div>
-                     <span className="text-sm font-medium">{t('levelHelper.spellSlots')}</span>
+                     <span className="text-sm font-medium">{t('levelHelper.spellsToLearn')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-blue-500">{spellData.total} {t('levelHelper.total')}</span>
+                    <span className="text-xs font-bold text-blue-500">{spellData.total} {t('levelHelper.available')}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -213,21 +229,40 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
                   </div>
                 </div>
 
-                {/* Expandable Spell Level Breakdown */}
+                {/* Expandable Spell Level Breakdown - Per Class */}
                 {spellsExpanded && (
-                  <div className="ml-4 pl-4 border-l-2 border-[rgb(var(--color-border))] space-y-1">
-                    {Object.entries(spellData.slotsByLevel)
-                      .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                      .map(([level, count]) => (
-                        <div key={level} className="flex items-center justify-between text-xs text-[rgb(var(--color-text-muted))]">
-                          <span>
-                            {parseInt(level) === 0
-                              ? t('levelHelper.cantrips')
-                              : t('levelHelper.spellLevel', { level })}
-                          </span>
-                          <span className="font-medium text-blue-400">{count}</span>
+                  <div className="ml-4 pl-4 border-l-2 border-[rgb(var(--color-border))] space-y-3">
+                    {spellData.classes.map((casterClass, classIdx) => (
+                      <div key={classIdx} className="space-y-1">
+                        <div className="text-xs font-medium text-[rgb(var(--color-text-primary))]">
+                          {casterClass.name}
+                          {casterClass.casterType === 'spellbook' && (
+                            <span className="text-[rgb(var(--color-text-muted))] ml-1">
+                              ({t('levelHelper.spellbook')})
+                            </span>
+                          )}
                         </div>
-                      ))}
+                        {casterClass.casterType === 'spellbook' ? (
+                          <div className="flex items-center justify-between text-xs text-[rgb(var(--color-text-muted))] pl-2">
+                            <span>{t('levelHelper.freeSpells')}</span>
+                            <span className="font-medium text-blue-400">{casterClass.total}</span>
+                          </div>
+                        ) : (
+                          Object.entries(casterClass.byLevel)
+                            .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                            .map(([level, count]) => (
+                              <div key={level} className="flex items-center justify-between text-xs text-[rgb(var(--color-text-muted))] pl-2">
+                                <span>
+                                  {parseInt(level) === 0
+                                    ? t('levelHelper.cantrips')
+                                    : t('levelHelper.spellLevel', { level })}
+                                </span>
+                                <span className="font-medium text-blue-400">{count}</span>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

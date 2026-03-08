@@ -4,7 +4,7 @@ import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import DynamicAPI from '@/lib/utils/dynamicApi';
+import { invoke } from '@tauri-apps/api/core';
 import { display } from '@/utils/dataHelpers';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -14,21 +14,17 @@ const X = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// Matches Rust ResolvedLevelHistoryEntry struct
 interface LevelHistoryEntry {
-  level: number;
-  class: string;
+  character_level: number;
+  class_id: number;
+  class_name: string;
   class_level: number;
   hp_gained: number;
   skill_points_remaining: number;
-  ability_increase?: string;
-  skills_gained: { name: string; rank: number }[];
-  feats_gained: { name: string }[];
-  spells_learned: { name: string; level: number }[];
-  spells_removed: { name: string; level: number }[];
-}
-
-interface LevelHistoryResponse {
-  history: LevelHistoryEntry[];
+  ability_increase: string | null;
+  feats_gained: { feat_id: number; name: string }[];
+  skills_gained: { skill_id: number; name: string; ranks: number }[];
 }
 
 interface LevelHistoryModalProps {
@@ -48,21 +44,17 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
     setLoading(true);
     setError(null);
     try {
-      const response = await DynamicAPI.fetch(`/characters/${characterId}/classes/history`);
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-      const data: LevelHistoryResponse = await response.json();
-      setHistory(data.history || []);
-      if (data.history?.length) {
-        setExpandedLevels(new Set(data.history.map((h: LevelHistoryEntry) => h.level)));
+      const data = await invoke<LevelHistoryEntry[]>('get_level_history');
+      setHistory(data || []);
+      if (data?.length) {
+        setExpandedLevels(new Set(data.map((h: LevelHistoryEntry) => h.character_level)));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
-  }, [characterId]);
+  }, []);
 
   useEffect(() => {
     if (isOpen && characterId) {
@@ -84,7 +76,7 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
   };
 
   const collapseAll = () => setExpandedLevels(new Set());
-  const expandAll = () => setExpandedLevels(new Set(history.map(h => h.level)));
+  const expandAll = () => setExpandedLevels(new Set(history.map(h => h.character_level)));
 
   if (!isOpen) return null;
 
@@ -135,26 +127,26 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
 
                 {[...history].reverse().map((entry) => (
                   <Card
-                    key={entry.level}
+                    key={entry.character_level}
                     className="level-history-modal-level-card"
                   >
                     <button
-                      onClick={() => toggleLevel(entry.level)}
+                      onClick={() => toggleLevel(entry.character_level)}
                       className="level-history-modal-level-header"
                     >
                       <div className="level-history-modal-level-title">
-                        {expandedLevels.has(entry.level) ? (
+                        {expandedLevels.has(entry.character_level) ? (
                           <ChevronDown className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
                         ) : (
                           <ChevronRight className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
                         )}
                         <span className="level-history-modal-level-number">
-                          {t('classes.level')} {entry.level}
+                          {t('classes.level')} {entry.character_level}
                         </span>
                       </div>
                     </button>
 
-                    {expandedLevels.has(entry.level) && (
+                    {expandedLevels.has(entry.character_level) && (
                       <div className="level-history-modal-level-details">
                         <div className="level-history-modal-section">
                           <div className="level-history-modal-section-title">
@@ -162,7 +154,7 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
                           </div>
                           <ul className="level-history-modal-list">
                             <li className="level-history-modal-list-item">
-                              {display(entry.class)} {t('classes.level')} {entry.class_level}
+                              {display(entry.class_name)} {t('classes.level')} {entry.class_level}
                             </li>
                           </ul>
                         </div>
@@ -186,7 +178,7 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
                           </ul>
                         </div>
 
-                        {entry.skills_gained.length > 0 && (
+                        {(entry.skills_gained?.length ?? 0) > 0 && (
                           <div className="level-history-modal-section">
                             <div className="level-history-modal-section-title">
                               {t('classes.skills')}
@@ -194,14 +186,14 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
                             <ul className="level-history-modal-list">
                               {entry.skills_gained.map((skill, idx) => (
                                 <li key={idx} className="level-history-modal-list-item">
-                                  {display(skill.name)} <span className="level-history-modal-skill-rank">+{skill.rank}</span>
+                                  {display(skill.name)} <span className="level-history-modal-skill-rank">+{skill.ranks}</span>
                                 </li>
                               ))}
                             </ul>
                           </div>
                         )}
 
-                        {entry.feats_gained.length > 0 && (
+                        {(entry.feats_gained?.length ?? 0) > 0 && (
                           <div className="level-history-modal-section">
                             <div className="level-history-modal-section-title">
                               {t('classes.feats')}
@@ -216,40 +208,10 @@ export default function LevelHistoryModal({ isOpen, onClose }: LevelHistoryModal
                           </div>
                         )}
 
-                        {entry.spells_learned.length > 0 && (
-                          <div className="level-history-modal-section">
-                            <div className="level-history-modal-section-title">
-                              {t('classes.spellsLearned')}
-                            </div>
-                            <ul className="level-history-modal-list">
-                              {entry.spells_learned.map((spell, idx) => (
-                                <li key={idx} className="level-history-modal-list-item">
-                                  {display(spell.name)} <span className="level-history-modal-spell-level">({t('classes.lvl')} {spell.level})</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                        {/* TODO: spells_learned and spells_removed not yet in Rust backend */}
 
-                        {entry.spells_removed.length > 0 && (
-                          <div className="level-history-modal-section">
-                            <div className="level-history-modal-section-title">
-                              {t('classes.spellsRemoved')}
-                            </div>
-                            <ul className="level-history-modal-list level-history-modal-list-removed">
-                              {entry.spells_removed.map((spell, idx) => (
-                                <li key={idx} className="level-history-modal-list-item">
-                                  {display(spell.name)} <span className="level-history-modal-spell-level">({t('classes.lvl')} {spell.level})</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {entry.skills_gained.length === 0 &&
-                         entry.feats_gained.length === 0 &&
-                         entry.spells_learned.length === 0 &&
-                         entry.spells_removed.length === 0 && (
+                        {(entry.skills_gained?.length ?? 0) === 0 &&
+                         (entry.feats_gained?.length ?? 0) === 0 && (
                           <div className="level-history-modal-empty-level">
                             {t('classes.noGainsRecorded')}
                           </div>

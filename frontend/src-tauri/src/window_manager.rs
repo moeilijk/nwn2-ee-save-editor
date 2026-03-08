@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager, WebviewWindowBuilder, WebviewUrl};
 #[tauri::command]
 pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
     // Check if settings window already exists
-    if let Some(_) = app.get_webview_window("settings") {
+    if app.get_webview_window("settings").is_some() {
         // If it exists, just focus it
         if let Some(window) = app.get_webview_window("settings") {
             window.set_focus().map_err(|e| e.to_string())?;

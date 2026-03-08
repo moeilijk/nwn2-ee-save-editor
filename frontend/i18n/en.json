@@ -99,7 +99,16 @@
     "savingThrows": "Saving Throws",
     "fortitude": "Fort",
     "reflex": "Reflex",
-    "will": "Will"
+    "will": "Will",
+    "pointsSpent": "Points Spent",
+    "availablePoints": "Available Points",
+    "pointBuy": {
+      "title": "Point Buy - Level 1 Stats",
+      "button": "Point Buy",
+      "pointsUsed": "Points Used",
+      "remaining": "remaining",
+      "warning": "This will reset your level-up ability increases. You can re-spend them after applying."
+    }
   },
   "alignment": {
     "lawful": "Lawful",
@@ -659,6 +668,9 @@
     "featSlots": "Feat Slots",
     "abilityScoreIncrease": "Ability Score Increase",
     "spellSlots": "Spell Slots",
+    "spellsToLearn": "Spells to Learn",
+    "spellbook": "Spellbook",
+    "freeSpells": "Free Spells",
     "available": "Available",
     "total": "Total",
     "cantrips": "Cantrips",
@@ -667,6 +679,15 @@
   },
   "errors": {
     "loadingFailed": "Failed to load data"
+  },
+  "settings": {
+    "debug": {
+      "title": "Debug",
+      "exportButton": "Export Debug Log",
+      "exporting": "Exporting...",
+      "exportSuccess": "Debug log saved to:",
+      "exportError": "Failed to export debug log"
+    }
   },
   "spells": {
     "readOnlyClassNotice": "automatically knows all spells from game rules and cannot be modified.",

@@ -18,6 +18,7 @@ import AddItemModal from './AddItemModal';
 import { BaseItem, ItemTemplate } from '@/services/inventoryApi';
 import { safeToNumber } from '@/utils/dataHelpers';
 import { getRarityBorderColor } from '@/utils/itemHelpers';
+import type { FullInventorySummary, FullInventoryItem, FullEquippedItem, FullEncumbrance } from '@/lib/bindings';
 
 
 interface Item {
@@ -40,76 +41,13 @@ interface Item {
   is_stolen?: boolean;
 }
 
-interface InventoryItem {
-  index: number;
-  item: Record<string, unknown>;
-  base_item: number;
-  base_item_name?: string;
-  name: string;
-  description?: string;
-  weight: number;
-  value: number;
-  is_custom: boolean;
-  stack_size: number;
-  enhancement: number;
-  charges?: number;
-  identified: boolean;
-  plot: boolean;
-  cursed: boolean;
-  stolen: boolean;
-  base_ac?: number | null;
-  category: 'weapon' | 'armor' | 'accessory' | 'consumable' | 'misc';
-  equippable_slots: string[];
-  default_slot: string | null;
-  decoded_properties?: Array<{
-    property_id: number;
-    label: string;
-    description: string;
-    bonus_type: string;
-    bonus_value?: number;
-    [key: string]: unknown;
-  }>;
-}
+// Use the actual types from bindings directly
+type ExtendedInventoryItem = FullInventoryItem;
+type ExtendedEquippedItem = FullEquippedItem;
+type ExtendedEncumbrance = FullEncumbrance;
 
-interface InventoryEncumbrance {
-  total_weight: number | string;
-  light_load: number | string;
-  medium_load: number | string;
-  heavy_load: number | string;
-  encumbrance_level: string;
-}
-
-interface EquippedItem {
-  base_item: number;
-  base_item_name?: string;
-  custom: boolean;
-  name: string;
-  description?: string;
-  weight: number;
-  value: number;
-  item_data: Record<string, unknown>;
-  base_ac?: number | null;
-  decoded_properties?: Array<{
-    property_id: number;
-    label: string;
-    description: string;
-    bonus_type: string;
-    bonus_value?: number;
-    [key: string]: unknown;
-  }>;
-}
-
-interface InventorySummary {
-  total_items: number;
-  inventory_items: InventoryItem[];
-  equipped_items: Record<string, EquippedItem>;
-  custom_items: Record<string, unknown>[];
-  encumbrance: InventoryEncumbrance;
-}
-
-interface LocalInventoryData {
-  summary: InventorySummary;
-}
+// Map slot name to equipped item info
+type EquippedItemsMap = Record<string, { name: string; base_item: number; custom?: boolean }>;
 
 
 
@@ -153,18 +91,18 @@ export default function InventoryEditor() {
   }, [character, inventoryData, combatSubsystem]);
   
 
-  const parseInventoryData = (inventoryData: LocalInventoryData | null): (Item | null)[] => {
+  const parseInventoryData = (data: FullInventorySummary | null): (Item | null)[] => {
     const inv = Array(INVENTORY_COLS * INVENTORY_ROWS).fill(null);
 
-    if (!inventoryData?.summary) {
+    if (!data) {
       return inv;
     }
 
-    const { inventory_items } = inventoryData.summary;
+    const inventoryItems = data.inventory || [];
 
-    inventory_items?.forEach((itemInfo: InventoryItem) => {
+    inventoryItems.forEach((itemInfo: ExtendedInventoryItem) => {
       const targetIndex = safeToNumber(itemInfo.index, -1);
-      
+
       if (targetIndex >= 0 && targetIndex < INVENTORY_COLS * INVENTORY_ROWS && itemInfo) {
         const baseItem = itemInfo.base_item || 0;
         const isCustom = itemInfo.is_custom || false;
@@ -195,7 +133,7 @@ export default function InventoryEditor() {
   };
 
   const [inventory, setInventory] = useState<(Item | null)[]>(() =>
-    parseInventoryData(inventoryData.data as unknown as LocalInventoryData | null)
+    parseInventoryData(inventoryData.data as FullInventorySummary | null)
   );
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedItemRawData, setSelectedItemRawData] = useState<Record<string, unknown> | null>(null);
@@ -231,12 +169,12 @@ export default function InventoryEditor() {
   );
 
   const inventorySummary = useMemo(() => {
-    return (inventoryData.data as unknown as LocalInventoryData)?.summary;
+    return inventoryData.data as FullInventorySummary | null;
   }, [inventoryData.data]);
 
   const filteredAndSortedItems = useMemo(() => {
     const getItemDetails = (originalIndex: number) => {
-      return inventorySummary?.inventory_items?.[originalIndex];
+      return inventorySummary?.inventory?.[originalIndex];
     };
     let result = inventoryItemsWithIndices;
 
@@ -506,18 +444,21 @@ export default function InventoryEditor() {
 
   const getSelectedItemDefaultSlot = (): string | null => {
     if (selectedItemInventoryIndex === null) return null;
-    const inventoryItem = inventorySummary?.inventory_items?.[selectedItemInventoryIndex];
+    const inventoryItem = inventorySummary?.inventory?.[selectedItemInventoryIndex] as ExtendedInventoryItem | undefined;
     if (!inventoryItem) return null;
 
     let targetSlot = inventoryItem.default_slot;
 
-    if (inventoryItem.equippable_slots && inventoryItem.equippable_slots.length > 1) {
-      const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-      if (summary && targetSlot) {
-        const defaultOccupied = !!summary.equipped_items[targetSlot];
+    const extItem = inventoryItem as ExtendedInventoryItem;
+    if (extItem.equippable_slots && extItem.equippable_slots.length > 1) {
+      const invData = inventoryData.data as FullInventorySummary | null;
+      if (invData && targetSlot) {
+        const defaultOccupied = invData.equipped?.some(e => e.slot.toLowerCase() === targetSlot?.toLowerCase());
 
         if (defaultOccupied) {
-          const emptySlot = inventoryItem.equippable_slots.find(slot => !summary.equipped_items[slot]);
+          const emptySlot = extItem.equippable_slots.find(slot =>
+            !invData.equipped?.some(e => e.slot.toLowerCase() === slot.toLowerCase())
+          );
           if (emptySlot) {
             targetSlot = emptySlot;
           }
@@ -530,22 +471,23 @@ export default function InventoryEditor() {
 
   const canEquipSelectedItem = (): boolean => {
     if (selectedItemInventoryIndex === null || !selectedItem || selectedItem.equipped) return false;
-    return !!(selectedItem.defaultSlot && selectedItemRawData);
+    return !!(selectedItem.defaultSlot);
   };
 
   const getEquippedItemForSlot = (slotName: string) => {
-    if (!inventoryData.data) return null;
-    const summary = (inventoryData.data as unknown as LocalInventoryData).summary;
-    const equippedItems = summary?.equipped_items || {};
+    const invData = inventoryData.data as FullInventorySummary | null;
+    if (!invData) return null;
 
     const mappedSlot = SLOT_MAPPING[slotName.toLowerCase()];
-    if (!mappedSlot || !equippedItems[mappedSlot]) return null;
+    const targetSlot = mappedSlot || slotName;
+    const equipData = invData.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
 
-    const equipData = equippedItems[mappedSlot];
+    if (!equipData) return null;
+
     return {
       name: equipData.name || `Item ${equipData.base_item}`,
       base_item: equipData.base_item,
-      is_custom: equipData.custom
+      is_custom: equipData.custom || false
     };
   };
 
@@ -606,10 +548,10 @@ export default function InventoryEditor() {
 
     const handleSlotClick = () => {
       if (equippedItem) {
-        const summary = (inventoryData.data as unknown as LocalInventoryData).summary;
+        const invData = inventoryData.data as FullInventorySummary | null;
         const mappedSlot = SLOT_MAPPING[slotName.toLowerCase()];
-        const equipData = mappedSlot ? summary?.equipped_items[mappedSlot] : null;
-        const rawItemData = equipData?.item_data || null;
+        const targetSlot = mappedSlot || slotName;
+        const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
 
         const itemForDetails: Item = {
           id: `equipped_${slotName.toLowerCase().replace(' ', '_')}`,
@@ -625,7 +567,7 @@ export default function InventoryEditor() {
           is_stolen: false
         };
         setSelectedItem(itemForDetails);
-        setSelectedItemRawData(rawItemData as Record<string, unknown> | null);
+        setSelectedItemRawData(equipData?.item_data || null);
         setSelectedItemResolvedName(equipData?.name);
         setSelectedItemResolvedDescription(equipData?.description);
         setSelectedItemInventoryIndex(null);
@@ -681,37 +623,46 @@ export default function InventoryEditor() {
 
   useEffect(() => {
     if (inventoryData.data) {
-      setInventory(parseInventoryData(inventoryData.data as unknown as LocalInventoryData));
+      setInventory(parseInventoryData(inventoryData.data as FullInventorySummary));
     }
   }, [inventoryData.data]);
 
+  // Helper to get equipped item by slot name
+  const getEquippedBySlot = (data: FullInventorySummary | null, slotName: string): FullEquippedItem | undefined => {
+    if (!data) return undefined;
+    const mappedSlot = SLOT_MAPPING[slotName.toLowerCase()];
+    return data.equipped?.find(e => e.slot.toLowerCase() === (mappedSlot || slotName).toLowerCase());
+  };
+
   useEffect(() => {
-    if (pendingNewItemIndex !== null && inventoryData.data) {
-      const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-      const inventoryItem = summary?.inventory_items?.find(i => safeToNumber(i.index, -1) === pendingNewItemIndex);
+    const invData = inventoryData.data as FullInventorySummary | null;
+
+    if (pendingNewItemIndex !== null && invData) {
+      const inventoryItem = invData.inventory?.find((i: ExtendedInventoryItem) => safeToNumber(i.index, -1) === pendingNewItemIndex);
 
       if (inventoryItem) {
+        const extItem = inventoryItem as ExtendedInventoryItem;
         const item: Item = {
           id: `inventory_${pendingNewItemIndex}`,
-          name: inventoryItem.name || `Item ${inventoryItem.base_item}`,
-          type: inventoryItem.category || 'misc',
-          rarity: inventoryItem.is_custom ? 'legendary' : 'common',
+          name: extItem.name || `Item ${extItem.base_item}`,
+          type: 'misc',
+          rarity: extItem.is_custom ? 'legendary' : 'common',
           equipped: false,
-          defaultSlot: inventoryItem.default_slot || undefined,
-          stackSize: inventoryItem.stack_size > 1 ? inventoryItem.stack_size : undefined,
-          enhancement_bonus: inventoryItem.enhancement || 0,
-          charges: inventoryItem.charges,
-          is_custom: inventoryItem.is_custom,
-          is_identified: inventoryItem.identified,
-          is_plot: inventoryItem.plot,
-          is_cursed: inventoryItem.cursed,
-          is_stolen: inventoryItem.stolen
+          defaultSlot: extItem.default_slot || undefined,
+          stackSize: extItem.stack_size > 1 ? extItem.stack_size : undefined,
+          enhancement_bonus: extItem.enhancement || 0,
+          charges: extItem.charges ?? undefined,
+          is_custom: extItem.is_custom,
+          is_identified: extItem.identified,
+          is_plot: extItem.plot,
+          is_cursed: extItem.cursed,
+          is_stolen: extItem.stolen
         };
 
         setSelectedItem(item);
-        setSelectedItemRawData(inventoryItem.item as Record<string, unknown> | null);
-        setSelectedItemResolvedName(inventoryItem.name);
-        setSelectedItemResolvedDescription(inventoryItem.description);
+        setSelectedItemRawData(null);
+        setSelectedItemResolvedName(extItem.name);
+        setSelectedItemResolvedDescription(extItem.description);
         setSelectedItemInventoryIndex(pendingNewItemIndex);
         setShowPropertyEditor(true);
         setPendingNewItemIndex(null);
@@ -719,9 +670,8 @@ export default function InventoryEditor() {
       }
     }
 
-    if (pendingEquipSlot && inventoryData.data) {
-      const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-      const equipData = summary?.equipped_items?.[pendingEquipSlot];
+    if (pendingEquipSlot && invData) {
+      const equipData = getEquippedBySlot(invData, pendingEquipSlot);
       if (equipData) {
         setSelectedItem({
           id: `equipped_${pendingEquipSlot}`,
@@ -730,13 +680,13 @@ export default function InventoryEditor() {
           rarity: equipData.custom ? 'legendary' : 'common',
           equipped: true,
           slot: pendingEquipSlot,
-          is_custom: equipData.custom,
+          is_custom: equipData.custom || false,
           is_identified: true,
           is_plot: false,
           is_cursed: false,
           is_stolen: false
         });
-        setSelectedItemRawData(equipData.item_data as Record<string, unknown> | null);
+        setSelectedItemRawData(null);
         setSelectedItemResolvedName(equipData.name);
         setSelectedItemResolvedDescription(equipData.description);
         setSelectedItemInventoryIndex(null);
@@ -749,33 +699,32 @@ export default function InventoryEditor() {
       }
     }
 
-    if (pendingUnequipItem && inventoryData.data) {
-      const currentInventory = parseInventoryData(inventoryData.data as unknown as LocalInventoryData);
-      const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-      
-      const matchIndex = currentInventory.findIndex(item => 
+    if (pendingUnequipItem && invData) {
+      const currentInventory = parseInventoryData(invData);
+
+      const matchIndex = currentInventory.findIndex(item =>
         item && item.name === pendingUnequipItem.name
       );
 
       if (matchIndex !== -1 && currentInventory[matchIndex]) {
         const newItem = currentInventory[matchIndex]!;
         setSelectedItem(newItem);
-        const inventoryItem = summary?.inventory_items?.find(i => safeToNumber(i.index, -1) === matchIndex);
-        setSelectedItemRawData(inventoryItem?.item as Record<string, unknown> | null);
+        const inventoryItem = invData.inventory?.find((i: ExtendedInventoryItem) => safeToNumber(i.index, -1) === matchIndex) as ExtendedInventoryItem | undefined;
+        setSelectedItemRawData(null);
         setSelectedItemResolvedName(inventoryItem?.name);
         setSelectedItemResolvedDescription(inventoryItem?.description);
         setSelectedItemInventoryIndex(matchIndex);
         setPendingUnequipItem(null);
         return;
       }
-      
+
       if (!isEquipping) {
          setPendingUnequipItem(null);
       }
     }
 
     if (selectedItemInventoryIndex !== null) {
-      const currentInventory = parseInventoryData(inventoryData.data as unknown as LocalInventoryData);
+      const currentInventory = parseInventoryData(invData);
       const currentItem = currentInventory[selectedItemInventoryIndex];
 
       if (!currentItem) {
@@ -786,8 +735,8 @@ export default function InventoryEditor() {
         setSelectedItemInventoryIndex(null);
       } else {
         setSelectedItem(currentItem);
-        const inventoryItem = (inventoryData.data as unknown as LocalInventoryData)?.summary?.inventory_items?.[selectedItemInventoryIndex];
-        setSelectedItemRawData(inventoryItem?.item as Record<string, unknown> | null);
+        const inventoryItem = invData?.inventory?.[selectedItemInventoryIndex] as ExtendedInventoryItem | undefined;
+        setSelectedItemRawData(null);
         setSelectedItemResolvedName(inventoryItem?.name);
         setSelectedItemResolvedDescription(inventoryItem?.description);
       }
@@ -834,10 +783,9 @@ export default function InventoryEditor() {
 
     if (activeData.type === 'inventory' && overData?.type === 'slot' && overData.slot) {
       if (activeData.item && activeData.index !== undefined) {
-          const inventoryItemInfo = inventorySummary?.inventory_items?.find(i => safeToNumber(i.index) === activeData.index);
-          const rawItem = inventoryItemInfo?.item;
+          const inventoryItemInfo = inventorySummary?.inventory?.find(i => safeToNumber(i.index) === activeData.index) as ExtendedInventoryItem | undefined;
 
-          if (inventoryItemInfo && rawItem) {
+          if (inventoryItemInfo) {
              const targetSlotName = overData.slot.toLowerCase();
              const mappedSlot = SLOT_MAPPING[targetSlotName];
              const allowedSlots = inventoryItemInfo.equippable_slots || [];
@@ -847,7 +795,8 @@ export default function InventoryEditor() {
                  return;
              }
 
-             await handleEquipItem(rawItem, overData.slot, activeData.index);
+             // Pass empty object as itemData - inventoryAPI uses inventory_index
+             await handleEquipItem({}, overData.slot, activeData.index);
           }
       }
     }
@@ -930,7 +879,7 @@ export default function InventoryEditor() {
 
                   <div className="mt-auto pt-6">
                     <InventorySidebarFooter
-                      encumbrance={(inventoryData.data as unknown as LocalInventoryData)?.summary?.encumbrance}
+                      encumbrance={(inventoryData.data as FullInventorySummary | null)?.encumbrance}
                     />
                   </div>
             </div>
@@ -975,8 +924,7 @@ export default function InventoryEditor() {
                     <div className="grid gap-1.5 p-2 bg-[rgb(var(--color-surface-1))] rounded w-fit mx-auto" style={{ gridTemplateColumns: 'repeat(8, 3rem)' }}>
                       {displayItems.map((entry, displayIndex) => {
                         const { item, originalIndex } = entry;
-                        const inventoryItem = originalIndex >= 0 ? inventorySummary?.inventory_items?.[originalIndex] : null;
-                        const rawItemData = inventoryItem?.item;
+                        const inventoryItem = originalIndex >= 0 ? inventorySummary?.inventory?.[originalIndex] : null;
                         const isSelected = selectedItem?.id === item?.id;
 
                         if (!item) {
@@ -996,7 +944,7 @@ export default function InventoryEditor() {
                                 isSelected={isSelected}
                                 onClick={() => {
                                     setSelectedItem(item);
-                                    setSelectedItemRawData(rawItemData as Record<string, unknown> | null);
+                                    setSelectedItemRawData(inventoryItem?.item || null);
                                     setSelectedItemResolvedName(inventoryItem?.name);
                                     setSelectedItemResolvedDescription(inventoryItem?.description);
                                     setSelectedItemInventoryIndex(originalIndex >= 0 ? originalIndex : null);
@@ -1038,77 +986,74 @@ export default function InventoryEditor() {
                 item={selectedItem}
                 decodedProperties={(() => {
                   if (!selectedItem) return undefined;
+                  const invData = inventoryData.data as FullInventorySummary | null;
 
                   if (selectedItemInventoryIndex !== null) {
-                    const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-                    const inventoryItem = summary?.inventory_items?.[selectedItemInventoryIndex];
+                    const inventoryItem = invData?.inventory?.[selectedItemInventoryIndex];
                     return inventoryItem?.decoded_properties;
                   }
 
                   if (selectedItem.equipped && selectedItem.slot) {
-                    const summary = (inventoryData.data as unknown as LocalInventoryData)?.summary;
-                    const itemSlot = Object.entries(SLOT_MAPPING).find(([key]) => key.toLowerCase() === selectedItem.slot?.toLowerCase())?.[1];
-                    if (itemSlot && summary?.equipped_items?.[itemSlot]) {
-                      return summary.equipped_items[itemSlot].decoded_properties;
-                    }
+                    const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
+                    const targetSlot = mappedSlot || selectedItem.slot;
+                    const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
+                    return equipData?.decoded_properties;
                   }
                   return undefined;
                 })()}
                 description={(() => {
+                  const invData = inventoryData.data as FullInventorySummary | null;
                   if (selectedItemInventoryIndex !== null) {
-                    return inventorySummary?.inventory_items?.[selectedItemInventoryIndex]?.description;
+                    return invData?.inventory?.[selectedItemInventoryIndex]?.description;
                   }
                   if (selectedItem.equipped && selectedItem.slot) {
                     const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
-                    const equipData = (inventoryData.data as unknown as LocalInventoryData)?.summary?.equipped_items?.[mappedSlot];
+                    const targetSlot = mappedSlot || selectedItem.slot;
+                    const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
                     return equipData?.description;
                   }
                   return undefined;
                 })()}
                 baseItemName={(() => {
+                  const invData = inventoryData.data as FullInventorySummary | null;
                   if (selectedItemInventoryIndex !== null) {
-                    return inventorySummary?.inventory_items?.[selectedItemInventoryIndex]?.base_item_name;
+                    return invData?.inventory?.[selectedItemInventoryIndex]?.base_item_name;
                   }
                   if (selectedItem.equipped && selectedItem.slot) {
                     const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
-                    const equipData = (inventoryData.data as unknown as LocalInventoryData)?.summary?.equipped_items?.[mappedSlot];
+                    const targetSlot = mappedSlot || selectedItem.slot;
+                    const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
                     return equipData?.base_item_name;
                   }
                   return undefined;
                 })()}
                 weight={(() => {
+                  const invData = inventoryData.data as FullInventorySummary | null;
                   if (selectedItemInventoryIndex !== null) {
-                    return inventorySummary?.inventory_items?.[selectedItemInventoryIndex]?.weight;
+                    return invData?.inventory?.[selectedItemInventoryIndex]?.weight;
                   }
                   if (selectedItem.equipped && selectedItem.slot) {
                     const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
-                    const equipData = (inventoryData.data as unknown as LocalInventoryData)?.summary?.equipped_items?.[mappedSlot];
+                    const targetSlot = mappedSlot || selectedItem.slot;
+                    const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
                     return equipData?.weight;
                   }
                   return undefined;
                 })()}
                 value={(() => {
+                  const invData = inventoryData.data as FullInventorySummary | null;
                   if (selectedItemInventoryIndex !== null) {
-                    return inventorySummary?.inventory_items?.[selectedItemInventoryIndex]?.value;
+                    return invData?.inventory?.[selectedItemInventoryIndex]?.value;
                   }
                   if (selectedItem.equipped && selectedItem.slot) {
                     const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
-                    const equipData = (inventoryData.data as unknown as LocalInventoryData)?.summary?.equipped_items?.[mappedSlot];
+                    const targetSlot = mappedSlot || selectedItem.slot;
+                    const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
                     return equipData?.value;
                   }
                   return undefined;
                 })()}
-                baseAc={(() => {
-                  if (selectedItemInventoryIndex !== null) {
-                    return inventorySummary?.inventory_items?.[selectedItemInventoryIndex]?.base_ac;
-                  }
-                  if (selectedItem.equipped && selectedItem.slot) {
-                    const mappedSlot = SLOT_MAPPING[selectedItem.slot.toLowerCase()];
-                    const equipData = (inventoryData.data as unknown as LocalInventoryData)?.summary?.equipped_items?.[mappedSlot];
-                    return equipData?.base_ac;
-                  }
-                  return undefined;
-                })()}
+                baseAc={undefined}
                 rawData={selectedItemRawData || undefined}
                 onEquip={() => canEquipSelectedItem() && getSelectedItemDefaultSlot() ? handleEquipItem(selectedItemRawData!, getSelectedItemDefaultSlot()!, selectedItemInventoryIndex) : undefined}
                 onUnequip={() => selectedItem.equipped && selectedItem.slot && getEquippedItemForSlot(selectedItem.slot) ? handleUnequipItem(selectedItem.slot) : undefined}
@@ -1121,11 +1066,8 @@ export default function InventoryEditor() {
             ) : (
               <InventoryCharacterSummary
                 combatStats={{
-                  ac: (combatSubsystem.data?.armor_class?.total || character.armorClass || 0),
-                  bab: (typeof combatSubsystem.data?.base_attack_bonus === 'object' && combatSubsystem.data?.base_attack_bonus?.total_bab) || 
-                      combatSubsystem.data?.summary?.base_attack_bonus || 
-                      character.baseAttackBonus || 
-                      0
+                  ac: (combatSubsystem.data?.armor_class?.total || character?.armorClass || 0),
+                  bab: combatSubsystem.data?.base_attack_bonus || character?.baseAttackBonus || 0
                 }}
               />
             )}

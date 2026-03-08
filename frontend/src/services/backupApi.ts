@@ -1,6 +1,4 @@
-const API_BASE = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:8000/api' 
-  : '/api';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface BackupInfo {
   path: string;
@@ -39,53 +37,63 @@ export interface CleanupResponse {
 
 export class BackupAPI {
   static async listBackups(characterId: number): Promise<BackupsResponse> {
-    const response = await fetch(`${API_BASE}/savegame/${characterId}/backups`);
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to list backups: ${error}`);
+    try {
+        const backups = await invoke<any[]>('list_backups');
+        const mappedBackups: BackupInfo[] = backups.map(b => ({
+            path: b.path,
+            folder_name: b.filename || 'unknown',
+            timestamp: b.created_at || new Date().toISOString(),
+            display_name: b.filename || 'Backup',
+            size_bytes: b.size_bytes || 0,
+            original_save: "unknown" // Rust doesn't return this yet?
+        }));
+        
+        return {
+            backups: mappedBackups,
+            count: mappedBackups.length
+        };
+    } catch (e) {
+        throw new Error(String(e));
     }
-    
-    return response.json();
   }
 
   static async restoreFromBackup(
     characterId: number, 
     request: RestoreRequest
   ): Promise<RestoreResponse> {
-    const response = await fetch(`${API_BASE}/savegame/${characterId}/restore`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to restore backup: ${error}`);
+    try {
+        const result = await invoke<any>('restore_backup', { 
+            backupPath: request.backup_path, 
+            createPreRestoreBackup: request.create_pre_restore_backup 
+        });
+        
+        return {
+            success: result.success,
+            restored_from: request.backup_path,
+            files_restored: result.files_restored || [],
+            pre_restore_backup: result.pre_restore_backup_path,
+            restore_timestamp: new Date().toISOString(),
+            backups_cleaned_up: 0
+        };
+    } catch (e) {
+        throw new Error(String(e));
     }
-    
-    return response.json();
   }
 
   static async cleanupBackups(
     characterId: number, 
     keepCount: number = 10
   ): Promise<CleanupResponse> {
-    const response = await fetch(
-      `${API_BASE}/savegame/${characterId}/cleanup-backups?keep_count=${keepCount}`,
-      {
-        method: 'POST',
+      try {
+          const result = await invoke<any>('cleanup_backups', { keepCount: keepCount });
+          return {
+              cleaned_up: result.deleted_count || 0,
+              kept: result.remaining_count || 0,
+              errors: result.errors || []
+          };
+      } catch (e) {
+          throw new Error(String(e));
       }
-    );
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to cleanup backups: ${error}`);
-    }
-    
-    return response.json();
   }
 
   static formatTimestamp(timestamp: string): string {

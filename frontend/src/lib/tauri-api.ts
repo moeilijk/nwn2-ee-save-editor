@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ask, open } from '@tauri-apps/plugin-dialog';
+import type { SaveSummary } from '@/lib/bindings';
 
 export interface SaveFile {
   path: string;
@@ -8,28 +9,39 @@ export interface SaveFile {
   modified?: number;
 }
 
+// Path Configuration Interfaces
+export interface PathInfo {
+  path: string | null;
+  exists: boolean;
+  source: string;
+}
+
+export interface PathConfig {
+  game_folder: PathInfo;
+  documents_folder: PathInfo;
+  steam_workshop_folder: PathInfo;
+  custom_override_folders: Array<{ path: string; exists: boolean }>;
+  custom_module_folders: Array<{ path: string; exists: boolean }>;
+  custom_hak_folders: Array<{ path: string; exists: boolean }>;
+}
+
 export class TauriAPI {
   // Check for Tauri context
   static async isAvailable(): Promise<boolean> {
     return typeof window !== 'undefined' && '__TAURI__' in window;
   }
 
-  // FastAPI Sidecar Management
-  static async startFastAPIServer(): Promise<string> {
-    return await invoke('start_fastapi_sidecar');
+  // Initialization
+  static async initializeGameData(): Promise<boolean> {
+    return await invoke('initialize_game_data');
   }
 
-  static async stopFastAPIServer(): Promise<string> {
-    return await invoke('stop_fastapi_sidecar');
+  static async getInitializationStatus(): Promise<{ step: string; progress: number; message: string }> {
+    return await invoke('get_initialization_status');
   }
 
-  static async checkFastAPIHealth(): Promise<boolean> {
-    return await invoke('check_fastapi_health');
-  }
-
-  static async getFastAPIBaseURL(): Promise<string> {
-    const result = await invoke('get_fastapi_base_url');
-    return result as string;
+  static async getSaveSummary(): Promise<SaveSummary> {
+    return await invoke('get_save_summary');
   }
 
   // File Operations
@@ -91,6 +103,11 @@ export class TauriAPI {
     return await invoke('open_folder_in_explorer', { folderPath });
   }
 
+  // Path Configuration
+  static async getPathsConfig(): Promise<PathConfig> {
+    return await invoke('get_paths_config');
+  }
+
   // Instance method for consistency with the class pattern
   async confirmSaveSwitch(currentSave: string, newSave: string): Promise<boolean> {
     return TauriAPI.confirmSaveSwitch(currentSave, newSave);
@@ -110,6 +127,18 @@ export class TauriAPI {
 
   async selectCharacterFile(): Promise<string | null> {
     return TauriAPI.selectCharacterFile();
+  }
+  
+  async getPathsConfig(): Promise<PathConfig> {
+    return TauriAPI.getPathsConfig();
+  }
+
+  async selectSaveFile(): Promise<SaveFile> {
+    return TauriAPI.selectSaveFile();
+  }
+  
+  async findNWN2Saves(): Promise<SaveFile[]> {
+    return TauriAPI.findNWN2Saves();
   }
 
   // Window Management

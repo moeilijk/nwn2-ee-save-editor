@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/Label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { pathService, PathConfig } from '@/lib/api/paths';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderIcon, CheckCircleIcon, XCircleIcon, PlusIcon, TrashIcon, CogIcon, LanguageIcon, PaintBrushIcon } from '@heroicons/react/24/outline';
+import { invoke } from '@tauri-apps/api/core';
+import { FolderIcon, CheckCircleIcon, XCircleIcon, PlusIcon, TrashIcon, CogIcon, LanguageIcon, PaintBrushIcon, BugAntIcon } from '@heroicons/react/24/outline';
 import ThemeCustomizer from '@/components/Settings/ThemeCustomizer';
 import { useLocale } from '@/providers/LocaleProvider';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface AppSettings {
   theme: 'light' | 'dark';
@@ -17,6 +19,7 @@ interface AppSettings {
 
 export default function SettingsPage() {
   const { locale, setLocale } = useLocale();
+  const t = useTranslations();
   const [paths, setPaths] = useState<PathConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +28,8 @@ export default function SettingsPage() {
     theme: 'dark',
     fontSize: 'medium'
   });
+  const [debugExporting, setDebugExporting] = useState(false);
+  const [debugExportResult, setDebugExportResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadPaths();
@@ -206,6 +211,26 @@ export default function SettingsPage() {
     }
   };
 
+  const exportDebugLog = async () => {
+    try {
+      setDebugExporting(true);
+      setDebugExportResult(null);
+      const filePath = await invoke<string>('export_debug_log');
+      setDebugExportResult({
+        success: true,
+        message: `${t('settings.debug.exportSuccess')} ${filePath}`
+      });
+    } catch (err) {
+      console.error('Error exporting debug log:', err);
+      setDebugExportResult({
+        success: false,
+        message: t('settings.debug.exportError')
+      });
+    } finally {
+      setDebugExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -378,6 +403,35 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BugAntIcon className="w-5 h-5" />
+                {t('settings.debug.title')}
+              </CardTitle>
+              <CardDescription>Export diagnostic information for bug reports</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={exportDebugLog}
+                  variant="outline"
+                  disabled={debugExporting}
+                >
+                  {debugExporting ? t('settings.debug.exporting') : t('settings.debug.exportButton')}
+                </Button>
+              </div>
+              {debugExportResult && (
+                <div className={`text-sm p-3 rounded-md ${
+                  debugExportResult.success
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                }`}>
+                  {debugExportResult.message}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
         </TabsContent>
 
@@ -406,7 +460,7 @@ export default function SettingsPage() {
             label="Game Installation Folder"
             path={paths.game_folder.path}
             exists={paths.game_folder.exists}
-            autoDetected={paths.game_folder.auto_detected}
+            autoDetected={paths.game_folder.source === 'auto'}
             onEdit={() => updatePath('game')}
             onReset={() => resetPath('game')}
           />
@@ -414,7 +468,7 @@ export default function SettingsPage() {
             label="Documents Folder"
             path={paths.documents_folder.path}
             exists={paths.documents_folder.exists}
-            autoDetected={paths.documents_folder.auto_detected}
+            autoDetected={paths.documents_folder.source === 'auto'}
             onEdit={() => updatePath('documents')}
             onReset={() => resetPath('documents')}
           />
@@ -422,7 +476,7 @@ export default function SettingsPage() {
             label="Steam Workshop Folder"
             path={paths.steam_workshop_folder.path}
             exists={paths.steam_workshop_folder.exists}
-            autoDetected={paths.steam_workshop_folder.auto_detected}
+            autoDetected={paths.steam_workshop_folder.source === 'auto'}
             onEdit={() => updatePath('workshop')}
             onReset={() => resetPath('workshop')}
           />

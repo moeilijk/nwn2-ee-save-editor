@@ -1,4 +1,4 @@
-import DynamicAPI from '../lib/utils/dynamicApi';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface EquipItemRequest {
   item_data: Record<string, unknown>;
@@ -121,163 +121,186 @@ export interface AddItemFromTemplateResponse {
     new_item: Record<string, unknown>;
 }
 
+interface AvailableBaseItem {
+    id: number;
+    name: string;
+    item_class: string | null;
+    weight: number | null;
+    base_cost: number | null;
+}
+
+interface TemplateInfo {
+    name?: string;
+    base_item?: number;
+    source?: string;
+}
+
+interface AddItemResult {
+    success: boolean;
+    message?: string;
+    inventory_index?: number;
+}
+
+function mapItemClassToCategory(itemClass: string | null): string {
+    if (!itemClass) return 'Miscellaneous';
+    const cls = itemClass.toUpperCase();
+    if (cls.includes('ARMOR') || cls.includes('CLOTH') || cls.includes('HELM') || cls.includes('BOOT') || cls.includes('GLOVE') || cls.includes('BELT') || cls.includes('CLOAK') || cls.includes('ROBE') || cls.includes('BRACER')) return 'Armor & Clothing';
+    if (cls.includes('WEAPON') || cls.includes('SWORD') || cls.includes('AXE') || cls.includes('BOW') || cls.includes('DAGGER') || cls.includes('STAFF') || cls.includes('MACE') || cls.includes('HAMMER') || cls.includes('SPEAR') || cls.includes('HALBERD') || cls.includes('FLAIL') || cls.includes('CROSSBOW') || cls.includes('SLING') || cls.includes('ARROW') || cls.includes('BOLT') || cls.includes('BULLET') || cls.includes('THROWN')) return 'Weapons';
+    if (cls.includes('RING') || cls.includes('AMULET') || cls.includes('NECK')) return 'Accessories';
+    if (cls.includes('POTION') || cls.includes('SCROLL') || cls.includes('WAND') || cls.includes('ROD') || cls.includes('MAGIC')) return 'Magic Items';
+    return 'Miscellaneous';
+}
+
 export class InventoryAPI {
   async equipItem(characterId: number, request: EquipItemRequest): Promise<EquipItemResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/equip`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to equip item: ${response.status} ${response.statusText}`);
+    // Rust equip_item takes (index, slot)
+    // request.inventory_index is optional in TS but required for Rust logic typically
+    // If inventory_index is missing, we might need a workaround or fail. 
+    // Assuming UI always provides index.
+    if (request.inventory_index === undefined) {
+         throw new Error("Inventory index required for Rust backend");
     }
-
-    return response.json();
+    
+    // Map string slot to Rust enum equivalent (likely handled by serde if string matches)
+    // or we pass enum variant index.
+    // Assuming check logic in frontend or rust accepts string. 
+    // Rust expects `EquipmentSlot` enum.
+    try {
+        const result = await invoke<any>('equip_item', { 
+            inventoryIndex: request.inventory_index, 
+            slot: request.slot 
+        });
+        return {
+            success: result.success,
+            warnings: result.warnings || [],
+            message: result.message || "Item equipped",
+            has_unsaved_changes: true
+        };
+    } catch (e) {
+        throw new Error(String(e));
+    }
   }
 
   async unequipItem(characterId: number, request: UnequipItemRequest): Promise<UnequipItemResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/unequip`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to unequip item: ${response.status} ${response.statusText}`);
+    try {
+        const result = await invoke<any>('unequip_item', { slot: request.slot });
+        return {
+            success: result.success,
+            item_data: null, // Rust doesn't return item data on unequip usually? check return type
+            message: result.message || "Item unequipped",
+            has_unsaved_changes: true
+        };
+    } catch (e) {
+        throw new Error(String(e));
     }
-
-    return response.json();
   }
 
   async updateGold(characterId: number, gold: number): Promise<UpdateGoldResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/gold`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gold }),
+      try {
+          // set_gold returns new total
+          const newTotal = await invoke<number>('set_gold', { amount: gold });
+          return {
+              success: true,
+              gold: newTotal,
+              message: "Gold updated",
+              has_unsaved_changes: true
+          };
+      } catch (e) {
+             throw new Error(String(e));
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to update gold: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   async deleteItem(characterId: number, itemIndex: number): Promise<DeleteItemResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/${itemIndex}`,
-      {
-        method: 'DELETE',
+      try {
+          await invoke('remove_from_inventory', { index: itemIndex });
+          return {
+              success: true,
+              item_data: null,
+              message: "Item removed",
+              has_unsaved_changes: true
+          };
+      } catch (e) {
+          throw new Error(String(e));
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to delete item: ${response.status}`);
-    }
-
-    return response.json();
   }
 
-  async getEditorMetadata(characterId: number): Promise<ItemEditorMetadataResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/editor-metadata`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get item editor metadata: ${response.status}`);
-    }
-
-    return response.json();
+  async getEditorMetadata(_characterId: number): Promise<ItemEditorMetadataResponse> {
+      try {
+          const result = await invoke<ItemEditorMetadataResponse>('get_editor_metadata');
+          return result;
+      } catch (e) {
+          console.error('Failed to get editor metadata:', e);
+          return {
+              property_types: [], abilities: {}, skills: {}, damage_types: {},
+              alignment_groups: {}, racial_groups: {}, saving_throws: {},
+              immunity_types: {}, classes: {}, spells: {}
+          };
+      }
   }
 
   async addItemByBaseType(characterId: number, request: AddItemByBaseTypeRequest): Promise<AddToInventoryResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/create-new-item`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+      try {
+          const result = await invoke<any>('add_to_inventory', { 
+              baseItemId: request.base_item_id, 
+              stackSize: 1 
+          });
+          return {
+              success: result.success,
+              message: result.message || "Item added",
+              has_unsaved_changes: true,
+              item_index: result.index // verify rust returns index
+          };
+      } catch (e) {
+          throw new Error(String(e));
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to add item: ${response.status}`);
-    }
-
-    return response.json();
   }
 
   async updateItem(characterId: number, request: UpdateItemRequest): Promise<UpdateItemResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/item`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+    // TODO: Implement item property editing in Rust
+    console.warn("updateItem not implemented in Rust backend yet");
+    return { success: false, message: "Not implemented", has_unsaved_changes: false };
+  }
+
+  async getAllBaseItems(_characterId: number): Promise<{ base_items: BaseItem[] }> {
+    try {
+        const items = await invoke<AvailableBaseItem[]>('get_available_base_items');
+        return {
+            base_items: items.map(item => ({
+                id: item.id,
+                name: item.name,
+                type: item.id,
+                category: mapItemClassToCategory(item.item_class)
+            }))
+        };
+    } catch (e) {
+        console.error('Failed to get base items:', e);
+        return { base_items: [] };
+    }
+  }
+
+
+  async getAvailableTemplates(_characterId: number): Promise<{ templates: ItemTemplate[] }> {
+    try {
+        const templates = await invoke<ItemTemplate[]>('get_available_templates');
+        return { templates };
+    } catch (e) {
+        console.error('Failed to get templates:', e);
+        return { templates: [] };
+    }
+  }
+
+  async addItemFromTemplate(_characterId: number, resref: string): Promise<AddItemFromTemplateResponse> {
+      try {
+          const result = await invoke<AddItemResult>('add_item_from_template', { resref });
+          return {
+              success: result.success,
+              message: result.message || 'Item added',
+              new_item: {}
+          };
+      } catch (e) {
+          console.error('Failed to add item from template:', e);
+          return { success: false, message: String(e), new_item: {} };
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update item: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  async getAllBaseItems(characterId: number): Promise<{ base_items: BaseItem[] }> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/base-items`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get all base items: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-
-  async getAvailableTemplates(characterId: number): Promise<{ templates: ItemTemplate[] }> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/inventory/templates`
-    );
-
-    if (!response.ok) {
-        throw new Error(`Failed to get item templates: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  async addItemFromTemplate(characterId: number, resref: string): Promise<AddItemFromTemplateResponse> {
-      const response = await DynamicAPI.fetch(
-          `/characters/${characterId}/inventory/add-from-template`,
-          {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ template_resref: resref }),
-          }
-      );
-      
-      if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-          throw new Error(errorData.detail || `Failed to add template item: ${response.status}`);
-      }
-
-      return response.json();
   }
 }
 

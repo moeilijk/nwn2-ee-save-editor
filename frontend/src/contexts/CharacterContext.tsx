@@ -1,126 +1,27 @@
-
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { CharacterAPI, CharacterData } from '@/services/characterApi';
-import DynamicAPI from '@/lib/utils/dynamicApi';
+import { CharacterStateAPI } from '@/lib/api/character-state';
+import type {
+  AbilitiesState,
+  CombatSummary,
+  SkillsState,
+  FeatsState,
+  SaveSummary,
+  ClassesState,
+  SpellsState,
+  FullInventorySummary,
+} from '@/lib/bindings';
 
-// Subsystem data interfaces
-export interface AbilitiesData {
-  abilities?: Record<string, number>;
-  effective_attributes?: Record<string, number>;
-  attribute_modifiers?: Record<string, number>;
-  derived_stats?: {
-    hit_points?: {
-      current?: number;
-      maximum?: number;
-    };
-    [key: string]: unknown;
-  };
-}
-
-export interface CombatData {
-  base_attack_bonus?: number | {
-    total_bab?: number;
-    [key: string]: unknown;
-  };
-  armor_class?: {
-    total?: number;
-    [key: string]: unknown;
-  };
-  attack_bonuses?: {
-    melee?: number;
-    ranged?: number;
-    melee_attack_bonus?: number;
-    ranged_attack_bonus?: number;
-  };
-  initiative?: number | {
-    total?: number;
-    [key: string]: unknown;
-  };
-  fortitude?: number | {
-    total?: number;
-    [key: string]: unknown;
-  };
-  reflex?: number | {
-    total?: number;
-    [key: string]: unknown;
-  };
-  will?: number | {
-    total?: number;
-    [key: string]: unknown;
-  };
-  summary?: {
-    spent_points?: number;
-    total_feats?: number;
-    base_attack_bonus?: number;
-  };
-}
-
-export interface SkillsData {
-  skill_points_available?: number;
-  spent_points?: number;
-  available_points?: number;
-  total_available?: number;
-  overspent?: number;
-  total_ranks?: number;
-  skills_with_ranks?: number;
-  class_skills?: Array<{
-    id: number;
-    name: string;
-    key_ability: string;
-    current_ranks: number;
-    max_ranks: number;
-    total_modifier: number;
-    is_class_skill: boolean;
-    armor_check: boolean;
-  }>;
-  cross_class_skills?: Array<{
-    id: number;
-    name: string;
-    key_ability: string;
-    current_ranks: number;
-    max_ranks: number;
-    total_modifier: number;
-    is_class_skill: boolean;
-    armor_check: boolean;
-  }>;
-  error: string | null;
-}
-
-export interface FeatsData {
-  summary?: {
-    total?: number;
-    spent_points?: number;
-  };
-  error?: string | null;
-  [key: string]: unknown;
-}
-
-export interface SavesData {
-  fortitude?: number | { total?: number; [key: string]: unknown };
-  reflex?: number | { total?: number; [key: string]: unknown };
-  will?: number | { total?: number; [key: string]: unknown };
-  [key: string]: unknown;
-}
-
-export interface ClassesData {
-  classes?: Array<{
-    id: number;
-    level: number;
-    name: string;
-  }>;
-  total_level?: number;
-  multiclass?: boolean;
-  can_multiclass?: boolean;
-  [key: string]: unknown;
-}
-
-export interface SpellsData {
-  [key: string]: unknown;
-}
-
-export interface InventoryData {
-  [key: string]: unknown;
-}
+// Re-export the Rust types as our subsystem data types
+export type AbilitiesData = AbilitiesState;
+export type CombatData = CombatSummary;
+export type SkillsData = SkillsState;
+export type FeatsData = FeatsState;
+export type SavesData = SaveSummary;
+export type ClassesData = ClassesState;
+export type SpellsData = SpellsState;
+export type InventoryData = FullInventorySummary;
 
 // Add metadata interfaces for classes
 export interface ClassInfo {
@@ -322,7 +223,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    const config = SUBSYSTEM_CONFIG[subsystem];
     const { silent = false } = options;
 
     // Update loading state (skip if silent)
@@ -334,15 +234,36 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const response = await DynamicAPI.fetch(`/characters/${characterId}/${config.endpoint}`, {
-        cache: options.force ? 'reload' : 'default'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load ${subsystem}: ${response.statusText}`);
+      let data;
+      // Use new aggregated state API for each subsystem
+      switch (subsystem) {
+        case 'feats':
+            data = await CharacterStateAPI.getFeats();
+            break;
+        case 'spells':
+            data = await CharacterStateAPI.getSpells();
+            break;
+        case 'skills':
+            data = await CharacterStateAPI.getSkills();
+            break;
+        case 'inventory':
+            data = await CharacterStateAPI.getInventory();
+            break;
+        case 'abilityScores':
+            data = await CharacterStateAPI.getAbilities();
+            break;
+        case 'combat':
+            data = await CharacterStateAPI.getCombat();
+            break;
+        case 'saves':
+            data = await CharacterStateAPI.getSaves();
+            break;
+        case 'classes':
+            data = await CharacterStateAPI.getClasses();
+            break;
+        default:
+            throw new Error(`Unknown subsystem: ${subsystem}`);
       }
-
-      const data = await response.json();
 
       // Update subsystem state
       setSubsystems(prev => ({
@@ -387,24 +308,10 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       }
     }));
 
-    // Here you would also send the update to the backend
-    try {
-      const response = await DynamicAPI.fetch(`/characters/${characterId}/${SUBSYSTEM_CONFIG[subsystem].endpoint}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-
-      if (!response.ok) {
-        // Revert on failure and reload
-        await loadSubsystem(subsystem);
-        throw new Error('Failed to update');
-      }
-    } catch (_err) {
-      console.error(`Failed to update ${subsystem}:`, _err);
-      throw _err;
-    }
-  }, [characterId, loadSubsystem]);
+    // Updates are now handled via specific mutations in components, 
+    // Generic PATCH is not supported in Tauri backend.
+    // This method kept for optimistic interface compatibility.
+  }, [characterId]);
 
   // Update subsystem data directly without HTTP request (for using API response data)
   const updateSubsystemData = useCallback((subsystem: SubsystemType, data: unknown) => {
@@ -433,35 +340,22 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
 
   // Clear character data and close backend session
   const clearCharacter = useCallback(async () => {
-    // Close backend session if one exists
-    if (characterId) {
-      try {
-        await DynamicAPI.fetch(`/session/characters/${characterId}/session/stop`, {
-          method: 'DELETE'
-        });
-      } catch (err) {
-        // Log but don't throw - we still want to clear frontend state
-        console.warn('Failed to close backend session:', err);
-      }
-    }
-    
+    // Session management in Rust is implicit/in-memory
     setCharacterId(null);
     setCharacter(null);
     setError(null);
     setSubsystems(initializeSubsystems());
     setCategorizedClasses(null);
-  }, [characterId]);
+  }, []);
 
-  const loadMetadataInternal = useCallback(async (id: number) => {
+  const loadMetadataInternal = useCallback(async (_id: number) => {
     setIsMetadataLoading(true);
     try {
-      const response = await DynamicAPI.fetch(`/characters/${id}/classes/categorized?include_unplayable=true`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategorizedClasses(data);
-      }
+      const categories = await invoke<CategorizedClassesResponse>('get_all_categorized_classes');
+      setCategorizedClasses(categories);
     } catch (err) {
       console.error('Failed to load class metadata:', err);
+      setCategorizedClasses(null);
     } finally {
       setIsMetadataLoading(false);
     }
@@ -501,16 +395,6 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     setError(null);
     
     try {
-      if (characterId) {
-        try {
-          await DynamicAPI.fetch(`/session/characters/${characterId}/session/stop`, {
-            method: 'DELETE'
-          });
-        } catch {
-          // Previous session cleanup failed, continue with import
-        }
-      }
-      
       // Step 1: Import the save game (creates backend session)
       const importResponse = await CharacterAPI.importCharacter(savePath);
       const newCharacterId = importResponse.id;
@@ -613,12 +497,17 @@ export function useSubsystem<K extends SubsystemType>(subsystem: K): {
     updateSubsystemData(subsystem, newData);
   }, [subsystem, updateSubsystemData]);
 
+  // Memoize load function to prevent infinite re-renders
+  const load = useCallback((options?: { force?: boolean; silent?: boolean }) => {
+    return loadSubsystem(subsystem, options);
+  }, [subsystem, loadSubsystem]);
+
   return {
     data: subsystemData.data as SubsystemTypeMap[K] | null,
     isLoading: subsystemData.isLoading,
     error: subsystemData.error,
     lastFetched: subsystemData.lastFetched,
-    load: (options?: { force?: boolean; silent?: boolean }) => loadSubsystem(subsystem, options),
+    load,
     updateData,
   };
 }

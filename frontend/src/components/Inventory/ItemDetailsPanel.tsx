@@ -6,15 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { formatNumber } from '@/utils/dataHelpers';
 import { getRarityTextColor } from '@/utils/itemHelpers';
 import { Trash2, Edit } from 'lucide-react';
+import type { DecodedPropertyInfo } from '@/lib/bindings';
 
-export interface DecodedProperty {
-  property_id: number;
-  label: string;
-  description: string;
-  bonus_type: string;
-  bonus_value?: number;
-  [key: string]: unknown;
-}
+// Use binding type for decoded properties
+export type DecodedProperty = DecodedPropertyInfo;
 
 interface Item {
   id: string;
@@ -180,7 +175,7 @@ export default function ItemDetailsPanel({
               </h5>
               <div className="space-y-1 max-h-[135px] overflow-y-auto custom-scrollbar pr-2">
                 {decodedProperties.map((prop, idx) => {
-                  const displayText = prop.label || prop.description || 'Unknown Property';
+                  const displayText = prop.display_string || prop.property_name || 'Unknown Property';
 
                   return (
                     <div key={idx} className="text-sm text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-1)/0.5)] rounded px-2 py-1.5">

@@ -34,16 +34,11 @@ export function TauriProvider({ children }: TauriProviderProps) {
   useEffect(() => {
     const checkTauriAvailability = async () => {
       const windowExists = typeof window !== 'undefined';
+      // In Tauri v2, we can just rely on the API access or window.__TAURI_INTERNALS__ being present
+      // But usually just trying an invoke or checking existing window object is enough.
+      const tauriExists = windowExists && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window);
       
-      let tauriExists = false;
-      try {
-        await invoke('check_fastapi_health');
-        tauriExists = true;
-      } catch {
-        tauriExists = windowExists && '__TAURI__' in window;
-      }
-      
-      if (windowExists && tauriExists) {
+      if (tauriExists) {
         setIsAvailable(true);
         setIsLoading(false);
         return true;

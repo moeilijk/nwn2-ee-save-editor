@@ -405,7 +405,7 @@ export default function ItemPropertyEditor({
                         </Card>
                       );
                     })}
-                    {(localData.PropertiesList || []).length === 0 && (
+                    {((localData.PropertiesList as unknown[]) || []).length === 0 && (
                       <div className="add-item-modal-empty">
                         No properties added. Click "Add Property" to add enchantments.
                       </div>
@@ -419,7 +419,7 @@ export default function ItemPropertyEditor({
           {/* Footer */}
           <div className="add-item-modal-footer">
             <div className="add-item-modal-footer-info">
-              {(localData.PropertiesList || []).length} properties
+              {((localData.PropertiesList as unknown[]) || []).length} properties
             </div>
             <div className="add-item-modal-footer-actions">
               <Button variant="outline" onClick={onClose}>

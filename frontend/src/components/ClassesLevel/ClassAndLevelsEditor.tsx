@@ -112,10 +112,9 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
     });
 
     try {
-      const response = await adjustClassLevel(classes[index].id, delta) as { level_changes?: { gains?: unknown } };
-      const gains = response?.level_changes?.gains;
-      
-      if (delta > 0 && gains && onLevelGains) {
+      await adjustClassLevel(classes[index].id, delta);
+
+      if (delta > 0 && onLevelGains) {
         onLevelGains();
       }
     } catch {
@@ -169,10 +168,9 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
         return;
       }
 
-      const response = await addClass(classInfo) as { changes?: { gains?: unknown } };
-      const gains = response?.changes?.gains;
-      
-      if (gains && onLevelGains) {
+      await addClass(classInfo);
+
+      if (onLevelGains) {
         onLevelGains();
       }
     } catch {
@@ -249,7 +247,7 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
   };
 
   // Check if XP level differs from class level
-  const hasLevelMismatch = xpProgress && xpProgress.current_xp_level !== totalLevel;
+  const hasLevelMismatch = xpProgress && xpProgress.current_level !== totalLevel;
   const totalBAB = classes.reduce((sum, c) => sum + c.baseAttackBonus, 0);
   const totalFort = classes.reduce((sum, c) => sum + c.fortitudeSave, 0);
   const totalRef = classes.reduce((sum, c) => sum + c.reflexSave, 0);
@@ -422,28 +420,28 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
                   <div className="h-1.5 w-[80%] bg-[rgb(var(--color-surface-2))] rounded-full overflow-hidden border border-[rgb(var(--color-surface-border)/0.3)] mx-auto">
                     <div
                       className="h-full bg-[rgb(var(--color-primary))] transition-all duration-500"
-                      style={{ 
-                        width: `${Math.max(0, Math.min(100, ( (xpProgress.current_xp - xpProgress.current_level_min_xp) / (xpProgress.next_level_min_xp - xpProgress.current_level_min_xp) ) * 100))}%` 
+                      style={{
+                        width: `${Math.max(0, Math.min(100, xpProgress.progress_percent))}%`
                       }}
                     />
                   </div>
                   <div className="flex flex-col items-center gap-0.5 text-[10px] uppercase font-medium tracking-tight text-[rgb(var(--color-text-muted))] w-full">
                      <div className="flex items-center justify-center gap-1.5 w-full">
-                        <span>{t('classes.xpLevel')} {xpProgress.current_xp_level}</span>
+                        <span>{t('classes.xpLevel')} {xpProgress.current_level}</span>
                         {hasLevelMismatch && (
                           <div className="relative group cursor-help">
                             <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
                             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 text-yellow-200 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64 z-[100] border border-yellow-500/30 text-center">
                               {t('classes.xpLevelMismatchWarning')
-                                .replace('{xpLevel}', String(xpProgress?.current_xp_level || 0))
+                                .replace('{xpLevel}', String(xpProgress?.current_level || 0))
                                 .replace('{classLevel}', String(totalLevel))}
                               <div className="absolute left-1/2 -translate-x-1/2 top-full w-2 h-2 bg-gray-900 border-r border-b border-yellow-500/30 rotate-45 -mt-1"></div>
                             </div>
                           </div>
                         )}
                      </div>
-                     {xpProgress.xp_to_next !== null && xpProgress.xp_to_next > 0 && (
-                        <span className="opacity-70">{formatNumber(xpProgress.xp_to_next)} to next</span>
+                     {xpProgress.xp_remaining > 0 && (
+                        <span className="opacity-70">{formatNumber(xpProgress.xp_remaining)} to next</span>
                      )}
                   </div>
                 </div>

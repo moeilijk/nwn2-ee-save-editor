@@ -3,9 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use base64::prelude::*;
 use tauri_plugin_shell::ShellExt;
-use crate::config::Config;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct SaveFile {
     pub path: String,
     pub name: String,
@@ -15,35 +14,8 @@ pub struct SaveFile {
 
 #[tauri::command]
 pub async fn select_save_file(app: tauri::AppHandle) -> Result<SaveFile, String> {
-    let config = Config::new();
     log::info!("[Rust] The 'select_save_file' command has been invoked.");
-    let mut dialog = app.dialog().file();
-    
-    let mut initial_dir = None;
-    
-    // Try to get saves path from FastAPI backend first  
-    // Ensure FastAPI sidecar is running (ignore errors for fallback)
-    let _ = crate::sidecar_manager::ensure_fastapi_running(app.clone()).await;
-    
-    if let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
-        if let Ok(response) = client.get(&format!("{}/api/gamedata/paths/", config.get_base_url())).send().await {
-            if response.status().is_success() {
-                if let Ok(paths_info) = response.json::<serde_json::Value>().await {
-                    if let Some(saves_path_str) = paths_info.get("saves").and_then(|p| p.as_str()) {
-                        let saves_path = PathBuf::from(saves_path_str);
-                        if saves_path.exists() {
-                            initial_dir = Some(saves_path);
-                            log::info!("[Rust] Using backend-detected saves path: {}", saves_path_str);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if let Some(dir) = initial_dir {
-        log::info!("[Rust] Setting initial directory for dialog.");
-        dialog = dialog.set_directory(&dir);
-    }
+    let dialog = app.dialog().file();
     
     // [FIX] Added logging to pinpoint the exact location of the freeze.
     log::info!("[Rust] About to call blocking_pick_folder. If the app freezes, this is the last log you will see.");
@@ -117,58 +89,19 @@ pub async fn select_nwn2_directory(app: tauri::AppHandle) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub async fn find_nwn2_saves(app: tauri::AppHandle) -> Result<Vec<SaveFile>, String> {
-    let config = Config::new();
+pub async fn find_nwn2_saves(_app: tauri::AppHandle) -> Result<Vec<SaveFile>, String> {
     use std::time::Instant;
     let start_time = Instant::now();
-    log::info!("[Rust] Finding available NWN2 saves via FastAPI backend.");
-    
-    // Only ensure FastAPI is running if health check fails
-    let sidecar_start = Instant::now();
-    let health_check = crate::sidecar_manager::check_fastapi_health().await;
-    match health_check {
-        Ok(true) => {
-            log::info!("[Rust] FastAPI already running and healthy, skipping startup");
-        }
-        _ => {
-            log::info!("[Rust] FastAPI not healthy, ensuring startup");
-            crate::sidecar_manager::ensure_fastapi_running(app).await
-                .map_err(|e| format!("Failed to start FastAPI sidecar: {}", e))?;
-        }
-    }
-    log::info!("[Rust] FastAPI sidecar check/startup took: {:?}", sidecar_start.elapsed());
-    
-    // Call FastAPI backend to get the proper save path using nwn2_settings.py
-    let backend_start = Instant::now();
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&format!("{}/api/gamedata/config/", config.get_base_url()))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to connect to FastAPI backend: {}", e))?;
-    log::info!("[Rust] Backend API call took: {:?}", backend_start.elapsed());
-    
-    if !response.status().is_success() {
-        return Err("Failed to get NWN2 configuration from backend".to_string());
-    }
-    
-    let config_info: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse config response: {}", e))?;
-    
-    // Extract saves path from backend response
-    let saves_path_str = config_info
-        .get("saves_path")
-        .and_then(|p| p.as_str())
-        .ok_or("Backend did not return saves path")?;
-    
-    let saves_path = PathBuf::from(saves_path_str);
+    log::info!("[Rust] Finding available NWN2 saves.");
+
+    // Use NWN2Paths to get saves directory
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    let saves_path = nwn2_paths.saves().ok_or("Could not determine NWN2 saves path")?;
     let mut saves = Vec::new();
     
     let scan_start = Instant::now();
-    if saves_path.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(&saves_path) {
+    if saves_path.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&saves_path) {
             // Collect save directory entries for sorting
             let mut save_entries: Vec<_> = entries.flatten()
                 .filter(|entry| entry.path().is_dir() && entry.path().join("resgff.zip").exists())
@@ -222,11 +155,10 @@ pub async fn find_nwn2_saves(app: tauri::AppHandle) -> Result<Vec<SaveFile>, Str
                 }
             }
         }
-    }
     log::info!("[Rust] Directory scan took: {:?}", scan_start.elapsed());
     
     log::info!("[Rust] Total function took: {:?}", start_time.elapsed());
-    log::info!("[Rust] Found {} potential save(s) in {}", saves.len(), saves_path_str);
+    log::info!("[Rust] Found {} potential save(s) in {}", saves.len(), saves_path.display());
     Ok(saves)
 }
 
@@ -262,7 +194,7 @@ pub async fn validate_nwn2_installation(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn get_save_thumbnail(thumbnail_path: String) -> Result<String, String> {
-    log::info!("[Rust] Starting thumbnail conversion process for: {}", thumbnail_path);
+    log::info!("[Rust] Starting thumbnail conversion process for: {thumbnail_path}");
     
     let path = PathBuf::from(&thumbnail_path);
     
@@ -279,7 +211,7 @@ pub async fn get_save_thumbnail(thumbnail_path: String) -> Result<String, String
     // Convert to WebP with quality control using webp crate
     let encoder = webp::Encoder::from_image(&dynamic_image)
         .map_err(|e| {
-            log::error!("Failed to create WebP encoder: {}", e);
+            log::error!("Failed to create WebP encoder: {e}");
             "Failed to create WebP encoder from image.".to_string()
         })?;
     
@@ -295,7 +227,7 @@ pub async fn get_save_thumbnail(thumbnail_path: String) -> Result<String, String
         if let Some(parent) = path.parent() {
             let test_path = parent.join("debug_thumbnail.webp");
             if let Err(e) = std::fs::write(&test_path, &webp_data) {
-                log::warn!("[Rust] Could not save debug WebP: {}", e);
+                log::warn!("[Rust] Could not save debug WebP: {e}");
             } else {
                 log::debug!("[Rust] Saved debug WebP to: {}", test_path.display());
             }
@@ -310,54 +242,31 @@ pub async fn get_save_thumbnail(thumbnail_path: String) -> Result<String, String
 }
 
 #[tauri::command]
-pub async fn detect_nwn2_installation(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let config = Config::new();
-    log::info!("[Rust] Detecting NWN2:EE installation using FastAPI backend");
-    
-    // Ensure FastAPI sidecar is running
-    let _ = crate::sidecar_manager::ensure_fastapi_running(app).await;
-    
-    // Use FastAPI backend's Rust-powered path discovery
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&format!("{}/api/gamedata/paths/", config.get_base_url()))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to connect to FastAPI backend: {}", e))?;
-    
-    if !response.status().is_success() {
-        return Err("Failed to get NWN2 paths from backend".to_string());
-    }
-    
-    let paths_info: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse paths response: {}", e))?;
-    
-    // Extract installation path from backend response
-    // The response structure is: { "paths": { "game_folder": { "path": "...", "exists": true } } }
-    if let Some(paths) = paths_info.get("paths") {
-        if let Some(game_folder) = paths.get("game_folder") {
-            if let Some(installation_path) = game_folder.get("path").and_then(|p| p.as_str()) {
-                log::info!("[Rust] Found NWN2 installation via FastAPI backend: {}", installation_path);
-                return Ok(Some(installation_path.to_string()));
-            }
+pub async fn detect_nwn2_installation(_app: tauri::AppHandle) -> Result<Option<String>, String> {
+    log::info!("[Rust] Detecting NWN2:EE installation");
+
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+
+    if let Some(game_folder) = nwn2_paths.game_folder()
+        && game_folder.exists() {
+            let path_str = game_folder.to_string_lossy().to_string();
+            log::info!("[Rust] Found NWN2 installation: {path_str}");
+            return Ok(Some(path_str));
         }
-    }
-    
-    log::info!("[Rust] No NWN2 installation found via FastAPI backend");
+
+    log::info!("[Rust] No NWN2 installation found");
     Ok(None)
 }
 
 #[tauri::command]
 pub async fn open_folder_in_explorer(app: tauri::AppHandle, folder_path: String) -> Result<(), String> {
-    log::info!("[Rust] Opening folder in file explorer: {}", folder_path);
+    log::info!("[Rust] Opening folder in file explorer: {folder_path}");
     
     let path = PathBuf::from(&folder_path);
     
     // Check if path exists
     if !path.exists() {
-        return Err(format!("Folder does not exist: {}", folder_path));
+        return Err(format!("Folder does not exist: {folder_path}"));
     }
     
     let shell = app.shell();
@@ -367,19 +276,19 @@ pub async fn open_folder_in_explorer(app: tauri::AppHandle, folder_path: String)
         shell.command("explorer")
             .args([&folder_path])
             .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
+            .map_err(|e| format!("Failed to open folder: {e}"))?;
     } else if cfg!(target_os = "macos") {
         // On macOS, use open command
         shell.command("open")
             .args([&folder_path])
             .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
+            .map_err(|e| format!("Failed to open folder: {e}"))?;
     } else {
         // On Linux, try xdg-open
         shell.command("xdg-open")
             .args([&folder_path])
             .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
+            .map_err(|e| format!("Failed to open folder: {e}"))?;
     }
     
     log::info!("[Rust] Successfully opened folder in file explorer");
@@ -408,7 +317,7 @@ pub async fn launch_nwn2_game(app: tauri::AppHandle, game_path: Option<String>) 
     } else if base_path.join("NWN2.exe").exists() {
         base_path.join("NWN2.exe") 
     } else {
-        return Err(format!("No NWN2 executable found in: {}", installation_path));
+        return Err(format!("No NWN2 executable found in: {installation_path}"));
     };
     
     log::info!("[Rust] Launching game executable: {}", exe_path.display());
@@ -420,13 +329,13 @@ pub async fn launch_nwn2_game(app: tauri::AppHandle, game_path: Option<String>) 
         // On Windows, launch directly
         shell.command(&exe_path)
             .spawn()
-            .map_err(|e| format!("Failed to launch NWN2: {}", e))?;
+            .map_err(|e| format!("Failed to launch NWN2: {e}"))?;
     } else {
         // On Linux/WSL, might need to use wine or different approach
         // For now, try direct execution
         shell.command(&exe_path)
             .spawn()
-            .map_err(|e| format!("Failed to launch NWN2: {}. You may need to configure Wine or use Windows.", e))?;
+            .map_err(|e| format!("Failed to launch NWN2: {e}. You may need to configure Wine or use Windows."))?;
     }
     
     log::info!("[Rust] NWN2 game launched successfully");

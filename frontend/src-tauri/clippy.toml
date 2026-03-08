@@ -1,0 +1,24 @@
+# Clippy configuration for NWN2 Editor
+
+# Threshold for too-many-lines lint
+too-many-lines-threshold = 500
+
+# Threshold for too-many-arguments lint
+too-many-arguments-threshold = 10
+
+# Doc valid idents
+doc-valid-idents = [
+    "NWN2",
+    "GFF",
+    "2DA",
+    "TLK",
+    "HAK",
+    "ERF",
+    "Bic",
+    "Ros",
+    "Ifo",
+    "Uti",
+    "JSON",
+    "Tauri",
+    "Next.js",
+]

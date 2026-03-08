@@ -6,7 +6,7 @@
   "build": {
     "devUrl": "http://localhost:24314",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build:fastapi && npm run build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../out"
   },
   "plugins": {
@@ -59,8 +59,6 @@
       }
     },
     "externalBin": [],
-    "resources": [
-      "binaries/fastapi_server.dist"
-    ]
+    "resources": []
   }
 }

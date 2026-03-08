@@ -1,8 +1,8 @@
-
 import { useState } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Card, CardContent } from '@/components/ui/Card';
-import { useAlignment, Alignment } from '@/hooks/useAlignment';
+import { useAlignment } from '@/hooks/useAlignment';
+import type { Alignment } from '@/lib/bindings';
 import AlignmentGrid from './AlignmentGrid';
 
 interface AlignmentSectionProps {
@@ -10,24 +10,24 @@ interface AlignmentSectionProps {
   onAlignmentChange?: (alignment: Alignment) => void;
 }
 
-export default function AlignmentSection({ 
+export default function AlignmentSection({
   alignment: externalAlignment,
-  onAlignmentChange 
+  onAlignmentChange
 }: AlignmentSectionProps) {
   const t = useTranslations();
-  
+
   const [internalAlignment, setInternalAlignment] = useState<Alignment>({
-    lawChaos: 50,
-    goodEvil: 50
+    law_chaos: 50,
+    good_evil: 50
   });
 
   const currentAlignment = externalAlignment || internalAlignment;
   const { getAlignmentColor } = useAlignment(currentAlignment);
-  const alignmentColor = getAlignmentColor(currentAlignment.lawChaos, currentAlignment.goodEvil);
+  const alignmentColor = getAlignmentColor(currentAlignment.law_chaos, currentAlignment.good_evil);
 
   const updateAlignment = (updates: Partial<Alignment>) => {
     const newAlignment = { ...currentAlignment, ...updates };
-    
+
     if (onAlignmentChange) {
       onAlignmentChange(newAlignment);
     } else {
@@ -35,8 +35,8 @@ export default function AlignmentSection({
     }
   };
 
-  const setAlignmentFromGrid = (lawChaosValue: number, goodEvilValue: number) => {
-    updateAlignment({ lawChaos: lawChaosValue, goodEvil: goodEvilValue });
+  const setAlignmentFromGrid = (law_chaos: number, good_evil: number) => {
+    updateAlignment({ law_chaos, good_evil });
   };
 
   return (
@@ -54,8 +54,8 @@ export default function AlignmentSection({
                   type="number"
                   min="0"
                   max="100"
-                  value={currentAlignment.lawChaos}
-                  onChange={(e) => updateAlignment({ lawChaos: parseInt(e.target.value) || 0 })}
+                  value={currentAlignment.law_chaos}
+                  onChange={(e) => updateAlignment({ law_chaos: parseInt(e.target.value) || 0 })}
                   className="text-2xl font-bold text-[rgb(var(--color-text-primary))] mb-1 bg-[rgb(var(--color-surface-3))] text-center border rounded px-2 py-1 w-20 mx-auto focus:outline-none"
                   style={{
                     borderColor: 'rgb(var(--color-surface-border))',
@@ -67,11 +67,11 @@ export default function AlignmentSection({
                   onBlur={(e) => e.currentTarget.style.setProperty('border-color', 'rgb(var(--color-surface-border))', 'important')}
                 />
                 <div className="text-sm text-[rgb(var(--color-text-secondary))]">
-                  {currentAlignment.lawChaos <= 30 ? 'Chaotic' : 
-                   (currentAlignment.lawChaos >= 70 ? 'Lawful' : 'Neutral')}
+                  {currentAlignment.law_chaos <= 30 ? 'Chaotic' :
+                   (currentAlignment.law_chaos >= 70 ? 'Lawful' : 'Neutral')}
                 </div>
               </div>
-              
+
               <div className="bg-[rgb(var(--color-surface-2))] rounded-lg p-4 border border-[rgb(var(--color-surface-border))] text-center">
                 <div className="text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wide mb-2">
                   Good ↔ Evil
@@ -80,8 +80,8 @@ export default function AlignmentSection({
                   type="number"
                   min="0"
                   max="100"
-                  value={currentAlignment.goodEvil}
-                  onChange={(e) => updateAlignment({ goodEvil: parseInt(e.target.value) || 0 })}
+                  value={currentAlignment.good_evil}
+                  onChange={(e) => updateAlignment({ good_evil: parseInt(e.target.value) || 0 })}
                   className="text-2xl font-bold text-[rgb(var(--color-text-primary))] mb-1 bg-[rgb(var(--color-surface-3))] text-center border rounded px-2 py-1 w-20 mx-auto focus:outline-none"
                   style={{
                     borderColor: 'rgb(var(--color-surface-border))',
@@ -93,8 +93,8 @@ export default function AlignmentSection({
                   onBlur={(e) => e.currentTarget.style.setProperty('border-color', 'rgb(var(--color-surface-border))', 'important')}
                 />
                 <div className="text-sm text-[rgb(var(--color-text-secondary))]">
-                  {currentAlignment.goodEvil <= 30 ? 'Evil' : 
-                   (currentAlignment.goodEvil >= 70 ? 'Good' : 'Neutral')}
+                  {currentAlignment.good_evil <= 30 ? 'Evil' :
+                   (currentAlignment.good_evil >= 70 ? 'Good' : 'Neutral')}
                 </div>
               </div>
             </div>

@@ -1,37 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
-import DynamicAPI from '@/lib/utils/dynamicApi';
+import { TauriAPI } from '@/lib/tauri-api';
+import type { SaveSummary } from '@/lib/bindings';
 
-export interface SavesData {
-  fortitude: number;
-  reflex: number; 
-  will: number;
-  breakdown?: {
-    fortitude: {
-      base: number;
-      ability: number;
-      misc: number;
-      total: number;
-    };
-    reflex: {
-      base: number;
-      ability: number;
-      misc: number;
-      total: number;
-    };
-    will: {
-      base: number;
-      ability: number;
-      misc: number;
-      total: number;
-    };
-  };
-}
+export type { SaveSummary, SavingThrows, SaveBreakdown } from '@/lib/bindings';
 
 export function useSaves() {
   const { character } = useCharacterContext();
-  const [savesData, setSavesData] = useState<SavesData | null>(null);
+  const [savesData, setSavesData] = useState<SaveSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,27 +19,10 @@ export function useSaves() {
     setError(null);
 
     try {
-      // Try to fetch saves data from backend
-      const response = await DynamicAPI.fetch(`/characters/${character.id}/saves/summary`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSavesData(data);
-      } else {
-        // Fallback to character data if saves endpoint doesn't exist
-        setSavesData({
-          fortitude: character.saves?.fortitude || 0,
-          reflex: character.saves?.reflex || 0,
-          will: character.saves?.will || 0
-        });
-      }
+      const data = await TauriAPI.getSaveSummary() as SaveSummary;
+      setSavesData(data);
     } catch (err) {
-      // Fallback to character data
-      setSavesData({
-        fortitude: character.saves?.fortitude || 0,
-        reflex: character.saves?.reflex || 0,
-        will: character.saves?.will || 0
-      });
+      console.error("Failed to load save summary:", err);
       setError(err instanceof Error ? err.message : 'Failed to load saves');
     } finally {
       setIsLoading(false);
@@ -75,16 +35,12 @@ export function useSaves() {
     }
   }, [character?.id, loadSaves]);
 
-  // Update saving throw misc bonuses
   const updateSavingThrowBonus = useCallback(async (saveType: 'fortitude' | 'reflex' | 'will', bonus: number) => {
     if (!character?.id) return;
-    
+
     try {
       await CharacterAPI.updateSavingThrows(character.id, { [saveType]: bonus });
-      
-      // Reload saves data to get updated values
       await loadSaves();
-      
     } catch (err) {
       throw err;
     }

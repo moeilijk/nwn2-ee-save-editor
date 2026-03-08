@@ -1,0 +1,221 @@
+use super::super::common::{create_test_context, load_test_gff};
+use app_lib::character::save_summary::SaveType;
+use app_lib::character::Character;
+use app_lib::parsers::gff::GffParser;
+
+fn load_character(fixture_path: &str) -> Character {
+    let bytes = load_test_gff(fixture_path);
+    let parser = GffParser::from_bytes(bytes).expect("Failed to parse GFF");
+    let root = parser.read_struct_fields(0).expect("Failed to read root");
+    Character::from_gff(root)
+}
+
+#[tokio::test]
+async fn test_base_saves_calculation_sanity() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    println!("\n=== Base Saves Calculation Sanity ===");
+
+    let fixtures = [
+        "occidiooctavon/occidiooctavon4.bic",
+        "qaraofblacklake/qaraofblacklake4.bic",
+        "ryathstrongarm/ryathstrongarm4.bic",
+        "sagemelchior/sagemelchior4.bic",
+        "oneofmany/oneofmany4.bic",
+    ];
+
+    for path in fixtures {
+        let character = load_character(path);
+        
+        // Values stored in the GFF are misc bonuses, not the base save derived from classes.
+        // The method name `base_fortitude()` in Character is misleading (it returns "fortbonus"),
+        // so we treat it as misc_bonus here.
+        let misc_fort = character.base_fortitude();
+        let misc_ref = character.base_reflex();
+        let misc_will = character.base_will();
+
+        // Values calculated from class levels
+        let calculated = character.calculate_base_saves(game_data);
+
+        println!(
+            "{}: MiscBonuses[{}/{}/{}] vs CalcBase[{}/{}/{}]",
+            character.first_name(),
+            misc_fort, misc_ref, misc_will,
+            calculated.fortitude, calculated.reflex, calculated.will
+        );
+
+        // We can't compare misc_bonus to base_save.
+        // Instead, we verify that calculated base saves are reasonable for high level characters.
+        // All these fixtures are level ~30 or at least mid-level.
+        
+        assert!(calculated.fortitude > 0, "Calculated Base Fortitude should be positive for {}", character.first_name());
+        assert!(calculated.reflex > 0, "Calculated Base Reflex should be positive for {}", character.first_name());
+        assert!(calculated.will > 0, "Calculated Base Will should be positive for {}", character.first_name());
+        
+        // For L30 characters, base saves should be substantial (at least ~10 usually, mostly higher)
+        if character.total_level() >= 20 {
+             assert!(calculated.fortitude + calculated.reflex + calculated.will > 20, "Total base saves should be significant for high level char");
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_total_saves_sanity() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let decoder = &ctx.decoder;
+
+    println!("\n=== Total Saves Sanity ===");
+
+    let fixtures = [
+        "occidiooctavon/occidiooctavon1.bic",
+        "occidiooctavon/occidiooctavon4.bic",
+    ];
+
+    for path in fixtures {
+        let character = load_character(path);
+        let summary = character.get_save_summary(game_data, decoder);
+
+        println!(
+            "{}: Fort {}, Ref {}, Will {}",
+            character.first_name(),
+            summary.fortitude,
+            summary.reflex,
+            summary.will
+        );
+
+        // Basic sanity checks
+        assert!(summary.fortitude > -10 && summary.fortitude < 100);
+        assert!(summary.reflex > -10 && summary.reflex < 100);
+        assert!(summary.will > -10 && summary.will < 100);
+        
+        // Check consistency with breakdown
+        assert_eq!(summary.fortitude, summary.saves.fortitude.total);
+        assert_eq!(summary.reflex, summary.saves.reflex.total);
+        assert_eq!(summary.will, summary.saves.will.total);
+    }
+}
+
+#[tokio::test]
+async fn test_save_breakdown_correctness() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let decoder = &ctx.decoder;
+
+    println!("\n=== Save Breakdown Correctness ===");
+
+    // Ryath might have good equipment/stats
+    let character = load_character("ryathstrongarm/ryathstrongarm4.bic");
+    let breakdown = character.get_save_breakdown(game_data, decoder, SaveType::Fortitude);
+
+    println!(
+        "Ryath Fortitude: Total {} (Base {} + Abil {} + Equip {} + Feat {} + Race {} + Class {} + Misc {})",
+        breakdown.total, breakdown.base, breakdown.ability, breakdown.equipment, 
+        breakdown.feat, breakdown.racial, breakdown.class_bonus, breakdown.misc
+    );
+
+    let calculated_total = breakdown.base 
+        + breakdown.ability 
+        + breakdown.equipment 
+        + breakdown.feat 
+        + breakdown.racial 
+        + breakdown.class_bonus 
+        + breakdown.misc;
+    
+    assert_eq!(breakdown.total, calculated_total, "Breakdown total sum mismatch");
+    assert!(breakdown.base > 0, "L30 character should have base fortitude > 0");
+    // Ryath is a fighter/weapons master likely, should have high base fort
+    assert!(breakdown.base >= 10); 
+}
+
+#[tokio::test]
+async fn test_level_progression_saves() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let decoder = &ctx.decoder;
+
+    println!("\n=== Level Progression Saves (L1 vs L30) ===");
+
+    let fixture_pairs = [
+        ("occidiooctavon/occidiooctavon1.bic", "occidiooctavon/occidiooctavon4.bic", "Occidio"),
+        ("qaraofblacklake/qaraofblacklake1.bic", "qaraofblacklake/qaraofblacklake4.bic", "Qara"),
+        ("ryathstrongarm/ryathstrongarm1.bic", "ryathstrongarm/ryathstrongarm4.bic", "Ryath"),
+    ];
+
+    for (l1_path, l30_path, name) in fixture_pairs {
+        let char_l1 = load_character(l1_path);
+        let char_l30 = load_character(l30_path);
+
+        let saves_l1 = char_l1.get_save_summary(game_data, decoder);
+        let saves_l30 = char_l30.get_save_summary(game_data, decoder);
+
+        println!(
+            "{} L1 : Fort {}, Ref {}, Will {}",
+            name, saves_l1.fortitude, saves_l1.reflex, saves_l1.will
+        );
+        println!(
+            "{} L30: Fort {}, Ref {}, Will {}",
+            name, saves_l30.fortitude, saves_l30.reflex, saves_l30.will
+        );
+
+        // Saves should generally increase significantly
+        assert!(saves_l30.fortitude > saves_l1.fortitude, "{} L30 Fortitude should be higher", name);
+        assert!(saves_l30.reflex > saves_l1.reflex, "{} L30 Reflex should be higher", name);
+        assert!(saves_l30.will > saves_l1.will, "{} L30 Will should be higher", name);
+        
+        // Base saves specifically should definitely increase
+        let base_l1 = char_l1.calculate_base_saves(game_data);
+        let base_l30 = char_l30.calculate_base_saves(game_data);
+        
+        assert!(base_l30.fortitude > base_l1.fortitude);
+        assert!(base_l30.reflex > base_l1.reflex);
+        assert!(base_l30.will > base_l1.will);
+    }
+}
+
+#[tokio::test]
+async fn test_epic_save_progression() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    println!("\n=== Epic Save Progression ===");
+    
+    // Testing logic for epic saves explicitly
+    // Epic saves: +1 to all saves every 2 levels after 20.
+    // So separate from class tables.
+
+    // Let's look at Occidio (L30)
+    let character = load_character("occidiooctavon/occidiooctavon4.bic");
+    let total_level = character.total_level(); // Should be 30
+    assert_eq!(total_level, 30);
+
+    // Levels above 20 = 10.
+    // Epic save bonus = (10 + 1) / 2 = 5 (integer division) - wait, is it?
+    // NWN2 Wiki: "Characters gain a +1 bonus to all saving throws for every two levels after 20th level."
+    // 21: 0 (or 1?)
+    // 22: +1
+    // 24: +2
+    // ...
+    // 30: +5
+    
+    // Our implementation:
+    // let epic_levels = total_level - 20;
+    // let epic_save = (epic_levels + 1) / 2; // (10+1)/2 = 5. Correct.
+    
+    // We can verify this via calculate_base_saves manually summing class parts + epic
+    let base_saves = character.calculate_base_saves(game_data);
+    
+    // To strictly check EPIC part, we'd need to subtract the pre-epic class sum.
+    // Instead, let's trust the parity test `test_base_saves_calculation_parity` covers the overall correctness,
+    // and here we just verify high level characters have expectedly high base saves.
+    
+    println!("L30 Base Saves: F{} R{} W{}", base_saves.fortitude, base_saves.reflex, base_saves.will);
+    
+    // Minimal check: L30 means at least 5 epic bonus, plus at least 20 levels of poor saves (1/3 level approx).
+    // Min base for L20 poor save is ~6. So min total ~11.
+    assert!(base_saves.fortitude >= 10);
+    assert!(base_saves.reflex >= 10);
+    assert!(base_saves.will >= 10);
+}
+

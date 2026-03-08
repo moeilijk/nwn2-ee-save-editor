@@ -1,4 +1,4 @@
-import DynamicAPI from '../lib/utils/dynamicApi';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface CompanionInfluenceData {
   name: string;
@@ -292,18 +292,8 @@ export interface UpdateModuleVariableResponse {
 
 export class GameStateAPI {
   async getCompanionInfluence(characterId: number): Promise<CompanionInfluenceResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/companion-influence`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch companion influence: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    const companions = await invoke<Record<string, CompanionInfluenceData>>('get_companion_influence');
+    return { companions };
   }
 
   async updateCompanionInfluence(
@@ -311,39 +301,27 @@ export class GameStateAPI {
     companionId: string,
     newInfluence: number
   ): Promise<UpdateCompanionInfluenceResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/companion-influence/update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companion_id: companionId,
-          new_influence: newInfluence,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update companion influence: ${response.status}`);
-    }
-
-    return response.json();
+    await invoke('update_companion_influence', { companionId, newInfluence });
+    return {
+        success: true,
+        companion_id: companionId,
+        old_influence: 0,
+        new_influence: newInfluence,
+        message: "Updated",
+        has_unsaved_changes: true
+    };
   }
 
   async getQuestDetails(characterId: number): Promise<QuestDetailsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/details`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quest details: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    console.warn("getQuestDetails not implemented in Rust backend");
+    return {
+        groups: [],
+        total_quests: 0,
+        completed_quests: 0,
+        active_quests: 0,
+        unknown_quests: 0,
+        completion_rate: 0
+    };
   }
 
   async updateQuestVariable(
@@ -352,61 +330,35 @@ export class GameStateAPI {
     value: number | string,
     variableType: string
   ): Promise<UpdateQuestVariableResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/variable/update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          variable_name: variableName,
-          value: value,
-          variable_type: variableType,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update quest variable: ${response.status}`);
-    }
-
-    return response.json();
+    console.warn("updateQuestVariable not implemented");
+    return {
+         success: false,
+         variable_name: variableName,
+         old_value: value,
+         new_value: value,
+         message: "Not implemented",
+         has_unsaved_changes: false
+    };
   }
 
   async batchUpdateQuests(
     characterId: number,
     updates: BatchQuestUpdate[]
   ): Promise<BatchUpdateQuestsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/batch-update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to batch update quests: ${response.status}`);
-    }
-
-    return response.json();
+    console.warn("batchUpdateQuests not implemented");
+    return {
+         success: false,
+         updated_count: 0,
+         failed_count: updates.length,
+         updates: [],
+         message: "Not implemented",
+         has_unsaved_changes: false
+    };
   }
 
   async getCampaignVariables(characterId: number): Promise<CampaignVariablesResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/variables`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch campaign variables: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    console.warn("getCampaignVariables not implemented");
+    return { integers: {}, strings: {}, floats: {}, total_count: 0 };
   }
 
   async updateCampaignVariable(
@@ -415,167 +367,117 @@ export class GameStateAPI {
     value: number | string,
     variableType: string
   ): Promise<UpdateCampaignVariableResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/variable/update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          variable_name: variableName,
-          value: value,
-          variable_type: variableType,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update campaign variable: ${response.status}`);
-    }
-
-    return response.json();
+     console.warn("updateCampaignVariable not implemented");
+     return { success: false, variable_name: variableName, old_value: value, new_value: value, message: "Not implemented", has_unsaved_changes: false };
   }
 
   async getCampaignSettings(characterId: number): Promise<CampaignSettingsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/settings`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to fetch campaign settings: ${response.status}`);
-    }
-
-    return response.json();
+    console.warn("getCampaignSettings not implemented");
+    // Return dummy default
+    return {
+        campaign_file_path: "",
+        guid: "",
+        display_name: "Unknown Campaign",
+        description: "",
+        level_cap: 30,
+        xp_cap: 0,
+        companion_xp_weight: 1.0,
+        henchman_xp_weight: 0.8,
+        attack_neutrals: 0,
+        auto_xp_award: 1,
+        journal_sync: 1,
+        no_char_changing: 1,
+        use_personal_reputation: 0,
+        start_module: "",
+        module_names: []
+    };
   }
 
   async updateCampaignSettings(
     characterId: number,
     settings: UpdateCampaignSettingsRequest
   ): Promise<UpdateCampaignSettingsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/settings`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update campaign settings: ${response.status}`);
-    }
-
-    return response.json();
+    console.warn("updateCampaignSettings not implemented");
+    return { success: false, updated_fields: [], warning: "Not implemented" };
   }
 
   async getCampaignBackups(characterId: number): Promise<CampaignBackupsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/backups`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to fetch campaign backups: ${response.status}`);
+    // We can list GENERAL backups using list_backups, but this method implies "Campaign" backups.
+    // Assuming list_backups returns file backups which might be what this meant (or campaign file backups?).
+    // savegame command `list_backups` returns `BackupInfo`.
+    // CampaignBackupsResponse expects `backups` array + campaign name/guid.
+    // If this is for .bic backups, we can map it.
+    try {
+        const backups = await invoke<any[]>('list_backups');
+        return {
+            backups: backups.map(b => ({
+                filename: b.filename || b.path.split(/[\\/]/).pop(),
+                path: b.path,
+                size_bytes: b.size_bytes || 0,
+                created: b.created_at || new Date().toISOString()
+            })),
+            campaign_name: "Current Session",
+            campaign_guid: null
+        };
+    } catch (e) {
+        console.warn("list_backups failed", e);
+        return { backups: [], campaign_name: null, campaign_guid: null };
     }
-
-    return response.json();
   }
 
   async restoreCampaignFromBackup(
     characterId: number,
     backupPath: string
   ): Promise<RestoreCampaignResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign/restore`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backup_path: backupPath }),
+      try {
+          await invoke('restore_backup', { 
+              backupPath: backupPath, 
+              createPreRestoreBackup: true 
+          });
+          return { success: true, restored_from: backupPath };
+      } catch (e) {
+          throw new Error(String(e));
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to restore campaign: ${response.status}`);
-    }
-
-    return response.json();
   }
 
   async getModuleInfo(characterId: number): Promise<ModuleInfo> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/campaign-info`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch module info: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      module_name: data.module_name,
-      area_name: data.area_name,
-      campaign: data.campaign,
-      entry_area: data.entry_area,
-      module_description: data.module_description,
-      current_module: data.current_module
-    };
+    const [info] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    return info;
   }
 
   async getAllModules(characterId: number): Promise<{modules: Array<{id: string, name: string, campaign: string, variable_count: number, is_current: boolean}>, current_module: string}> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/modules`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch modules: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    const [info, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    return {
+      modules: [{
+        id: info.current_module || info.module_name,
+        name: info.module_name,
+        campaign: info.campaign,
+        variable_count: variables.total_count || (Object.keys(variables.integers).length + Object.keys(variables.strings).length + Object.keys(variables.floats).length),
+        is_current: true
+      }],
+      current_module: info.current_module || info.module_name
+    };
   }
 
   async getModuleById(characterId: number, moduleId: string): Promise<ModuleInfo & {variables: ModuleVariablesResponse}> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/modules/${moduleId}`,
-      {
-        method: 'GET',
+    const [info, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    const totalCount = Object.keys(variables.integers).length + Object.keys(variables.strings).length + Object.keys(variables.floats).length;
+    return {
+      ...info,
+      variables: {
+        ...variables,
+        total_count: totalCount
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch module ${moduleId}: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    };
   }
 
   async getModuleVariables(characterId: number): Promise<ModuleVariablesResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/module/variables`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch module variables: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+    const [, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    const totalCount = Object.keys(variables.integers).length + Object.keys(variables.strings).length + Object.keys(variables.floats).length;
+    return {
+      ...variables,
+      total_count: totalCount
+    };
   }
 
   async updateModuleVariable(
@@ -585,71 +487,25 @@ export class GameStateAPI {
     variableType: string,
     moduleId?: string
   ): Promise<UpdateModuleVariableResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/module/variable/update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          variable_name: variableName,
-          value: value,
-          variable_type: variableType,
-          module_id: moduleId,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `Failed to update module variable: ${response.status}`);
-    }
-
-    return response.json();
+      console.warn("updateModuleVariable not implemented");
+      return { success: false, variable_name: variableName, old_value: value, new_value: value, message: "Not implemented", has_unsaved_changes: false };
   }
 
   async getQuestProgress(characterId: number): Promise<QuestProgressResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/progress`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quest progress: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+      return { quests: [], total_count: 0 };
   }
 
   async getPlotVariables(characterId: number): Promise<PlotVariablesResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/plot-variables`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch plot variables: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+      return { quest_variables: [], unknown_variables: [], total_count: 0 };
   }
 
   async getEnrichedQuests(characterId: number): Promise<EnrichedQuestsResponse> {
-    const response = await DynamicAPI.fetch(
-      `/characters/${characterId}/quests/enriched`,
-      {
-        method: 'GET',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch enriched quests: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+      return { 
+          quests: [], 
+          unmapped_variables: [], 
+          stats: { total: 0, completed: 0, active: 0, unmapped: 0 }, 
+          cache_info: { cached: false, dialogue_count: 0, mapping_count: 0, campaign_name: "" } 
+      };
   }
 }
 

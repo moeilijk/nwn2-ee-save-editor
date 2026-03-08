@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTauri } from '@/providers/TauriProvider';
-import DynamicAPI from '@/lib/utils/dynamicApi';
 
 interface CharacterData {
   firstName: string;
@@ -40,24 +39,8 @@ export const useCharacterCreation = () => {
   const createCharacter = async (characterData: CharacterData) => {
     setIsCreating(true);
     setError(null);
-    
     try {
-      const response = await DynamicAPI.fetch(`/characters/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(characterData)
-      });
-      
-      if (response.status < 200 || response.status >= 300) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create character');
-      }
-      
-      const result = await response.json();
-      return result;
-      
+        throw new Error("Character creation not implemented in Rust backend yet");
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       throw err;
@@ -68,14 +51,7 @@ export const useCharacterCreation = () => {
 
   const getTemplates = async () => {
     try {
-      const response = await DynamicAPI.fetch(`/characters/templates`, {
-        method: 'GET'
-      });
-      if (response.status < 200 || response.status >= 300) {
-        throw new Error('Failed to fetch templates');
-      }
-      const data = await response.json();
-      return data.templates;
+        return [];
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       throw err;
@@ -83,43 +59,12 @@ export const useCharacterCreation = () => {
   };
 
   const exportToLocalVault = async (sourcePath: string, backupExisting: boolean = true) => {
-    try {
-      const response = await DynamicAPI.fetch(`/characters/export/localvault`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          source_path: sourcePath,
-          backup_existing: backupExisting
-        })
-      });
-      
-      if (response.status < 200 || response.status >= 300) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to export character');
-      }
-      
-      return await response.json();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      throw err;
-    }
+    throw new Error("Export not implemented");
   };
 
   const createAndExportForPlay = async (characterData: CharacterData) => {
     try {
       const createResult = await createCharacter(characterData);
-      
-      if (createResult.file_path) {
-        const exportResult = await exportToLocalVault(createResult.file_path);
-        return {
-          ...createResult,
-          ...exportResult,
-          ready_to_play: true
-        };
-      }
-      
       return createResult;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');

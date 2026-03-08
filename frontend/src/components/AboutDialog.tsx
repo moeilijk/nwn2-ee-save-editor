@@ -113,7 +113,7 @@ export default function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
 
                     <div className="text-[rgb(var(--color-text-secondary))] max-w-md">
                         <p>A modern, cross-platform save game editor for Neverwinter Nights 2: Enhanced Edition.</p>
-                        <p className="mt-2 text-sm opacity-75">Built with Tauri, FastAPI, and Next.js.</p>
+                        <p className="mt-2 text-sm opacity-75">Built with Tauri and Next.js.</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 w-full max-w-sm pt-4">

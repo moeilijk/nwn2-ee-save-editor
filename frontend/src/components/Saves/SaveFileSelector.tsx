@@ -1,6 +1,6 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { useTauri } from '@/providers/TauriProvider';
 import { SaveFile } from '@/lib/tauri-api';
 import { SaveThumbnail } from './SaveThumbnail';
@@ -11,7 +11,21 @@ import { CharacterAPI } from '@/services/characterApi';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import FileBrowserModal from '@/components/FileBrowser/FileBrowserModal';
-import { apiClient } from '@/lib/api/client';
+
+interface BackupInfo {
+  path: string;
+  timestamp: string;
+  size_bytes: number;
+  created_at: number;
+}
+
+interface RestoreResult {
+  success: boolean;
+  pre_restore_backup: string | null;
+  files_restored: number;
+  message: string;
+}
+
 
 export function SaveFileSelector() {
   const { isAvailable, isLoading, api } = useTauri();
@@ -40,26 +54,21 @@ export function SaveFileSelector() {
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
 
   const loadAvailableSaves = useCallback(async () => {
-    if (!api) {
-      return;
-    }
+    // Rust-only implementation
+    if (!api) return;
     
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get<{files: Array<{name: string; path: string; thumbnail?: string; character_name?: string; modified?: string; is_directory: boolean}>}>('/saves/list?limit=10');
-      
-      if (response && response.files) {
-        const mappedSaves: ExtendedSaveFile[] = response.files
-            .filter((f) => f.is_directory) 
-            .map((f) => ({
-                name: f.name,
-                path: f.path,
-                thumbnail: f.thumbnail || '', 
-                character: f.character_name,
-                modified: f.modified ? parseFloat(f.modified) * 1000 : undefined
-            }));
-        setSaves(mappedSaves);
+      const saves = await api.findNWN2Saves();
+      if (saves) {
+          const mapped: ExtendedSaveFile[] = saves.map(s => ({
+              ...s,
+              is_directory: true, // Assuming all returned by findNWN2Saves are valid saves
+              character: undefined, // properties logic not available in simple scan
+              thumbnail: s.thumbnail || ''
+          }));
+          setSaves(mapped);
       }
     } catch (err) {
       console.error('❌ SaveFileSelector: Failed to find saves:', err);
@@ -125,13 +134,8 @@ export function SaveFileSelector() {
 
     try {
       await api.launchNWN2Game(gameSettings.nwn2_installation_path);
-      
-      // Close the dialog
       setShowLaunchDialog(false);
-      
-      // Close the editor if requested
       if (closeEditor) {
-        // Use Tauri to close the application
         await getCurrentWindow().close();
       }
     } catch (err) {
@@ -141,56 +145,46 @@ export function SaveFileSelector() {
     }
   }, [api, gameSettings.nwn2_installation_path]);
 
-  const handleOpenBackupsFolder = useCallback(() => {
-    // Clear any previous messages
-    setSuccessMessage(null);
-    setError(null);
-
-    // If a save is selected, show backups for that specific save
-    let backupsPath = '';
-
-    if (selectedFile) {
-      // Show backups for the selected save
-      const saveDir = selectedFile.path.replace(/[\/\\][^\/\\]*$/, '');
-      backupsPath = saveDir + (saveDir.includes('\\') ? '\\backups' : '/backups');
-    } else {
-      // Show all backups (empty path will use default from backend)
-      backupsPath = '';
+  const handleOpenBackupsFolder = useCallback(async () => {
+    if (!api) return;
+    try {
+      const backups = await invoke<BackupInfo[]>('list_backups');
+      if (backups.length > 0) {
+        const backupDir = backups[0].path.split(/[/\\]/).slice(0, -1).join('/');
+        await api.openFolderInExplorer(backupDir);
+      } else {
+        setError('No backups found');
+      }
+    } catch (err) {
+      console.error('Failed to open backups folder:', err);
+      setError(err instanceof Error ? err.message : 'Failed to open backups folder');
     }
-
-    setBackupPath(backupsPath);
-    setShowBackupBrowser(true);
-  }, [selectedFile]);
+  }, [api]);
 
   const handleBackupSelect = useCallback(async (file: { path: string; name: string }) => {
     try {
-      await apiClient.post('/backups/restore', {
-        backup_path: file.path,
-        save_path: selectedFile?.path || null,
-        create_pre_restore_backup: true,
-        confirm_restore: true
+      const result = await invoke<RestoreResult>('restore_backup', {
+        backupPath: file.path,
+        createPreRestoreBackup: true
       });
-      setShowBackupBrowser(false);
-
-      if (selectedFile) {
-         await importSaveFile(selectedFile);
+      if (result.success) {
+        setSuccessMessage(`Restored backup: ${result.message}`);
+        setShowBackupBrowser(false);
+        await loadAvailableSaves();
       } else {
-         setSuccessMessage('Backup restored successfully. Please load the save file.');
-         setTimeout(() => setSuccessMessage(null), 5000);
+        setError('Restore failed');
       }
     } catch (err) {
       console.error('Failed to restore backup:', err);
       setError(err instanceof Error ? err.message : 'Failed to restore backup');
     }
-  }, [selectedFile, importSaveFile]);
+  }, [loadAvailableSaves]);
 
   const handleDeleteBackup = useCallback(async (file: { path: string; name: string }) => {
     try {
-      await apiClient.delete('/backups/delete', {
-        backup_path: file.path
-      });
-
+      await invoke<boolean>('delete_backup', { backupPath: file.path });
       setBackupRefreshKey(prev => prev + 1);
+      setSuccessMessage('Backup deleted');
     } catch (err) {
       console.error('Failed to delete backup:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete backup');
@@ -205,75 +199,49 @@ export function SaveFileSelector() {
     }
   }, [isAvailable, api, autoScanComplete, loadAvailableSaves]);
 
-  useEffect(() => {
-    (window as Window & { __openBackups?: () => void }).__openBackups = handleOpenBackupsFolder;
-
-    return () => {
-      delete (window as Window & { __openBackups?: () => void }).__openBackups;
-    };
-  }, [handleOpenBackupsFolder]);
+  // Window backup hook disabled/removed
+  // useEffect(() => {
+  //   (window as Window & { __openBackups?: () => void }).__openBackups = handleOpenBackupsFolder;
+  //   return () => {
+  //     delete (window as Window & { __openBackups?: () => void }).__openBackups;
+  //   };
+  // }, [handleOpenBackupsFolder]);
 
   const handleSelectFile = async () => {
-    setShowFileBrowser(true);
-  };
-
-  const handleFileBrowserSelect = async (file: { path: string; name: string }) => {
-    try {
-      const saveFile: SaveFile = {
-        name: file.name,
-        path: file.path,
-        thumbnail: ''
-      };
-      setSelectedFile(saveFile);
-      await importSaveFile(saveFile);
-    } catch (err) {
-      console.error('Failed to import save file:', err);
-      setError(err instanceof Error ? err.message : 'Failed to import save file');
+    if (api) {
+       // Use selectSaveFile for folder selection (Standard NWN2 saves)
+       // This returns a SaveFile object directly
+       try {
+         const saveFile = await api.selectSaveFile();
+         if (saveFile) {
+             await importSaveFile(saveFile);
+         }
+       } catch (err) {
+         console.error('Failed to select save file:', err);
+         // Error is already logged in rust, just show partial error if needed or rely on save selector UI state
+       }
     }
   };
 
+  const handleFileBrowserSelect = async (file: { path: string; name: string }) => {
+      // Not using FileBrowserModal currently
+  };
+
   const handleImportSelectedSave = async (save: SaveFile) => {
-    // If clicking the same save that's already loaded, do nothing
     if (selectedFile?.path === save.path && character) {
       return;
     }
     
-    // If a save is already loaded and user clicks a different one, show confirmation
     if (selectedFile && selectedFile.path !== save.path && character && api) {
       const confirmed = await api.confirmSaveSwitch(selectedFile.name, save.name);
       if (!confirmed) {
-        return; // User cancelled
+        return; 
       }
     }
     
-    // Normal import flow
     setSelectedFile(save);
     await importSaveFile(save);
   };
-
-  // const handleImportLatestSave = async () => {
-  //   if (saves.length === 0) return;
-  //   
-  //   const latestSave = saves.reduce((latest, current) => {
-  //     const latestMatch = latest.name.match(/(\d{2}-\d{2}-\d{4}-\d{2}-\d{2})/);
-  //     const currentMatch = current.name.match(/(\d{2}-\d{2}-\d{4}-\d{2}-\d{2})/);
-  //     
-  //     if (!latestMatch) return current;
-  //     if (!currentMatch) return latest;
-  //     
-  //     const parseDate = (dateStr: string) => {
-  //       const [day, month, year, hour, minute] = dateStr.split('-');
-  //       return `${year}-${month}-${day}T${hour}:${minute}:00`;
-  //     };
-  //     
-  //     const latestDate = new Date(parseDate(latestMatch[1]));
-  //     const currentDate = new Date(parseDate(currentMatch[1]));
-  //
-  //     return currentDate > latestDate ? current : latest;
-  //   });
-  //   
-  //   await handleImportSelectedSave(latestSave);
-  // };
 
   if (isLoading) {
     return <div className="text-sm text-text-muted">Initializing...</div>;
@@ -320,10 +288,10 @@ export function SaveFileSelector() {
       ) : saves.length > 0 ? (
         <Card variant="container">
           <div className="recent-saves-header">
-            Last 3 Saved Games
+            Last 3 Save Games
           </div>
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
-            {saves.slice(0, 3).map((save, index) => (
+            {saves.map((save, index) => (
               <Card
                 key={index}
                 variant="interactive"
@@ -360,9 +328,9 @@ export function SaveFileSelector() {
         </Card>
       ) : autoScanComplete ? (
         <Card variant="container">
-          <div className="recent-saves-header">Last 3 Saved Games</div>
+          <div className="recent-saves-header">Saved Games</div>
           <div className="text-xs text-text-muted text-center py-4">
-            No saves found automatically. Use the Load button above to browse for save files.
+            No saves found automatically. Use the Browse button above.
           </div>
         </Card>
       ) : null}
@@ -374,27 +342,8 @@ export function SaveFileSelector() {
         saveName={character?.name}
         gamePathDetected={!!gameSettings.nwn2_installation_path}
       />
-
-      <FileBrowserModal
-        isOpen={showFileBrowser}
-        onClose={() => setShowFileBrowser(false)}
-        mode="load-saves"
-        onSelectFile={handleFileBrowserSelect}
-        currentPath={currentPath}
-        onPathChange={setCurrentPath}
-      />
-
-      <FileBrowserModal
-        isOpen={showBackupBrowser}
-        onClose={() => setShowBackupBrowser(false)}
-        mode="manage-backups"
-        currentPath={backupPath}
-        onPathChange={setBackupPath}
-        onDeleteBackup={handleDeleteBackup}
-        canRestore={true}
-        refreshKey={backupRefreshKey}
-        onSelectFile={handleBackupSelect}
-      />
+      
+      {/* FileBrowserModal/BackupModal disabled for now as they relied on legacy API */}
     </div>
   );
 }
