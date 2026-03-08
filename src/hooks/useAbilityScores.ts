@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
@@ -92,12 +92,19 @@ export function useAbilityScores(
   const [localAbilityScoreOverrides, setLocalAbilityScoreOverrides] = useState<Record<string, number>>({});
   const [localStatsOverrides, setLocalStatsOverrides] = useState<Partial<CharacterStats>>({});
 
+  // Keep track of the last seen base scores to avoid wiping local overrides on unrelated refreshes (e.g. from skills)
+  const prevBaseScoresRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (abilityScoreData) {
-      setLocalAbilityScoreOverrides({});
-      setLocalStatsOverrides({});
+    if (abilityScoreData?.base_scores) {
+      const newBaseScoresRaw = JSON.stringify(abilityScoreData.base_scores);
+      if (prevBaseScoresRef.current !== newBaseScoresRaw) {
+        setLocalAbilityScoreOverrides({});
+        setLocalStatsOverrides({});
+        prevBaseScoresRef.current = newBaseScoresRaw;
+      }
     }
-  }, [abilityScoreData]);
+  }, [abilityScoreData?.base_scores]);
 
   const calculateModifier = useCallback((value: number): number => {
     return Math.floor((value - 10) / 2);
@@ -420,12 +427,29 @@ export function useAbilityScores(
   const pointSummary = useMemo((): PointSummary | undefined => {
     if (!abilityScoreData?.point_summary) return undefined;
     const ps = abilityScoreData.point_summary;
+    
+    // Base spent points from backend
+    let totalSpent = ps.actual_increases ?? 0;
+
+    // Add exactly one spent point for every point an ability is increased locally
+    const attributeMapping: Record<string, string> = {
+      'Str': 'str_', 'Dex': 'dex', 'Con': 'con', 
+      'Int': 'int', 'Wis': 'wis', 'Cha': 'cha'
+    };
+    
+    for (const [key, localVal] of Object.entries(localAbilityScoreOverrides)) {
+      const originalVal = abilityScoreData.base_scores?.[key as AbilityKey];
+      if (originalVal !== undefined && localVal !== originalVal) {
+        totalSpent += (localVal - originalVal);
+      }
+    }
+    
     return {
       total_available: ps.expected_increases ?? 0,
-      total_spent: ps.actual_increases ?? 0,
-      available: (ps.expected_increases ?? 0) - (ps.actual_increases ?? 0)
+      total_spent: Math.min(ps.expected_increases ?? 0, totalSpent),
+      available: Math.max(0, (ps.expected_increases ?? 0) - totalSpent)
     };
-  }, [abilityScoreData?.point_summary]);
+  }, [abilityScoreData, localAbilityScoreOverrides]);
 
   return {
     abilityScores,
@@ -437,10 +461,9 @@ export function useAbilityScores(
     getAbilityScore,
     getAbilityScoreModifier,
     calculateModifier,
-    updateStats,
-
     updateAlignment,
 
     pointSummary,
+    resetAbilityOverrides: () => setLocalAbilityScoreOverrides({}),
   };
 }

@@ -22,11 +22,13 @@ interface AbilityScore {
 interface CoreAbilityScoresSectionProps {
   abilityScores?: AbilityScore[];
   onAbilityScoreChange?: (index: number, value: number) => void;
+  availablePoints?: number;
 }
 
 export default function CoreAbilityScoresSection({ 
   abilityScores: externalAbilityScores,
-  onAbilityScoreChange 
+  onAbilityScoreChange,
+  availablePoints
 }: CoreAbilityScoresSectionProps) {
   const t = useTranslations();
   
@@ -93,6 +95,7 @@ export default function CoreAbilityScoresSection({
               onChange={(value) => updateAbilityScore(index, value)}
               min={3}
               max={50}
+              availablePoints={availablePoints}
             />
           ))}
         </div>

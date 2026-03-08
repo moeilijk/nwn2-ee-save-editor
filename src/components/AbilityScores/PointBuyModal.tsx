@@ -78,6 +78,12 @@ export default function PointBuyModal({ isOpen, onClose, pointBuyState, onApply 
     setScores(newScores);
   };
 
+  const handleReset = () => {
+    setScores({
+      Str: 8, Dex: 8, Con: 8, Int: 8, Wis: 8, Cha: 8
+    });
+  };
+
   const handleApply = async () => {
     setIsApplying(true);
     try {
@@ -153,17 +159,22 @@ export default function PointBuyModal({ isOpen, onClose, pointBuyState, onApply 
             ))}
           </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Button variant="ghost" onClick={onClose}>
-              {t('actions.cancel')}
+          <div className="flex justify-between mt-6">
+            <Button variant="outline" onClick={handleReset} className="text-red-500 hover:text-red-400 hover:bg-red-500/10 border-red-500/50">
+              {t('abilityScores.pointBuy.reset')}
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleApply}
-              disabled={isApplying || remaining < 0}
-            >
-              {isApplying ? t('actions.saving') : t('actions.apply')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onClose}>
+                {t('actions.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleApply}
+                disabled={isApplying || remaining < 0}
+              >
+                {isApplying ? t('actions.saving') : t('actions.apply')}
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

@@ -1047,7 +1047,11 @@ impl Character {
             let expected_total = class_level * Self::SPELLBOOK_SPELLS_PER_LEVEL;
 
             let actual = self.get_actual_spells_known_count(class_id);
-            let actual_total: i32 = actual.values().sum();
+            let actual_total: i32 = actual
+                .iter()
+                .filter(|(lvl, _)| **lvl > 0)
+                .map(|(_, &count)| count)
+                .sum();
 
             let pending = expected_total - actual_total;
             if pending <= 0 {

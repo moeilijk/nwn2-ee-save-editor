@@ -41,9 +41,9 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
 
   // Get feat slots from feats subsystem
   const featSlots = (() => {
-    const data = featsSubsystem.data as { point_summary?: { available?: number } } | null;
-    if (!data?.point_summary) return 0;
-    return data.point_summary.available ?? 0;
+    const data = featsSubsystem.data as { feat_slots?: { open_slots?: number } } | null;
+    if (!data?.feat_slots) return 0;
+    return data.feat_slots.open_slots ?? 0;
   })();
 
   // Get pending spells to learn - only for spontaneous casters and wizards

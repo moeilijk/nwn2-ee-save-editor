@@ -454,6 +454,10 @@ static SAVE_PATTERNS: LazyLock<Vec<(Regex, SaveType)>> = LazyLock::new(|| {
             Regex::new(r"([+-]\d+)\s+Will\s+Save").unwrap(),
             SaveType::Will,
         ),
+        (
+            Regex::new(r"([+-]\d+)\s+racial\s+(?:\w+\s+)?bonus\s+on\s+all\s+saving\s+throws").unwrap(),
+            SaveType::Universal,
+        ),
     ]
 });
 
@@ -1210,7 +1214,11 @@ impl Character {
             return feat_table;
         };
 
-        let Some(feats_table_name) = class_data.get("feats_table").and_then(|s| s.as_ref()) else {
+        let feats_table_name_opt = class_data.get("FeatsTable")
+            .or_else(|| class_data.get("feats_table"))
+            .and_then(|s| s.as_ref());
+
+        let Some(feats_table_name) = feats_table_name_opt else {
             return feat_table;
         };
 
@@ -1256,7 +1264,11 @@ impl Character {
             return false;
         };
 
-        let Some(bonus_table_name) = class_data.get("bonus_feats_table").and_then(|s| s.as_ref()) else {
+        let bonus_table_name_opt = class_data.get("BonusFeatsTable")
+            .or_else(|| class_data.get("bonus_feats_table"))
+            .and_then(|s| s.as_ref());
+
+        let Some(bonus_table_name) = bonus_table_name_opt else {
             return false;
         };
 
@@ -1488,25 +1500,35 @@ impl Character {
                 continue;
             }
 
+            let mut found_fort = false;
+            let mut found_ref = false;
+            let mut found_will = false;
+
             for (pattern, save_type) in SAVE_PATTERNS.iter() {
                 if let Some(captures) = pattern.captures(&description)
                     && let Some(bonus_str) = captures.get(1)
                         && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>() {
+                            
                             match save_type {
                                 SaveType::Universal => {
-                                    bonuses.fortitude += bonus_value;
-                                    bonuses.reflex += bonus_value;
-                                    bonuses.will += bonus_value;
+                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
+                                    if !found_ref { bonuses.reflex += bonus_value; found_ref = true; }
+                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
                                 }
-                                SaveType::Fortitude => bonuses.fortitude += bonus_value,
-                                SaveType::Reflex => bonuses.reflex += bonus_value,
-                                SaveType::Will => bonuses.will += bonus_value,
+                                SaveType::Fortitude => {
+                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
+                                }
+                                SaveType::Reflex => {
+                                    if !found_ref { bonuses.reflex += bonus_value; found_ref = true; }
+                                }
+                                SaveType::Will => {
+                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
+                                }
                                 SaveType::FortitudeAndWill => {
-                                    bonuses.fortitude += bonus_value;
-                                    bonuses.will += bonus_value;
+                                    if !found_fort { bonuses.fortitude += bonus_value; found_fort = true; }
+                                    if !found_will { bonuses.will += bonus_value; found_will = true; }
                                 }
                             }
-                            break;
                         }
             }
         }
@@ -1735,9 +1757,13 @@ impl Character {
     }
 
     fn normalize_skill_name(name: &str) -> String {
-        name.trim()
+        let mut normalized = name.trim()
             .to_uppercase()
-            .replace([' ', '-', '_'], "")
+            .replace([' ', '-', '_'], "");
+        if normalized.ends_with("TRAPS") {
+            normalized = normalized.trim_end_matches('S').to_string();
+        }
+        normalized
     }
 
     fn resolve_feat_description(feat_data: &ahash::AHashMap<String, Option<String>>, game_data: &GameData) -> String {

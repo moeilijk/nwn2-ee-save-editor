@@ -61,17 +61,20 @@ impl Character {
             temp: self.temp_hp(),
         };
 
+        let spellcraft = self.skill_rank(crate::character::types::SkillId(16));
+        let spellcraft_save_bonus = spellcraft / 5;
+
         let base_saves = self.calculate_base_saves(game_data);
-        let misc_saves = self.save_bonuses();
         let saving_throws = SaveBonuses {
-            fortitude: base_saves.fortitude + misc_saves.fortitude,
-            reflex: base_saves.reflex + misc_saves.reflex,
-            will: base_saves.will + misc_saves.will,
+            fortitude: base_saves.fortitude + spellcraft_save_bonus,
+            reflex: base_saves.reflex + spellcraft_save_bonus,
+            will: base_saves.will + spellcraft_save_bonus,
         };
 
         let bab = self.calculate_bab(game_data);
         let dex_mod = self.ability_modifier(super::types::AbilityIndex::DEX);
-        let base_ac = 10 + dex_mod + self.natural_ac();
+        let tumble_rank = self.skill_rank(crate::character::types::SkillId(21));
+        let base_ac = 10 + dex_mod + self.natural_ac() + (tumble_rank / 10);
 
         OverviewState {
             first_name: self.first_name(),

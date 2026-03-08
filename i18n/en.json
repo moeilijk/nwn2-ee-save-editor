@@ -41,7 +41,9 @@
     "delete": "Delete",
     "deleting": "Deleting...",
     "sort": "Sort",
-    "dropAll": "Drop All"
+    "dropAll": "Drop All",
+    "apply": "Apply",
+    "saving": "Saving..."
   },
   "character": {
     "noCharacter": "No Character",
@@ -105,8 +107,9 @@
     "pointsSpent": "Points Spent",
     "availablePoints": "Available Points",
     "pointBuy": {
-      "title": "Point Buy - Level 1 Stats",
-      "button": "Point Buy",
+      "title": "Respec Ability Scores",
+      "button": "Respec Ability Scores",
+      "reset": "Reset",
       "pointsUsed": "Points Used",
       "remaining": "remaining",
       "warning": "This will reset your level-up ability increases. You can re-spend them after applying."

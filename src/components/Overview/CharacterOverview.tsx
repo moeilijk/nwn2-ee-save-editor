@@ -193,18 +193,31 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
     }
   };
   
-  // Load subsystems data only if missing - don't force refresh on every tab switch
+  // Refetch data on mount to ensure calculated data is completely fresh
+  // after edits in other tabs
   useEffect(() => {
-    if (character) {
-      // Only load data if missing, don't force refresh
-      if (!abilities.data && !abilities.isLoading) abilities.load().catch(console.warn);
-      if (!combat.data && !combat.isLoading) combat.load().catch(console.warn);
-      if (!skills.data && !skills.isLoading) skills.load().catch(console.warn);
-      if (!feats.data && !feats.isLoading) feats.load().catch(console.warn);
-      if (!saves.data && !saves.isLoading) saves.load().catch(console.warn);
-      if (!classes.data && !classes.isLoading) classes.load().catch(console.warn);
+    let mounted = true;
+    if (character?.id) {
+      // Force refresh data silently
+      abilities.load({ silent: true, force: true }).catch(console.warn);
+      combat.load({ silent: true, force: true }).catch(console.warn);
+      skills.load({ silent: true, force: true }).catch(console.warn);
+      feats.load({ silent: true, force: true }).catch(console.warn);
+      saves.load({ silent: true, force: true }).catch(console.warn);
+      classes.load({ silent: true, force: true }).catch(console.warn);
+
+      // Also refresh character data to get updated XP, Level, Gold etc.
+      CharacterAPI.getCharacterState(character.id)
+        .then(data => {
+            if (mounted && updateCharacterPartial) {
+                updateCharacterPartial(data);
+            }
+        })
+        .catch(console.warn);
     }
-  }, [character?.id, abilities, combat, skills, feats, saves, classes]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { mounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.id]);
 
   if (isLoading) {
     return (

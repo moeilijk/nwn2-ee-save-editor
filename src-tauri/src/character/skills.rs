@@ -306,10 +306,22 @@ impl Character {
                 .and_then(|s| s.parse::<i32>().ok())
                 .map_or(true, |v| v > 0);
 
+            let mut synergy_bonus = 0;
+            if skill_id.0 == 29 && self.skill_rank(SkillId(14)) >= 5 {
+                // Search -> Survival synergy
+                synergy_bonus += 2;
+            } else if skill_id.0 == 2 && self.skill_rank(SkillId(15)) >= 5 {
+                // Set Trap -> Disable Device synergy
+                synergy_bonus += 2;
+            } else if skill_id.0 == 15 && self.skill_rank(SkillId(2)) >= 5 {
+                // Disable Device -> Set Trap synergy
+                synergy_bonus += 2;
+            }
+
             let total = if !untrained && ranks == 0 {
                 0
             } else {
-                ranks + ability_mod + item_skill_bonus + feat_bonus
+                ranks + ability_mod + item_skill_bonus + feat_bonus + synergy_bonus
             };
 
             let is_class_skill = self.is_class_skill(skill_id, game_data);

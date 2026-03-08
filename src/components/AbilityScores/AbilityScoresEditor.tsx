@@ -40,7 +40,8 @@ export default function AbilityScoresEditor() {
     updateAbilityScore,
     updateStats,
     updateAlignment,
-    pointSummary
+    pointSummary,
+    resetAbilityOverrides
   } = useAbilityScores(
     attributesData.data as AbilitiesState | null,
     {
@@ -55,8 +56,9 @@ export default function AbilityScoresEditor() {
 
   const handleApplyPointBuy = useCallback(async (scores: AbilityScores) => {
     await CharacterStateAPI.applyPointBuy(scores);
+    resetAbilityOverrides();
     await attributesData.load({ force: true });
-  }, [attributesData]);
+  }, [attributesData, resetAbilityOverrides]);
 
   const abilitiesState = attributesData.data as AbilitiesState | null;
 
@@ -113,6 +115,7 @@ export default function AbilityScoresEditor() {
       <CoreAbilityScoresSection
         abilityScores={abilityScores}
         onAbilityScoreChange={handleAbilityScoreUpdate}
+        availablePoints={pointSummary?.available}
       />
 
       <VitalStatisticsSection

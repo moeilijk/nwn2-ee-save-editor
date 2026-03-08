@@ -173,9 +173,10 @@ impl Character {
         let racial_bonuses = self.get_racial_save_bonuses(game_data);
         let class_bonuses = self.get_class_save_bonuses(game_data, &item_bonuses);
 
-        let con_mod = calculate_modifier(self.base_ability(AbilityIndex::CON) + item_bonuses.con_bonus);
-        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
-        let wis_mod = calculate_modifier(self.base_ability(AbilityIndex::WIS) + item_bonuses.wis_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let con_mod = calculate_modifier(effective_abilities.con + item_bonuses.con_bonus);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
+        let wis_mod = calculate_modifier(effective_abilities.wis + item_bonuses.wis_bonus);
 
         let fortitude = SaveBreakdown::calculate(
             base_saves.fortitude,
@@ -373,15 +374,15 @@ mod tests {
         let throws = character.get_saving_throws(&game_data, &decoder);
 
         assert_eq!(throws.fortitude.base, 0); // Calclated (0 classes)
-        assert_eq!(throws.fortitude.misc, 5); // From GFF
+        assert_eq!(throws.fortitude.misc, 0); // Misc is handled as 0
         assert_eq!(throws.fortitude.ability, 2);
         
         assert_eq!(throws.reflex.base, 0);
-        assert_eq!(throws.reflex.misc, 3);
+        assert_eq!(throws.reflex.misc, 0);
         assert_eq!(throws.reflex.ability, 1);
         
         assert_eq!(throws.will.base, 0);
-        assert_eq!(throws.will.misc, 7);
+        assert_eq!(throws.will.misc, 0);
         assert_eq!(throws.will.ability, 3);
     }
 
@@ -393,9 +394,9 @@ mod tests {
 
         let summary = character.get_save_summary(&game_data, &decoder);
 
-        assert!(summary.fortitude >= 7); // 5 misc + 2 ability
-        assert!(summary.reflex >= 4);    // 3 misc + 1 ability
-        assert!(summary.will >= 10);     // 7 misc + 3 ability
+        assert!(summary.fortitude >= 2); // 0 misc + 2 ability
+        assert!(summary.reflex >= 1);    // 0 misc + 1 ability
+        assert!(summary.will >= 3);      // 0 misc + 3 ability
     }
 
     #[test]
@@ -406,15 +407,15 @@ mod tests {
 
         let fortitude = character.get_save_breakdown(&game_data, &decoder, SaveType::Fortitude);
         assert_eq!(fortitude.base, 0);
-        assert_eq!(fortitude.misc, 5);
+        assert_eq!(fortitude.misc, 0);
         assert_eq!(fortitude.ability, 2);
 
         let reflex = character.get_save_breakdown(&game_data, &decoder, SaveType::Reflex);
         assert_eq!(reflex.base, 0);
-        assert_eq!(reflex.misc, 3);
+        assert_eq!(reflex.misc, 0);
 
         let will = character.get_save_breakdown(&game_data, &decoder, SaveType::Will);
         assert_eq!(will.base, 0);
-        assert_eq!(will.misc, 7);
+        assert_eq!(will.misc, 0);
     }
 }

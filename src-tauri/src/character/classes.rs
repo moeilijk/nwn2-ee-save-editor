@@ -554,18 +554,144 @@ impl Character {
         feats_for_level
     }
 
-    /// Get feat IDs that should be preserved during class removal.
-    /// These feats are protected from deletion even if they appear in the level history.
+    pub fn get_all_class_feat_ids(
+        &self,
+        class_id: ClassId,
+        game_data: &GameData,
+    ) -> HashSet<i32> {
+        let mut feat_ids = HashSet::new();
+
+        let Some(classes_table) = game_data.get_table("classes") else {
+            return feat_ids;
+        };
+
+        let Some(class_row) = classes_table.get_by_id(class_id.0) else {
+            return feat_ids;
+        };
+
+        let feats_table_name = class_row
+            .get("FeatsTable")
+            .or_else(|| class_row.get("feats_table"))
+            .or_else(|| class_row.get("FEATSTABLE"))
+            .and_then(std::clone::Clone::clone)
+            .filter(|s| !s.is_empty() && s != "****");
+
+        let Some(table_name) = feats_table_name else {
+            return feat_ids;
+        };
+
+        let Some(feat_table) = game_data.get_table(&table_name.to_lowercase()) else {
+            return feat_ids;
+        };
+
+        for row_idx in 0..feat_table.row_count() {
+            let Ok(row) = feat_table.get_row(row_idx) else {
+                continue;
+            };
+
+            let list_type = row
+                .get("List")
+                .or_else(|| row.get("list"))
+                .or_else(|| row.get("LIST"))
+                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                .unwrap_or(-1);
+
+            if list_type != 0 && list_type != 3 {
+                continue;
+            }
+
+            let feat_id = row
+                .get("FeatIndex")
+                .or_else(|| row.get("feat_index"))
+                .or_else(|| row.get("FEATINDEX"))
+                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                .unwrap_or(-1);
+
+            if feat_id >= 0 {
+                feat_ids.insert(feat_id);
+            }
+        }
+
+        feat_ids
+    }
+
+    pub fn reconcile_class_feats(&mut self, removed_class_ids: &[ClassId], game_data: &GameData) {
+        let preserved_feats = self.get_preserved_feat_ids(game_data);
+
+        let mut feats_from_removed: HashSet<i32> = HashSet::new();
+        for class_id in removed_class_ids {
+            feats_from_removed.extend(self.get_all_class_feat_ids(*class_id, game_data));
+        }
+
+        let mut feats_from_remaining: HashSet<i32> = HashSet::new();
+        let class_entries = self.class_entries();
+        for entry in &class_entries {
+            feats_from_remaining.extend(self.get_all_class_feat_ids(entry.class_id, game_data));
+        }
+
+        let feats_to_remove: HashSet<i32> = feats_from_removed
+            .iter()
+            .filter(|f| !feats_from_remaining.contains(f) && !preserved_feats.contains(f))
+            .copied()
+            .collect();
+
+        if feats_to_remove.is_empty() {
+            return;
+        }
+
+        let mut char_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
+        char_feat_list.retain(|f| {
+            let feat_id = f.get("Feat").and_then(gff_value_to_i32).unwrap_or(-1);
+            !feats_to_remove.contains(&feat_id)
+        });
+        self.set_list("FeatList", char_feat_list);
+
+        let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
+        for stat_entry in &mut lvl_stat_list {
+            if let Some(mut feat_list) = super::gff_helpers::extract_list_from_map(stat_entry, "FeatList") {
+                feat_list.retain(|f| {
+                    let feat_id = f.get("Feat").and_then(gff_value_to_i32).unwrap_or(-1);
+                    !feats_to_remove.contains(&feat_id)
+                });
+                stat_entry.insert("FeatList".to_string(), GffValue::ListOwned(feat_list));
+            }
+        }
+        self.set_list("LvlStatList", lvl_stat_list);
+    }
+
     pub fn get_preserved_feat_ids(&self, game_data: &GameData) -> HashSet<i32> {
         let mut preserved = HashSet::new();
 
-        // 1. Racial feats from racialtypes.2da -> FeatTable
         let race_id = self.race_id();
         if let Some(racial_feats) = self.get_racial_feat_ids(race_id, game_data) {
             preserved.extend(racial_feats);
         }
 
-        // 2. Domain feats (ID range 4000-4999 in vanilla NWN2)
+        if let Some(subrace_idx) = self.subrace_index()
+            && let Some(subtypes_table) = game_data.get_table("racialsubtypes")
+                && let Some(subtype_row) = subtypes_table.get_by_id(subrace_idx)
+        {
+            let feat_table_name = Self::get_field_value(&subtype_row, "FeatsTable")
+                .filter(|s| !s.is_empty() && s != "****");
+            if let Some(table_name) = feat_table_name
+                && let Some(feat_table) = game_data.get_table(&table_name.to_lowercase())
+            {
+                for row_idx in 0..feat_table.row_count() {
+                    if let Ok(row) = feat_table.get_row(row_idx) {
+                        let feat_id = row
+                            .get("FeatIndex")
+                            .or_else(|| row.get("feat_index"))
+                            .or_else(|| row.get("FEATINDEX"))
+                            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                            .unwrap_or(-1);
+                        if feat_id >= 0 {
+                            preserved.insert(feat_id);
+                        }
+                    }
+                }
+            }
+        }
+
         let feat_entries = self.feat_entries();
         for entry in &feat_entries {
             if (4000..=4999).contains(&entry.feat_id.0) {
@@ -573,31 +699,36 @@ impl Character {
             }
         }
 
-        // 3. Feats with protected sources (Race or Background)
         for entry in &feat_entries {
             if matches!(entry.source, FeatSource::Race | FeatSource::Background) {
                 preserved.insert(entry.feat_id.0);
             }
         }
 
-        // 4. Check feat types from feat.2da for Background/History/Heritage
         if let Some(feat_table) = game_data.get_table("feat") {
             for entry in &feat_entries {
-                if let Some(feat_row) = feat_table.get_by_id(entry.feat_id.0)
-                    && let Some(feat_type_str) = Self::get_field_value(&feat_row, "FEAT")
-                        && let Ok(feat_type) = feat_type_str.parse::<i32>() {
-                            // Background=128, History=512, Heritage=1024, Racial=4096
-                            if feat_type & (128 | 512 | 1024 | 4096) != 0 {
-                                preserved.insert(entry.feat_id.0);
-                            }
+                if let Some(feat_row) = feat_table.get_by_id(entry.feat_id.0) {
+                    let cat = Self::get_field_value(&feat_row, "TOOLSCATEGORIES")
+                        .and_then(|s| s.parse::<i32>().ok());
+                    if let Some(cat) = cat {
+                        if matches!(cat, 10 | 11 | 12 | 14) {
+                            preserved.insert(entry.feat_id.0);
                         }
+                        continue;
+                    }
+
+                    let feat_cat = Self::get_field_value(&feat_row, "FeatCategory")
+                        .unwrap_or_default();
+                    if feat_cat.contains("BACKGROUND") || feat_cat.contains("HISTORY") || feat_cat.contains("HERITAGE") || feat_cat.contains("RACIAL") {
+                        preserved.insert(entry.feat_id.0);
+                    }
+                }
             }
         }
 
         preserved
     }
 
-    /// Get racial feat IDs from the race's feat table in racialtypes.2da.
     pub fn get_racial_feat_ids(&self, race_id: RaceId, game_data: &GameData) -> Option<Vec<i32>> {
         let racialtypes = game_data.get_table("racialtypes")?;
         let race_data = racialtypes.get_by_id(race_id.0)?;
@@ -773,6 +904,17 @@ impl Character {
             !feats_to_remove.contains(&feat_id)
         });
 
+        // Ensure these feats are also stripped from any remaining LvlStatList entries
+        for stat_entry in &mut lvl_stat_list {
+            if let Some(mut feat_list) = super::gff_helpers::extract_list_from_map(stat_entry, "FeatList") {
+                feat_list.retain(|f| {
+                    let feat_id = f.get("Feat").and_then(gff_value_to_i32).unwrap_or(-1);
+                    !feats_to_remove.contains(&feat_id)
+                });
+                stat_entry.insert("FeatList".to_string(), GffValue::ListOwned(feat_list));
+            }
+        }
+
         // Remove skill ranks
         for (skill_idx, ranks_to_remove) in skill_ranks_to_remove {
             if let Some(skill_entry) = char_skill_list.get_mut(skill_idx) {
@@ -812,6 +954,8 @@ impl Character {
 
         // Recalculate stats once at the end
         self.recalculate_stats(game_data)?;
+
+        self.reconcile_class_feats(&[class_id], game_data);
 
         Ok(())
     }
@@ -1677,6 +1821,7 @@ impl Character {
     pub fn level_down(&mut self, class_id: ClassId, game_data: &GameData) -> Result<(), CharacterError> {
         self.level_down_internal(class_id, game_data)?;
         self.recalculate_stats(game_data)?;
+        self.reconcile_class_feats(&[class_id], game_data);
         Ok(())
     }
 
@@ -1809,6 +1954,17 @@ impl Character {
         });
         self.set_list("FeatList", char_feat_list);
 
+        // Ensure these feats are also stripped from any remaining LvlStatList entries
+        for stat_entry in &mut lvl_stat_list {
+            if let Some(mut feat_list) = super::gff_helpers::extract_list_from_map(stat_entry, "FeatList") {
+                feat_list.retain(|f| {
+                    let feat_id = f.get("Feat").and_then(gff_value_to_i32).unwrap_or(-1);
+                    !feats_to_remove.contains(&feat_id)
+                });
+                stat_entry.insert("FeatList".to_string(), GffValue::ListOwned(feat_list));
+            }
+        }
+
         // 6. Undo Spell Selections (Direct edit to avoid history side-effect)
         if let Some(mut class_list) = self.get_list_owned("ClassList") {
             for i in 0..10 {
@@ -1919,17 +2075,25 @@ impl Character {
 
     /// Record an ability score increase in the current level history.
     pub fn record_ability_change(&mut self, ability_index: AbilityIndex) {
+        use crate::character::types::ABILITY_INCREASE_INTERVAL;
         let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
         if lvl_stat_list.is_empty() {
             return;
         }
 
-        let last_idx = lvl_stat_list.len() - 1;
-        let entry = &mut lvl_stat_list[last_idx];
+        let mut changed = false;
+        for (idx, entry) in lvl_stat_list.iter_mut().enumerate() {
+            let char_level = (idx + 1) as i32;
+            if char_level % ABILITY_INCREASE_INTERVAL == 0 {
+                if entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255) {
+                    entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability_index.0));
+                    changed = true;
+                    break;
+                }
+            }
+        }
 
-        // Only record first ability increase per level
-        if entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255) {
-            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability_index.0));
+        if changed {
             self.set_list("LvlStatList", lvl_stat_list);
         }
     }
@@ -2249,11 +2413,9 @@ impl Character {
             self.level_down_internal(old_class_id, game_data)?;
         }
 
-        // 2. Add new class at level 1 using level_up which properly creates:
-        //    - LvlStatList entry with HP, skill points, etc.
-        //    - Automatic class feats
-        //    - Recalculates stats
         self.level_up(new_class_id, game_data)?;
+
+        self.reconcile_class_feats(&[old_class_id], game_data);
 
         Ok(())
     }

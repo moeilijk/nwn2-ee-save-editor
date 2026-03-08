@@ -244,9 +244,13 @@ export interface FeatSummary {
 }
 
 export interface FeatSlots {
-  general_slots: number;
-  bonus_slots: number;
-  epic_slots: number;
+  total_general_slots: number;
+  total_bonus_slots: number;
+  total_slots: number;
+  filled_slots: number;
+  open_slots: number;
+  open_general_slots: number;
+  open_bonus_slots: number;
 }
 
 export interface DomainInfo {

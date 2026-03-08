@@ -22,6 +22,7 @@ interface AbilityScoreCardProps {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  availablePoints?: number;
 }
 
 export default function AbilityScoreCard({
@@ -35,7 +36,8 @@ export default function AbilityScoreCard({
   onDecrease,
   onChange,
   min = 3,
-  max = 40
+  max = 40,
+  availablePoints
 }: AbilityScoreCardProps) {
   const [clickedButton, setClickedButton] = useState<'increase' | 'decrease' | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +100,7 @@ export default function AbilityScoreCard({
         if (currentValue > min) handleDecrease();
         break;
     }
-  }, [value, baseValue, min, max, handleIncrease, handleDecrease]);
+  }, [value, baseValue, min, max, handleIncrease, handleDecrease, availablePoints]);
 
   return (
     <Card 
