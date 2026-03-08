@@ -1598,9 +1598,16 @@ impl Character {
                 .expect("Invalid dual skill regex")
         });
 
+        static EFFECTS_ENTRY_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"([+-]\d+)\s+([A-Za-z][A-Za-z\s]*[A-Za-z])")
+                .expect("Invalid effects entry regex")
+        });
+
         static SKILL_CONDITIONAL_KEYWORDS: &[&str] = &[
             "against", "vs ", "versus", "when ", "while ", "if ", "to avoid",
         ];
+
+        let known_skills = Self::build_known_skill_names(game_data);
 
         let mut skill_bonuses: HashMap<String, i32> = HashMap::new();
         let feat_entries = self.feat_entries();
@@ -1617,10 +1624,37 @@ impl Character {
             let description = Self::resolve_feat_description(&feat_data, game_data);
             let description_lower = description.to_lowercase();
 
+            let feat_label = feat_data
+                .get("label")
+                .and_then(|s| s.as_ref().map(String::as_str))
+                .unwrap_or("unknown");
+
             if SKILL_CONDITIONAL_KEYWORDS
                 .iter()
                 .any(|kw| description_lower.contains(kw))
             {
+                debug!("[feat_skill] Skipping feat '{}' due to conditional keyword", feat_label);
+                continue;
+            }
+
+            if description_lower.contains("effects:") {
+                let effects_start = description_lower.find("effects:").unwrap();
+                let effects_text = &description[effects_start..];
+                debug!("[feat_skill] Feat '{}' has effects line: {:?}", feat_label, effects_text);
+                debug!("[feat_skill] Known skills: {:?}", known_skills);
+
+                for cap in EFFECTS_ENTRY_PATTERN.captures_iter(effects_text) {
+                    let Some(value_str) = cap.get(1) else { continue };
+                    let Some(name_match) = cap.get(2) else { continue };
+                    let Ok(bonus_value) = value_str.as_str().parse::<i32>() else { continue };
+
+                    let normalized = Self::normalize_skill_name(name_match.as_str());
+                    debug!("[feat_skill] Effect entry: {} '{}' -> normalized '{}' (in known_skills: {})",
+                        value_str.as_str(), name_match.as_str(), normalized, known_skills.contains(&normalized));
+                    if known_skills.contains(&normalized) {
+                        *skill_bonuses.entry(normalized).or_insert(0) += bonus_value;
+                    }
+                }
                 continue;
             }
 
@@ -1648,13 +1682,41 @@ impl Character {
             }
         }
 
+        debug!("[feat_skill] Final skill_bonuses: {:?}", skill_bonuses);
         skill_bonuses
+    }
+
+    fn build_known_skill_names(game_data: &GameData) -> HashSet<String> {
+        let mut names = HashSet::new();
+        let Some(skills_table) = game_data.get_table("skills") else {
+            return names;
+        };
+
+        for i in 0..skills_table.row_count() {
+            let Some(skill_data) = skills_table.get_by_id(i as i32) else {
+                continue;
+            };
+
+            let label = skill_data
+                .get("label")
+                .or_else(|| skill_data.get("Label"))
+                .and_then(|opt| opt.as_deref())
+                .unwrap_or("");
+
+            if label.starts_with("****") || label.starts_with("DEL_") || label.contains("DELETED") {
+                continue;
+            }
+
+            names.insert(Self::normalize_skill_name(label));
+        }
+
+        names
     }
 
     fn normalize_skill_name(name: &str) -> String {
         name.trim()
             .to_uppercase()
-            .replace([' ', '-'], "_")
+            .replace([' ', '-', '_'], "")
     }
 
     fn resolve_feat_description(feat_data: &ahash::AHashMap<String, Option<String>>, game_data: &GameData) -> String {

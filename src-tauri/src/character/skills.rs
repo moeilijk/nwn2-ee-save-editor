@@ -13,6 +13,8 @@
 //!   - Rank: Byte (skill rank, i8 range: -128 to 127)
 //! - Index in list corresponds to skill ID from skills.2da
 
+use std::collections::HashMap;
+
 use super::{Character, CharacterError};
 use crate::character::gff_helpers::gff_value_to_i32;
 use crate::character::types::{SkillId, AbilityIndex, AbilityModifiers};
@@ -44,6 +46,8 @@ pub struct SkillSummaryEntry {
     pub is_class_skill: bool,
     pub untrained: bool,
     pub armor_check_penalty: bool,
+    pub feat_bonus: i32,
+    pub item_bonus: i32,
 }
 
 impl Character {
@@ -234,7 +238,6 @@ impl Character {
             return Vec::new();
         };
 
-        // Optimization: Calculate bonuses once if decoder is present
         let (ability_modifiers, item_bonuses) = if let Some(d) = decoder {
             (
                 Some(self.get_total_ability_modifiers(game_data, d)),
@@ -243,6 +246,8 @@ impl Character {
         } else {
             (None, None)
         };
+
+        let feat_skill_bonuses = self.get_feat_skill_bonuses(game_data);
 
         let row_count = skills_table.row_count();
         let mut entries = Vec::with_capacity(row_count);
@@ -271,16 +276,21 @@ impl Character {
             let key_ability = self.get_skill_key_ability(skill_id, game_data);
             let ability_name = key_ability.short_name().to_string();
 
-            let modifier = if let (Some(mods), Some(bonuses)) = (&ability_modifiers, &item_bonuses) {
+            let feat_bonus = Self::lookup_feat_skill_bonus(&feat_skill_bonuses, label, &name);
+            if feat_bonus != 0 {
+                tracing::debug!("[skill_summary] Skill '{}' (label='{}') got feat_bonus={}", name, label, feat_bonus);
+            }
+
+            let (ability_mod, item_skill_bonus) = if let (Some(mods), Some(bonuses)) = (&ability_modifiers, &item_bonuses) {
                 let ability_mod = mods.get(key_ability);
-
                 let skill_key = format!("Skill_{}", skill_id.0);
-                let item_skill_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
-
-                ranks + ability_mod + item_skill_bonus
+                let item_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
+                (ability_mod, item_bonus)
             } else {
-                self.calculate_skill_modifier(skill_id, game_data, None)
+                (self.ability_modifier(key_ability), 0)
             };
+
+            let total = ranks + ability_mod + item_skill_bonus + feat_bonus;
 
             let is_class_skill = self.is_class_skill(skill_id, game_data);
 
@@ -302,16 +312,50 @@ impl Character {
                 name,
                 ranks,
                 max_ranks,
-                modifier,
-                total: modifier,
+                modifier: ability_mod,
+                total,
                 ability: ability_name,
                 is_class_skill,
                 untrained,
                 armor_check_penalty,
+                feat_bonus,
+                item_bonus: item_skill_bonus,
             });
         }
 
         entries
+    }
+
+    fn lookup_feat_skill_bonus(
+        feat_bonuses: &HashMap<String, i32>,
+        label: &str,
+        name: &str,
+    ) -> i32 {
+        if feat_bonuses.is_empty() {
+            return 0;
+        }
+
+        let normalized_label = label
+            .trim()
+            .to_uppercase()
+            .replace([' ', '-', '_'], "");
+
+        if let Some(&bonus) = feat_bonuses.get(&normalized_label) {
+            return bonus;
+        }
+
+        let normalized_name = name
+            .trim()
+            .to_uppercase()
+            .replace([' ', '-', '_'], "");
+
+        if normalized_name != normalized_label {
+            if let Some(&bonus) = feat_bonuses.get(&normalized_name) {
+                return bonus;
+            }
+        }
+
+        0
     }
 
     /// Calculate skill points gained for a single level.

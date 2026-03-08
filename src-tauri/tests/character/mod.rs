@@ -8,3 +8,4 @@ mod race;
 mod saves;
 mod skills;
 mod spells;
+mod skill_bonus_test;

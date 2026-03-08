@@ -601,7 +601,23 @@ impl ItemPropertyDecoder {
                     }
                 }
                 "skill" => {
-                    if let (Some(skill), Some(value)) = (&prop.skill_name, prop.bonus_value) {
+                    // Fix: Use Skill_<ID> key format to match skills.rs expectation
+                    // The Subtype in raw_data is the Skill ID
+                    let skill_id = prop.raw_data.get("Subtype").and_then(|v| {
+                        match v {
+                            serde_json::Value::Number(n) => n.as_u64().map(|u| u as u32),
+                            serde_json::Value::String(s) => s.parse::<u32>().ok(),
+                            _ => None,
+                        }
+                    });
+
+                    if let Some(subtype) = skill_id {
+                        if let Some(value) = prop.bonus_value {
+                            let key = format!("Skill_{}", subtype);
+                            *bonuses.skill_bonuses.entry(key).or_insert(0) += value;
+                        }
+                    } else if let (Some(skill), Some(value)) = (&prop.skill_name, prop.bonus_value) {
+                         // Fallback for logic where subtype might be missing but name exists (unlikely for proper items)
                         *bonuses.skill_bonuses.entry(skill.clone()).or_insert(0) += value;
                     }
                 }

@@ -515,12 +515,10 @@ export default function SkillsEditor() {
                       {formatModifier(skill.modifier)}
                     </td>
                     <td className="p-3 text-center text-sm text-[rgb(var(--color-text-secondary))]">
-                      <span
-                        className="cursor-help"
-                        title={t('skills.miscModifiers')}
-                      >
-                        {display('-')}
-                      </span>
+                      {(() => {
+                        const misc = (skill.feat_bonus || 0) + (skill.item_bonus || 0);
+                        return misc ? formatModifier(misc) : display('-');
+                      })()}
                     </td>
                     <td className="p-3 text-center">
                       {skill.is_class_skill && (

@@ -357,6 +357,8 @@ export interface SkillSummaryEntry {
   ability: string;
   untrained: boolean;
   armor_check_penalty: boolean;
+  feat_bonus: number;
+  item_bonus: number;
 }
 
 export interface SkillsState {

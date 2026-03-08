@@ -344,14 +344,12 @@ export default function VitalStatisticsSection({
                 </div>
               </div>
 
-              {(stats.fortitude.equipment ?? 0) !== 0 && (
-                <div className="breakdown-row">
-                  <span className="breakdown-label">Equipment:</span>
-                  <div className="breakdown-value-container">
-                    <span className={`breakdown-value ${getModifierClass(stats.fortitude.equipment ?? 0)}`}>{formatModifier(stats.fortitude.equipment ?? 0)}</span>
-                  </div>
+              <div className="breakdown-row">
+                <span className="breakdown-label">Equipment:</span>
+                <div className="breakdown-value-container">
+                  <span className={`breakdown-value ${getModifierClass(stats.fortitude.equipment ?? 0)}`}>{formatModifier(stats.fortitude.equipment ?? 0)}</span>
                 </div>
-              )}
+              </div>
 
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">
@@ -416,14 +414,12 @@ export default function VitalStatisticsSection({
                 </div>
               </div>
 
-              {(stats.reflex.equipment ?? 0) !== 0 && (
-                <div className="breakdown-row">
-                  <span className="breakdown-label">Equipment:</span>
-                  <div className="breakdown-value-container">
-                    <span className={`breakdown-value ${getModifierClass(stats.reflex.equipment ?? 0)}`}>{formatModifier(stats.reflex.equipment ?? 0)}</span>
-                  </div>
+              <div className="breakdown-row">
+                <span className="breakdown-label">Equipment:</span>
+                <div className="breakdown-value-container">
+                  <span className={`breakdown-value ${getModifierClass(stats.reflex.equipment ?? 0)}`}>{formatModifier(stats.reflex.equipment ?? 0)}</span>
                 </div>
-              )}
+              </div>
 
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">
@@ -488,14 +484,12 @@ export default function VitalStatisticsSection({
                 </div>
               </div>
 
-              {(stats.will.equipment ?? 0) !== 0 && (
-                <div className="breakdown-row">
-                  <span className="breakdown-label">Equipment:</span>
-                  <div className="breakdown-value-container">
-                    <span className={`breakdown-value ${getModifierClass(stats.will.equipment ?? 0)}`}>{formatModifier(stats.will.equipment ?? 0)}</span>
-                  </div>
+              <div className="breakdown-row">
+                <span className="breakdown-label">Equipment:</span>
+                <div className="breakdown-value-container">
+                  <span className={`breakdown-value ${getModifierClass(stats.will.equipment ?? 0)}`}>{formatModifier(stats.will.equipment ?? 0)}</span>
                 </div>
-              )}
+              </div>
 
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">

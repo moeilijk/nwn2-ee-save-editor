@@ -57,18 +57,18 @@ const INVENTORY_COLS = 8;
 const INVENTORY_ROWS = 8;
 
 const SLOT_MAPPING: Record<string, string> = {
-  'helmet': 'head', 'head': 'head',
-  'chest': 'chest',
-  'belt': 'belt',
-  'boots': 'boots',
-  'neck': 'neck',
-  'cloak': 'cloak',
-  'gloves': 'gloves',
-  'l ring': 'left_ring', 'left_ring': 'left_ring',
-  'r ring': 'right_ring', 'right_ring': 'right_ring',
-  'l hand': 'left_hand', 'left_hand': 'left_hand',
-  'r hand': 'right_hand', 'right_hand': 'right_hand',
-  'arrows': 'arrows', 'bullets': 'bullets', 'bolts': 'bolts'
+  'helmet': 'Head', 'head': 'Head',
+  'chest': 'Chest',
+  'belt': 'Belt',
+  'boots': 'Boots',
+  'neck': 'Neck',
+  'cloak': 'Cloak',
+  'gloves': 'Gloves',
+  'l ring': 'LeftRing', 'left_ring': 'LeftRing',
+  'r ring': 'RightRing', 'right_ring': 'RightRing',
+  'l hand': 'LeftHand', 'left_hand': 'LeftHand',
+  'r hand': 'RightHand', 'right_hand': 'RightHand',
+  'arrows': 'Arrows', 'bullets': 'Bullets', 'bolts': 'Bolts'
 };
 
 export default function InventoryEditor() {
