@@ -19,6 +19,7 @@ import AddItemModal from './AddItemModal';
 import { BaseItem, ItemTemplate } from '@/services/inventoryApi';
 import { safeToNumber } from '@/utils/dataHelpers';
 import { getRarityBorderColor } from '@/utils/itemHelpers';
+import { stripNwn2Tags } from '@/utils/nwn2Markup';
 import type { FullInventorySummary, FullInventoryItem, FullEquippedItem, FullEncumbrance } from '@/lib/bindings';
 
 
@@ -85,6 +86,8 @@ export default function InventoryEditor() {
     if (character) {
       if (!inventoryData.data && !inventoryData.isLoading) {
         inventoryData.load();
+      } else if (inventoryData.data) {
+        console.log('Inventory data loaded:', inventoryData.data);
       }
       if (!combatSubsystem.data && !combatSubsystem.isLoading) {
         combatSubsystem.load();
@@ -372,15 +375,19 @@ export default function InventoryEditor() {
         const itemIndex = response.item_index ?? null;
         if (itemIndex !== null) {
           setPendingNewItemIndex(itemIndex);
+        } else {
+          setShowAddItemModal(false);
         }
         await inventoryData.load();
         return itemIndex;
       } else {
         showToast(response.message, 'error');
+        setShowAddItemModal(false);
         return null;
       }
     } catch (error) {
       handleError(error);
+      setShowAddItemModal(false);
       return null;
     }
   };
@@ -433,13 +440,21 @@ export default function InventoryEditor() {
           const response = await inventoryAPI.addItemFromTemplate(character.id, templateResref);
           if (response.success) {
               showToast(response.message, 'success');
+              const itemIndex = response.item_index ?? null;
+              if (itemIndex !== null) {
+                  setPendingNewItemIndex(itemIndex);
+              } else {
+                  setShowAddItemModal(false);
+              }
               await inventoryData.load();
               await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
           } else {
               showToast(response.message, 'error');
+              setShowAddItemModal(false);
           }
       } catch (error) {
           handleError(error);
+          setShowAddItemModal(false);
       }
   };
 
@@ -548,11 +563,14 @@ export default function InventoryEditor() {
     const displayLabel = slotLabel || slotName.charAt(0);
 
     const handleSlotClick = () => {
+      console.log('Slot clicked:', slotName, 'equippedItem:', equippedItem);
       if (equippedItem) {
         const invData = inventoryData.data as FullInventorySummary | null;
         const mappedSlot = SLOT_MAPPING[slotName.toLowerCase()];
         const targetSlot = mappedSlot || slotName;
         const equipData = invData?.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
+        console.log('Equip Data found:', equipData);
+        console.log('Equip Raw Data:', equipData?.item_data);
 
         const itemForDetails: Item = {
           id: `equipped_${slotName.toLowerCase().replace(' ', '_')}`,
@@ -597,7 +615,7 @@ export default function InventoryEditor() {
         >
           {equippedItem ? (
             <div className="w-8 h-8 bg-[rgb(var(--color-surface-3))] rounded flex items-center justify-center text-xs font-bold pointer-events-none">
-              {equippedItem.name.charAt(0)}
+              {stripNwn2Tags(equippedItem.name).charAt(0)}
             </div>
           ) : (
             <div className="text-xs text-[rgb(var(--color-text-muted))] font-bold pointer-events-none">
@@ -661,10 +679,11 @@ export default function InventoryEditor() {
         };
 
         setSelectedItem(item);
-        setSelectedItemRawData(null);
+        setSelectedItemRawData(extItem.item || null);
         setSelectedItemResolvedName(extItem.name);
         setSelectedItemResolvedDescription(extItem.description);
         setSelectedItemInventoryIndex(pendingNewItemIndex);
+        setShowAddItemModal(false);
         setShowPropertyEditor(true);
         setPendingNewItemIndex(null);
         return;
@@ -687,7 +706,7 @@ export default function InventoryEditor() {
           is_cursed: false,
           is_stolen: false
         });
-        setSelectedItemRawData(null);
+        setSelectedItemRawData(equipData.item_data || null);
         setSelectedItemResolvedName(equipData.name);
         setSelectedItemResolvedDescription(equipData.description);
         setSelectedItemInventoryIndex(null);
@@ -711,7 +730,7 @@ export default function InventoryEditor() {
         const newItem = currentInventory[matchIndex]!;
         setSelectedItem(newItem);
         const inventoryItem = invData.inventory?.find((i: ExtendedInventoryItem) => safeToNumber(i.index, -1) === matchIndex) as ExtendedInventoryItem | undefined;
-        setSelectedItemRawData(null);
+        setSelectedItemRawData(inventoryItem?.item || null);
         setSelectedItemResolvedName(inventoryItem?.name);
         setSelectedItemResolvedDescription(inventoryItem?.description);
         setSelectedItemInventoryIndex(matchIndex);
@@ -737,7 +756,7 @@ export default function InventoryEditor() {
       } else {
         setSelectedItem(currentItem);
         const inventoryItem = invData?.inventory?.[selectedItemInventoryIndex] as ExtendedInventoryItem | undefined;
-        setSelectedItemRawData(null);
+        setSelectedItemRawData(inventoryItem?.item || null);
         setSelectedItemResolvedName(inventoryItem?.name);
         setSelectedItemResolvedDescription(inventoryItem?.description);
       }
@@ -944,6 +963,9 @@ export default function InventoryEditor() {
                                 index={originalIndex}
                                 isSelected={isSelected}
                                 onClick={() => {
+                                    console.log('Item clicked:', item);
+                                    console.log('Inventory Item:', inventoryItem);
+                                    console.log('Raw Data:', inventoryItem?.item);
                                     setSelectedItem(item);
                                     setSelectedItemRawData(inventoryItem?.item || null);
                                     setSelectedItemResolvedName(inventoryItem?.name);
@@ -954,9 +976,9 @@ export default function InventoryEditor() {
                                 <div className="w-full h-full p-1 flex items-center justify-center pointer-events-none">
                                     <div className="w-8 h-8 bg-[rgb(var(--color-surface-3))] rounded flex items-center justify-center text-xs font-bold">
                                          {item.icon ? (
-                                            <img src={`/icons/${item.icon}.png`} alt={item.name} className="w-full h-full object-contain" />
+                                            <img src={`/icons/${item.icon}.png`} alt={stripNwn2Tags(item.name)} className="w-full h-full object-contain" />
                                          ) : (
-                                            item.name.charAt(0)
+                                            stripNwn2Tags(item.name).charAt(0)
                                          )}
                                     </div>
                                     {item.stackSize && (
@@ -1058,7 +1080,10 @@ export default function InventoryEditor() {
                 rawData={selectedItemRawData || undefined}
                 onEquip={() => canEquipSelectedItem() && getSelectedItemDefaultSlot() ? handleEquipItem(selectedItemRawData!, getSelectedItemDefaultSlot()!, selectedItemInventoryIndex) : undefined}
                 onUnequip={() => selectedItem.equipped && selectedItem.slot && getEquippedItemForSlot(selectedItem.slot) ? handleUnequipItem(selectedItem.slot) : undefined}
-                onEdit={() => setShowPropertyEditor(true)}
+                onEdit={() => {
+                  console.log('Edit clicked. selectedItemRawData:', selectedItemRawData);
+                  setShowPropertyEditor(true);
+                }}
                 onDestroy={selectedItemInventoryIndex !== null ? handleDeleteItem : undefined}
                 isEquipping={isEquipping}
                 canEquip={canEquipSelectedItem()}
@@ -1147,9 +1172,9 @@ export default function InventoryEditor() {
           <div className="w-12 h-12 rounded border-2 border-[rgb(var(--color-primary))] bg-[rgb(var(--color-surface-3))] shadow-2xl flex items-center justify-center opacity-90 z-50 cursor-grabbing pointer-events-none">
              <div className="w-8 h-8 bg-[rgb(var(--color-surface-3))] rounded flex items-center justify-center text-xs font-bold">
                  {activeDragItem.item.icon ? (
-                      <img src={`/icons/${activeDragItem.item.icon}.png`} alt={activeDragItem.item.name} className="w-full h-full object-contain" />
+                      <img src={`/icons/${activeDragItem.item.icon}.png`} alt={stripNwn2Tags(activeDragItem.item.name)} className="w-full h-full object-contain" />
                  ) : (
-                    activeDragItem.item.name.charAt(0)
+                    stripNwn2Tags(activeDragItem.item.name).charAt(0)
                  )}
              </div>
           </div>

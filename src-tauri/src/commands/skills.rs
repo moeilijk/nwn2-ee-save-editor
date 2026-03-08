@@ -24,6 +24,7 @@ pub struct SkillsStateResponse {
 
 #[tauri::command]
 pub async fn get_all_skills(state: State<'_, AppState>) -> CommandResult<Vec<SkillSummaryEntry>> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -62,6 +63,7 @@ pub async fn calculate_skill_cost(
 
 #[tauri::command]
 pub async fn get_skill_summary(state: State<'_, AppState>) -> CommandResult<Vec<SkillSummaryEntry>> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -71,6 +73,7 @@ pub async fn get_skill_summary(state: State<'_, AppState>) -> CommandResult<Vec<
 
 #[tauri::command]
 pub async fn get_skills_state(state: State<'_, AppState>) -> CommandResult<SkillsStateResponse> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;

@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+
+use rayon::prelude::*;
 use zip::ZipArchive;
 
 #[derive(Clone)]
@@ -20,6 +22,7 @@ pub struct ZipReadResult {
 
 pub struct ZipContentReader {
     open_archives: HashMap<String, ZipArchive<BufReader<File>>>,
+    file_indices: HashMap<String, HashMap<String, usize>>,
     files_read: u64,
     bytes_read: u64,
     archives_opened: u64,
@@ -30,6 +33,7 @@ impl ZipContentReader {
     pub fn new() -> Self {
         ZipContentReader {
             open_archives: HashMap::new(),
+            file_indices: HashMap::new(),
             files_read: 0,
             bytes_read: 0,
             archives_opened: 0,
@@ -44,21 +48,24 @@ impl ZipContentReader {
             self.open_archive(&zip_path)?;
         }
 
+        let index = self.file_indices
+            .get(&zip_path)
+            .and_then(|indices| indices.get(&internal_path).copied())
+            .ok_or_else(|| format!("File not found in ZIP index: {internal_path}"))?;
+
         let archive = self.open_archives.get_mut(&zip_path)
             .ok_or_else(|| format!("Failed to access ZIP archive: {zip_path}"))?;
 
-        match archive.by_name(&internal_path) {
-            Ok(mut file) => {
-                let mut contents = Vec::new();
-                file.read_to_end(&mut contents)
-                    .map_err(|e| format!("Failed to read file {internal_path}: {e}"))?;
+        let mut file = archive.by_index(index)
+            .map_err(|e| format!("Failed to read file at index {index}: {e}"))?;
 
-                self.files_read += 1;
-                self.bytes_read += contents.len() as u64;
-                Ok(contents)
-            }
-            Err(e) => Err(format!("File not found in ZIP {zip_path}/{internal_path}: {e}"))
-        }
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents)
+            .map_err(|e| format!("Failed to read file {internal_path}: {e}"))?;
+
+        self.files_read += 1;
+        self.bytes_read += contents.len() as u64;
+        Ok(contents)
     }
 
     pub fn read_multiple_files(&mut self, requests: Vec<ZipReadRequest>) -> Vec<ZipReadResult> {
@@ -127,6 +134,51 @@ impl ZipContentReader {
         results
     }
 
+    pub fn read_multiple_files_parallel(
+        &self,
+        requests: Vec<ZipReadRequest>,
+    ) -> Vec<ZipReadResult> {
+        requests
+            .par_iter()
+            .map(|req| {
+                match Self::read_single_file(&req.zip_path, &req.internal_path) {
+                    Ok(data) => ZipReadResult {
+                        request_id: req.request_id.clone(),
+                        success: true,
+                        data: Some(data),
+                        error: None,
+                    },
+                    Err(e) => ZipReadResult {
+                        request_id: req.request_id.clone(),
+                        success: false,
+                        data: None,
+                        error: Some(e),
+                    },
+                }
+            })
+            .collect()
+    }
+
+    fn read_single_file(zip_path: &str, internal_path: &str) -> Result<Vec<u8>, String> {
+        let file = File::open(zip_path)
+            .map_err(|e| format!("Failed to open ZIP: {e}"))?;
+
+        let reader = BufReader::with_capacity(64 * 1024, file);
+        let mut archive = ZipArchive::new(reader)
+            .map_err(|e| format!("Failed to read ZIP: {e}"))?;
+
+        let mut entry = archive
+            .by_name(internal_path)
+            .map_err(|e| format!("File not found: {e}"))?;
+
+        let mut contents = Vec::with_capacity(entry.size() as usize);
+        entry
+            .read_to_end(&mut contents)
+            .map_err(|e| format!("Failed to read: {e}"))?;
+
+        Ok(contents)
+    }
+
     pub fn preopen_zip_archives(&mut self, zip_paths: Vec<String>) -> Result<(), String> {
         for zip_path in zip_paths {
             if !self.open_archives.contains_key(&zip_path) {
@@ -182,9 +234,17 @@ impl ZipContentReader {
         const BUFFER_SIZE: usize = 64 * 1024;
         let reader = BufReader::with_capacity(BUFFER_SIZE, file);
 
-        let archive = ZipArchive::new(reader)
+        let mut archive = ZipArchive::new(reader)
             .map_err(|e| format!("Failed to read ZIP archive {zip_path}: {e}"))?;
 
+        let mut indices = HashMap::new();
+        for i in 0..archive.len() {
+            if let Ok(file) = archive.by_index_raw(i) {
+                indices.insert(file.name().to_string(), i);
+            }
+        }
+
+        self.file_indices.insert(zip_path.to_string(), indices);
         self.open_archives.insert(zip_path.to_string(), archive);
         self.archives_opened += 1;
 

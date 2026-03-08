@@ -27,6 +27,7 @@ interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -35,6 +36,7 @@ interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -43,6 +45,7 @@ interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -340,7 +343,16 @@ export default function VitalStatisticsSection({
                   <span className={`breakdown-value ${getModifierClass(stats.fortitude.abilityMod ?? 0)}`}>{formatModifier(stats.fortitude.abilityMod ?? 0)}</span>
                 </div>
               </div>
-              
+
+              {(stats.fortitude.equipment ?? 0) !== 0 && (
+                <div className="breakdown-row">
+                  <span className="breakdown-label">Equipment:</span>
+                  <div className="breakdown-value-container">
+                    <span className={`breakdown-value ${getModifierClass(stats.fortitude.equipment ?? 0)}`}>{formatModifier(stats.fortitude.equipment ?? 0)}</span>
+                  </div>
+                </div>
+              )}
+
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">
                 <span className="breakdown-label">Total:</span>
@@ -403,7 +415,16 @@ export default function VitalStatisticsSection({
                   <span className={`breakdown-value ${getModifierClass(stats.reflex.abilityMod ?? 0)}`}>{formatModifier(stats.reflex.abilityMod ?? 0)}</span>
                 </div>
               </div>
-              
+
+              {(stats.reflex.equipment ?? 0) !== 0 && (
+                <div className="breakdown-row">
+                  <span className="breakdown-label">Equipment:</span>
+                  <div className="breakdown-value-container">
+                    <span className={`breakdown-value ${getModifierClass(stats.reflex.equipment ?? 0)}`}>{formatModifier(stats.reflex.equipment ?? 0)}</span>
+                  </div>
+                </div>
+              )}
+
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">
                 <span className="breakdown-label">Total:</span>
@@ -466,7 +487,16 @@ export default function VitalStatisticsSection({
                   <span className={`breakdown-value ${getModifierClass(stats.will.abilityMod ?? 0)}`}>{formatModifier(stats.will.abilityMod ?? 0)}</span>
                 </div>
               </div>
-              
+
+              {(stats.will.equipment ?? 0) !== 0 && (
+                <div className="breakdown-row">
+                  <span className="breakdown-label">Equipment:</span>
+                  <div className="breakdown-value-container">
+                    <span className={`breakdown-value ${getModifierClass(stats.will.equipment ?? 0)}`}>{formatModifier(stats.will.equipment ?? 0)}</span>
+                  </div>
+                </div>
+              )}
+
               <hr className="breakdown-divider" />
               <div className="breakdown-row breakdown-effective-row">
                 <span className="breakdown-label">Total:</span>

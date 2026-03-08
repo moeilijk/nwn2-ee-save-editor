@@ -9,6 +9,7 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn get_combat_summary(state: State<'_, AppState>) -> CommandResult<CombatSummary> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -76,6 +77,7 @@ pub async fn update_initiative_bonus(
 
 #[tauri::command]
 pub async fn get_save_summary(state: State<'_, AppState>) -> CommandResult<SaveSummary> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -156,6 +158,7 @@ pub async fn check_save(
 
 #[tauri::command]
 pub async fn get_armor_class(state: State<'_, AppState>) -> CommandResult<ArmorClass> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -165,6 +168,7 @@ pub async fn get_armor_class(state: State<'_, AppState>) -> CommandResult<ArmorC
 
 #[tauri::command]
 pub async fn get_attack_bonuses(state: State<'_, AppState>) -> CommandResult<AttackBonuses> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -174,10 +178,12 @@ pub async fn get_attack_bonuses(state: State<'_, AppState>) -> CommandResult<Att
 
 #[tauri::command]
 pub async fn get_initiative(state: State<'_, AppState>) -> CommandResult<Initiative> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.get_initiative_breakdown(&game_data))
+    let decoder = &session.item_property_decoder;
+    Ok(character.get_initiative_breakdown(&game_data, decoder))
 }
 
 #[tauri::command]
@@ -191,6 +197,7 @@ pub async fn get_attacks_per_round(state: State<'_, AppState>) -> CommandResult<
 
 #[tauri::command]
 pub async fn get_saving_throws(state: State<'_, AppState>) -> CommandResult<SavingThrows> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
@@ -203,6 +210,7 @@ pub async fn get_save_breakdown(
     state: State<'_, AppState>,
     save_type: i32,
 ) -> CommandResult<crate::character::SaveBreakdown> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;

@@ -196,7 +196,7 @@ impl PlayerInfo {
 
         for i in 0..class_count as usize {
             let class_name = read_string(cursor)?;
-            let class_level = cursor.read_u32::<LittleEndian>()? as u8;
+            let class_level = cursor.read_u8()?;
 
             if class_level > 60 {
                 warn!("Unusual class level {} for class {} at index {}", class_level, class_name, i);
@@ -278,10 +278,12 @@ impl PlayerInfo {
             write_string(writer, &self.data.last_name)?;
         }
 
+        if !has_last_name {
+            writer.write_u32::<LittleEndian>(self.data.unknown1)?;
+        }
+
         write_string(writer, &self.data.subrace)?;
         write_string(writer, &self.data.alignment)?;
-
-        writer.write_u32::<LittleEndian>(self.data.unknown1)?;
         writer.write_u32::<LittleEndian>(self.data.unknown2)?;
         writer.write_u32::<LittleEndian>(self.data.unknown3)?;
         writer.write_u32::<LittleEndian>(self.data.unknown4)?;
@@ -289,7 +291,7 @@ impl PlayerInfo {
         writer.write_u32::<LittleEndian>(self.data.classes.len() as u32)?;
         for class in &self.data.classes {
             write_string(writer, &class.name)?;
-            writer.write_u32::<LittleEndian>(u32::from(class.level))?;
+            writer.write_u8(class.level)?;
         }
 
         write_string(writer, &self.data.deity)?;

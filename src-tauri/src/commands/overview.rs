@@ -54,6 +54,8 @@ pub async fn update_character(
 
 #[tauri::command]
 pub async fn get_abilities_state(state: State<'_, AppState>) -> CommandResult<AbilitiesState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
+
     let session = state.session.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
     let game_data = state.game_data.read();
@@ -67,6 +69,7 @@ pub async fn update_abilities(
     state: State<'_, AppState>,
     updates: AbilitiesUpdates,
 ) -> CommandResult<AbilitiesState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let game_data = state.game_data.read();
 
     {
@@ -130,6 +133,8 @@ pub async fn apply_point_buy(
 ) -> CommandResult<AbilitiesState> {
     use crate::character::abilities::{calculate_point_buy_cost, POINT_BUY_BUDGET, POINT_BUY_MIN, POINT_BUY_MAX};
     use crate::character::types::AbilityIndex;
+
+    super::inventory::ensure_decoder_initialized(&state).await;
 
     let cost = calculate_point_buy_cost(&new_scores);
     if cost > POINT_BUY_BUDGET {

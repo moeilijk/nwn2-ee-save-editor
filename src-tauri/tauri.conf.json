@@ -34,7 +34,8 @@
         "devtools": true,
         "decorations": false,
         "titleBarStyle": "Overlay",
-        "label": "main"
+        "label": "main",
+        "visible": false
       }
     ],
     "security": {

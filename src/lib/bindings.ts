@@ -437,12 +437,14 @@ export interface CombatSummary {
 export type SaveType = 'Fortitude' | 'Reflex' | 'Will';
 
 export interface SaveBreakdown {
-  save_type: SaveType;
   total: number;
   base: number;
   ability: number;
+  equipment: number;
+  feat: number;
+  racial: number;
+  class_bonus: number;
   misc: number;
-  magic: number;
 }
 
 export interface SavingThrows {

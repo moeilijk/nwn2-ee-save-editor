@@ -3,10 +3,11 @@ pub mod error;
 
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use zip::write::SimpleFileOptions;
@@ -172,30 +173,68 @@ impl SaveGameHandler {
     pub fn batch_read_character_files(&self) -> SaveGameResult<HashMap<String, Vec<u8>>> {
         let file = File::open(&self.zip_path)?;
         let mut archive = ZipArchive::new(file)?;
-        let mut results = HashMap::new();
 
+        let mut character_files = Vec::new();
         for i in 0..archive.len() {
-            let mut zip_file = archive.by_index(i)?;
-            let name = zip_file.name().to_string();
+            let entry = archive.by_index_raw(i)?;
+            let name = entry.name().to_string();
 
             let is_character_file = name == PLAYERLIST_IFO
                 || name == PLAYER_BIC
                 || name.to_lowercase().ends_with(".ros");
 
             if is_character_file {
-                let mut contents = Vec::with_capacity(zip_file.size() as usize);
-                zip_file.read_to_end(&mut contents)?;
-
-                if self.validate
-                    && let Err(e) = self.validate_file_content(&name, &contents) {
-                        warn!("Validation failed for {}: {}", name, e);
-                    }
-
-                results.insert(name, contents);
+                character_files.push(name);
             }
         }
 
-        Ok(results)
+        let zip_path = self.zip_path.clone();
+        let validate = self.validate;
+
+        let results: Vec<(String, Vec<u8>)> = character_files
+            .par_iter()
+            .filter_map(|name| {
+                let file = File::open(&zip_path).ok()?;
+                let reader = BufReader::with_capacity(64 * 1024, file);
+                let mut archive = ZipArchive::new(reader).ok()?;
+                let mut zip_file = archive.by_name(name).ok()?;
+
+                let mut contents = Vec::with_capacity(zip_file.size() as usize);
+                zip_file.read_to_end(&mut contents).ok()?;
+
+                if validate {
+                    Self::validate_file_header(name, &contents).ok()?;
+                }
+
+                Some((name.clone(), contents))
+            })
+            .collect();
+
+        Ok(results.into_iter().collect())
+    }
+
+    fn validate_file_header(filename: &str, content: &[u8]) -> SaveGameResult<()> {
+        if content.len() < 4 {
+            return Err(SaveGameError::ValidationFailed {
+                filename: filename.into(),
+                reason: "File too small".into(),
+            });
+        }
+
+        for (ext, expected_header) in FILE_HEADERS {
+            if filename.to_lowercase().ends_with(ext) {
+                let actual = &content[0..4];
+                if actual != *expected_header {
+                    return Err(SaveGameError::InvalidHeader {
+                        filename: filename.into(),
+                        expected: String::from_utf8_lossy(*expected_header).into(),
+                    });
+                }
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn extract_globals_xml(&self) -> SaveGameResult<String> {
@@ -552,27 +591,7 @@ impl SaveGameHandler {
     }
 
     fn validate_file_content(&self, filename: &str, content: &[u8]) -> SaveGameResult<()> {
-        if content.len() < 4 {
-            return Err(SaveGameError::ValidationFailed {
-                filename: filename.into(),
-                reason: "File too small".into(),
-            });
-        }
-
-        for (ext, expected_header) in FILE_HEADERS {
-            if filename.to_lowercase().ends_with(ext) {
-                let actual = &content[0..4];
-                if actual != *expected_header {
-                    return Err(SaveGameError::InvalidHeader {
-                        filename: filename.into(),
-                        expected: String::from_utf8_lossy(*expected_header).into(),
-                    });
-                }
-                break;
-            }
-        }
-
-        Ok(())
+        Self::validate_file_header(filename, content)
     }
 
     fn cleanup_temp_files(&mut self) {

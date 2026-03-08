@@ -43,6 +43,7 @@ export interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -51,6 +52,7 @@ export interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -59,6 +61,7 @@ export interface CharacterStats {
     total: number;
     abilityMod?: number;
     classMod?: number;
+    equipment?: number;
     racial?: number;
     feat?: number;
   };
@@ -108,14 +111,15 @@ export function useAbilityScores(
     };
 
     const getDisplayValue = (attrKey: AbilityKey) => {
+      const equipBonus = abilityScoreData.equipment_modifiers?.[attrKey] ?? 0;
       const override = localAbilityScoreOverrides[attrKey];
       if (override !== undefined) {
           const originalBase = abilityScoreData.base_scores?.[attrKey] ?? 10;
           const originalEffective = abilityScoreData.effective_scores?.[attrKey] ?? originalBase;
           const bonus = originalEffective - originalBase;
-          return override + bonus;
+          return override + bonus + equipBonus;
       }
-      return abilityScoreData.effective_scores?.[attrKey] ?? abilityScoreData.base_scores?.[attrKey] ?? 10;
+      return (abilityScoreData.effective_scores?.[attrKey] ?? abilityScoreData.base_scores?.[attrKey] ?? 10) + equipBonus;
     };
 
     const getLevelUpMod = (attrKey: AbilityKey): number => {
@@ -255,15 +259,16 @@ export function useAbilityScores(
       };
     };
 
-    const buildSave = (saveData: { total: number; base: number; ability: number; misc: number; magic: number } | undefined, overrideKey: 'fortitude' | 'reflex' | 'will') => {
+    const buildSave = (saveData: { total: number; base: number; ability: number; equipment: number; feat: number; racial: number; class_bonus: number; misc: number } | undefined, overrideKey: 'fortitude' | 'reflex' | 'will') => {
       if (!saveData) return defaultStats[overrideKey];
       return {
         base: localStatsOverrides[overrideKey]?.base ?? saveData.misc ?? 0,
         total: saveData.total ?? 0,
         abilityMod: saveData.ability ?? 0,
         classMod: saveData.base ?? 0,
-        racial: 0,
-        feat: 0
+        equipment: saveData.equipment ?? 0,
+        racial: saveData.racial ?? 0,
+        feat: (saveData.feat ?? 0) + (saveData.class_bonus ?? 0),
       };
     };
 

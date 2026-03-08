@@ -29,7 +29,9 @@
     "browse": "Browse",
     "autoDetect": "Auto-detect",
     "detecting": "Detecting...",
+    "openDocumentsFolder": "Open NWN2 Documents",
     "importCharacter": "Import Character",
+    "manageBackups": "Manage Backups",
     "exportCharacter": "Export Character",
     "equip": "Equip",
     "unequip": "Unequip",
@@ -216,6 +218,15 @@
       "unidentified": "Unidentified",
       "enhanced": "Enhanced"
     },
+    "editor": {
+      "name": "Name",
+      "description": "Description",
+      "bold": "Bold",
+      "italic": "Italic",
+      "color": "Text Color",
+      "preview": "Preview",
+      "togglePreview": "Toggle preview"
+    },
     "addItem": "Add Item",
     "createNewBaseType": "Create New",
     "addExistingTemplate": "Add Existing",
@@ -235,7 +246,8 @@
     "character": "Character",
     "noCharacterLoaded": "No character loaded",
     "selectInstallationFolder": "Select NWN2 installation folder...",
-    "quickActions": "Quick Actions"
+    "quickActions": "Quick Actions",
+    "selectSaveGame": "Select a Save Game"
   },
   "placeholders": {
     "noCharacterOverview": "No character loaded. Open a save file to begin editing.",

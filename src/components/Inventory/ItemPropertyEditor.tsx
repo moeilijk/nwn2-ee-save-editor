@@ -1,14 +1,106 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
-import { Plus, Trash2, X, Save } from 'lucide-react';
+import { Plus, Trash2, X, Save, Bold, Italic, Palette } from 'lucide-react';
 import { inventoryAPI, ItemEditorMetadataResponse } from '@/services/inventoryApi';
 import { useTranslations } from '@/hooks/useTranslations';
+import { stripNwn2Tags, NWN2_COLOR_NAMES, nwn2ToHtml, htmlToNwn2 } from '@/utils/nwn2Markup';
+
+function sortCostTableEntries(entries: [string, string][]): [string, string][] {
+  return entries.sort(([, a], [, b]) => {
+    const isDiceA = /\d+d\d+/.test(a);
+    const isDiceB = /\d+d\d+/.test(b);
+    if (isDiceA && !isDiceB) return -1;
+    if (!isDiceA && isDiceB) return 1;
+    if (isDiceA && isDiceB) {
+      const [numA, dieA] = a.match(/(\d+)d(\d+)/)!.slice(1).map(Number);
+      const [numB, dieB] = b.match(/(\d+)d(\d+)/)!.slice(1).map(Number);
+      return numA !== numB ? numA - numB : dieA - dieB;
+    }
+    const numA = parseInt(a.replace(/[^-\d]/g, '')) || 0;
+    const numB = parseInt(b.replace(/[^-\d]/g, '')) || 0;
+    return numA - numB;
+  });
+}
+
+const TOOLBAR_COLORS = ['Red', 'Orange', 'Yellow', 'Green', 'Cyan', 'Blue', 'Purple', 'Pink', 'Gold', 'Silver', 'White'];
+
+function MarkupToolbar({ onSync, t }: {
+  onSync: () => void;
+  t: (key: string) => string;
+}) {
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const handleBold = () => {
+    document.execCommand('bold', false);
+    onSync();
+  };
+
+  const handleItalic = () => {
+    document.execCommand('italic', false);
+    onSync();
+  };
+
+  const handleColor = (colorName: string) => {
+    const hex = NWN2_COLOR_NAMES[colorName.toLowerCase()] || colorName;
+    document.execCommand('foreColor', false, hex);
+    onSync();
+    setShowColorPicker(false);
+  };
+
+  return (
+    <div className="flex items-center gap-1 mb-1" onMouseDown={(e) => e.preventDefault()}>
+      <button
+        type="button"
+        onClick={handleBold}
+        className="w-7 h-7 flex items-center justify-center rounded border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))] hover:bg-[rgb(var(--color-surface-3))] transition-colors"
+        title={t('inventory.editor.bold')}
+      >
+        <Bold className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={handleItalic}
+        className="w-7 h-7 flex items-center justify-center rounded border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))] hover:bg-[rgb(var(--color-surface-3))] transition-colors"
+        title={t('inventory.editor.italic')}
+      >
+        <Italic className="w-3.5 h-3.5" />
+      </button>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowColorPicker(!showColorPicker)}
+          className="w-7 h-7 flex items-center justify-center rounded border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-2))] hover:bg-[rgb(var(--color-surface-3))] transition-colors"
+          title={t('inventory.editor.color')}
+        >
+          <Palette className="w-3.5 h-3.5" />
+        </button>
+        {showColorPicker && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
+            <div className="absolute left-0 top-full mt-1 z-50 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-border))] rounded-md shadow-lg p-1.5 grid grid-cols-4 gap-1 w-[140px]">
+              {TOOLBAR_COLORS.map(name => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => handleColor(name)}
+                  className="w-7 h-7 rounded border border-[rgb(var(--color-surface-border)/0.5)] hover:scale-110 transition-transform"
+                  style={{ backgroundColor: NWN2_COLOR_NAMES[name.toLowerCase()] }}
+                  title={name}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface ItemPropertyEditorProps {
   isOpen: boolean;
@@ -33,11 +125,15 @@ export default function ItemPropertyEditor({
   resolvedName,
   resolvedDescription
 }: ItemPropertyEditorProps) {
-  useTranslations();
+  console.log('ItemPropertyEditor rendered. isOpen:', isOpen, 'hasItemData:', !!itemData);
+  const t = useTranslations();
   const [localData, setLocalData] = useState<Record<string, unknown> | null>(null);
   const [metadata, setMetadata] = useState<ItemEditorMetadataResponse | null>(null);
   const [, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('basic');
+  const [editorInitialized, setEditorInitialized] = useState(false);
+  const nameRef = useRef<HTMLDivElement>(null);
+  const descRef = useRef<HTMLDivElement>(null);
 
   const loadMetadata = useCallback(async () => {
     if (!characterId) return;
@@ -74,6 +170,32 @@ export default function ItemPropertyEditor({
       loadMetadata();
     }
   }, [isOpen, itemData, loadMetadata, resolvedName, resolvedDescription]);
+
+  useEffect(() => {
+    if (isOpen && localData && !editorInitialized) {
+      const nameField = localData['LocalizedName'] as Record<string, unknown> | undefined;
+      const nameSubstrings = nameField?.substrings as Array<{string?: string}> | undefined;
+      const descField = localData['DescIdentified'] as Record<string, unknown> | undefined;
+      const descSubstrings = descField?.substrings as Array<{string?: string}> | undefined;
+      if (nameRef.current) {
+        nameRef.current.innerHTML = nwn2ToHtml(nameSubstrings?.[0]?.string || '');
+      }
+      if (descRef.current) {
+        descRef.current.innerHTML = nwn2ToHtml(descSubstrings?.[0]?.string || '');
+      }
+      setEditorInitialized(true);
+    }
+    if (!isOpen) {
+      setEditorInitialized(false);
+    }
+  }, [isOpen, localData, editorInitialized]);
+
+  const syncField = useCallback((field: string, ref: React.RefObject<HTMLDivElement | null>) => {
+    if (ref.current) {
+      handleLocalizedChange(field, htmlToNwn2(ref.current));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleBasicChange = (field: string, value: unknown) => {
     setLocalData((prev: Record<string, unknown> | null) => ({
@@ -185,7 +307,7 @@ export default function ItemPropertyEditor({
           {/* Header */}
           <div className="add-item-modal-header">
             <div className="add-item-modal-header-row">
-              <h3 className="add-item-modal-title">Edit Item: {getLocalizedValue('LocalizedName') || 'New Item'}</h3>
+              <h3 className="add-item-modal-title">Edit Item: {stripNwn2Tags(getLocalizedValue('LocalizedName')) || 'New Item'}</h3>
               <Button onClick={onClose} variant="ghost" size="sm" className="add-item-modal-close-button">
                 <X className="w-4 h-4" />
               </Button>
@@ -217,18 +339,34 @@ export default function ItemPropertyEditor({
                 <ScrollArea className="h-full">
                   <div className="space-y-4 p-4">
                     <div>
-                      <label className="text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1 block">Name</label>
-                      <Input
-                        value={getLocalizedValue('LocalizedName')}
-                        onChange={(e) => handleLocalizedChange('LocalizedName', e.target.value)}
+                      <label className="text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1 block">{t('inventory.editor.name')}</label>
+                      <MarkupToolbar onSync={() => syncField('LocalizedName', nameRef)} t={t} />
+                      <div
+                        ref={nameRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={() => syncField('LocalizedName', nameRef)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+                        }}
+                        className="flex h-10 w-full rounded-md border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-primary))] transition-all hover:bg-[rgb(var(--color-surface-2))] hover:border-[rgb(var(--color-primary)/0.5)] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary)/0.2)] focus:border-[rgb(var(--color-primary))] overflow-hidden whitespace-nowrap items-center"
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1 block">Description</label>
-                      <textarea
-                        className="w-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-border))] rounded-md p-2 text-sm text-[rgb(var(--color-text-primary))] outline-none min-h-[200px] resize-y"
-                        value={getLocalizedValue('DescIdentified')}
-                        onChange={(e) => handleLocalizedChange('DescIdentified', e.target.value)}
+                      <label className="text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1 block">{t('inventory.editor.description')}</label>
+                      <MarkupToolbar onSync={() => syncField('DescIdentified', descRef)} t={t} />
+                      <div
+                        ref={descRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={() => syncField('DescIdentified', descRef)}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+                        }}
+                        className="w-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-border))] rounded-md p-2 text-sm text-[rgb(var(--color-text-primary))] outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary)/0.2)] focus:border-[rgb(var(--color-primary))] min-h-[200px]"
                       />
                     </div>
 
@@ -354,7 +492,7 @@ export default function ItemPropertyEditor({
                                       value={prop.CostValue || 0}
                                       onChange={(e) => handlePropertyChange(index, 'CostValue', parseInt(e.target.value))}
                                     >
-                                      {Object.entries(propMeta.cost_table_options).map(([id, label]) => (
+                                      {sortCostTableEntries(Object.entries(propMeta.cost_table_options)).map(([id, label]) => (
                                         <option key={id} value={id}>{label}</option>
                                       ))}
                                     </select>

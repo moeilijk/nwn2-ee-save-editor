@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use ahash::AHashMap;
 use memmap2::Mmap;
-use tracing::{debug, info, instrument};
+use tracing::{instrument, trace};
 
 use super::error::{SecurityLimits, TDAError, TDAResult};
 use super::tokenizer::{TDATokenizer, Token};
@@ -14,7 +14,6 @@ use super::types::{CellValue, ColumnInfo, SerializableTDAParser, TDAParser, TDAR
 impl TDAParser {
     #[instrument(name = "TDAParser::parse_from_bytes", skip_all, fields(size = data.len()))]
     pub fn parse_from_bytes(&mut self, data: &[u8]) -> TDAResult<()> {
-        debug!("Parsing 2DA from byte buffer ({} bytes)", data.len());
         let start_time = Instant::now();
 
         self.security_limits().validate_file_size(data.len())?;
@@ -31,7 +30,7 @@ impl TDAParser {
         self.metadata_mut().file_size = data.len();
         self.metadata_mut().parse_time_ns = start_time.elapsed().as_nanos() as u64;
 
-        info!("2DA parsed: {} rows, {} columns, {:.2}ms",
+        trace!("2DA parsed: {} rows, {} columns, {:.2}ms",
               self.row_count(), self.column_count(),
               start_time.elapsed().as_secs_f64() * 1000.0);
 
@@ -40,19 +39,15 @@ impl TDAParser {
 
     #[instrument(name = "TDAParser::parse_from_file", skip_all, fields(path = ?path.as_ref()))]
     pub fn parse_from_file<P: AsRef<Path>>(&mut self, path: P) -> TDAResult<()> {
-        debug!("Opening 2DA file");
         let file = File::open(&path)?;
         let metadata = file.metadata()?;
         let file_size = metadata.len() as usize;
 
-        debug!("2DA file size: {} bytes", file_size);
         self.security_limits().validate_file_size(file_size)?;
 
         if file_size > 64 * 1024 {
-            debug!("Using memory-mapped parsing (file > 64KB)");
             self.parse_from_mmap(file)
         } else {
-            debug!("Using buffered parsing (file <= 64KB)");
             let mut content = String::new();
             let mut reader = BufReader::new(file);
             reader.read_to_string(&mut content)?;
@@ -64,7 +59,6 @@ impl TDAParser {
     fn parse_from_mmap(&mut self, file: File) -> TDAResult<()> {
         let start_time = Instant::now();
 
-        debug!("Memory-mapping 2DA file");
         let mmap = unsafe {
             Mmap::map(&file).map_err(|e| TDAError::MemoryMapError {
                 details: e.to_string(),
@@ -83,7 +77,7 @@ impl TDAParser {
         self.metadata_mut().file_size = mmap.len();
         self.metadata_mut().parse_time_ns = start_time.elapsed().as_nanos() as u64;
 
-        info!("2DA parsed (mmap): {} rows, {} columns, {:.2}ms",
+        trace!("2DA parsed (mmap): {} rows, {} columns, {:.2}ms",
               self.row_count(), self.column_count(),
               start_time.elapsed().as_secs_f64() * 1000.0);
 

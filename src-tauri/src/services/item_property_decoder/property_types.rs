@@ -3,10 +3,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use super::context_maps::{
-    get_ability_name, get_ac_type_name, get_damage_type_name, get_immunity_type_name,
-    get_save_element_name, get_save_name,
-};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Type)]
 pub struct PropertyDefinition {
@@ -217,11 +213,10 @@ impl Default for PropertyMetadata {
 }
 
 pub fn decode_ability_bonus(
-    subtype: u32,
+    ability: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let ability = get_ability_name(subtype);
     let bonus = cost_value as i32;
 
     DecodedProperty {
@@ -238,11 +233,10 @@ pub fn decode_ability_bonus(
 }
 
 pub fn decode_ability_penalty(
-    subtype: u32,
+    ability: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let ability = get_ability_name(subtype);
     let penalty = cost_value as i32;
 
     DecodedProperty {
@@ -259,11 +253,10 @@ pub fn decode_ability_penalty(
 }
 
 pub fn decode_ac_bonus(
-    subtype: u32,
+    ac_type: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let ac_type = get_ac_type_name(subtype);
     let bonus = cost_value as i32;
 
     DecodedProperty {
@@ -315,14 +308,8 @@ pub fn decode_attack_bonus(
     }
 }
 
-pub fn decode_damage_bonus(
-    subtype: u32,
-    cost_value: u32,
-    raw_data: HashMap<String, serde_json::Value>,
-) -> DecodedProperty {
-    let damage_type = get_damage_type_name(subtype);
-
-    let damage_dice = match cost_value {
+fn cost_value_to_damage_dice(cost_value: u32) -> &'static str {
+    match cost_value {
         1 => "1d4",
         2 => "1d6",
         3 => "1d8",
@@ -330,8 +317,29 @@ pub fn decode_damage_bonus(
         5 => "2d6",
         6 => "2d8",
         7 => "2d10",
+        8 => "1d12",
+        9 => "2d4",
+        10 => "2d12",
+        11 => "3d6",
+        12 => "+1",
+        13 => "+2",
+        14 => "+3",
+        15 => "+4",
+        16 => "+5",
+        17 => "+1d4",
+        18 => "+1d6",
+        19 => "+1d8",
+        20 => "+1d10",
         _ => "Unknown",
-    };
+    }
+}
+
+pub fn decode_damage_bonus(
+    damage_type: &str,
+    cost_value: u32,
+    raw_data: HashMap<String, serde_json::Value>,
+) -> DecodedProperty {
+    let damage_dice = cost_value_to_damage_dice(cost_value);
 
     DecodedProperty {
         property_id: 16,
@@ -347,12 +355,10 @@ pub fn decode_damage_bonus(
 }
 
 pub fn decode_damage_resistance(
-    subtype: u32,
+    damage_type: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let damage_type = get_damage_type_name(subtype);
-
     let resistance = match cost_value {
         1 => 5,
         2 => 10,
@@ -377,12 +383,10 @@ pub fn decode_damage_resistance(
 }
 
 pub fn decode_damage_vulnerability(
-    subtype: u32,
+    damage_type: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let damage_type = get_damage_type_name(subtype);
-
     let vulnerability = match cost_value {
         1 => 25,
         2 => 50,
@@ -406,16 +410,15 @@ pub fn decode_damage_vulnerability(
     }
 }
 
-pub fn decode_saving_throw_bonus(
-    subtype: u32,
+pub fn decode_saving_throw_bonus_named(
+    save_type: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let save_type = get_save_name(subtype);
     let bonus = cost_value as i32;
 
     DecodedProperty {
-        property_id: 40,
+        property_id: 41,
         label: format!("{save_type} Save +{bonus}"),
         description: format!("Saving Throw Bonus: {save_type} +{bonus}"),
         bonus_type: "saving_throw".to_string(),
@@ -427,16 +430,15 @@ pub fn decode_saving_throw_bonus(
     }
 }
 
-pub fn decode_saving_throw_vs_element(
-    subtype: u32,
+pub fn decode_saving_throw_vs_element_named(
+    element: &str,
     cost_value: u32,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let element = get_save_element_name(subtype);
     let bonus = cost_value as i32;
 
     DecodedProperty {
-        property_id: 41,
+        property_id: 40,
         label: format!("Save vs {element} +{bonus}"),
         description: format!("Saving Throw Bonus vs {element}: +{bonus}"),
         bonus_type: "saving_throw_element".to_string(),
@@ -469,11 +471,9 @@ pub fn decode_skill_bonus(
 }
 
 pub fn decode_immunity(
-    subtype: u32,
+    immunity_type: &str,
     raw_data: HashMap<String, serde_json::Value>,
 ) -> DecodedProperty {
-    let immunity_type = get_immunity_type_name(subtype);
-
     DecodedProperty {
         property_id: 37,
         label: format!("Immunity: {immunity_type}"),
@@ -668,6 +668,31 @@ pub fn decode_generic(
     }
 }
 
+pub fn decode_generic_with_context(
+    property_id: u32,
+    label: &str,
+    subtype_name: Option<&str>,
+    cost_value: u32,
+    raw_data: HashMap<String, serde_json::Value>,
+) -> DecodedProperty {
+    let description = match (subtype_name, cost_value) {
+        (Some(sub), v) if v > 0 => format!("{label}: {sub} +{v}"),
+        (Some(sub), _) => format!("{label}: {sub}"),
+        (None, v) if v > 0 => format!("{label} +{v}"),
+        _ => label.to_string(),
+    };
+
+    DecodedProperty {
+        property_id,
+        label: label.to_string(),
+        description,
+        bonus_type: "generic".to_string(),
+        decoded: true,
+        raw_data,
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -675,7 +700,7 @@ mod tests {
     #[test]
     fn test_decode_ability_bonus() {
         let raw = HashMap::new();
-        let decoded = decode_ability_bonus(0, 4, raw);
+        let decoded = decode_ability_bonus("Str", 4, raw);
 
         assert_eq!(decoded.label, "Str +4");
         assert_eq!(decoded.ability, Some("Str".to_string()));
@@ -686,7 +711,7 @@ mod tests {
     #[test]
     fn test_decode_ac_bonus() {
         let raw = HashMap::new();
-        let decoded = decode_ac_bonus(1, 3, raw);
+        let decoded = decode_ac_bonus("Natural", 3, raw);
 
         assert_eq!(decoded.label, "AC Natural +3");
         assert_eq!(decoded.ac_type, Some("Natural".to_string()));
@@ -696,8 +721,7 @@ mod tests {
     #[test]
     fn test_decode_damage_resistance() {
         let raw = HashMap::new();
-        // Acid is damage type 6 in DAMAGE_TYPE_MAP
-        let decoded = decode_damage_resistance(6, 2, raw);
+        let decoded = decode_damage_resistance("Acid", 2, raw);
 
         assert_eq!(decoded.label, "Resist Acid 10");
         assert_eq!(decoded.damage_type, Some("Acid".to_string()));

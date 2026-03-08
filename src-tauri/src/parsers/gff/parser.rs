@@ -85,25 +85,17 @@ impl GffParser {
         Ok(Arc::new(parser))
     }
 
-    #[instrument(name = "GffParser::from_bytes", skip_all, fields(size = bytes.len()))]
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, GffError> {
-        debug!("Parsing GFF from byte buffer ({} bytes)", bytes.len());
         let data = Arc::new(DataSource::Bytes(bytes));
         let parser = Self::parse_header(data)?;
-        info!("GFF parsed from bytes: type={}, version={}, structs={}, fields={}",
-              parser.file_type, parser.file_version, parser.struct_count, parser.field_count);
         Ok(Arc::new(parser))
     }
 
-    #[instrument(name = "GffParser::parse_header", skip_all, fields(size = data.len()))]
     fn parse_header(data: Arc<DataSource>) -> Result<Self, GffError> {
         let slice = data.as_slice();
         if data.len() < HEADER_SIZE {
-            warn!("GFF file too small: {} bytes (minimum {})", data.len(), HEADER_SIZE);
             return Err(GffError::InvalidHeader("File too small".to_string()));
         }
-
-        debug!("Parsing GFF header ({} bytes)", data.len());
 
         let struct_offset = LittleEndian::read_u32(&slice[8..12]) as usize;
         let struct_count = LittleEndian::read_u32(&slice[12..16]);

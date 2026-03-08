@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use crate::character::Character;
-use crate::character::types::{AbilityIndex, FeatId, SaveBonuses};
+use crate::character::types::{AbilityIndex, FeatId, SaveBonuses, calculate_modifier};
 use crate::loaders::GameData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
@@ -171,11 +171,11 @@ impl Character {
         let feat_bonuses = self.get_feat_save_bonuses(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
         let racial_bonuses = self.get_racial_save_bonuses(game_data);
-        let class_bonuses = self.get_class_save_bonuses(game_data);
+        let class_bonuses = self.get_class_save_bonuses(game_data, &item_bonuses);
 
-        let con_mod = self.ability_modifier(AbilityIndex::CON);
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
-        let wis_mod = self.ability_modifier(AbilityIndex::WIS);
+        let con_mod = calculate_modifier(self.base_ability(AbilityIndex::CON) + item_bonuses.con_bonus);
+        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let wis_mod = calculate_modifier(self.base_ability(AbilityIndex::WIS) + item_bonuses.wis_bonus);
 
         let fortitude = SaveBreakdown::calculate(
             base_saves.fortitude,
@@ -244,14 +244,18 @@ impl Character {
         SaveBonuses::new(fort, reflex, will)
     }
 
-    fn get_class_save_bonuses(&self, game_data: &GameData) -> SaveBonuses {
+    fn get_class_save_bonuses(
+        &self,
+        game_data: &GameData,
+        item_bonuses: &crate::services::item_property_decoder::ItemBonuses,
+    ) -> SaveBonuses {
         let _ = game_data;
         let mut bonuses = SaveBonuses::default();
 
         const DIVINE_GRACE_FEAT_ID: FeatId = FeatId(214);
         const DARK_ONES_LUCK_FEAT_ID: FeatId = FeatId(400);
 
-        let cha_mod = self.ability_modifier(AbilityIndex::CHA).max(0);
+        let cha_mod = calculate_modifier(self.base_ability(AbilityIndex::CHA) + item_bonuses.cha_bonus).max(0);
 
         if self.has_feat(DIVINE_GRACE_FEAT_ID) {
             bonuses.fortitude += cha_mod;

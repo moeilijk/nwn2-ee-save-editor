@@ -863,6 +863,16 @@ impl ResourceManager {
         Ok(result)
     }
 
+    pub fn read_zip_file(&self, zip_path: &std::path::Path, internal_path: &str) -> ResourceManagerResult<Vec<u8>> {
+        self.zip_reader
+            .lock()
+            .read_file_from_zip(
+                zip_path.to_string_lossy().to_string(),
+                internal_path.to_string(),
+            )
+            .map_err(|e| ResourceManagerError::ZipError(e.clone()))
+    }
+
     pub fn get_item_template_fields(
         &self,
         info: &TemplateInfo,
@@ -921,13 +931,100 @@ impl ResourceManager {
             ResourceManagerError::InvalidGffFormat(format!("Failed to read template fields: {e}"))
         })?;
         
-        // Convert to owned values to detach from parser lifetime
         let mut owned_fields = IndexMap::new();
         for (k, v) in fields {
-            owned_fields.insert(k, v.into_owned());
+            owned_fields.insert(k, v.force_owned());
         }
 
         Ok(owned_fields)
+    }
+
+    pub fn get_item_template_summary(
+        &self,
+        info: &TemplateInfo,
+    ) -> ResourceManagerResult<(Option<String>, i32)> {
+        let data = match &info.container_type {
+            ContainerType::Zip => {
+                let internal_path = info
+                    .internal_path
+                    .as_ref()
+                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+
+                self.zip_reader
+                    .lock()
+                    .read_file_from_zip(
+                        info.container_path.to_string_lossy().to_string(),
+                        internal_path.clone(),
+                    )
+                    .map_err(|e| ResourceManagerError::ZipError(e.clone()))?
+            }
+            ContainerType::Erf => {
+                let internal_path = info
+                    .internal_path
+                    .as_ref()
+                    .ok_or_else(|| ResourceManagerError::Parse("Missing internal path".into()))?;
+
+                let mut erf = ErfParser::new();
+                erf.read(&info.container_path).map_err(|e| {
+                    ResourceManagerError::InvalidErfFormat(format!(
+                        "Failed to open {}: {}",
+                        info.container_path.display(),
+                        e
+                    ))
+                })?;
+
+                erf.resources
+                    .get(internal_path)
+                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                        resource: internal_path.clone(),
+                        container: info.container_path.display().to_string(),
+                    })?
+                    .data
+                    .clone()
+                    .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                        resource: internal_path.clone(),
+                        container: info.container_path.display().to_string(),
+                    })?
+            }
+            ContainerType::Directory => std::fs::read(&info.container_path)?,
+        };
+
+        let gff = GffParser::from_bytes(data).map_err(|e| {
+            ResourceManagerError::InvalidGffFormat(format!("Failed to parse template: {e}"))
+        })?;
+
+        let base_item = gff
+            .read_field_by_label(0, "BaseItem")
+            .ok()
+            .and_then(|v| match v {
+                crate::parsers::gff::GffValue::Int(i) => Some(i),
+                crate::parsers::gff::GffValue::Short(s) => Some(s as i32),
+                crate::parsers::gff::GffValue::Byte(b) => Some(b as i32),
+                crate::parsers::gff::GffValue::Word(w) => Some(w as i32),
+                crate::parsers::gff::GffValue::Dword(d) => Some(d as i32),
+                _ => None,
+            })
+            .unwrap_or(0);
+
+        let name = gff
+            .read_field_by_label(0, "LocalizedName")
+            .ok()
+            .and_then(|v| {
+                if let crate::parsers::gff::GffValue::LocString(ls) = v {
+                    if !ls.substrings.is_empty() {
+                        Some(ls.substrings[0].string.to_string())
+                    } else if ls.string_ref >= 0 {
+                        Some(self.get_string(ls.string_ref))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .filter(|s| !s.is_empty());
+
+        Ok((name, base_item))
     }
 
     pub fn get_cache_stats(&self) -> CacheStats {
@@ -949,6 +1046,10 @@ impl ResourceManager {
 
     pub fn get_module_cache_stats(&self) -> CacheStats {
         self.module_cache.get_stats()
+    }
+
+    pub fn get_zip_cache_stats(&self) -> std::collections::HashMap<String, serde_json::Value> {
+        self.zip_reader.lock().get_stats()
     }
 
     pub fn get_module_info(&self) -> Option<&ModuleInfo> {

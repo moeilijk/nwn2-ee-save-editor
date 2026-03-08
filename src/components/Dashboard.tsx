@@ -23,7 +23,7 @@ export default function Dashboard({
   onContinueEditing,
   onCloseSession
 }: DashboardProps) {
-  useTranslations();
+  const t = useTranslations();
   const [appName, setAppName] = useState('NWN2:EE Save Editor');
 
   useEffect(() => {
@@ -80,35 +80,35 @@ export default function Dashboard({
 
         <div className="w-full">
           <div className="bg-[rgb(var(--color-surface-1))] rounded-lg p-6 shadow-elevation-1 border border-[rgb(var(--color-surface-border))]">
-            <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-primary))]">Quick Actions</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-primary))]">{t('status.quickActions')}</h2>
             <div className="flex flex-wrap gap-4">
               <Button 
                 variant="outline" 
                 className="flex-1 min-w-[200px] h-12"
                 onClick={onImportCharacter}
               >
-                <span>Import Character</span>
+                <span>{t('actions.importCharacter')}</span>
               </Button>
               <Button 
                 variant="outline" 
                 className="flex-1 min-w-[200px] h-12"
                 onClick={onOpenFolder}
               >
-                <span>Open Save Folder</span>
+                <span>{t('actions.openDocumentsFolder')}</span>
               </Button>
               <Button 
                 variant="outline" 
                 className="flex-1 min-w-[200px] h-12"
                 onClick={onOpenBackups}
               >
-                <span>Manage Backups</span>
+                <span>{t('actions.manageBackups')}</span>
               </Button>
               <Button 
                 variant="outline" 
                 className="flex-1 min-w-[200px] h-12"
                 onClick={onSettings}
               >
-                <span>Settings</span>
+                <span>{t('navigation.settings')}</span>
               </Button>
             </div>
           </div>
@@ -116,7 +116,7 @@ export default function Dashboard({
 
         <div className="w-full space-y-6">
           <div className="bg-[rgb(var(--color-surface-1))] rounded-lg p-6 shadow-elevation-1 border border-[rgb(var(--color-surface-border))] h-full min-h-[660px] flex flex-col">
-            <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-primary))]">Select a Save Game</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-primary))]">{t('status.selectSaveGame')}</h2>
             <div className="flex-1 overflow-hidden">
                <SaveFileSelector />
             </div>

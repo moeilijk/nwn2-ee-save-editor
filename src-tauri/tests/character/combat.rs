@@ -640,9 +640,11 @@ async fn test_initiative_breakdown() {
         ("ryathstrongarm/ryathstrongarm4.bic", "Ryath L30"),
     ];
 
+    let decoder = create_decoder().await;
+
     for (path, name) in fixtures {
         let character = load_character(path);
-        let init = character.get_initiative_breakdown(game_data);
+        let init = character.get_initiative_breakdown(game_data, &decoder);
 
         println!(
             "{:<15}: Total={:>2} (Dex={}, Feat={}, Misc={})",
@@ -667,9 +669,11 @@ async fn test_combat_maneuver_bonus() {
         ("okkugodofbears/okkugodofbears4.bic", "Okku L30"),
     ];
 
+    let decoder = create_decoder().await;
+
     for (path, name) in fixtures {
         let character = load_character(path);
-        let cmb = character.get_combat_maneuver_bonus(game_data);
+        let cmb = character.get_combat_maneuver_bonus(game_data, &decoder);
 
         println!(
             "{:<15}: CMB={:>2} (BAB={}, STR={}, Size={})",

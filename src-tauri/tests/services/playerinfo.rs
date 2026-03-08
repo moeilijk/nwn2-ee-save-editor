@@ -3,7 +3,6 @@ use tempfile::NamedTempFile;
 
 #[test]
 fn test_playerinfo_read_write() {
-    // Create synthetic data
     let mut data = PlayerInfoData::new();
     data.first_name = "Test".to_string();
     data.last_name = "Hero".to_string();
@@ -12,7 +11,7 @@ fn test_playerinfo_read_write() {
     data.deity = "None".to_string();
     data.str_score = 18;
     data.dex_score = 14;
-    data.con_score = 12; // Adjusted to match valid range if needed, but using raw values
+    data.con_score = 12;
     data.int_score = 10;
     data.wis_score = 10;
     data.cha_score = 8;
@@ -50,12 +49,6 @@ fn test_playerinfo_read_write() {
 
 #[test]
 fn test_playerinfo_update_from_gff() {
-    // This requires constructing a GFF IndexMap manually or mocking it, 
-    // but the function `update_from_gff_data` mainly tests logic we can see.
-    // We can simulate it if we have GffValue types available.
-    // Since GffValue is in another crate or module re-exported, we might be able to use it.
-    // But `app_lib::parsers::gff::GffValue` is available.
-    
     use app_lib::parsers::gff::GffValue;
     use indexmap::IndexMap;
     

@@ -3,19 +3,45 @@ use crate::character::{
     RemoveItemResult, UnequipResult, EquipmentSlot, InventoryItem,
     EncumbranceInfo, BaseItemId, ItemProficiencyInfo,
 };
+use serde_json::Value as JsonValue;
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use crate::services::item_property_decoder::{
     EditorContext, ItemBonuses, PropertyMetadata,
-    ABILITY_MAP, SAVE_MAP, DAMAGE_TYPE_MAP, IMMUNITY_TYPE_MAP,
-    SAVE_ELEMENT_MAP, ALIGNMENT_GROUP_MAP, ALIGNMENT_MAP, LIGHT_MAP,
+    load_2da_options_from_rm, is_invalid_label,
 };
-use crate::parsers::gff::GffValue;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 use tauri::State;
 use regex::Regex;
+
+pub(super) async fn ensure_decoder_initialized(state: &AppState) {
+    let needs_init = {
+        let session = state.session.read();
+        !session.item_property_decoder.has_lookup_tables()
+    };
+    if needs_init {
+        let (skills, classes, feats, racial_groups) = {
+            let game_data = state.game_data.read();
+            (
+                load_skills_from_game_data(&game_data),
+                load_classes_from_game_data(&game_data),
+                load_feats_from_game_data(&game_data),
+                load_racial_groups_from_game_data(&game_data),
+            )
+        };
+        let spells = {
+            let rm = state.resource_manager.read().await;
+            load_2da_options_from_rm(&rm, "iprp_spells")
+        };
+        let rm = state.resource_manager.read().await;
+        let mut session = state.session.write();
+        session.item_property_decoder.initialize_with_rm(&rm);
+        session.item_property_decoder.set_lookup_tables(skills, classes, feats, spells, racial_groups);
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexedTemplate {
@@ -51,11 +77,21 @@ pub async fn get_equipped_items(
 
 #[tauri::command]
 pub async fn get_inventory_summary(state: State<'_, AppState>) -> CommandResult<FullInventorySummary> {
+    ensure_decoder_initialized(&state).await;
+
     let session = state.session.read();
     let game_data = state.game_data.read();
-    let decoder = &session.item_property_decoder;
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.get_full_inventory_summary(&game_data, decoder))
+    let summary = character.get_full_inventory_summary(&game_data, &session.item_property_decoder);
+    tracing::info!("Inventory summary retrieved. Items: {}, Equipped: {}, Gold: {}",
+        summary.inventory.len(),
+        summary.equipped.len(),
+        summary.gold
+    );
+    if let Some(first) = summary.inventory.first() {
+        tracing::debug!("First item: {}, raw data keys: {:?}", first.name, first.item.0.keys().collect::<Vec<_>>());
+    }
+    Ok(summary)
 }
 
 #[tauri::command]
@@ -89,11 +125,12 @@ pub async fn add_gold(state: State<'_, AppState>, amount: i32) -> CommandResult<
 
 #[tauri::command]
 pub async fn get_equipment_bonuses(state: State<'_, AppState>) -> CommandResult<ItemBonuses> {
+    ensure_decoder_initialized(&state).await;
+
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session.character.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
-    let decoder = &session.item_property_decoder;
-    Ok(character.get_equipment_bonuses(&game_data, decoder))
+    Ok(character.get_equipment_bonuses(&game_data, &session.item_property_decoder))
 }
 
 #[tauri::command]
@@ -199,65 +236,222 @@ pub async fn get_equipped_item(
 pub async fn get_available_templates(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<IndexedTemplate>> {
-    let resource_manager = state.resource_manager.read().await;
-    let game_data = state.game_data.read();
-    let templates = resource_manager.get_all_item_templates();
+    use std::path::PathBuf;
+    use std::time::Instant;
 
-    let baseitems = game_data.get_table("baseitems");
+    let total_start = Instant::now();
+
+    let (templates, category_map) = {
+        let resource_manager = state.resource_manager.read().await;
+        let game_data = state.game_data.read();
+        let templates = resource_manager.get_all_item_templates();
+        tracing::info!("get_all_item_templates: {:?}, count: {}", total_start.elapsed(), templates.len());
+
+        let category_map: HashMap<i32, i32> = game_data
+            .get_table("baseitems")
+            .map(|t| {
+                (0..t.row_count())
+                    .filter_map(|i| {
+                        let row = t.get_row(i).ok()?;
+                        let category = row.get("StorePanel")
+                            .or_else(|| row.get("storepanel"))
+                            .and_then(|v| v.as_ref())
+                            .and_then(|s| s.parse::<i32>().ok())
+                            .unwrap_or(4);
+                        Some((i as i32, category))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        
+        (templates, category_map)
+    };
+
     let tag_regex = Regex::new(r"<[^>]+>").unwrap();
 
-    let mut indexed: Vec<IndexedTemplate> = templates
-        .iter()
-        .filter_map(|(resref, info)| {
-            let fields = resource_manager.get_item_template_fields(info).ok()?;
+    let zip_read_start = Instant::now();
 
-            let base_item = fields.get("BaseItem")
+    let mut grouped: HashMap<PathBuf, Vec<(String, String, String)>> = HashMap::new();
+    for (resref, info) in &templates {
+        if let crate::services::resource_manager::ContainerType::Zip = &info.container_type {
+            if let Some(internal_path) = &info.internal_path {
+                let source = format!("{:?}", info.source);
+                grouped
+                    .entry(info.container_path.clone())
+                    .or_default()
+                    .push((resref.clone(), internal_path.clone(), source));
+            }
+        }
+    }
+
+    use std::io::Cursor;
+    use std::sync::Arc;
+
+    let mut zip_buffers: HashMap<PathBuf, Arc<Vec<u8>>> = HashMap::new();
+    for zip_path in grouped.keys() {
+        if let Ok(data) = std::fs::read(zip_path) {
+            zip_buffers.insert(zip_path.clone(), Arc::new(data));
+        }
+    }
+    tracing::info!("ZIP preload: {:?}, {} ZIPs, {:.2} MB",
+        zip_read_start.elapsed(),
+        zip_buffers.len(),
+        zip_buffers.values().map(|v| v.len()).sum::<usize>() as f64 / 1_048_576.0);
+
+    let offset_start = Instant::now();
+
+    struct DecompJob {
+        zip_path: PathBuf,
+        resref: String,
+        source: String,
+        data_start: u64,
+        compressed_size: u64,
+        uncompressed_size: usize,
+        is_stored: bool,
+    }
+
+    let mut jobs: Vec<DecompJob> = Vec::with_capacity(templates.len());
+
+    for (zip_path, files) in &grouped {
+        let Some(zip_data) = zip_buffers.get(zip_path) else { continue };
+        let reader = Cursor::new(zip_data.as_ref().as_slice());
+        let Ok(mut archive) = zip::ZipArchive::new(reader) else { continue };
+
+        for (resref, internal_path, source) in files {
+            if let Ok(entry) = archive.by_name(internal_path) {
+                jobs.push(DecompJob {
+                    zip_path: zip_path.clone(),
+                    resref: resref.clone(),
+                    source: source.clone(),
+                    data_start: entry.data_start(),
+                    compressed_size: entry.compressed_size(),
+                    uncompressed_size: entry.size() as usize,
+                    is_stored: entry.compression() == zip::CompressionMethod::Stored,
+                });
+            }
+        }
+    }
+
+    tracing::info!("Offset map: {:?}, {} jobs", offset_start.elapsed(), jobs.len());
+
+    let decomp_start = Instant::now();
+
+    let raw_data: Vec<(String, Vec<u8>, String)> = jobs
+        .par_iter()
+        .filter_map(|job| {
+            let zip_data = zip_buffers.get(&job.zip_path)?;
+            let start = job.data_start as usize;
+            let end = start + job.compressed_size as usize;
+
+            if end > zip_data.len() {
+                return None;
+            }
+
+            let compressed = &zip_data[start..end];
+
+            if job.is_stored {
+                return Some((job.resref.clone(), compressed.to_vec(), job.source.clone()));
+            }
+
+            let mut output = vec![0u8; job.uncompressed_size];
+            let mut decompressor = libdeflater::Decompressor::new();
+
+            match decompressor.deflate_decompress(compressed, &mut output) {
+                Ok(_) => Some((job.resref.clone(), output, job.source.clone())),
+                Err(_) => None,
+            }
+        })
+        .collect();
+
+    tracing::info!("Decompress phase (libdeflater): {:?}, files: {}", decomp_start.elapsed(), raw_data.len());
+
+    let parse_start = Instant::now();
+
+    struct ParsedItem {
+        resref: String,
+        name: Option<String>,
+        string_ref: Option<i32>,
+        base_item: i32,
+        category: i32,
+        source: String,
+    }
+
+    let parsed_items: Vec<ParsedItem> = raw_data
+        .par_iter()
+        .filter_map(|(resref, data, source)| {
+            let gff = crate::parsers::gff::GffParser::from_bytes(data.clone()).ok()?;
+
+            let base_item = gff.read_field_by_label(0, "BaseItem").ok()
                 .and_then(|v| match v {
-                    GffValue::Int(i) => Some(*i),
-                    GffValue::Short(s) => Some(*s as i32),
-                    GffValue::Byte(b) => Some(*b as i32),
+                    crate::parsers::gff::GffValue::Int(i) => Some(i),
+                    crate::parsers::gff::GffValue::Short(s) => Some(s as i32),
+                    crate::parsers::gff::GffValue::Byte(b) => Some(b as i32),
+                    crate::parsers::gff::GffValue::Word(w) => Some(w as i32),
+                    crate::parsers::gff::GffValue::Dword(d) => Some(d as i32),
                     _ => None,
                 })
                 .unwrap_or(0);
 
-            let name = if let Some(GffValue::LocString(ls)) = fields.get("LocalizedName") {
-                if !ls.substrings.is_empty() {
-                    Some(ls.substrings[0].string.to_string())
-                } else if ls.string_ref >= 0 {
-                    game_data.get_string(ls.string_ref)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let name = name.unwrap_or_else(|| resref.replace(".uti", ""));
-            let name = tag_regex.replace_all(&name, "").to_string();
-
-            let category = baseitems
-                .and_then(|t| t.get_by_id(base_item))
-                .and_then(|row| {
-                    row.get("StorePanel")
-                        .or_else(|| row.get("storepanel"))
-                        .and_then(|v| v.as_ref())
-                        .and_then(|s| s.parse::<i32>().ok())
+            let (name, string_ref) = gff.read_field_by_label(0, "LocalizedName").ok()
+                .map(|v| {
+                    if let crate::parsers::gff::GffValue::LocString(ls) = v {
+                        if !ls.substrings.is_empty() {
+                            (Some(ls.substrings[0].string.to_string()), None)
+                        } else if ls.string_ref >= 0 {
+                            (None, Some(ls.string_ref))
+                        } else {
+                            (None, None)
+                        }
+                    } else {
+                        (None, None)
+                    }
                 })
-                .unwrap_or(4);
+                .unwrap_or((None, None));
 
-            let source = format!("{:?}", info.source);
+            let category = category_map.get(&base_item).copied().unwrap_or(4);
 
-            Some(IndexedTemplate {
+            Some(ParsedItem {
                 resref: resref.clone(),
                 name,
+                string_ref,
                 base_item,
                 category,
-                source,
+                source: source.clone(),
             })
         })
         .collect();
 
+    tracing::info!("GFF parse phase (parallel): {:?}", parse_start.elapsed());
+
+    let tlk_start = Instant::now();
+    let string_refs: Vec<i32> = parsed_items.iter()
+        .filter_map(|p| p.string_ref)
+        .collect();
+    
+    let resource_manager = state.resource_manager.read().await;
+    let tlk_strings = resource_manager.get_strings_batch(&string_refs);
+    drop(resource_manager);
+    tracing::info!("TLK batch resolve: {:?}, {} refs", tlk_start.elapsed(), string_refs.len());
+
+    let mut indexed: Vec<IndexedTemplate> = parsed_items.into_iter()
+        .map(|p| {
+            let name = p.name
+                .or_else(|| p.string_ref.and_then(|sr| tlk_strings.get(&sr).cloned()))
+                .unwrap_or_else(|| p.resref.replace(".uti", ""));
+            let name = tag_regex.replace_all(&name, "").to_string();
+
+            IndexedTemplate {
+                resref: p.resref,
+                name,
+                base_item: p.base_item,
+                category: p.category,
+                source: p.source,
+            }
+        })
+        .collect();
+
     indexed.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    tracing::info!("TOTAL get_available_templates: {:?}", total_start.elapsed());
     Ok(indexed)
 }
 
@@ -289,7 +483,6 @@ pub async fn add_item_from_template(
 }
 
 /// Response for the item editor metadata endpoint.
-/// Mirrors Python's ItemEditorMetadataResponse.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ItemEditorMetadataResponse {
     pub property_types: Vec<PropertyMetadata>,
@@ -305,11 +498,6 @@ pub struct ItemEditorMetadataResponse {
     pub classes: HashMap<u32, String>,
     pub spells: HashMap<u32, String>,
     pub light: HashMap<u32, String>,
-}
-
-/// Helper to convert static &'static str maps to HashMap<u32, String>.
-fn static_map_to_hashmap(map: &HashMap<u32, &'static str>) -> HashMap<u32, String> {
-    map.iter().map(|(k, v)| (*k, (*v).to_string())).collect()
 }
 
 /// Load skills from game data skills.2da table.
@@ -340,7 +528,7 @@ fn load_skills_from_game_data(
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
 
-        if let Some(skill_name) = label {
+        if let Some(skill_name) = label.filter(|s| !is_invalid_label(s)) {
             skills.insert(row_idx as u32, skill_name);
         }
     }
@@ -373,7 +561,7 @@ fn load_classes_from_game_data(
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
 
-        if let Some(class_name) = label {
+        if let Some(class_name) = label.filter(|s| !is_invalid_label(s)) {
             classes.insert(row_idx as u32, class_name);
         }
     }
@@ -406,98 +594,85 @@ fn load_racial_groups_from_game_data(
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
 
-        if let Some(race_name) = label {
+        if let Some(race_name) = label.filter(|s| !is_invalid_label(s)) {
             races.insert(row_idx as u32, race_name);
         }
     }
     races
 }
 
-/// Load 2DA options from resource manager.
-fn load_2da_options_from_rm(
-    rm: &crate::services::resource_manager::ResourceManager,
-    table_name: &str,
+/// Load feats from game data feat.2da table.
+fn load_feats_from_game_data(
+    game_data: &crate::loaders::GameData,
 ) -> HashMap<u32, String> {
-    use crate::services::item_property_decoder::{clean_label, is_invalid_label};
-
-    let mut options = HashMap::new();
-    let Ok(table) = rm.get_2da(table_name) else {
-        return options;
+    let mut feats = HashMap::new();
+    let Some(feat_table) = game_data.get_table("feat") else {
+        return feats;
     };
 
-    for row_idx in 0..table.row_count() {
-        let Ok(row) = table.get_row_dict(row_idx) else {
+    for row_idx in 0..feat_table.row_count() {
+        let Ok(row) = feat_table.get_row(row_idx) else {
             continue;
         };
 
-        // Try Name column with TLK lookup
-        let name = row
-            .get("Name")
-            .or_else(|| row.get("name"))
+        let name: Option<String> = row
+            .get("FEAT")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
-            .filter(|&n| n > 100)
-            .map(|str_ref| rm.get_string(str_ref))
-            .filter(|s| !s.is_empty());
+            .and_then(|str_ref| game_data.get_string(str_ref));
 
-        // Try GameString column
-        let game_str = name.clone().or_else(|| {
-            row.get("GameString")
-                .or_else(|| row.get("gamestring"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .map(|str_ref| rm.get_string(str_ref))
-                .filter(|s| !s.is_empty())
-        });
-
-        // Fallback to Label column
-        let label = game_str.or_else(|| {
-            row.get("Label")
-                .or_else(|| row.get("label"))
+        let label = name.or_else(|| {
+            row.get("LABEL")
                 .and_then(|v| v.clone())
-                .filter(|s| !s.is_empty() && s != "****")
+                .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
 
-        if let Some(display_name) = label {
-            if !is_invalid_label(&display_name) {
-                options.insert(row_idx as u32, clean_label(&display_name));
-            }
+        if let Some(feat_name) = label.filter(|s| !is_invalid_label(s)) {
+            feats.insert(row_idx as u32, feat_name);
         }
     }
-    options
+    feats
 }
 
+
 /// Get editor metadata for the item property editor.
-/// Mirrors Python inventory_manager.get_item_editor_metadata().
 #[tauri::command]
 pub fn get_editor_metadata(state: State<'_, AppState>) -> CommandResult<ItemEditorMetadataResponse> {
-    // Build static context from hardcoded maps
-    let abilities = static_map_to_hashmap(&ABILITY_MAP);
-    let saving_throws = static_map_to_hashmap(&SAVE_MAP);
-    let damage_types = static_map_to_hashmap(&DAMAGE_TYPE_MAP);
-    let immunity_types = static_map_to_hashmap(&IMMUNITY_TYPE_MAP);
-    let save_elements = static_map_to_hashmap(&SAVE_ELEMENT_MAP);
-    let alignment_groups = static_map_to_hashmap(&ALIGNMENT_GROUP_MAP);
-    let alignments = static_map_to_hashmap(&ALIGNMENT_MAP);
-    let light = static_map_to_hashmap(&LIGHT_MAP);
+    let rm = state.resource_manager.blocking_read();
 
-    // Load dynamic context from game data
-    let (skills, classes, racial_groups) = {
+    let abilities = load_2da_options_from_rm(&rm, "iprp_abilities");
+    let saving_throws = load_2da_options_from_rm(&rm, "iprp_savingthrow");
+    let damage_types = load_2da_options_from_rm(&rm, "iprp_damagetype");
+    let immunity_types = load_2da_options_from_rm(&rm, "iprp_immunity");
+    let save_elements = load_2da_options_from_rm(&rm, "iprp_saveelement");
+    let alignment_groups = load_2da_options_from_rm(&rm, "iprp_aligngrp");
+    let alignments = load_2da_options_from_rm(&rm, "iprp_alignment");
+    let light = load_2da_options_from_rm(&rm, "iprp_lightcost");
+
+    let (skills, classes, racial_groups, feats) = {
         let game_data = state.game_data.read();
         (
             load_skills_from_game_data(&game_data),
             load_classes_from_game_data(&game_data),
             load_racial_groups_from_game_data(&game_data),
+            load_feats_from_game_data(&game_data),
         )
     };
 
-    // Load spells from iprp_spells.2da via resource manager
-    let spells = {
-        let rm = state.resource_manager.blocking_read();
-        load_2da_options_from_rm(&rm, "iprp_spells")
-    };
+    let spells = load_2da_options_from_rm(&rm, "iprp_spells");
 
-    // Build context for property metadata generation
+    {
+        let mut session = state.session.write();
+        session.item_property_decoder.initialize_with_rm(&rm);
+        session.item_property_decoder.set_lookup_tables(
+            skills.clone(),
+            classes.clone(),
+            feats.clone(),
+            spells.clone(),
+            racial_groups.clone(),
+        );
+    }
+
     let context = EditorContext {
         abilities: abilities.clone(),
         skills: skills.clone(),
@@ -511,13 +686,12 @@ pub fn get_editor_metadata(state: State<'_, AppState>) -> CommandResult<ItemEdit
         alignment_groups: alignment_groups.clone(),
         alignments: alignments.clone(),
         light: light.clone(),
-        feats: HashMap::new(),
+        feats: feats.clone(),
     };
 
-    // Get property metadata from decoder's property_cache
     let property_types = {
         let session = state.session.read();
-        session.item_property_decoder.get_editor_property_metadata_sync(&context)
+        session.item_property_decoder.get_editor_property_metadata_with_rm(&context, &rm)
     };
 
     Ok(ItemEditorMetadataResponse {
@@ -535,4 +709,76 @@ pub fn get_editor_metadata(state: State<'_, AppState>) -> CommandResult<ItemEdit
         spells,
         light,
     })
+}
+
+fn parse_equipment_slot(s: &str) -> Option<EquipmentSlot> {
+    match s {
+        "Head" | "head" => Some(EquipmentSlot::Head),
+        "Chest" | "chest" => Some(EquipmentSlot::Chest),
+        "Boots" | "boots" => Some(EquipmentSlot::Boots),
+        "Gloves" | "gloves" => Some(EquipmentSlot::Gloves),
+        "RightHand" | "right_hand" => Some(EquipmentSlot::RightHand),
+        "LeftHand" | "left_hand" => Some(EquipmentSlot::LeftHand),
+        "Cloak" | "cloak" => Some(EquipmentSlot::Cloak),
+        "LeftRing" | "left_ring" => Some(EquipmentSlot::LeftRing),
+        "RightRing" | "right_ring" => Some(EquipmentSlot::RightRing),
+        "Neck" | "neck" => Some(EquipmentSlot::Neck),
+        "Belt" | "belt" => Some(EquipmentSlot::Belt),
+        "Arrows" | "arrows" => Some(EquipmentSlot::Arrows),
+        "Bullets" | "bullets" => Some(EquipmentSlot::Bullets),
+        "Bolts" | "bolts" => Some(EquipmentSlot::Bolts),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateItemRequest {
+    pub item_index: Option<usize>,
+    pub slot: Option<String>,
+    pub item_data: HashMap<String, JsonValue>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct UpdateItemResponse {
+    pub success: bool,
+    pub message: String,
+    pub has_unsaved_changes: bool,
+}
+
+#[tauri::command]
+pub async fn update_item(
+    state: State<'_, AppState>,
+    request: UpdateItemRequest,
+) -> CommandResult<UpdateItemResponse> {
+    let mut session = state.session.write();
+    let character = session.character.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+
+    if let Some(slot_str) = &request.slot {
+        let slot = parse_equipment_slot(slot_str).ok_or_else(|| {
+            CommandError::InvalidValue {
+                field: "slot".to_string(),
+                expected: "valid equipment slot".to_string(),
+                actual: slot_str.clone(),
+            }
+        })?;
+        character.update_equipped_item(slot, &request.item_data)?;
+        Ok(UpdateItemResponse {
+            success: true,
+            message: format!("Updated equipped item in {}", slot.display_name()),
+            has_unsaved_changes: true,
+        })
+    } else if let Some(index) = request.item_index {
+        character.update_inventory_item(index, &request.item_data)?;
+        Ok(UpdateItemResponse {
+            success: true,
+            message: "Updated inventory item".to_string(),
+            has_unsaved_changes: true,
+        })
+    } else {
+        Err(CommandError::InvalidValue {
+            field: "request".to_string(),
+            expected: "either slot or item_index".to_string(),
+            actual: "neither provided".to_string(),
+        })
+    }
 }

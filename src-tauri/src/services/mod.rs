@@ -1,6 +1,7 @@
 pub mod campaign;
 pub mod class_categorizer;
 pub mod field_mapper;
+pub mod item_cost_calculator;
 pub mod item_property_decoder;
 pub mod playerinfo;
 pub mod resource_manager;
@@ -37,3 +38,5 @@ pub use class_categorizer::{
     Categories, CategorizedClasses, ClassFocus, ClassInfo, ClassType, FocusInfo,
     get_categorized_classes,
 };
+
+pub use item_cost_calculator::ItemCostCalculator;

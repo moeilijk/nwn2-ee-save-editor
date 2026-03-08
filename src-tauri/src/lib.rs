@@ -29,7 +29,7 @@ use file_operations::{
     browse_localvault,
     get_default_localvault_path,
 };
-use window_manager::{open_settings_window, close_settings_window};
+use window_manager::{open_settings_window, close_settings_window, show_main_window};
 
 
 
@@ -60,6 +60,8 @@ pub fn run() {
       info!("AppState initialized successfully");
 
       debug!("Tauri setup completed");
+
+
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
@@ -74,6 +76,7 @@ pub fn run() {
       open_folder_in_explorer,
       open_settings_window,
       close_settings_window,
+      show_main_window,
       browse_saves,
       get_default_saves_path,
       browse_backups,
@@ -208,6 +211,7 @@ pub fn run() {
       crate::commands::inventory::get_available_templates,
       crate::commands::inventory::add_item_from_template,
       crate::commands::inventory::get_editor_metadata,
+      crate::commands::inventory::update_item,
       // Combat & Saves
       crate::commands::combat::get_combat_summary,
       crate::commands::combat::calculate_base_attack_bonus,

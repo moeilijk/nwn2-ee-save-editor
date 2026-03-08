@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatNumber } from '@/utils/dataHelpers';
 import { getRarityTextColor } from '@/utils/itemHelpers';
+import { stripNwn2Tags, renderNwn2Markup } from '@/utils/nwn2Markup';
 import { Trash2, Edit } from 'lucide-react';
 import type { DecodedPropertyInfo } from '@/lib/bindings';
 
@@ -80,11 +81,11 @@ export default function ItemDetailsPanel({
           <div className="text-center">
             <div className="w-[58px] h-[58px] bg-[rgb(var(--color-surface-1))] rounded border border-[rgb(var(--color-surface-border)/0.6)] mx-auto mb-4 overflow-hidden">
               <div className="w-full h-full bg-[rgb(var(--color-surface-3))] flex items-center justify-center text-2xl font-bold">
-                {item.name.charAt(0)}
+                {stripNwn2Tags(item.name).charAt(0)}
               </div>
             </div>
             <h4 className={`font-medium ${getRarityTextColor(item.rarity)}`}>
-              {item.name}
+              {renderNwn2Markup(item.name)}
             </h4>
             {item.rarity && item.rarity !== 'common' && (
               <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
@@ -154,7 +155,7 @@ export default function ItemDetailsPanel({
                 {t('inventory.description')}
               </h5>
               <p className="text-sm text-[rgb(var(--color-text-muted))] leading-relaxed mt-2 max-h-[100px] overflow-y-auto custom-scrollbar pr-2 whitespace-pre-line">
-                {description}
+                {renderNwn2Markup(description)}
               </p>
             </div>
           )}

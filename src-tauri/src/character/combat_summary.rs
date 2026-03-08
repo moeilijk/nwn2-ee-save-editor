@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use crate::character::Character;
-use crate::character::types::{AbilityIndex, ClassId};
+use crate::character::types::{AbilityIndex, ClassId, calculate_modifier};
 use crate::loaders::GameData;
 
 const CLASS_ID_BARBARIAN: i32 = 0;
@@ -117,8 +117,8 @@ impl Character {
 
         let armor_class = self.get_armor_class(game_data, decoder);
         let attack_bonuses = self.get_attack_bonuses(game_data, decoder);
-        let initiative = self.get_initiative_breakdown(game_data);
-        let cmb = self.get_combat_maneuver_bonus(game_data);
+        let initiative = self.get_initiative_breakdown(game_data, decoder);
+        let cmb = self.get_combat_maneuver_bonus(game_data, decoder);
         let movement = self.get_movement_speed(game_data);
         let damage_reductions = self.get_damage_reductions(game_data, decoder);
 
@@ -168,10 +168,10 @@ impl Character {
         game_data: &GameData,
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> ArmorClass {
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
+        let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
+        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
         let size_mod = self.size_modifier();
         let natural_ac = self.natural_ac();
-        let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
         let feat_ac = self.get_feat_ac_bonuses(game_data);
 
         let max_dex = self.get_equipped_armor_max_dex(game_data);
@@ -228,10 +228,10 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> AttackBonuses {
         let bab = self.calculate_bab(game_data);
-        let str_mod = self.ability_modifier(AbilityIndex::STR);
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
-        let size_mod = self.size_modifier();
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
+        let str_mod = calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
+        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let size_mod = self.size_modifier();
 
         let melee_breakdown = AttackBreakdown {
             base: bab,
@@ -270,8 +270,13 @@ impl Character {
         }
     }
 
-    pub fn get_initiative_breakdown(&self, game_data: &GameData) -> Initiative {
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
+    pub fn get_initiative_breakdown(
+        &self,
+        game_data: &GameData,
+        decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
+    ) -> Initiative {
+        let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
+        let dex_mod = calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
         let feat_bonus = self.get_feat_initiative_bonus(game_data);
         let misc = self.get_i32("initbonus").unwrap_or(0);
 
@@ -283,9 +288,14 @@ impl Character {
         }
     }
 
-    pub fn get_combat_maneuver_bonus(&self, game_data: &GameData) -> CombatManeuverBonus {
+    pub fn get_combat_maneuver_bonus(
+        &self,
+        game_data: &GameData,
+        decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
+    ) -> CombatManeuverBonus {
         let bab = self.calculate_bab(game_data);
-        let str_mod = self.ability_modifier(AbilityIndex::STR);
+        let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
+        let str_mod = calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
         let size_mod = self.size_modifier();
 
         CombatManeuverBonus {
@@ -395,8 +405,9 @@ mod tests {
     fn test_initiative_breakdown() {
         let character = create_test_character();
         let game_data = create_test_game_data();
+        let decoder = create_test_decoder();
 
-        let init = character.get_initiative_breakdown(&game_data);
+        let init = character.get_initiative_breakdown(&game_data, &decoder);
 
         assert_eq!(init.dex, 2);
         assert_eq!(init.misc, 0);

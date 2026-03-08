@@ -10,8 +10,16 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 use serde_json::Number;
 use crate::services::item_property_decoder::{DecodedProperty, ItemBonuses, ItemPropertyDecoder};
+use crate::services::ItemCostCalculator;
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[specta(transparent)]
+pub struct RawItemData(pub HashMap<String, JsonValue>);
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+
 pub enum EquipmentSlot {
     Head,
     Chest,
@@ -212,8 +220,7 @@ pub struct FullInventorySummary {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct FullInventoryItem {
     pub index: usize,
-    #[specta(skip)]
-    pub item: HashMap<String, serde_json::Value>,
+    pub item: RawItemData,
     pub base_item: i32,
     pub base_item_name: String,
     pub name: String,
@@ -254,8 +261,7 @@ pub struct FullEquippedItem {
     pub description: String,
     pub weight: f32,
     pub value: i32,
-    #[specta(skip)]
-    pub item_data: HashMap<String, serde_json::Value>,
+    pub item_data: RawItemData,
     pub base_ac: Option<i32>,
     pub decoded_properties: Vec<DecodedPropertyInfo>,
 }
@@ -729,14 +735,23 @@ impl super::Character {
                     .and_then(gff_value_to_i32)
                     .unwrap_or(1);
 
-                let cost = item_struct
-                    .get("Cost")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
-                let modify_cost = item_struct
-                    .get("ModifyCost")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
+                let value = {
+                    let calculator = ItemCostCalculator::new();
+                    match calculator.calculate_item_cost(item_struct, game_data) {
+                        Some(v) if v > 0 => v as i32,
+                        _ => {
+                            let cost = item_struct
+                                .get("Cost")
+                                .and_then(gff_value_to_i32)
+                                .unwrap_or(0);
+                            let modify_cost = item_struct
+                                .get("ModifyCost")
+                                .and_then(gff_value_to_i32)
+                                .unwrap_or(0);
+                            cost + modify_cost
+                        }
+                    }
+                };
 
                 let enhancement = item_struct
                     .get("Enhancement")
@@ -783,13 +798,13 @@ impl super::Character {
 
                 inventory_items.push(FullInventoryItem {
                     index,
-                    item: item_data,
+                    item: RawItemData(item_data),
                     base_item: base_item_id,
                     base_item_name,
                     name,
                     description,
                     weight,
-                    value: cost + modify_cost,
+                    value,
                     is_custom,
                     stack_size,
                     enhancement,
@@ -845,14 +860,23 @@ impl super::Character {
 
                 let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
 
-                let cost = item_struct
-                    .get("Cost")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
-                let modify_cost = item_struct
-                    .get("ModifyCost")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
+                let value = {
+                    let calculator = ItemCostCalculator::new();
+                    match calculator.calculate_item_cost(item_struct, game_data) {
+                        Some(v) if v > 0 => v as i32,
+                        _ => {
+                            let cost = item_struct
+                                .get("Cost")
+                                .and_then(gff_value_to_i32)
+                                .unwrap_or(0);
+                            let modify_cost = item_struct
+                                .get("ModifyCost")
+                                .and_then(gff_value_to_i32)
+                                .unwrap_or(0);
+                            cost + modify_cost
+                        }
+                    }
+                };
 
                 let base_ac = self.get_base_item_ac(base_item_id, game_data);
 
@@ -868,8 +892,8 @@ impl super::Character {
                     name,
                     description,
                     weight,
-                    value: cost + modify_cost,
-                    item_data,
+                    value,
+                    item_data: RawItemData(item_data),
                     base_ac,
                     decoded_properties,
                 });
@@ -1086,7 +1110,7 @@ impl super::Character {
                 }
                 
                 let item_bonuses = decoder.get_item_bonuses(&prop_maps, base_item_id);
-                
+
                 // Aggregate
                 total_bonuses.str_bonus += item_bonuses.str_bonus;
                 total_bonuses.dex_bonus += item_bonuses.dex_bonus;
@@ -2057,15 +2081,25 @@ impl super::Character {
 
         let weight = self.get_base_item_weight(base_item_id, game_data).unwrap_or(0.0);
 
-        let cost = item_struct
-            .get("Cost")
-            .and_then(gff_value_to_i32)
-            .unwrap_or(0);
+        let value = {
+            let calculator = ItemCostCalculator::new();
+            let calculated = calculator.calculate_item_cost(item_struct, game_data);
 
-        let modify_cost = item_struct
-            .get("ModifyCost")
-            .and_then(gff_value_to_i32)
-            .unwrap_or(0);
+            match calculated {
+                Some(v) if v > 0 => v as i32,
+                _ => {
+                    let cost = item_struct
+                        .get("Cost")
+                        .and_then(gff_value_to_i32)
+                        .unwrap_or(0);
+                    let modify_cost = item_struct
+                        .get("ModifyCost")
+                        .and_then(gff_value_to_i32)
+                        .unwrap_or(0);
+                    cost + modify_cost
+                }
+            }
+        };
 
         EnhancedItemSummary {
             base_item_id,
@@ -2081,51 +2115,25 @@ impl super::Character {
             stack_size,
             properties,
             weight,
-            value: cost + modify_cost,
+            value,
         }
     }
 
     pub fn update_inventory_item(
         &mut self,
         index: usize,
-        updates: ItemUpdates,
+        updated_data: &HashMap<String, JsonValue>,
     ) -> Result<(), CharacterError> {
         let mut inv_list = self.get_list_owned("ItemList")
             .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
         if index >= inv_list.len() {
-            return Err(CharacterError::ValidationFailed {
-                field: "index",
-                message: format!("Index {index} out of bounds"),
-            });
+            return Err(CharacterError::InvalidOperation(
+                format!("No item at index {index}")
+            ));
         }
 
-        let item = &mut inv_list[index];
-
-        if let Some(stack_size) = updates.stack_size {
-            item.insert("StackSize".to_string(), GffValue::Short(stack_size as i16));
-        }
-
-        if let Some(identified) = updates.identified {
-            item.insert("Identified".to_string(), GffValue::Byte(u8::from(identified)));
-        }
-
-        if let Some(charges) = updates.charges {
-            item.insert("Charges".to_string(), GffValue::Byte(charges as u8));
-        }
-
-        if let Some(plot) = updates.plot {
-            item.insert("Plot".to_string(), GffValue::Byte(u8::from(plot)));
-        }
-
-        if let Some(cursed) = updates.cursed {
-            item.insert("Cursed".to_string(), GffValue::Byte(u8::from(cursed)));
-        }
-
-        if let Some(stolen) = updates.stolen {
-            item.insert("Stolen".to_string(), GffValue::Byte(u8::from(stolen)));
-        }
-
+        merge_json_into_gff_struct(&mut inv_list[index], updated_data);
         self.set_list("ItemList", inv_list);
         Ok(())
     }
@@ -2133,51 +2141,21 @@ impl super::Character {
     pub fn update_equipped_item(
         &mut self,
         slot: EquipmentSlot,
-        updates: ItemUpdates,
+        updated_data: &HashMap<String, JsonValue>,
     ) -> Result<(), CharacterError> {
         let mut equip_list = self.get_list_owned("Equip_ItemList")
             .ok_or(CharacterError::FieldMissing { field: "Equip_ItemList" })?;
 
         let slot_bitmask = slot.to_bitmask();
-        let mut found = false;
-
-        for item in &mut equip_list {
-            let struct_id = item
-                .get("__struct_id__")
+        let item_idx = equip_list.iter().position(|item| {
+            item.get("__struct_id__")
                 .and_then(gff_value_to_i32)
-                .unwrap_or(0) as u32;
+                .unwrap_or(0) as u32 == slot_bitmask
+        }).ok_or(CharacterError::InvalidOperation(
+            format!("No equipped item in slot {}", slot.display_name())
+        ))?;
 
-            if struct_id == slot_bitmask {
-                if let Some(stack_size) = updates.stack_size {
-                    item.insert("StackSize".to_string(), GffValue::Short(stack_size as i16));
-                }
-                if let Some(identified) = updates.identified {
-                    item.insert("Identified".to_string(), GffValue::Byte(u8::from(identified)));
-                }
-                if let Some(charges) = updates.charges {
-                    item.insert("Charges".to_string(), GffValue::Byte(charges as u8));
-                }
-                if let Some(plot) = updates.plot {
-                    item.insert("Plot".to_string(), GffValue::Byte(u8::from(plot)));
-                }
-                if let Some(cursed) = updates.cursed {
-                    item.insert("Cursed".to_string(), GffValue::Byte(u8::from(cursed)));
-                }
-                if let Some(stolen) = updates.stolen {
-                    item.insert("Stolen".to_string(), GffValue::Byte(u8::from(stolen)));
-                }
-                found = true;
-                break;
-            }
-        }
-
-        if !found {
-            return Err(CharacterError::ValidationFailed {
-                field: "slot",
-                message: format!("No item in {} slot", slot.display_name()),
-            });
-        }
-
+        merge_json_into_gff_struct(&mut equip_list[item_idx], updated_data);
         self.set_list("Equip_ItemList", equip_list);
         Ok(())
     }
@@ -2384,16 +2362,6 @@ pub struct EnhancedItemSummary {
     pub value: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
-pub struct ItemUpdates {
-    pub stack_size: Option<i32>,
-    pub identified: Option<bool>,
-    pub charges: Option<i32>,
-    pub plot: Option<bool>,
-    pub cursed: Option<bool>,
-    pub stolen: Option<bool>,
-}
-
 fn get_slot_name(bitmask: u32) -> &'static str {
     for (slot_bitmask, name) in EQUIPMENT_SLOTS {
         if slot_bitmask == bitmask {
@@ -2486,6 +2454,15 @@ fn gff_to_json_primitive(val: &GffValue) -> Option<JsonValue> {
             }).collect();
             Some(JsonValue::Array(items))
         },
+        GffValue::StructOwned(map) => {
+            let mut obj = serde_json::Map::new();
+            for (k, v) in map.iter() {
+                if let Some(json_val) = gff_to_json_primitive(v) {
+                    obj.insert(k.clone(), json_val);
+                }
+            }
+            Some(JsonValue::Object(obj))
+        }
         GffValue::Void(_) => None,
         _ => None,
     }
@@ -2499,6 +2476,163 @@ fn gff_struct_to_json(item_struct: &IndexMap<String, GffValue<'static>>) -> Hash
         }
     }
     map
+}
+
+fn coerce_json_to_gff_type(json_val: &JsonValue, existing: GffValue<'static>) -> Option<GffValue<'static>> {
+    match existing {
+        GffValue::Byte(_) => json_val.as_u64().map(|n| GffValue::Byte(n as u8)),
+        GffValue::Char(_) => json_val.as_u64().map(|n| GffValue::Char(n as u8 as char)),
+        GffValue::Short(_) => json_val.as_i64().map(|n| GffValue::Short(n as i16)),
+        GffValue::Word(_) => json_val.as_u64().map(|n| GffValue::Word(n as u16)),
+        GffValue::Int(_) => json_val.as_i64().map(|n| GffValue::Int(n as i32)),
+        GffValue::Dword(_) => json_val.as_u64().map(|n| GffValue::Dword(n as u32)),
+        GffValue::Dword64(_) => json_val.as_u64().map(GffValue::Dword64),
+        GffValue::Int64(_) => json_val.as_i64().map(GffValue::Int64),
+        GffValue::Float(_) => json_val.as_f64().map(|n| GffValue::Float(n as f32)),
+        GffValue::Double(_) => json_val.as_f64().map(GffValue::Double),
+        GffValue::String(_) => json_val.as_str()
+            .map(|s| GffValue::String(std::borrow::Cow::Owned(s.to_string()))),
+        GffValue::ResRef(_) => json_val.as_str()
+            .map(|s| GffValue::ResRef(std::borrow::Cow::Owned(s.to_string()))),
+        GffValue::LocString(_) => json_to_locstring(json_val),
+        GffValue::ListOwned(existing_list) => {
+            json_val.as_array().map(|arr|
+                GffValue::ListOwned(merge_json_list_into_gff_list(&existing_list, arr))
+            )
+        }
+        GffValue::StructOwned(_) => json_to_struct_owned(json_val),
+        _ => json_to_gff_best_guess(json_val),
+    }
+}
+
+fn json_to_locstring(json_val: &JsonValue) -> Option<GffValue<'static>> {
+    let obj = json_val.as_object()?;
+    let string_ref = obj.get("string_ref")?.as_i64()? as i32;
+    let substrings = obj.get("substrings")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter().filter_map(|sub| {
+                let sub_obj = sub.as_object()?;
+                Some(crate::parsers::gff::types::LocalizedSubstring {
+                    language: sub_obj.get("language")?.as_u64()? as u32,
+                    gender: sub_obj.get("gender")?.as_u64()? as u32,
+                    string: std::borrow::Cow::Owned(
+                        sub_obj.get("string")?.as_str()?.to_string()
+                    ),
+                })
+            }).collect()
+        })
+        .unwrap_or_default();
+
+    Some(GffValue::LocString(crate::parsers::gff::types::LocalizedString {
+        string_ref,
+        substrings,
+    }))
+}
+
+fn json_to_list(json_val: &JsonValue) -> Option<GffValue<'static>> {
+    let arr = json_val.as_array()?;
+    let structs: Vec<IndexMap<String, GffValue<'static>>> = arr.iter()
+        .filter_map(|item| {
+            let obj = item.as_object()?;
+            let mut map = IndexMap::new();
+            for (k, v) in obj {
+                if let Some(gff_val) = json_to_gff_best_guess(v) {
+                    map.insert(k.clone(), gff_val);
+                }
+            }
+            Some(map)
+        })
+        .collect();
+    Some(GffValue::ListOwned(structs))
+}
+
+fn json_to_struct_owned(json_val: &JsonValue) -> Option<GffValue<'static>> {
+    let obj = json_val.as_object()?;
+    let mut map = IndexMap::new();
+    for (k, v) in obj {
+        if let Some(gff_val) = json_to_gff_best_guess(v) {
+            map.insert(k.clone(), gff_val);
+        }
+    }
+    Some(GffValue::StructOwned(Box::new(map)))
+}
+
+fn json_to_gff_best_guess(json_val: &JsonValue) -> Option<GffValue<'static>> {
+    match json_val {
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Some(GffValue::Int(i as i32))
+            } else {
+                n.as_f64().map(|f| GffValue::Float(f as f32))
+            }
+        }
+        JsonValue::String(s) => Some(GffValue::String(std::borrow::Cow::Owned(s.clone()))),
+        JsonValue::Bool(b) => Some(GffValue::Byte(u8::from(*b))),
+        JsonValue::Array(_) => json_to_list(json_val),
+        JsonValue::Object(obj) => {
+            if obj.contains_key("string_ref") {
+                json_to_locstring(json_val)
+            } else {
+                json_to_struct_owned(json_val)
+            }
+        }
+        JsonValue::Null => None,
+    }
+}
+
+fn merge_json_into_gff_struct(
+    existing: &mut IndexMap<String, GffValue<'static>>,
+    updates: &HashMap<String, JsonValue>,
+) {
+    for (key, json_val) in updates {
+        if key == "__struct_id__" {
+            continue;
+        }
+
+        let new_val = if let Some(existing_val) = existing.shift_remove(key) {
+            coerce_json_to_gff_type(json_val, existing_val)
+        } else {
+            json_to_gff_best_guess(json_val)
+        };
+
+        if let Some(val) = new_val {
+            existing.insert(key.clone(), val);
+        }
+    }
+}
+
+fn merge_json_list_into_gff_list(
+    existing_list: &[IndexMap<String, GffValue<'static>>],
+    json_arr: &[JsonValue],
+) -> Vec<IndexMap<String, GffValue<'static>>> {
+    json_arr.iter().enumerate().map(|(i, json_item)| {
+        let Some(obj) = json_item.as_object() else {
+            return if i < existing_list.len() {
+                existing_list[i].clone()
+            } else {
+                IndexMap::new()
+            };
+        };
+
+        let updates: HashMap<String, JsonValue> = obj.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        if i < existing_list.len() {
+            let mut item = existing_list[i].clone();
+            merge_json_into_gff_struct(&mut item, &updates);
+            item
+        } else {
+            let mut item = IndexMap::new();
+            for (k, v) in &updates {
+                if let Some(gff_val) = json_to_gff_best_guess(v) {
+                    item.insert(k.clone(), gff_val);
+                }
+            }
+            item
+        }
+    }).collect()
 }
 
 #[cfg(test)]

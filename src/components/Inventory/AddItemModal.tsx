@@ -25,7 +25,7 @@ interface AddItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddBaseItem: (baseItemId: number) => Promise<number | null>;
-  onAddTemplate: (resref: string) => void;
+  onAddTemplate: (resref: string) => Promise<void>;
   baseItems: { id: number; name: string; category?: string }[];
   templates: ItemTemplate[];
   isLoadingTemplates: boolean;
@@ -162,13 +162,16 @@ export default function AddItemModal({
       setIsAdding(true);
       try {
         await onAddBaseItem(selectedBaseId);
-        onClose();
       } finally {
         setIsAdding(false);
       }
     } else if (activeTab === 'template' && selectedTemplateResref) {
-      onAddTemplate(selectedTemplateResref);
-      onClose();
+      setIsAdding(true);
+      try {
+        await onAddTemplate(selectedTemplateResref);
+      } finally {
+        setIsAdding(false);
+      }
     }
   };
 

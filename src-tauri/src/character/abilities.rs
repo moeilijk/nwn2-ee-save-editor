@@ -383,7 +383,6 @@ impl Character {
     ) -> AbilitiesState {
         let base_scores = self.base_scores();
         let effective_scores = self.get_effective_abilities(game_data);
-        let modifiers = AbilityModifiers::from_scores(&effective_scores);
         let racial_modifiers = self.get_racial_ability_modifiers(game_data);
 
         let equip_bonuses = self.get_equipment_bonuses(game_data, decoder);
@@ -395,6 +394,16 @@ impl Character {
             equip_bonuses.wis_bonus,
             equip_bonuses.cha_bonus,
         );
+
+        let total_scores = AbilityScores::new(
+            base_scores.str_ + equip_bonuses.str_bonus,
+            base_scores.dex + equip_bonuses.dex_bonus,
+            base_scores.con + equip_bonuses.con_bonus,
+            base_scores.int + equip_bonuses.int_bonus,
+            base_scores.wis + equip_bonuses.wis_bonus,
+            base_scores.cha + equip_bonuses.cha_bonus,
+        );
+        let modifiers = AbilityModifiers::from_scores(&total_scores);
 
         AbilitiesState {
             base_scores,
@@ -801,7 +810,16 @@ mod tests {
              std::sync::RwLock::new(crate::parsers::tlk::TLKParser::default()),
         ));
         
-        let decoder = ItemPropertyDecoder::new(rm);
+        let mut decoder = ItemPropertyDecoder::new(rm);
+        use std::collections::HashMap;
+        let abilities = HashMap::from([
+            (0, "Str".to_string()), (1, "Dex".to_string()), (2, "Con".to_string()),
+            (3, "Int".to_string()), (4, "Wis".to_string()), (5, "Cha".to_string()),
+        ]);
+        decoder.set_2da_tables(
+            abilities, HashMap::new(), HashMap::new(), HashMap::new(),
+            HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new(),
+        );
 
         let total = character.get_total_abilities(&game_data, &decoder);
         assert_eq!(total.str_, 16); // 14 + 2

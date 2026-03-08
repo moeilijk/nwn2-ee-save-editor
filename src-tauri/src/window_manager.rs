@@ -30,6 +30,14 @@ pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn show_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn close_settings_window(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         window.close().map_err(|e| e.to_string())?;

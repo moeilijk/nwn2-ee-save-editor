@@ -119,6 +119,7 @@ export interface AddItemFromTemplateResponse {
     success: boolean;
     message: string;
     new_item: Record<string, unknown>;
+    item_index?: number;
 }
 
 interface AvailableBaseItem {
@@ -248,7 +249,7 @@ export class InventoryAPI {
               success: result.success,
               message: result.message || "Item added",
               has_unsaved_changes: true,
-              item_index: result.index // verify rust returns index
+              item_index: result.inventory_index
           };
       } catch (e) {
           throw new Error(String(e));
@@ -256,9 +257,8 @@ export class InventoryAPI {
   }
 
   async updateItem(characterId: number, request: UpdateItemRequest): Promise<UpdateItemResponse> {
-    // TODO: Implement item property editing in Rust
-    console.warn("updateItem not implemented in Rust backend yet");
-    return { success: false, message: "Not implemented", has_unsaved_changes: false };
+    const result = await invoke<UpdateItemResponse>('update_item', { request });
+    return result;
   }
 
   async getAllBaseItems(_characterId: number): Promise<{ base_items: BaseItem[] }> {
@@ -295,7 +295,8 @@ export class InventoryAPI {
           return {
               success: result.success,
               message: result.message || 'Item added',
-              new_item: {}
+              new_item: {},
+              item_index: result.inventory_index
           };
       } catch (e) {
           console.error('Failed to add item from template:', e);

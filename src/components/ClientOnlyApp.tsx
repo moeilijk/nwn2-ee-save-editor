@@ -272,6 +272,8 @@ function AppContent() {
        try {
          // Trigger initialization
          // Trigger initialization without awaiting
+         invoke('show_main_window').catch(() => {});
+
          TauriAPI.initializeGameData().catch(err => {
              console.error("Failed to initialize backend:", err);
          });
