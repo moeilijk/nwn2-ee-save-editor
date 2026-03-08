@@ -165,7 +165,7 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     info!("Starting game data initialization");
     update_init_status(&state, "initializing", 0.0, "Starting initialization...");
 
-    update_init_status(&state, "initializing", 5.0, "Initializing ResourceManager...");
+    update_init_status(&state, "initializing", 1.0, "Initializing ResourceManager...");
     {
         let mut rm = state.resource_manager.write().await;
         rm.initialize().await.map_err(|e| {
@@ -178,19 +178,28 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     }
     info!("ResourceManager initialized");
 
-    update_init_status(&state, "initializing", 10.0, "Loading TLK strings...");
+    update_init_status(&state, "initializing", 2.0, "Loading TLK strings...");
     let tlk_parser = {
         let rm = state.resource_manager.read().await;
         rm.get_tlk_parser()
             .ok_or_else(|| CommandError::NotFound { item: "TLK parser".to_string() })?
     };
 
-    update_init_status(&state, "initializing", 15.0, "Loading 2DA tables...");
+    update_init_status(&state, "initializing", 5.0, "Loading 2DA tables...");
     let mut loader = DataModelLoader::with_options(
         Arc::clone(&state.resource_manager),
         true,
         false,
     );
+
+    let status_handle = Arc::clone(&state.init_status);
+    loader.set_progress_callback(Box::new(move |msg, progress| {
+        *status_handle.write() = InitStatus {
+            step: "initializing".to_string(),
+            progress,
+            message: msg.to_string(),
+        };
+    }));
 
     let loaded_data = loader.load_game_data(Arc::clone(&tlk_parser)).await.map_err(|e| {
         warn!("Failed to load game data: {}", e);

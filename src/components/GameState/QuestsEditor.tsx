@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { display, formatNumber } from '@/utils/dataHelpers';
 import {
   gameStateAPI,
@@ -358,6 +359,7 @@ export default function QuestsEditor() {
   const t = useTranslations();
   const { character } = useCharacterContext();
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
 
   const [quests, setQuests] = useState<EnrichedQuestData[]>([]);
   const [unmappedVariables, setUnmappedVariables] = useState<UnmappedVariableData[]>([]);
@@ -405,8 +407,7 @@ export default function QuestsEditor() {
       showToast(`${t('gameState.quests.toast.updateSuccess')}: ${variableName} = ${value}`, 'success');
       await loadEnrichedQuests();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update quest';
-      showToast(`${t('gameState.quests.toast.updateError')}: ${message}`, 'error');
+      handleError(err);
     }
   };
 

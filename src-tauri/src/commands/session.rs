@@ -80,3 +80,26 @@ pub async fn has_unsaved_changes(state: State<'_, AppState>) -> CommandResult<bo
     let session = state.session.read();
     Ok(session.has_unsaved_changes())
 }
+
+#[tauri::command]
+#[instrument(name = "export_to_localvault_command", skip(state))]
+pub async fn export_to_localvault(
+    state: State<'_, AppState>,
+) -> CommandResult<String> {
+    info!("Export to localvault command invoked");
+
+    let session = state.session.read();
+    match session.export_to_localvault() {
+        Ok(path) => {
+            info!("Character exported to vault: {}", path);
+            Ok(path)
+        }
+        Err(e) => {
+            error!("Failed to export to localvault: {}", e);
+            Err(CommandError::FileError {
+                message: e,
+                path: None,
+            })
+        }
+    }
+}

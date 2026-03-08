@@ -7,6 +7,7 @@ import { Plus, X } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { inventoryAPI } from '@/services/inventoryApi';
 import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import ItemDetailsPanel from './ItemDetailsPanel';
 import InventoryCharacterSummary from './InventoryCharacterSummary';
 import InventorySidebarFooter from './InventorySidebarFooter';
@@ -75,6 +76,7 @@ export default function InventoryEditor() {
   const inventoryData = useSubsystem('inventory');
   const combatSubsystem = useSubsystem('combat');
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
   const [isEquipping, setIsEquipping] = useState(false);
   const [pendingEquipSlot, setPendingEquipSlot] = useState<string | null>(null);
   const [pendingUnequipItem, setPendingUnequipItem] = useState<{name: string; base_item: number} | null>(null);
@@ -274,7 +276,7 @@ export default function InventoryEditor() {
         response.warnings.forEach(warning => showToast(warning, 'warning'));
       }
     } catch (error) {
-      showToast(`Failed to equip item: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      handleError(error);
     } finally {
       setIsEquipping(false);
     }
@@ -308,7 +310,7 @@ export default function InventoryEditor() {
         showToast(response.message, 'error');
       }
     } catch (error) {
-      showToast(`Failed to unequip item: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      handleError(error);
     } finally {
       setIsEquipping(false);
     }
@@ -348,8 +350,7 @@ export default function InventoryEditor() {
         showToast(response.message, 'error');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(errorMessage, 'error');
+      handleError(error);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -379,7 +380,7 @@ export default function InventoryEditor() {
         return null;
       }
     } catch (error) {
-      showToast(`Failed to add item: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      handleError(error);
       return null;
     }
   };
@@ -401,7 +402,7 @@ export default function InventoryEditor() {
         showToast(response.message, 'error');
       }
     } catch (error) {
-      showToast(`Failed to update item: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      handleError(error);
     }
   };
 
@@ -419,7 +420,7 @@ export default function InventoryEditor() {
             setTemplates(templatesRes.templates);
             setHasLoadedAddData(true);
         } catch (error) {
-             showToast(`Failed to load item data: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+             handleError(error);
         } finally {
             setIsLoadingTemplates(false);
         }
@@ -438,7 +439,7 @@ export default function InventoryEditor() {
               showToast(response.message, 'error');
           }
       } catch (error) {
-          showToast(`Failed to add template: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+          handleError(error);
       }
   };
 

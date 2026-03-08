@@ -78,8 +78,37 @@ impl PlayerInfo {
     }
 
     pub fn get_player_name(path: impl AsRef<Path>) -> PlayerInfoResult<String> {
-        let info = Self::load(path)?;
-        Ok(info.data.display_name())
+        let path = path.as_ref();
+        let mut file = File::open(path)?;
+        
+        let mut len_bytes = [0u8; 4];
+        file.read_exact(&mut len_bytes)?;
+        let length = u32::from_le_bytes(len_bytes) as usize;
+        
+        if length == 0 {
+            return Err(PlayerInfoParseError::InvalidString {
+                position: 0,
+                reason: "Empty name".to_string(),
+            });
+        }
+        
+        if length > 256 {
+            return Err(PlayerInfoParseError::InvalidString {
+                position: 0,
+                reason: format!("Name length {} exceeds maximum", length),
+            });
+        }
+        
+        let mut name_bytes = vec![0u8; length];
+        file.read_exact(&mut name_bytes)?;
+        
+        let (decoded, _, had_errors) = WINDOWS_1252.decode(&name_bytes);
+        if had_errors {
+            let (utf8_decoded, _, _) = UTF_8.decode(&name_bytes);
+            Ok(utf8_decoded.into_owned())
+        } else {
+            Ok(decoded.into_owned())
+        }
     }
 
     pub fn update_from_gff_data(
@@ -153,10 +182,6 @@ impl PlayerInfo {
 
         data.subrace = read_string(cursor)?;
         data.alignment = read_string(cursor)?;
-
-        if has_last_name {
-            data.unknown1 = cursor.read_u32::<LittleEndian>()?;
-        }
 
         data.unknown2 = cursor.read_u32::<LittleEndian>()?;
         data.unknown3 = cursor.read_u32::<LittleEndian>()?;

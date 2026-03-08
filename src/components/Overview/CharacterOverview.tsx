@@ -4,6 +4,7 @@ import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
 import { CharacterAPI } from '@/services/characterApi';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import CampaignOverview from './CampaignOverview';
@@ -69,7 +70,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const saves = useSubsystem('saves');
   const abilities = useSubsystem('abilityScores');
   const classes = useSubsystem('classes');
-  
+  const { handleError } = useErrorHandler();
+
   // Name editing state
   const [isEditingName, setIsEditingName] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -134,8 +136,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       
       setIsEditingName(false);
     } catch (error) {
-      console.error('Failed to save character name:', error);
-      // TODO: Show error notification
+      handleError(error);
     } finally {
       setIsSaving(false);
     }
@@ -167,12 +168,12 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       }
       setIsDeityModalOpen(false);
     } catch (error) {
-      console.error('Failed to save deity:', error);
+      handleError(error);
     } finally {
       setIsSaving(false);
     }
   };
-  
+
   const handleSaveBiography = async () => {
     if (!character?.id || isSaving) return;
     
@@ -186,7 +187,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       }
       setIsEditingBio(false);
     } catch (error) {
-      console.error('Failed to save biography:', error);
+      handleError(error);
     } finally {
       setIsSaving(false);
     }

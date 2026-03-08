@@ -33,7 +33,7 @@ pub struct AppState {
     pub resource_manager: Arc<tokio::sync::RwLock<ResourceManager>>,
     pub game_data: Arc<RwLock<GameData>>,
     pub session: RwLock<SessionState>,
-    pub init_status: RwLock<InitStatus>,
+    pub init_status: Arc<RwLock<InitStatus>>,
 }
 
 impl AppState {
@@ -79,7 +79,7 @@ impl AppState {
             resource_manager,
             game_data,
             session: RwLock::new(session),
-            init_status: RwLock::new(InitStatus::default()),
+            init_status: Arc::new(RwLock::new(InitStatus::default())),
         }
     }
 }

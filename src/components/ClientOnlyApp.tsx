@@ -29,6 +29,9 @@ import { CharacterAPI } from '@/services/characterApi';
 import { Button } from '@/components/ui/Button';
 
 import LevelHelperModal from '@/components/ClassesLevel/LevelHelperModal';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import FileBrowserModal from '@/components/FileBrowser/FileBrowserModal';
+import { invoke } from '@tauri-apps/api/core';
 
 function AppContent() {
   const t = useTranslations();
@@ -64,6 +67,8 @@ function AppContent() {
 
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [showLaunchDialog, setShowLaunchDialog] = useState(false);
+  const [showVaultBrowser, setShowVaultBrowser] = useState(false);
+  const [vaultPath, setVaultPath] = useState('');
 
   // Sync viewMode when character ID changes (new load)
   useEffect(() => {
@@ -182,13 +187,27 @@ function AppContent() {
   };
 
   const handleImportCharacter = async () => {
+    setShowVaultBrowser(true);
+  };
+
+  const handleVaultSelect = async (file: { path: string; name: string }) => {
     try {
-      const filePath = await api?.selectCharacterFile();
-      if (filePath) {
-        await importCharacter(filePath);
-      }
+      setShowVaultBrowser(false);
+      await importCharacter(file.path);
     } catch (error) {
-       console.error("Failed to import character:", error);
+       console.error("Failed to import character from vault:", error);
+    }
+  };
+
+  const handleExportToVault = async () => {
+    try {
+      const exportedPath = await invoke<string>('export_to_localvault');
+      setFeedback({ type: 'success', message: `Character exported to: ${exportedPath}` });
+      setTimeout(() => setFeedback(null), 5000);
+    } catch (error) {
+       console.error("Failed to export to vault:", error);
+       setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Failed to export character' });
+       setTimeout(() => setFeedback(null), 5000);
     }
   };
 
@@ -252,7 +271,11 @@ function AppContent() {
     const init = async () => {
        try {
          // Trigger initialization
-         await TauriAPI.initializeGameData();
+         // Trigger initialization without awaiting
+         TauriAPI.initializeGameData().catch(err => {
+             console.error("Failed to initialize backend:", err);
+         });
+         
          
          const checkStatus = async () => {
             const status = await TauriAPI.getInitializationStatus();
@@ -286,28 +309,21 @@ function AppContent() {
       <div className="h-screen w-screen flex items-center justify-center bg-[rgb(var(--color-background))]">
         <div className="max-w-md w-full mx-4">
           <div className="bg-[rgb(var(--color-surface-1))] rounded-lg shadow-lg border border-[rgb(var(--color-surface-border))] p-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[rgb(var(--color-surface-2))] flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[rgb(var(--color-primary))]"></div>
-              </div>
-              <h1 className="text-2xl font-bold text-[rgb(var(--color-text-primary))] mb-2">NWN2 Save Editor</h1>
-              <p className="text-[rgb(var(--color-text-secondary))]">{initProgress.message}</p>
-            </div>
+              <h1 className="text-3xl font-bold font-sans text-[rgb(var(--color-text-primary))] mb-6">Initializing...</h1>
 
-            <div className="w-full bg-[rgb(var(--color-surface-2))] rounded-full h-3 mb-4">
-              <div 
-                className="bg-[rgb(var(--color-primary))] h-3 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${initProgress.progress}%` }}
-              ></div>
+
+            <div className="w-full bg-[rgb(var(--color-surface-2))] rounded-full h-5 mb-4 relative overflow-hidden">
+               <div 
+                 className="bg-[rgb(var(--color-primary))] h-full rounded-full transition-all duration-500 ease-out"
+                 style={{ width: `${initProgress.progress}%` }}
+               ></div>
+               <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-[rgb(var(--color-text-primary))] drop-shadow-md">
+                 {Math.round(initProgress.progress)}%
+               </div>
             </div>
             
-            <div className="text-sm text-[rgb(var(--color-text-muted))]">
-              {initProgress.step === 'icon_cache' && 'Loading icons...'}
-              {initProgress.step === 'game_data' && 'Loading game data...'}
-              {initProgress.step === 'resource_manager' && 'Initializing...'}
-              {initProgress.step === 'ready' && 'Starting application...'}
-              {initProgress.step === 'initializing' && 'Starting up...'}
-            </div>
+            
+
           </div>
         </div>
       </div>
@@ -332,7 +348,7 @@ function AppContent() {
                     saveName="Save File"
                     onBack={handleEditorBack}
                     onImport={() => {}}
-                    onExport={() => {}}
+                    onExport={handleExportToVault}
                     onSave={handleSaveCharacter}
                     isModified={character.has_unsaved_changes}
                   />
@@ -348,6 +364,12 @@ function AppContent() {
                     
                     <div className="flex-1 flex flex-col overflow-hidden">
                       <main className="flex-1 bg-[rgb(var(--color-background))] overflow-y-auto">
+                        <ErrorBoundary
+                          key={activeTab}
+                          fallbackTitle={t('errors.boundary.title')}
+                          fallbackMessage={t('errors.boundary.message')}
+                          fallbackRetry={t('errors.boundary.retry')}
+                        >
                         <div className="p-6">
                           {activeTab === 'overview' && (
                             <div className="space-y-6">
@@ -435,6 +457,7 @@ function AppContent() {
                             </div>
                           )}
                         </div>
+                        </ErrorBoundary>
                       </main>
                     </div>
                  </div>
@@ -531,6 +554,15 @@ function AppContent() {
         onClose={() => setShowLaunchDialog(false)}
         onLaunch={handleLaunchGame}
         saveName={character?.name}
+      />
+
+      <FileBrowserModal
+        isOpen={showVaultBrowser}
+        onClose={() => setShowVaultBrowser(false)}
+        mode="load-vault"
+        onSelectFile={handleVaultSelect}
+        currentPath={vaultPath}
+        onPathChange={setVaultPath}
       />
     </div>
   );

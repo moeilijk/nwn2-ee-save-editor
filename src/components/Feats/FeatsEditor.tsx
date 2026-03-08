@@ -9,6 +9,7 @@ import { FeatNavBar, type FeatTab } from './FeatNavBar';
 import { FeatTabContent } from './FeatTabContent';
 import type { FeatInfo, FeatsState } from './types';
 import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 export default function FeatsEditor() {
   const { 
@@ -21,6 +22,7 @@ export default function FeatsEditor() {
   } = useCharacterContext();
   const feats = useSubsystem('feats');
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
 
   const [activeTab, setActiveTab] = useState<FeatTab>('my-feats');
   const [searchTerm, setSearchTerm] = useState('');
@@ -199,10 +201,9 @@ export default function FeatsEditor() {
         showToast('Feat added successfully', 'success');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to add feat';
-      showToast(errorMessage, 'error');
+      handleError(error);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast]);
+  }, [character?.id, feats, invalidateSubsystems, showToast, handleError]);
 
   const handleRemoveFeat = useCallback(async (featId: number) => {
     if (!character?.id) return;
@@ -213,10 +214,9 @@ export default function FeatsEditor() {
       await invalidateSubsystems(['combat']);
       showToast('Feat removed successfully', 'success');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to remove feat';
-      showToast(errorMessage, 'error');
+      handleError(error);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast]);
+  }, [character?.id, feats, invalidateSubsystems, showToast, handleError]);
 
   const handleLoadFeatDetails = useCallback(async (feat: FeatInfo): Promise<FeatInfo | null> => {
     if (!character?.id) return null;

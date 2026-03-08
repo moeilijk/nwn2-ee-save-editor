@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier } from '@/utils/dataHelpers';
 import { CharacterAPI } from '@/services/characterApi';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { SkillSummaryEntry } from '@/lib/bindings';
 
 export default function SkillsEditor() {
@@ -15,6 +16,7 @@ export default function SkillsEditor() {
   const { character } = useCharacterContext();
   
   const skillsSubsystem = useSubsystem('skills');
+  const { handleError } = useErrorHandler();
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [updatingSkills, setUpdatingSkills] = useState<Set<number>>(new Set());
@@ -134,7 +136,7 @@ export default function SkillsEditor() {
       await CharacterAPI.updateSkills(character.id, updates);
       await loadSkills({ silent: true });
     } catch (err) {
-      console.error('Error updating skill:', err);
+      handleError(err);
 
       setLocalSkillOverrides(prev => {
         const updated = { ...prev };
@@ -174,7 +176,7 @@ export default function SkillsEditor() {
       await CharacterAPI.resetSkills(character.id);
       await loadSkills({ silent: true });
     } catch (err) {
-      console.error('Error resetting skills:', err);
+      handleError(err);
     } finally {
       setIsUpdating(false);
     }

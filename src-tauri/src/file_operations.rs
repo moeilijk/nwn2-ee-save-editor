@@ -4,12 +4,15 @@ use std::path::PathBuf;
 use base64::prelude::*;
 use tauri_plugin_shell::ShellExt;
 
+use crate::services::playerinfo::PlayerInfo;
+
 #[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct SaveFile {
     pub path: String,
     pub name: String,
     pub thumbnail: Option<String>,
     pub modified: Option<i64>,
+    pub character_name: Option<String>,
 }
 
 #[tauri::command]
@@ -70,7 +73,9 @@ pub async fn select_save_file(app: tauri::AppHandle) -> Result<SaveFile, String>
         .ok()
         .map(|time| time.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as i64);
 
-    Ok(SaveFile { path: path_str, name, thumbnail, modified })
+    let character_name = PlayerInfo::get_player_name(save_path.join("playerinfo.bin")).ok();
+
+    Ok(SaveFile { path: path_str, name, thumbnail, modified, character_name })
 }
 
 #[tauri::command]
@@ -141,11 +146,14 @@ pub async fn find_nwn2_saves(_app: tauri::AppHandle) -> Result<Vec<SaveFile>, St
                     .ok()
                     .map(|time| time.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as i64);
 
+                let character_name = PlayerInfo::get_player_name(entry.path().join("playerinfo.bin")).ok();
+
                 saves.push(SaveFile {
                     name: save_name,
                     path: save_path,
                     thumbnail,
                     modified,
+                    character_name,
                 });
                 
                 // Limit to 3 saves
@@ -340,4 +348,345 @@ pub async fn launch_nwn2_game(app: tauri::AppHandle, game_path: Option<String>) 
     
     log::info!("[Rust] NWN2 game launched successfully");
     Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
+pub struct BrowseSaveEntry {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub modified: f64,
+    pub is_directory: bool,
+    pub save_name: Option<String>,
+    pub character_name: Option<String>,
+    pub thumbnail: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
+pub struct BrowseSavesResponse {
+    pub files: Vec<BrowseSaveEntry>,
+    pub total_count: usize,
+    pub path: String,
+    pub current_path: String,
+}
+
+#[tauri::command]
+pub async fn browse_saves(
+    path: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<BrowseSavesResponse, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    
+    let target_path = match path {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => nwn2_paths.saves().ok_or("Could not determine NWN2 saves path")?,
+    };
+
+    if !target_path.exists() {
+        return Err(format!("Directory not found: {}", target_path.display()));
+    }
+
+    if !target_path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+
+    let entries = std::fs::read_dir(&target_path)
+        .map_err(|e| format!("Failed to read directory: {e}"))?;
+
+    let mut files_list: Vec<BrowseSaveEntry> = Vec::new();
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let name_lower = name.to_lowercase();
+        
+        if name.starts_with('.') 
+            || name_lower == "backups"
+            || name_lower == "steamcloud"
+            || name_lower.ends_with(".cam") {
+            continue;
+        }
+
+        let entry_path = entry.path();
+        let is_directory = entry_path.is_dir();
+        
+        if !is_directory {
+            continue;
+        }
+
+        if !entry_path.join("resgff.zip").exists() {
+            continue;
+        }
+
+        let metadata = entry_path.metadata().ok();
+        let modified = metadata
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64())
+            .unwrap_or(0.0);
+
+        let mut size: u64 = 0;
+        if let Ok(dir_entries) = std::fs::read_dir(&entry_path) {
+            for f in dir_entries.flatten() {
+                if let Ok(meta) = f.metadata() {
+                    if meta.is_file() {
+                        size += meta.len();
+                    }
+                }
+            }
+        }
+
+        let save_name = std::fs::read_to_string(entry_path.join("savename.txt"))
+            .ok()
+            .map(|s| s.trim().to_string());
+
+        let playerinfo_path = entry_path.join("playerinfo.bin");
+        let character_name = match PlayerInfo::get_player_name(&playerinfo_path) {
+            Ok(name) => {
+                log::debug!("[browse_saves] Parsed character name: {} from {:?}", name, playerinfo_path);
+                Some(name)
+            }
+            Err(e) => {
+                log::debug!("[browse_saves] Failed to parse playerinfo.bin at {:?}: {}", playerinfo_path, e);
+                None
+            }
+        };
+
+        let thumbnail_path = entry_path.join("screen.tga");
+        let thumbnail = if thumbnail_path.exists() {
+            Some(thumbnail_path.to_string_lossy().to_string())
+        } else {
+            None
+        };
+
+        files_list.push(BrowseSaveEntry {
+            name,
+            path: entry_path.to_string_lossy().to_string(),
+            size,
+            modified,
+            is_directory,
+            save_name,
+            character_name,
+            thumbnail,
+        });
+    }
+
+    files_list.sort_by(|a, b| b.modified.partial_cmp(&a.modified).unwrap_or(std::cmp::Ordering::Equal));
+
+    let total_count = files_list.len();
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(500);
+    let paginated: Vec<BrowseSaveEntry> = files_list.into_iter().skip(offset).take(limit).collect();
+
+    log::info!("[Rust] browse_saves: path={}, count={}, total={}", target_path.display(), paginated.len(), total_count);
+
+    Ok(BrowseSavesResponse {
+        files: paginated,
+        total_count,
+        path: target_path.to_string_lossy().to_string(),
+        current_path: target_path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn get_default_saves_path() -> Result<String, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    let saves_path = nwn2_paths.saves().ok_or("Could not determine NWN2 saves path")?;
+    Ok(saves_path.to_string_lossy().to_string())
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BrowseBackupEntry {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub timestamp: String,
+    pub created_at: i64,
+    pub character_name: Option<String>,
+    pub save_name: Option<String>,
+}
+
+#[tauri::command]
+pub async fn browse_backups(path: String) -> Result<Vec<BrowseBackupEntry>, String> {
+    use std::time::SystemTime;
+    
+    let backup_path = PathBuf::from(&path);
+    
+    if !backup_path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    if !backup_path.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+    
+    let is_root_backups = path.replace('\\', "/").ends_with("/backups") 
+        || path.replace('\\', "/").ends_with("/backups/");
+    
+    let mut backups = Vec::new();
+    
+    let entries = std::fs::read_dir(&backup_path)
+        .map_err(|e| format!("Failed to read backup directory: {e}"))?;
+    
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        
+        if !entry_path.is_dir() {
+            continue;
+        }
+        
+        let name = entry.file_name().to_string_lossy().to_string();
+        
+        if name.starts_with('.') {
+            continue;
+        }
+        
+        if !is_root_backups && !name.starts_with("backup_") && !name.starts_with("pre_restore_") {
+            continue;
+        }
+        
+        let timestamp = if name.starts_with("backup_") || name.starts_with("pre_restore_") {
+            name.strip_prefix("backup_")
+                .or_else(|| name.strip_prefix("pre_restore_"))
+                .unwrap_or(&name)
+                .to_string()
+        } else {
+            String::new()
+        };
+        
+        let metadata = std::fs::metadata(&entry_path).ok();
+        let created_at = metadata
+            .as_ref()
+            .and_then(|m| m.created().or_else(|_| m.modified()).ok())
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        
+        let mut size: u64 = 0;
+        if let Ok(dir_entries) = std::fs::read_dir(&entry_path) {
+            for f in dir_entries.flatten() {
+                if let Ok(meta) = f.metadata() {
+                    if meta.is_file() {
+                        size += meta.len();
+                    }
+                }
+            }
+        }
+        
+        let playerinfo_path = entry_path.join("playerinfo.bin");
+        let character_name = PlayerInfo::get_player_name(&playerinfo_path).ok();
+        
+        let save_name = std::fs::read_to_string(entry_path.join("savename.txt"))
+            .ok()
+            .map(|s| s.trim().to_string());
+        
+        backups.push(BrowseBackupEntry {
+            name,
+            path: entry_path.to_string_lossy().to_string(),
+            size,
+            timestamp,
+            created_at,
+            character_name,
+            save_name,
+        });
+    }
+    
+    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    
+    log::info!("[Rust] browse_backups: path={}, is_root={}, count={}", path, is_root_backups, backups.len());
+    
+    Ok(backups)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
+pub struct BrowseVaultEntry {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub modified: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
+pub struct BrowseVaultResponse {
+    pub files: Vec<BrowseVaultEntry>,
+    pub total_count: usize,
+    pub path: String,
+}
+
+#[tauri::command]
+pub async fn browse_localvault() -> Result<BrowseVaultResponse, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    
+    let vault_path = nwn2_paths.localvault().ok_or("Could not determine NWN2 localvault path")?;
+
+    if !vault_path.exists() {
+        return Ok(BrowseVaultResponse {
+            files: Vec::new(),
+            total_count: 0,
+            path: vault_path.to_string_lossy().to_string(),
+        });
+    }
+
+    if !vault_path.is_dir() {
+        return Err("LocalVault path is not a directory".to_string());
+    }
+
+    let entries = std::fs::read_dir(&vault_path)
+        .map_err(|e| format!("Failed to read localvault directory: {e}"))?;
+
+    let mut files_list: Vec<BrowseVaultEntry> = Vec::new();
+
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        
+        if !entry_path.is_file() {
+            continue;
+        }
+        
+        let name = entry.file_name().to_string_lossy().to_string();
+        
+        if !name.to_lowercase().ends_with(".bic") {
+            continue;
+        }
+        
+        let display_name = name.strip_suffix(".bic")
+            .or_else(|| name.strip_suffix(".BIC"))
+            .unwrap_or(&name)
+            .to_string();
+
+        let metadata = entry_path.metadata().ok();
+        let modified = metadata
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64())
+            .unwrap_or(0.0);
+
+        let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+
+        files_list.push(BrowseVaultEntry {
+            name: display_name,
+            path: entry_path.to_string_lossy().to_string(),
+            size,
+            modified,
+        });
+    }
+
+    files_list.sort_by(|a, b| b.modified.partial_cmp(&a.modified).unwrap_or(std::cmp::Ordering::Equal));
+
+    let total_count = files_list.len();
+
+    log::info!("[Rust] browse_localvault: path={}, count={}", vault_path.display(), total_count);
+
+    Ok(BrowseVaultResponse {
+        files: files_list,
+        total_count,
+        path: vault_path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn get_default_localvault_path() -> Result<String, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    let vault_path = nwn2_paths.localvault().ok_or("Could not determine NWN2 localvault path")?;
+    Ok(vault_path.to_string_lossy().to_string())
 }

@@ -154,6 +154,107 @@ export function getErrorMessage(error: CommandError): string {
   }
 }
 
+export type TranslationFn = (key: string, values?: Record<string, unknown>) => string;
+
+export interface TranslatedError {
+  title: string;
+  message: string;
+  recovery: string | null;
+}
+
+export function getTranslatedError(error: CommandError, t: TranslationFn): TranslatedError {
+  switch (error.code) {
+    case 'NoCharacterLoaded':
+      return {
+        title: t('errors.title.stateError'),
+        message: t('errors.message.noCharacterLoaded'),
+        recovery: t('errors.recovery.noCharacterLoaded'),
+      };
+    case 'NoGameDataLoaded':
+      return {
+        title: t('errors.title.stateError'),
+        message: t('errors.message.noGameDataLoaded'),
+        recovery: t('errors.recovery.noGameDataLoaded'),
+      };
+    case 'CharacterNotFound':
+      return {
+        title: t('errors.title.fileError'),
+        message: t('errors.message.characterNotFound', { path: error.details.path }),
+        recovery: t('errors.recovery.characterNotFound'),
+      };
+    case 'ValidationError':
+      return {
+        title: t('errors.title.validationError'),
+        message: t('errors.message.validationError', { field: error.details.field, reason: error.details.reason }),
+        recovery: t('errors.recovery.validationError'),
+      };
+    case 'InvalidValue':
+      return {
+        title: t('errors.title.validationError'),
+        message: t('errors.message.invalidValue', { field: error.details.field, expected: error.details.expected, actual: error.details.actual }),
+        recovery: t('errors.recovery.invalidValue'),
+      };
+    case 'FileError':
+      return {
+        title: t('errors.title.fileError'),
+        message: error.details.path
+          ? t('errors.message.fileErrorWithPath', { path: error.details.path, message: error.details.message })
+          : t('errors.message.fileError', { message: error.details.message }),
+        recovery: t('errors.recovery.fileError'),
+      };
+    case 'ParseError':
+      return {
+        title: t('errors.title.parseError'),
+        message: error.details.context
+          ? t('errors.message.parseErrorWithContext', { context: error.details.context, message: error.details.message })
+          : t('errors.message.parseError', { message: error.details.message }),
+        recovery: t('errors.recovery.parseError'),
+      };
+    case 'InsufficientResources':
+      return {
+        title: t('errors.title.resourceError'),
+        message: t('errors.message.insufficientResources', { resource: error.details.resource, required: error.details.required, available: error.details.available }),
+        recovery: t('errors.recovery.insufficientResources'),
+      };
+    case 'PrerequisitesNotMet':
+      return {
+        title: t('errors.title.validationError'),
+        message: t('errors.message.prerequisitesNotMet', { missing: error.details.missing.join(', ') }),
+        recovery: t('errors.recovery.prerequisitesNotMet'),
+      };
+    case 'NotFound':
+      return {
+        title: t('errors.title.notFoundError'),
+        message: t('errors.message.notFound', { item: error.details.item }),
+        recovery: t('errors.recovery.notFound'),
+      };
+    case 'AlreadyExists':
+      return {
+        title: t('errors.title.conflictError'),
+        message: t('errors.message.alreadyExists', { item: error.details.item }),
+        recovery: t('errors.recovery.alreadyExists'),
+      };
+    case 'OperationFailed':
+      return {
+        title: t('errors.title.operationError'),
+        message: t('errors.message.operationFailed', { operation: error.details.operation, reason: error.details.reason }),
+        recovery: t('errors.recovery.operationFailed'),
+      };
+    case 'Internal':
+      return {
+        title: t('errors.title.internalError'),
+        message: typeof error.details === 'string' ? error.details : t('errors.message.internal'),
+        recovery: t('errors.recovery.internal'),
+      };
+    default:
+      return {
+        title: t('errors.title.internalError'),
+        message: t('errors.message.unknown'),
+        recovery: null,
+      };
+  }
+}
+
 /**
  * Get the error code for programmatic handling
  */

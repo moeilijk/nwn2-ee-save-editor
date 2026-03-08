@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { FeatInfo } from './Feats/types';
 
 interface FeatSelectionModalProps {
@@ -17,6 +18,7 @@ interface FeatSelectionModalProps {
 export function FeatSelectionModal({ isOpen, onClose, featType, title }: FeatSelectionModalProps) {
   const { character, invalidateSubsystems } = useCharacterContext();
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
   
   const [feats, setFeats] = useState<FeatInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +58,7 @@ export function FeatSelectionModal({ isOpen, onClose, featType, title }: FeatSel
           showToast('Feature added successfully', 'success');
           onClose();
       } catch (err) {
-          showToast(err instanceof Error ? err.message : 'Failed to add feature', 'error');
+          handleError(err);
       }
   };
 

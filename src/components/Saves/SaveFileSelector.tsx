@@ -146,20 +146,27 @@ export function SaveFileSelector() {
   }, [api, gameSettings.nwn2_installation_path]);
 
   const handleOpenBackupsFolder = useCallback(async () => {
-    if (!api) return;
-    try {
-      const backups = await invoke<BackupInfo[]>('list_backups');
-      if (backups.length > 0) {
-        const backupDir = backups[0].path.split(/[/\\]/).slice(0, -1).join('/');
-        await api.openFolderInExplorer(backupDir);
-      } else {
-        setError('No backups found');
+    setSuccessMessage(null);
+    setError(null);
+
+    let backupsPath = '';
+    if (selectedFile) {
+      const pathParts = selectedFile.path.replace(/\\/g, '/').split('/');
+      const saveName = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+      const savesDir = pathParts.slice(0, -1).join('/');
+      backupsPath = `${savesDir}/backups/${saveName}`;
+    } else {
+      try {
+        const defaultSavesPath = await invoke<string>('get_default_saves_path');
+        backupsPath = defaultSavesPath.replace(/\\/g, '/') + '/backups';
+      } catch {
+        backupsPath = '';
       }
-    } catch (err) {
-      console.error('Failed to open backups folder:', err);
-      setError(err instanceof Error ? err.message : 'Failed to open backups folder');
     }
-  }, [api]);
+
+    setBackupPath(backupsPath);
+    setShowBackupBrowser(true);
+  }, [selectedFile]);
 
   const handleBackupSelect = useCallback(async (file: { path: string; name: string }) => {
     try {
@@ -199,32 +206,26 @@ export function SaveFileSelector() {
     }
   }, [isAvailable, api, autoScanComplete, loadAvailableSaves]);
 
-  // Window backup hook disabled/removed
-  // useEffect(() => {
-  //   (window as Window & { __openBackups?: () => void }).__openBackups = handleOpenBackupsFolder;
-  //   return () => {
-  //     delete (window as Window & { __openBackups?: () => void }).__openBackups;
-  //   };
-  // }, [handleOpenBackupsFolder]);
+  useEffect(() => {
+    (window as Window & { __openBackups?: () => void }).__openBackups = handleOpenBackupsFolder;
+    return () => {
+      delete (window as Window & { __openBackups?: () => void }).__openBackups;
+    };
+  }, [handleOpenBackupsFolder]);
 
   const handleSelectFile = async () => {
-    if (api) {
-       // Use selectSaveFile for folder selection (Standard NWN2 saves)
-       // This returns a SaveFile object directly
-       try {
-         const saveFile = await api.selectSaveFile();
-         if (saveFile) {
-             await importSaveFile(saveFile);
-         }
-       } catch (err) {
-         console.error('Failed to select save file:', err);
-         // Error is already logged in rust, just show partial error if needed or rely on save selector UI state
-       }
-    }
+    setShowFileBrowser(true);
   };
 
   const handleFileBrowserSelect = async (file: { path: string; name: string }) => {
-      // Not using FileBrowserModal currently
+    setShowFileBrowser(false);
+    if (file.path) {
+      const saveFile: SaveFile = {
+        path: file.path,
+        name: file.name,
+      };
+      await importSaveFile(saveFile);
+    }
   };
 
   const handleImportSelectedSave = async (save: SaveFile) => {
@@ -265,12 +266,6 @@ export function SaveFileSelector() {
         </div>
       )}
 
-      {character && (
-        <div className="p-2 bg-surface-1 text-success rounded text-sm">
-          Loaded: {character.name}
-        </div>
-      )}
-
       <div className="flex gap-2 mt-4 mb-6">
         <Button
           variant="outline"
@@ -306,9 +301,9 @@ export function SaveFileSelector() {
                 />
                 <div className="flex flex-col flex-1 min-w-0">
                   <div className="recent-save-name truncate">
-                    {save.character ? (
+                    {save.character_name ? (
                         <div className="flex flex-col">
-                            <span className="font-semibold text-[rgb(var(--color-primary))]">{save.character}</span>
+                            <span className="font-semibold text-[rgb(var(--color-primary))]">{save.character_name}</span>
                             <span className="text-xs text-[rgb(var(--color-text-muted))] opacity-75">{save.name}</span>
                         </div>
                     ) : save.name}
@@ -343,7 +338,26 @@ export function SaveFileSelector() {
         gamePathDetected={!!gameSettings.nwn2_installation_path}
       />
       
-      {/* FileBrowserModal/BackupModal disabled for now as they relied on legacy API */}
+      <FileBrowserModal
+        isOpen={showFileBrowser}
+        onClose={() => setShowFileBrowser(false)}
+        mode="load-saves"
+        onSelectFile={handleFileBrowserSelect}
+        currentPath={currentPath}
+        onPathChange={setCurrentPath}
+      />
+
+      <FileBrowserModal
+        isOpen={showBackupBrowser}
+        onClose={() => setShowBackupBrowser(false)}
+        mode="manage-backups"
+        currentPath={backupPath}
+        onPathChange={setBackupPath}
+        onDeleteBackup={handleDeleteBackup}
+        canRestore={true}
+        refreshKey={backupRefreshKey}
+        onSelectFile={handleBackupSelect}
+      />
     </div>
   );
 }

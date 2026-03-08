@@ -5,12 +5,13 @@ import { Toast, ToastContainer, ToastType } from '@/components/ui/Toast';
 interface ToastItem {
   id: string;
   message: string;
+  description?: string;
   type: ToastType;
   duration?: number;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
+  showToast: (message: string, type?: ToastType, duration?: number, description?: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -18,9 +19,9 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 5000) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 5000, description?: string) => {
     const id = Math.random().toString(36).substring(7);
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => [...prev, { id, message, description, type, duration }]);
   }, []);
 
   const removeToast = useCallback((id: string) => {
@@ -36,6 +37,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             id={toast.id}
             message={toast.message}
+            description={toast.description}
             type={toast.type}
             duration={toast.duration}
             onClose={removeToast}

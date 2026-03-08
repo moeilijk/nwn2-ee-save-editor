@@ -7,6 +7,7 @@ export interface SaveFile {
   name: string;
   thumbnail?: string;
   modified?: number;
+  character_name?: string;
 }
 
 // Path Configuration Interfaces

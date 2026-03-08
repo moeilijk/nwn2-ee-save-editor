@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { FixedSizeList as List, ListOnItemsRenderedProps } from 'react-window';
 import InfiniteLoader from 'react-window-infinite-loader';
 import { open } from '@tauri-apps/plugin-dialog';
-import { readDir, stat } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -65,7 +64,7 @@ interface FileListResponse {
 interface FileBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mode: 'load-saves' | 'manage-backups';
+  mode: 'load-saves' | 'manage-backups' | 'load-vault';
   onSelectFile?: (file: FileInfo) => void;
   currentPath?: string;
   onPathChange?: (path: string) => void;
@@ -123,14 +122,7 @@ export default function FileBrowserModal({
     return () => observer.disconnect();
   }, [isOpen]);
 
-  const loadFiles = useCallback(async (isInitial = true, forceRefresh = false) => {
-    if (!currentPath) {
-      setFiles([]);
-      setTotalFiles(0);
-      setLoading(false);
-      return;
-    }
-
+  const loadFiles = useCallback(async (isInitial = true, _forceRefresh = false) => {
     if (isInitial) {
       setLoading(true);
       setError(null);
@@ -140,55 +132,95 @@ export default function FileBrowserModal({
 
     try {
       if (mode === 'manage-backups') {
-        const backups = await invoke<BackupInfo[]>('list_backups');
-        const fileInfos: FileInfo[] = backups.map(b => {
-          const pathParts = b.path.split(/[/\\]/);
-          const name = pathParts[pathParts.length - 1] || b.timestamp;
-          return {
-            name,
-            path: b.path,
-            size: b.size_bytes,
-            modified: String(b.created_at),
-            is_directory: true,
-            save_name: `Backup ${b.timestamp}`,
-            character_name: undefined,
-          };
-        });
+        interface BrowseBackupEntry {
+          name: string;
+          path: string;
+          size: number;
+          timestamp: string;
+          created_at: number;
+          character_name: string | null;
+          save_name: string | null;
+        }
+        const backups = await invoke<BrowseBackupEntry[]>('browse_backups', { path: currentPath });
+        const fileInfos: FileInfo[] = backups.map(b => ({
+          name: b.name,
+          path: b.path,
+          size: b.size,
+          modified: String(b.created_at),
+          is_directory: true,
+          save_name: b.save_name ?? (b.timestamp ? `Backup ${b.timestamp}` : undefined),
+          character_name: b.character_name ?? undefined,
+        }));
         setFiles(fileInfos);
         setTotalFiles(fileInfos.length);
+      } else if (mode === 'load-vault') {
+        interface BrowseVaultResponse {
+          files: {
+            name: string;
+            path: string;
+            size: number;
+            modified: number;
+          }[];
+          total_count: number;
+          path: string;
+        }
+        const response = await invoke<BrowseVaultResponse>('browse_localvault');
+        const fileInfos: FileInfo[] = response.files.map(f => ({
+          name: f.name,
+          path: f.path,
+          size: f.size,
+          modified: String(f.modified),
+          is_directory: false,
+          display_name: f.name,
+        }));
+        setFiles(fileInfos);
+        setTotalFiles(fileInfos.length);
+        if (response.path && response.path !== currentPath) {
+          onPathChange?.(response.path);
+        }
       } else {
-        const entries = await readDir(currentPath);
-        const fileInfos: FileInfo[] = await Promise.all(
-          entries.map(async (entry) => {
-            const name = entry.name || '';
-            const fullPath = currentPath.endsWith('/') || currentPath.endsWith('\\')
-              ? `${currentPath}${name}`
-              : `${currentPath}/${name}`;
-
-            let size = 0;
-            let modified = '0';
-            try {
-              const info = await stat(fullPath);
-              size = info.size || 0;
-              modified = String((info.mtime?.getTime() || 0) / 1000);
-            } catch {
-              // Ignore stat errors
-            }
-
-            return {
-              name,
-              path: fullPath,
-              size,
-              modified,
-              is_directory: entry.isDirectory || false,
-              save_name: undefined,
-              character_name: undefined,
-            };
-          })
-        );
-        setFiles(fileInfos);
-        setTotalFiles(fileInfos.length);
-        onPathChange?.(currentPath);
+        interface BrowseSavesResponse {
+          files: {
+            name: string;
+            path: string;
+            size: number;
+            modified: number;
+            is_directory: boolean;
+            save_name: string | null;
+            character_name: string | null;
+            thumbnail: string | null;
+          }[];
+          total_count: number;
+          path: string;
+          current_path: string;
+        }
+        
+        const response = await invoke<BrowseSavesResponse>('browse_saves', {
+          path: currentPath || null,
+          limit: ITEMS_PER_PAGE,
+          offset: isInitial ? 0 : files.length,
+        });
+        
+        const fileInfos: FileInfo[] = response.files.map(f => ({
+          name: f.name,
+          path: f.path,
+          size: f.size,
+          modified: String(f.modified),
+          is_directory: f.is_directory,
+          save_name: f.save_name ?? undefined,
+          character_name: f.character_name ?? undefined,
+        }));
+        
+        if (isInitial) {
+          setFiles(fileInfos);
+        } else {
+          setFiles(prev => [...prev, ...fileInfos]);
+        }
+        setTotalFiles(response.total_count);
+        
+        if (response.current_path && response.current_path !== currentPath) {
+          onPathChange?.(response.current_path);
+        }
       }
     } catch (err) {
       console.error('Failed to load files:', err);
@@ -199,7 +231,7 @@ export default function FileBrowserModal({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [mode, currentPath, onPathChange]);
+  }, [mode, currentPath, onPathChange, files.length]);
 
   useEffect(() => {
     if (isOpen) {
@@ -355,8 +387,8 @@ export default function FileBrowserModal({
 
   if (!isOpen) return null;
 
-  const title = mode === 'load-saves' ? 'Load Save' : 'Manage Backups';
-  const actionLabel = mode === 'load-saves' ? 'Load' : 'Restore';
+  const title = mode === 'load-vault' ? 'Import Character from Vault' : mode === 'load-saves' ? 'Load Save' : 'Manage Backups';
+  const actionLabel = mode === 'load-vault' ? 'Import' : mode === 'load-saves' ? 'Load' : 'Restore';
 
   return (
     <div className="file-browser-overlay">
@@ -381,7 +413,7 @@ export default function FileBrowserModal({
               <div className="flex items-center gap-2">
                 <FolderIcon className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
                 <span className="text-sm text-[rgb(var(--color-text-muted))]">
-                  {mode === 'load-saves' ? 'Save Location:' : 'Backup Location:'}
+                  {mode === 'load-vault' ? 'Vault Location:' : mode === 'load-saves' ? 'Save Location:' : 'Backup Location:'}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-1">
@@ -413,15 +445,19 @@ export default function FileBrowserModal({
           <div className="file-browser-content">
             {/* Table Header - Always visible to prevent layout shift */}
             <div className="file-browser-table-header">
-              <div className="flex-[2]">
-                {renderSortHeader('name', 'Folder Name')}
+              <div className={mode === 'load-vault' ? 'flex-[3]' : 'flex-[2]'}>
+                {renderSortHeader('name', mode === 'load-vault' ? 'Character Name' : 'Folder Name')}
               </div>
-              <div className="flex-1">
-                {renderSortHeader('character_name', 'Character')}
-              </div>
-              <div className="flex-1">
-                <span className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase">Save Name</span>
-              </div>
+              {mode !== 'load-vault' && (
+                <>
+                  <div className="flex-1">
+                    {renderSortHeader('character_name', 'Character')}
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase">Save Name</span>
+                  </div>
+                </>
+              )}
               <div className="w-48">
                 {renderSortHeader('date', mode === 'manage-backups' ? 'Created' : 'Modified')}
               </div>
@@ -491,20 +527,24 @@ export default function FileBrowserModal({
                             }`}
                             onClick={() => handleFileClick(file)}
                           >
-                            <div className="flex-[2] flex items-center gap-2">
+                            <div className={mode === 'load-vault' ? 'flex-[3] flex items-center gap-2' : 'flex-[2] flex items-center gap-2'}>
                               {file.is_directory && (
                                 <FolderIcon className="w-4 h-4 text-[rgb(var(--color-text-muted))]" />
                               )}
                               <span className="text-sm text-[rgb(var(--color-text-primary))] font-medium">
-                                {display(file.name)}
+                                {display(file.display_name || file.name)}
                               </span>
                             </div>
-                              <div className="flex-1 text-sm text-[rgb(var(--color-text-secondary))]">
-                                {display(file.character_name)}
-                              </div>
-                              <div className="flex-1 text-sm text-[rgb(var(--color-text-secondary))]">
-                                {display(file.save_name)}
-                              </div>
+                            {mode !== 'load-vault' && (
+                              <>
+                                <div className="flex-1 text-sm text-[rgb(var(--color-text-secondary))]">
+                                  {display(file.character_name)}
+                                </div>
+                                <div className="flex-1 text-sm text-[rgb(var(--color-text-secondary))]">
+                                  {display(file.save_name)}
+                                </div>
+                              </>
+                            )}
                             <div className="w-48 text-sm text-[rgb(var(--color-text-muted))]">
                               {formatDate(file.modified)}
                             </div>

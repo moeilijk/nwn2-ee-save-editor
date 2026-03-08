@@ -480,6 +480,12 @@ export default function SettingsPage() {
             onEdit={() => updatePath('workshop')}
             onReset={() => resetPath('workshop')}
           />
+          <PathRow
+            label="Character Vault (LocalVault)"
+            path={paths.localvault_folder.path}
+            exists={paths.localvault_folder.exists}
+            autoDetected={paths.localvault_folder.source === 'derived'}
+          />
         </CardContent>
       </Card>
 

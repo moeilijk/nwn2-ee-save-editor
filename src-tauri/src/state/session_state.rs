@@ -133,4 +133,44 @@ impl SessionState {
     pub fn character_mut(&mut self) -> Option<&mut Character> {
         self.character.as_mut()
     }
+
+    #[instrument(name = "SessionState::export_to_localvault", skip(self))]
+    pub fn export_to_localvault(&self) -> Result<String, String> {
+        let handler = self.savegame_handler.as_ref().ok_or("No active save handler")?;
+        let character = self.character.as_ref().ok_or("No character loaded")?;
+
+        let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+        let vault_path = nwn2_paths.localvault().ok_or("Could not determine NWN2 localvault path")?;
+
+        if !vault_path.exists() {
+            std::fs::create_dir_all(&vault_path)
+                .map_err(|e| format!("Failed to create localvault directory: {e}"))?;
+        }
+
+        let player_bic_data = handler.extract_player_bic()
+            .map_err(|e| format!("Failed to extract player.bic: {e}"))?
+            .ok_or("No player.bic found in save")?;
+
+        let first_name = character.first_name();
+        let last_name = character.last_name();
+        let filename = if last_name.is_empty() {
+            format!("{}.bic", first_name)
+        } else {
+            format!("{} {}.bic", first_name, last_name)
+        };
+
+        let sanitized_filename = filename
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '.' || *c == '-' || *c == '_')
+            .collect::<String>();
+
+        let dest_path = vault_path.join(&sanitized_filename);
+
+        std::fs::write(&dest_path, &player_bic_data)
+            .map_err(|e| format!("Failed to write character to vault: {e}"))?;
+
+        info!("Exported character to vault: {}", dest_path.display());
+
+        Ok(dest_path.to_string_lossy().to_string())
+    }
 }

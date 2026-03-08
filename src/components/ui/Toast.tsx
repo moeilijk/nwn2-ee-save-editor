@@ -8,12 +8,13 @@ export type ToastType = 'success' | 'error' | 'warning' | 'info';
 export interface ToastProps {
   id: string;
   message: string;
+  description?: string;
   type?: ToastType;
   duration?: number;
   onClose: (id: string) => void;
 }
 
-export function Toast({ id, message, type = 'info', duration = 5000, onClose }: ToastProps) {
+export function Toast({ id, message, description, type = 'info', duration = 5000, onClose }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose(id);
@@ -39,13 +40,18 @@ export function Toast({ id, message, type = 'info', duration = 5000, onClose }: 
   return (
     <div
       className={cn(
-        'flex items-center gap-3 p-4 rounded-lg border shadow-lg min-w-[320px] max-w-[500px]',
+        'flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[320px] max-w-[500px]',
         'animate-in slide-in-from-top-5 duration-300',
         styles[type]
       )}
     >
       {icons[type]}
-      <p className="flex-1 text-sm text-[rgb(var(--color-text))]">{message}</p>
+      <div className="flex-1">
+        <p className="text-sm text-[rgb(var(--color-text))]">{message}</p>
+        {description && (
+          <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">{description}</p>
+        )}
+      </div>
       <button
         onClick={() => onClose(id)}
         className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text))] transition-colors"

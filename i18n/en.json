@@ -678,7 +678,60 @@
     "closeHelper": "Close Helper"
   },
   "errors": {
-    "loadingFailed": "Failed to load data"
+    "loadingFailed": "Failed to load data",
+    "title": {
+      "stateError": "State Error",
+      "validationError": "Validation Error",
+      "fileError": "File Error",
+      "parseError": "Parse Error",
+      "resourceError": "Resource Error",
+      "notFoundError": "Not Found",
+      "conflictError": "Conflict",
+      "operationError": "Operation Failed",
+      "internalError": "Internal Error"
+    },
+    "message": {
+      "noCharacterLoaded": "No character is currently loaded.",
+      "noGameDataLoaded": "Game data is not initialized.",
+      "characterNotFound": "Character file not found: {path}",
+      "validationError": "Invalid {field}: {reason}",
+      "invalidValue": "Invalid value for {field}: expected {expected}, got {actual}",
+      "fileError": "File error: {message}",
+      "fileErrorWithPath": "File error ({path}): {message}",
+      "parseError": "Failed to parse: {message}",
+      "parseErrorWithContext": "Failed to parse {context}: {message}",
+      "insufficientResources": "Not enough {resource}: need {required}, have {available}",
+      "prerequisitesNotMet": "Missing prerequisites: {missing}",
+      "notFound": "{item} not found",
+      "alreadyExists": "{item} already exists",
+      "operationFailed": "{operation} failed: {reason}",
+      "internal": "An unexpected error occurred",
+      "unknown": "An unknown error occurred"
+    },
+    "recovery": {
+      "noCharacterLoaded": "Load a save file from the dashboard to get started.",
+      "noGameDataLoaded": "Check your NWN2 installation path in Settings.",
+      "characterNotFound": "The save file may have been moved or deleted. Try loading a different save.",
+      "validationError": "Check the value and try again.",
+      "invalidValue": "Correct the value to match the expected format.",
+      "fileError": "Check that the file exists and is not in use by another program.",
+      "parseError": "The file may be corrupted. Try loading a backup or a different save.",
+      "insufficientResources": "Free up resources or adjust your selections.",
+      "prerequisitesNotMet": "Add the required prerequisites first.",
+      "notFound": "The item may have been removed. Try refreshing the data.",
+      "alreadyExists": "Choose a different name or remove the existing item first.",
+      "operationFailed": "Try the operation again. If it persists, restart the application.",
+      "internal": "Try restarting the application. If the issue persists, check the debug log."
+    },
+    "boundary": {
+      "title": "Something went wrong",
+      "message": "This section encountered an error and cannot be displayed.",
+      "retry": "Try Again"
+    },
+    "modal": {
+      "dismiss": "Dismiss",
+      "retry": "Try Again"
+    }
   },
   "settings": {
     "debug": {

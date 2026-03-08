@@ -22,9 +22,15 @@ use file_operations::{
     get_save_thumbnail,
     detect_nwn2_installation,
     launch_nwn2_game,
-    open_folder_in_explorer
+    open_folder_in_explorer,
+    browse_saves,
+    get_default_saves_path,
+    browse_backups,
+    browse_localvault,
+    get_default_localvault_path,
 };
 use window_manager::{open_settings_window, close_settings_window};
+
 
 
 
@@ -68,12 +74,18 @@ pub fn run() {
       open_folder_in_explorer,
       open_settings_window,
       close_settings_window,
+      browse_saves,
+      get_default_saves_path,
+      browse_backups,
+      browse_localvault,
+      get_default_localvault_path,
       // Session
       crate::commands::session::load_character,
       crate::commands::session::save_character,
       crate::commands::session::close_character,
       crate::commands::session::get_session_info,
       crate::commands::session::has_unsaved_changes,
+      crate::commands::session::export_to_localvault,
       // Character - Identity
       crate::commands::character::get_character_name,
       crate::commands::character::get_first_name,

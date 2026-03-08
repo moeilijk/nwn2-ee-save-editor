@@ -15,6 +15,7 @@ export interface PathConfig {
   game_folder: PathInfo;
   documents_folder: PathInfo;
   steam_workshop_folder: PathInfo;
+  localvault_folder: PathInfo;
   custom_override_folders: CustomFolderInfo[];
   custom_module_folders: CustomFolderInfo[];
   custom_hak_folders: CustomFolderInfo[];

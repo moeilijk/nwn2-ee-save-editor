@@ -181,15 +181,21 @@ impl NWN2Paths {
                 std::fs::create_dir_all(parent)?;
             }
             let config = NWN2PathsConfig {
-                game_folder: self.game_folder.as_ref().map(|p| p.to_string_lossy().to_string()),
-                documents_folder: self
-                    .documents_folder
-                    .as_ref()
-                    .map(|p| p.to_string_lossy().to_string()),
-                steam_workshop_folder: self
-                    .steam_workshop_folder
-                    .as_ref()
-                    .map(|p| p.to_string_lossy().to_string()),
+                game_folder: if self.game_folder_source == PathSource::Config {
+                    self.game_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                },
+                documents_folder: if self.documents_folder_source == PathSource::Config {
+                    self.documents_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                },
+                steam_workshop_folder: if self.steam_workshop_folder_source == PathSource::Config {
+                    self.steam_workshop_folder.as_ref().map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                },
                 custom_override_folders: self
                     .custom_override_folders
                     .iter()

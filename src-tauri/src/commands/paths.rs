@@ -1,4 +1,5 @@
 use crate::commands::{CommandError, CommandResult};
+use crate::config::PathSource;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -22,6 +23,7 @@ pub struct PathConfig {
     pub game_folder: PathInfo,
     pub documents_folder: PathInfo,
     pub steam_workshop_folder: PathInfo,
+    pub localvault_folder: PathInfo,
     pub custom_override_folders: Vec<CustomFolderInfo>,
     pub custom_module_folders: Vec<CustomFolderInfo>,
     pub custom_hak_folders: Vec<CustomFolderInfo>,
@@ -34,12 +36,19 @@ pub struct PathUpdateResponse {
     pub paths: PathConfig,
 }
 
+fn source_to_string(source: PathSource) -> String {
+    match source {
+        PathSource::Discovery | PathSource::Environment => "auto".to_string(),
+        PathSource::Config => "manual".to_string(),
+    }
+}
+
 fn build_path_config(paths: &crate::config::NWN2Paths) -> PathConfig {
     PathConfig {
         game_folder: PathInfo {
             path: paths.game_folder().map(|p| p.to_string_lossy().to_string()),
             exists: paths.game_folder().is_some_and(|p| p.exists()),
-            source: format!("{:?}", paths.game_folder_source()),
+            source: source_to_string(paths.game_folder_source()),
         },
         documents_folder: PathInfo {
             path: paths
@@ -48,7 +57,7 @@ fn build_path_config(paths: &crate::config::NWN2Paths) -> PathConfig {
             exists: paths
                 .documents_folder()
                 .is_some_and(|p| p.exists()),
-            source: format!("{:?}", paths.documents_folder_source()),
+            source: source_to_string(paths.documents_folder_source()),
         },
         steam_workshop_folder: PathInfo {
             path: paths
@@ -57,7 +66,12 @@ fn build_path_config(paths: &crate::config::NWN2Paths) -> PathConfig {
             exists: paths
                 .steam_workshop_folder()
                 .is_some_and(|p| p.exists()),
-            source: format!("{:?}", paths.steam_workshop_folder_source()),
+            source: source_to_string(paths.steam_workshop_folder_source()),
+        },
+        localvault_folder: PathInfo {
+            path: paths.localvault().map(|p| p.to_string_lossy().to_string()),
+            exists: paths.localvault().is_some_and(|p| p.exists()),
+            source: "derived".to_string(),
         },
         custom_override_folders: paths
             .custom_override_folders()

@@ -9,6 +9,7 @@ import { SpellNavBar, type SpellTab } from './SpellNavBar';
 import { SpellTabContent } from './SpellTabContent';
 import type { SpellInfo, SpellsState, SpellcastingClass, KnownSpell } from './types';
 import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useTranslations } from '@/hooks/useTranslations';
 
 export default function SpellsEditor() {
@@ -22,6 +23,7 @@ export default function SpellsEditor() {
   } = useCharacterContext();
   const spells = useSubsystem('spells');
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
   const t = useTranslations();
 
   const [activeTab, setActiveTab] = useState<SpellTab>('my-spells');
@@ -245,10 +247,9 @@ export default function SpellsEditor() {
 
       showToast(response.message || 'Spell learned successfully', 'success');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to learn spell';
-      showToast(errorMessage, 'error');
+      handleError(error);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast]);
+  }, [character?.id, spells, invalidateSubsystems, showToast, handleError]);
 
   const handleRemoveSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
     if (!character?.id) return;
@@ -259,10 +260,9 @@ export default function SpellsEditor() {
       await invalidateSubsystems(['combat']);
       showToast(response.message || 'Spell removed successfully', 'success');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to remove spell';
-      showToast(errorMessage, 'error');
+      handleError(error);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast]);
+  }, [character?.id, spells, invalidateSubsystems, showToast, handleError]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(totalSpells / SPELLS_PER_PAGE);
