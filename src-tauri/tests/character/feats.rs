@@ -379,6 +379,79 @@ async fn test_feat_save_bonuses() {
 }
 
 #[tokio::test]
+async fn test_feat_save_bonuses_after_adding() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    // Use Qara who had 0 save bonuses from feats
+    let mut character = load_character("qaraofblacklake/qaraofblacklake4.bic");
+
+    let before = character.get_feat_save_bonuses(game_data);
+    println!("Before adding feats: Fort {:+}, Ref {:+}, Will {:+}",
+        before.fortitude, before.reflex, before.will);
+
+    // Look up Great Fortitude, Iron Will, Lightning Reflexes by label
+    let feat_table = game_data.get_table("feat").expect("feat table");
+    let mut great_fort_id = None;
+    let mut iron_will_id = None;
+    let mut lightning_ref_id = None;
+
+    for i in 0..feat_table.row_count() {
+        let Some(row) = feat_table.get_by_id(i as i32) else { continue };
+        let label = row.get("label")
+            .or_else(|| row.get("Label"))
+            .or_else(|| row.get("LABEL"))
+            .and_then(|s| s.as_ref().map(|s| s.to_string()))
+            .unwrap_or_default();
+
+        let name = character.get_feat_name(FeatId(i as i32), game_data);
+        let name_lower = name.to_lowercase();
+
+        if name_lower == "great fortitude" && great_fort_id.is_none() {
+            println!("Found Great Fortitude: id={}, label='{}'", i, label);
+            great_fort_id = Some(i as i32);
+        } else if name_lower == "iron will" && iron_will_id.is_none() {
+            println!("Found Iron Will: id={}, label='{}'", i, label);
+            iron_will_id = Some(i as i32);
+        } else if name_lower == "lightning reflexes" && lightning_ref_id.is_none() {
+            println!("Found Lightning Reflexes: id={}, label='{}'", i, label);
+            lightning_ref_id = Some(i as i32);
+        }
+    }
+
+    let gf = great_fort_id.expect("Great Fortitude not found in feat.2da");
+    let iw = iron_will_id.expect("Iron Will not found in feat.2da");
+    let lr = lightning_ref_id.expect("Lightning Reflexes not found in feat.2da");
+    println!("Feat IDs: Great Fortitude={}, Iron Will={}, Lightning Reflexes={}", gf, iw, lr);
+
+    // Remove them first in case Qara already has them
+    let _ = character.remove_feat(FeatId(gf));
+    let _ = character.remove_feat(FeatId(iw));
+    let _ = character.remove_feat(FeatId(lr));
+
+    let baseline = character.get_feat_save_bonuses(game_data);
+    println!("Baseline (after removal): Fort {:+}, Ref {:+}, Will {:+}",
+        baseline.fortitude, baseline.reflex, baseline.will);
+
+    // Add the three feats
+    character.add_feat(FeatId(gf)).expect("add Great Fortitude");
+    character.add_feat(FeatId(iw)).expect("add Iron Will");
+    character.add_feat(FeatId(lr)).expect("add Lightning Reflexes");
+
+    let after = character.get_feat_save_bonuses(game_data);
+    println!("After adding feats: Fort {:+}, Ref {:+}, Will {:+}",
+        after.fortitude, after.reflex, after.will);
+
+    // Each should add +2 to its respective save
+    assert_eq!(after.fortitude, baseline.fortitude + 2,
+        "Great Fortitude should add +2 to Fort save");
+    assert_eq!(after.reflex, baseline.reflex + 2,
+        "Lightning Reflexes should add +2 to Reflex save");
+    assert_eq!(after.will, baseline.will + 2,
+        "Iron Will should add +2 to Will save");
+}
+
+#[tokio::test]
 async fn test_feat_ac_bonuses() {
     let ctx = create_test_context().await;
     let game_data = ctx.loader.game_data().expect("Game data not loaded");

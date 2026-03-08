@@ -463,6 +463,7 @@
   "gameState": {
     "title": "Game State",
     "description": "Manage quests, reputation, and campaign progression",
+    "diskSaveWarning": "Changes are saved directly to disk. Campaign edits affect all saves in that campaign. Use Revert to restore original values.",
     "tabs": {
       "reputation": "Companion Influence",
       "quests": "Quests",
@@ -604,7 +605,11 @@
       "saving": "Saving...",
       "noMatches": "No matching variables found",
       "modified": "Modified",
-      "totalVariables": "Total Variables"
+      "totalVariables": "Total Variables",
+      "restoreBackup": "Restore Backup",
+      "restoreBackupTitle": "Restore from Save Backup",
+      "restoreBackupDesc": "Select a backup to restore this save to a previous state. This restores the entire save directory.",
+      "restoreSuccess": "Save restored successfully"
     },
     "campaign": {
       "campaignSettings": "Campaign Settings",

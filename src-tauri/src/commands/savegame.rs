@@ -32,6 +32,17 @@ pub async fn restore_backup(
 }
 
 #[tauri::command]
+pub async fn restore_modules_from_backup(
+    state: State<'_, AppState>,
+    backup_path: String,
+) -> CommandResult<RestoreResult> {
+    let session = state.session.read();
+    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    let backup = PathBuf::from(backup_path);
+    Ok(crate::services::savegame_handler::backup::restore_modules_from_backup(&backup, handler.save_dir())?)
+}
+
+#[tauri::command]
 pub async fn cleanup_backups(
     state: State<'_, AppState>,
     keep_count: usize,

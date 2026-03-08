@@ -477,7 +477,19 @@ static INITIATIVE_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 static FEAT_PROGRESSION_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(.*?)[\s_]?(\d+)$").unwrap());
 
-const SAVE_CONDITIONAL_KEYWORDS: &[&str] = &["against", "vs ", "versus", "to avoid", "made to"];
+const SAVE_CONDITIONAL_KEYWORDS: &[&str] = &[
+    "against", "vs ", "versus", "to avoid", "made to",
+    "while raging", "while in a rage", "while in a frenzy",
+    "during rage", "during frenzy", "when raging",
+];
+
+/// Keywords in feat descriptions indicating bonuses require a temporary active state.
+const ACTIVATION_CONDITIONAL_KEYWORDS: &[&str] = &[
+    "while raging", "while in a rage", "while in a frenzy",
+    "during rage", "during frenzy", "when raging",
+    "while in defensive stance", "during defensive stance",
+    "while frenzied", "when frenzied",
+];
 const AC_CONDITIONAL_KEYWORDS: &[&str] = &[
     "against",
     "vs ",
@@ -490,6 +502,27 @@ const AC_CONDITIONAL_KEYWORDS: &[&str] = &[
     "when using",
     "when fighting",
 ];
+
+/// Determines if a feat's bonuses are conditional (only apply in specific situations).
+/// Uses description keywords to detect conditional bonuses. Works with modded feats.
+/// Note: IsActive+SPELLID is NOT used as a standalone filter because permanent feats
+/// like Blessed of Waukeen also use spells to apply their effects.
+fn is_conditional_feat(
+    _feat_data: &ahash::AHashMap<String, Option<String>>,
+    description_lower: &str,
+    context_keywords: &[&str],
+) -> bool {
+    if ACTIVATION_CONDITIONAL_KEYWORDS
+        .iter()
+        .any(|kw| description_lower.contains(kw))
+    {
+        return true;
+    }
+
+    context_keywords
+        .iter()
+        .any(|kw| description_lower.contains(kw))
+}
 
 /// Pre-compute domain feat ID sets from the domains 2DA table.
 /// Returns (all_domain_feats, epithet_feats) for O(1) lookups.
@@ -1451,10 +1484,7 @@ impl Character {
             let description = Self::resolve_feat_description(&feat_data, game_data);
             let description_lower = description.to_lowercase();
 
-            if SAVE_CONDITIONAL_KEYWORDS
-                .iter()
-                .any(|kw| description_lower.contains(kw))
-            {
+            if is_conditional_feat(&feat_data, &description_lower, SAVE_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
@@ -1506,10 +1536,7 @@ impl Character {
             let description = Self::resolve_feat_description(&feat_data, game_data);
             let description_lower = description.to_lowercase();
 
-            if AC_CONDITIONAL_KEYWORDS
-                .iter()
-                .any(|kw| description_lower.contains(kw))
-            {
+            if is_conditional_feat(&feat_data, &description_lower, AC_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
@@ -1629,11 +1656,8 @@ impl Character {
                 .and_then(|s| s.as_ref().map(String::as_str))
                 .unwrap_or("unknown");
 
-            if SKILL_CONDITIONAL_KEYWORDS
-                .iter()
-                .any(|kw| description_lower.contains(kw))
-            {
-                debug!("[feat_skill] Skipping feat '{}' due to conditional keyword", feat_label);
+            if is_conditional_feat(&feat_data, &description_lower, SKILL_CONDITIONAL_KEYWORDS) {
+                debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
                 continue;
             }
 
@@ -1641,7 +1665,6 @@ impl Character {
                 let effects_start = description_lower.find("effects:").unwrap();
                 let effects_text = &description[effects_start..];
                 debug!("[feat_skill] Feat '{}' has effects line: {:?}", feat_label, effects_text);
-                debug!("[feat_skill] Known skills: {:?}", known_skills);
 
                 for cap in EFFECTS_ENTRY_PATTERN.captures_iter(effects_text) {
                     let Some(value_str) = cap.get(1) else { continue };
@@ -1649,8 +1672,6 @@ impl Character {
                     let Ok(bonus_value) = value_str.as_str().parse::<i32>() else { continue };
 
                     let normalized = Self::normalize_skill_name(name_match.as_str());
-                    debug!("[feat_skill] Effect entry: {} '{}' -> normalized '{}' (in known_skills: {})",
-                        value_str.as_str(), name_match.as_str(), normalized, known_skills.contains(&normalized));
                     if known_skills.contains(&normalized) {
                         *skill_bonuses.entry(normalized).or_insert(0) += bonus_value;
                     }

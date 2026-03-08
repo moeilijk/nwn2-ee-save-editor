@@ -207,6 +207,45 @@ pub fn restore_from_backup(
     })
 }
 
+pub fn restore_modules_from_backup(
+    backup_path: &Path,
+    save_dir: &Path,
+) -> SaveGameResult<RestoreResult> {
+    if !backup_path.exists() {
+        return Err(SaveGameError::NotFound {
+            path: backup_path.to_path_buf(),
+        });
+    }
+
+    let mut files_restored = 0usize;
+
+    for entry in fs::read_dir(backup_path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|e| e == "z") {
+            let filename = path.file_name().unwrap();
+            let dest = save_dir.join(filename);
+            fs::copy(&path, &dest)?;
+            files_restored += 1;
+            debug!("Restored module file: {}", filename.to_string_lossy());
+        }
+    }
+
+    info!(
+        "Restored {} module .z files from {} -> {}",
+        files_restored,
+        backup_path.display(),
+        save_dir.display()
+    );
+
+    Ok(RestoreResult {
+        success: true,
+        pre_restore_backup: None,
+        files_restored,
+        message: format!("Successfully restored {files_restored} module files"),
+    })
+}
+
 pub fn cleanup_old_backups(save_dir: &Path, keep_count: usize) -> SaveGameResult<CleanupResult> {
     let keep_count = if keep_count == 0 {
         DEFAULT_KEEP_COUNT

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Input } from '@/components/ui/Input';
@@ -35,6 +35,8 @@ export default function CampaignSettingsTab() {
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const initialSettingsRef = useRef<CampaignSettingsResponse | null>(null);
+  const initialCampaignVariablesRef = useRef<CampaignVariablesResponse | null>(null);
 
   useEffect(() => {
     if (characterId) {
@@ -53,6 +55,9 @@ export default function CampaignSettingsTab() {
     try {
       const data = await gameStateAPI.getCampaignSettings(characterId);
       setSettings(data);
+      if (!initialSettingsRef.current) {
+        initialSettingsRef.current = data;
+      }
       setEditedSettings({});
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load campaign settings';
@@ -71,6 +76,9 @@ export default function CampaignSettingsTab() {
     try {
       const data = await gameStateAPI.getCampaignVariables(characterId);
       setCampaignVariables(data);
+      if (!initialCampaignVariablesRef.current) {
+        initialCampaignVariablesRef.current = data;
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load campaign variables';
       setCampaignError(errorMessage);
@@ -208,31 +216,127 @@ export default function CampaignSettingsTab() {
     }
   };
 
+  const getInitialCampaignVariableValue = (name: string): { value: number | string; type: 'int' | 'string' | 'float' } | null => {
+    const initial = initialCampaignVariablesRef.current;
+    if (!initial) return null;
+
+    if (name in initial.integers) return { value: initial.integers[name], type: 'int' };
+    if (name in initial.strings) return { value: initial.strings[name], type: 'string' };
+    if (name in initial.floats) return { value: initial.floats[name], type: 'float' };
+    return null;
+  };
+
   const handleRevertCampaignVariable = (name: string) => {
-    setEditedCampaignVars(prev => {
-      const newVars = { ...prev };
-      delete newVars[name];
-      return newVars;
-    });
+    const initial = getInitialCampaignVariableValue(name);
+    if (!initial || !campaignVariables) {
+      setEditedCampaignVars(prev => {
+        const newVars = { ...prev };
+        delete newVars[name];
+        return newVars;
+      });
+      return;
+    }
+
+    const currentServerValue =
+      initial.type === 'int' ? campaignVariables.integers[name] :
+      initial.type === 'string' ? campaignVariables.strings[name] :
+      campaignVariables.floats[name];
+
+    if (currentServerValue === initial.value) {
+      setEditedCampaignVars(prev => {
+        const newVars = { ...prev };
+        delete newVars[name];
+        return newVars;
+      });
+    } else {
+      setEditedCampaignVars(prev => ({
+        ...prev,
+        [name]: { name, value: initial.value, type: initial.type }
+      }));
+    }
   };
 
   const handleRevertAllCampaignChanges = () => {
-    setEditedCampaignVars({});
+    const initial = initialCampaignVariablesRef.current;
+    if (!initial || !campaignVariables) {
+      setEditedCampaignVars({});
+      return;
+    }
+
+    const reverts: Record<string, VariableEdit> = {};
+
+    for (const [name, value] of Object.entries(initial.integers)) {
+      if (campaignVariables.integers[name] !== value) {
+        reverts[name] = { name, value, type: 'int' };
+      }
+    }
+    for (const [name, value] of Object.entries(initial.strings)) {
+      if (campaignVariables.strings[name] !== value) {
+        reverts[name] = { name, value, type: 'string' };
+      }
+    }
+    for (const [name, value] of Object.entries(initial.floats)) {
+      if (campaignVariables.floats[name] !== value) {
+        reverts[name] = { name, value, type: 'float' };
+      }
+    }
+
+    setEditedCampaignVars(reverts);
   };
 
   const handleRevertAllSettings = () => {
-    setEditedSettings({});
+    if (!initialSettingsRef.current || !settings) {
+      setEditedSettings({});
+      return;
+    }
+
+    const reverts: Partial<CampaignSettingsResponse> = {};
+    const numericFields: (keyof CampaignSettingsResponse)[] = [
+      'level_cap', 'xp_cap', 'companion_xp_weight', 'henchman_xp_weight',
+      'attack_neutrals', 'auto_xp_award', 'journal_sync', 'no_char_changing', 'use_personal_reputation'
+    ];
+    for (const field of numericFields) {
+      if (settings[field] !== initialSettingsRef.current[field]) {
+        reverts[field] = initialSettingsRef.current[field] as never;
+      }
+    }
+    setEditedSettings(reverts);
   };
 
   const handleRevertSetting = (field: keyof CampaignSettingsResponse) => {
-    setEditedSettings(prev => {
-      const newSettings = { ...prev };
-      delete newSettings[field];
-      return newSettings;
-    });
+    const initial = initialSettingsRef.current;
+    if (!initial || !settings) {
+      setEditedSettings(prev => {
+        const newSettings = { ...prev };
+        delete newSettings[field];
+        return newSettings;
+      });
+      return;
+    }
+
+    if (settings[field] === initial[field]) {
+      setEditedSettings(prev => {
+        const newSettings = { ...prev };
+        delete newSettings[field];
+        return newSettings;
+      });
+    } else {
+      setEditedSettings(prev => ({
+        ...prev,
+        [field]: initial[field]
+      }));
+    }
   };
 
-  const hasUnsavedChanges = Object.keys(editedSettings).length > 0;
+  const hasUnsavedChanges = (() => {
+    if (Object.keys(editedSettings).length > 0) return true;
+    if (!initialSettingsRef.current || !settings) return false;
+    const numericFields: (keyof CampaignSettingsResponse)[] = [
+      'level_cap', 'xp_cap', 'companion_xp_weight', 'henchman_xp_weight',
+      'attack_neutrals', 'auto_xp_award', 'journal_sync', 'no_char_changing', 'use_personal_reputation'
+    ];
+    return numericFields.some(f => settings[f] !== initialSettingsRef.current![f]);
+  })();
   const hasCampaignChanges = Object.keys(editedCampaignVars).length > 0;
 
   const getCurrentValue = (field: keyof CampaignSettingsResponse): number => {
@@ -243,7 +347,9 @@ export default function CampaignSettingsTab() {
   };
 
   const isFieldEdited = (field: keyof CampaignSettingsResponse): boolean => {
-    return editedSettings[field] !== undefined;
+    if (editedSettings[field] !== undefined) return true;
+    if (!initialSettingsRef.current || !settings) return false;
+    return settings[field] !== initialSettingsRef.current[field];
   };
 
   const filteredCampaignIntegers = useMemo(() => {

@@ -16,8 +16,6 @@ pub use context_maps::*;
 pub use error::{ItemPropertyError, ItemPropertyResult};
 pub use property_types::{DecodedProperty, PropertyDefinition, PropertyMetadata};
 
-/// Context data for the item editor, containing pre-resolved lookup tables.
-/// This mirrors Python's inventory_manager.get_item_editor_metadata() context.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct EditorContext {
     pub abilities: HashMap<u32, String>,
@@ -35,8 +33,6 @@ pub struct EditorContext {
     pub feats: HashMap<u32, String>,
 }
 
-/// Maps SubTypeResRef values to context keys.
-/// Based on Python item_property_decoder.py lines 694-753 subtype_map.
 fn get_subtype_context_key(subtype_ref: &str) -> Option<&'static str> {
     match subtype_ref.to_lowercase().as_str() {
         "ability" | "decreaseabilityscore" | "abilitybonus" => Some("abilities"),
@@ -597,6 +593,17 @@ impl ItemPropertyDecoder {
                             "Reflex" => bonuses.reflex_bonus += value,
                             "Will" => bonuses.will_bonus += value,
                             _ => {}
+                        }
+                    }
+                }
+                "saving_throw_element" => {
+                    if let Some(value) = prop.bonus_value {
+                        let element = prop.save_element.as_deref().unwrap_or("");
+                        let element_lower = element.to_lowercase();
+                        if element_lower == "universal" || element_lower == "all" {
+                            bonuses.fortitude_bonus += value;
+                            bonuses.reflex_bonus += value;
+                            bonuses.will_bonus += value;
                         }
                     }
                 }

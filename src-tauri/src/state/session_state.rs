@@ -41,8 +41,10 @@ impl SessionState {
         info!("Loading character from save file");
         let path = PathBuf::from(file_path);
 
+        crate::services::savegame_handler::backup::clear_backup_tracking();
+
         debug!("Creating SaveGameHandler");
-        let handler = SaveGameHandler::new(&path, false, false)
+        let handler = SaveGameHandler::new(&path, false, true)
             .map_err(|e| {
                 warn!("Failed to create save handler: {}", e);
                 format!("Failed to create save handler: {e}")
@@ -123,6 +125,7 @@ impl SessionState {
         self.savegame_handler = None;
         self.current_file_path = None;
         self.feat_cache = None;
+        crate::services::savegame_handler::backup::clear_backup_tracking();
     }
 
     pub fn invalidate_feat_cache(&mut self) {

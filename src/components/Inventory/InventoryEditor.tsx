@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Plus, X } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { inventoryAPI } from '@/services/inventoryApi';
+import { useInventoryManagement } from '@/hooks/useInventoryManagement';
 import { useToast } from '@/contexts/ToastContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import ItemDetailsPanel from './ItemDetailsPanel';
@@ -57,25 +58,33 @@ const INVENTORY_COLS = 8;
 const INVENTORY_ROWS = 8;
 
 const SLOT_MAPPING: Record<string, string> = {
-  'helmet': 'Head', 'head': 'Head',
-  'chest': 'Chest',
-  'belt': 'Belt',
-  'boots': 'Boots',
-  'neck': 'Neck',
-  'cloak': 'Cloak',
-  'gloves': 'Gloves',
-  'l ring': 'LeftRing', 'left_ring': 'LeftRing',
-  'r ring': 'RightRing', 'right_ring': 'RightRing',
-  'l hand': 'LeftHand', 'left_hand': 'LeftHand',
-  'r hand': 'RightHand', 'right_hand': 'RightHand',
-  'arrows': 'Arrows', 'bullets': 'Bullets', 'bolts': 'Bolts'
+  'helmet': 'head', 'head': 'head',
+  'chest': 'chest',
+  'belt': 'belt',
+  'boots': 'boots',
+  'neck': 'neck',
+  'cloak': 'cloak',
+  'gloves': 'gloves',
+  'l ring': 'left_ring', 'left_ring': 'left_ring',
+  'r ring': 'right_ring', 'right_ring': 'right_ring',
+  'l hand': 'left_hand', 'left_hand': 'left_hand',
+  'r hand': 'right_hand', 'right_hand': 'right_hand',
+  'arrows': 'arrows', 'bullets': 'bullets', 'bolts': 'bolts'
 };
 
 export default function InventoryEditor() {
   const t = useTranslations();
-  const { character, invalidateSubsystems } = useCharacterContext();
+  const { character } = useCharacterContext();
   const inventoryData = useSubsystem('inventory');
   const combatSubsystem = useSubsystem('combat');
+  const {
+    equipItem: hookEquipItem,
+    unequipItem: hookUnequipItem,
+    deleteItem: hookDeleteItem,
+    addItemByBaseType: hookAddItemByBaseType,
+    updateItem: hookUpdateItem,
+    addItemFromTemplate: hookAddItemFromTemplate,
+  } = useInventoryManagement();
   const { showToast } = useToast();
   const { handleError } = useErrorHandler();
   const [isEquipping, setIsEquipping] = useState(false);
@@ -260,7 +269,7 @@ export default function InventoryEditor() {
 
     setIsEquipping(true);
     try {
-      const response = await inventoryAPI.equipItem(character.id, {
+      const response = await hookEquipItem({
         item_data: itemData,
         slot: mappedSlot,
         inventory_index: inventoryIndex ?? undefined,
@@ -269,8 +278,6 @@ export default function InventoryEditor() {
       if (response.success) {
         setPendingEquipSlot(mappedSlot);
         showToast(response.message, 'success');
-        await inventoryData.load();
-        await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
       } else {
         showToast(response.message, 'error');
       }
@@ -296,9 +303,7 @@ export default function InventoryEditor() {
 
     setIsEquipping(true);
     try {
-      const response = await inventoryAPI.unequipItem(character.id, {
-        slot: mappedSlot,
-      });
+      const response = await hookUnequipItem({ slot: mappedSlot });
 
       if (response.success) {
         if (selectedItem) {
@@ -307,8 +312,6 @@ export default function InventoryEditor() {
         }
 
         showToast(response.message, 'success');
-        await inventoryData.load();
-        await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
       } else {
         showToast(response.message, 'error');
       }
@@ -339,11 +342,10 @@ export default function InventoryEditor() {
 
     setIsDeleting(true);
     try {
-      const response = await inventoryAPI.deleteItem(character.id, itemToDelete.index);
+      const response = await hookDeleteItem(itemToDelete.index);
 
       if (response.success) {
         showToast(response.message, 'success');
-        await inventoryData.load();
         setSelectedItem(null);
         setSelectedItemRawData(null);
         setSelectedItemResolvedName(undefined);
@@ -369,7 +371,7 @@ export default function InventoryEditor() {
   const handleAddByBaseType = async (baseItemId: number): Promise<number | null> => {
     if (!character?.id) return null;
     try {
-      const response = await inventoryAPI.addItemByBaseType(character.id, { base_item_id: baseItemId });
+      const response = await hookAddItemByBaseType(baseItemId);
       if (response.success) {
         showToast(response.message, 'success');
         const itemIndex = response.item_index ?? null;
@@ -378,7 +380,6 @@ export default function InventoryEditor() {
         } else {
           setShowAddItemModal(false);
         }
-        await inventoryData.load();
         return itemIndex;
       } else {
         showToast(response.message, 'error');
@@ -395,7 +396,7 @@ export default function InventoryEditor() {
   const handleUpdateItem = async (updatedGffData: Record<string, unknown>) => {
     if (!character?.id) return;
     try {
-      const response = await inventoryAPI.updateItem(character.id, {
+      const response = await hookUpdateItem({
         item_index: selectedItemInventoryIndex ?? undefined,
         slot: selectedItem?.equipped ? SLOT_MAPPING[selectedItem.slot?.toLowerCase() || ''] : undefined,
         item_data: updatedGffData
@@ -403,8 +404,6 @@ export default function InventoryEditor() {
 
       if (response.success) {
         showToast(response.message, 'success');
-        await inventoryData.load();
-        await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
       } else {
         showToast(response.message, 'error');
       }
@@ -437,7 +436,7 @@ export default function InventoryEditor() {
   const handleAddTemplate = async (templateResref: string) => {
       if (!character?.id) return;
       try {
-          const response = await inventoryAPI.addItemFromTemplate(character.id, templateResref);
+          const response = await hookAddItemFromTemplate(templateResref);
           if (response.success) {
               showToast(response.message, 'success');
               const itemIndex = response.item_index ?? null;
@@ -446,8 +445,6 @@ export default function InventoryEditor() {
               } else {
                   setShowAddItemModal(false);
               }
-              await inventoryData.load();
-              await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
           } else {
               showToast(response.message, 'error');
               setShowAddItemModal(false);

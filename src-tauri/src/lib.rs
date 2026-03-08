@@ -233,6 +233,7 @@ pub fn run() {
       crate::commands::savegame::list_backups,
       crate::commands::savegame::create_backup,
       crate::commands::savegame::restore_backup,
+      crate::commands::savegame::restore_modules_from_backup,
       crate::commands::savegame::cleanup_backups,
       crate::commands::savegame::list_save_files,
       crate::commands::savegame::get_save_info,
@@ -274,6 +275,7 @@ pub fn run() {
       crate::commands::paths::auto_detect_paths,
       // Campaign
       crate::commands::campaign::get_campaign_summary,
+      crate::commands::campaign::get_campaign_variables,
       crate::commands::campaign::get_module_info,
       crate::commands::campaign::get_journal,
       crate::commands::campaign::update_global_int,
@@ -283,6 +285,8 @@ pub fn run() {
       crate::commands::campaign::update_campaign_settings,
       crate::commands::campaign::get_companion_influence,
       crate::commands::campaign::update_companion_influence,
+      crate::commands::campaign::update_module_variable,
+      crate::commands::campaign::update_campaign_variable,
       // Overview (Aggregated State Commands)
       crate::commands::overview::get_overview_state,
       crate::commands::overview::update_character,

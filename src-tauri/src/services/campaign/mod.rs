@@ -8,8 +8,8 @@ pub mod settings;
 
 use crate::services::savegame_handler::SaveGameHandler;
 use self::globals::GlobalsParser;
-use crate::parsers::xml::{FullSummary, QuestOverview, CompanionStatus, get_companion_definitions};
-use self::content::{ModuleInfo, ModuleVariables, extract_module_info, extract_journal};
+use crate::parsers::xml::{FullSummary, QuestOverview, CompanionStatus, get_companion_definitions, XmlData};
+use self::content::{ModuleInfo, ModuleVariables, extract_module_info, extract_journal, update_module_variable as update_mod_var};
 use crate::config::NWN2Paths;
 use self::journal::QuestDefinition;
 use self::settings::{CampaignSettings, read_campaign_settings, update_campaign_settings as update_settings};
@@ -22,6 +22,12 @@ impl CampaignManager {
         let xml_content = handler.extract_globals_xml().map_err(|e| e.to_string())?;
         let parser = GlobalsParser::from_string(&xml_content)?;
         Ok(parser.get_full_summary_struct())
+    }
+
+    pub fn get_campaign_variables(handler: &SaveGameHandler) -> Result<XmlData, String> {
+        let xml_content = handler.extract_globals_xml().map_err(|e| e.to_string())?;
+        let parser = GlobalsParser::from_string(&xml_content)?;
+        Ok(parser.data)
     }
 
     pub fn get_module_info(handler: &SaveGameHandler, paths: &NWN2Paths) -> Result<(ModuleInfo, ModuleVariables), String> {
@@ -89,5 +95,35 @@ impl CampaignManager {
         let defs = get_companion_definitions();
         let def = defs.get(companion_id).ok_or_else(|| format!("Unknown companion: {companion_id}"))?;
         Self::update_global_int(handler, def.influence_var, new_influence)
+    }
+
+    pub fn update_module_variable(
+        handler: &SaveGameHandler,
+        var_name: &str,
+        value: &str,
+        var_type: &str,
+        module_id: Option<&str>,
+    ) -> Result<(), String> {
+        update_mod_var(handler, var_name, value, var_type, module_id)
+    }
+
+    pub fn update_campaign_variable(
+        handler: &mut SaveGameHandler,
+        var_name: &str,
+        value: &str,
+        var_type: &str,
+    ) -> Result<(), String> {
+        match var_type {
+            "int" => {
+                let v: i32 = value.parse().map_err(|e| format!("Invalid int value: {e}"))?;
+                Self::update_global_int(handler, var_name, v)
+            }
+            "float" => {
+                let v: f32 = value.parse().map_err(|e| format!("Invalid float value: {e}"))?;
+                Self::update_global_float(handler, var_name, v)
+            }
+            "string" => Self::update_global_string(handler, var_name, value),
+            _ => Err(format!("Unknown variable type: {var_type}")),
+        }
     }
 }

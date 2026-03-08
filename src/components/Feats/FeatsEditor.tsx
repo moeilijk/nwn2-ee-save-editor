@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { AlertCircle } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
+import { useFeatManagement } from '@/hooks/useFeatManagement';
 import { useFeatSearch } from '@/hooks/useFeatSearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { FeatNavBar, type FeatTab } from './FeatNavBar';
@@ -13,15 +14,15 @@ import { useToast } from '@/contexts/ToastContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 export default function FeatsEditor() {
-  const { 
-    character, 
-    isLoading: characterLoading, 
-    error: characterError, 
-    invalidateSubsystems,
+  const {
+    character,
+    isLoading: characterLoading,
+    error: characterError,
     totalFeats,
     setTotalFeats
   } = useCharacterContext();
   const feats = useSubsystem('feats');
+  const { addFeat, removeFeat } = useFeatManagement();
   const { showToast } = useToast();
   const { handleError } = useErrorHandler();
 
@@ -202,9 +203,7 @@ export default function FeatsEditor() {
     await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
-      const response = await CharacterAPI.addFeat(character.id, featId);
-      await feats.load({ force: true });
-      await invalidateSubsystems(['combat', 'abilityScores']);
+      const response = await addFeat(featId);
 
       setAddingFeatId(null);
       setAddedFeatId(pendingAddFeatRef.current);
@@ -233,7 +232,7 @@ export default function FeatsEditor() {
       setAddingFeatId(null);
       handleError(error);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast, handleError, addingFeatId]);
+  }, [character?.id, addFeat, showToast, handleError, addingFeatId]);
 
   const handleRemoveFeat = useCallback(async (featId: number) => {
     if (!character?.id || removingFeatId) return;
@@ -244,16 +243,14 @@ export default function FeatsEditor() {
     await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
-      await CharacterAPI.removeFeat(character.id, featId);
-      await feats.load({ force: true });
-      await invalidateSubsystems(['combat']);
+      await removeFeat(featId);
       showToast('Feat removed successfully', 'success');
     } catch (error) {
       handleError(error);
     } finally {
       setRemovingFeatId(null);
     }
-  }, [character?.id, feats, invalidateSubsystems, showToast, handleError, removingFeatId, addedFeatId]);
+  }, [character?.id, removeFeat, showToast, handleError, removingFeatId, addedFeatId]);
 
   const handleLoadFeatDetails = useCallback(async (feat: FeatInfo): Promise<FeatInfo | null> => {
     if (!character?.id) return null;

@@ -8,7 +8,7 @@ pub struct Vector3 {
     pub z: f32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct XmlData {
     pub integers: HashMap<String, i32>,
     pub strings: HashMap<String, String>,

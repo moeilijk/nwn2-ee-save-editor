@@ -7,15 +7,16 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier } from '@/utils/dataHelpers';
-import { CharacterAPI } from '@/services/characterApi';
+import { useSkillManagement } from '@/hooks/useSkillManagement';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { SkillSummaryEntry } from '@/lib/bindings';
 
 export default function SkillsEditor() {
   const t = useTranslations();
   const { character } = useCharacterContext();
-  
+
   const skillsSubsystem = useSubsystem('skills');
+  const { updateSkills: hookUpdateSkills, resetSkills: hookResetSkills } = useSkillManagement();
   const { handleError } = useErrorHandler();
 
   const [isUpdating, setIsUpdating] = useState(false);
@@ -132,9 +133,7 @@ export default function SkillsEditor() {
     setUpdatingSkills(prev => new Set([...prev, skillId]));
 
     try {
-      const updates = { [skillId]: newRank };
-      await CharacterAPI.updateSkills(character.id, updates);
-      await loadSkills({ silent: true });
+      await hookUpdateSkills({ [skillId]: newRank });
     } catch (err) {
       handleError(err);
 
@@ -173,8 +172,7 @@ export default function SkillsEditor() {
     setIsUpdating(true);
 
     try {
-      await CharacterAPI.resetSkills(character.id);
-      await loadSkills({ silent: true });
+      await hookResetSkills();
     } catch (err) {
       handleError(err);
     } finally {

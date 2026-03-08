@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { AlertCircle, Info, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
+import { useSpellManagement } from '@/hooks/useSpellManagement';
 import { useSpellSearch } from '@/hooks/useSpellSearch';
 import { SpellNavBar, type SpellTab } from './SpellNavBar';
 import { SpellTabContent } from './SpellTabContent';
@@ -21,11 +22,11 @@ export default function SpellsEditor() {
     character,
     isLoading: characterLoading,
     error: characterError,
-    invalidateSubsystems,
     totalSpells,
     setTotalSpells
   } = useCharacterContext();
   const spells = useSubsystem('spells');
+  const { addSpell, removeSpell } = useSpellManagement();
   const { showToast } = useToast();
   const { handleError } = useErrorHandler();
   const t = useTranslations();
@@ -273,9 +274,7 @@ export default function SpellsEditor() {
     await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
-      const response = await CharacterAPI.manageSpell(character.id, 'add', spellId, classIndex, spellLevel);
-      await spells.load({ force: true });
-      await invalidateSubsystems(['combat']);
+      const response = await addSpell(spellId, classIndex, spellLevel);
 
       setAddingSpellKey(null);
       setAddedSpellKey(pendingAddSpellRef.current);
@@ -288,7 +287,7 @@ export default function SpellsEditor() {
       setAddingSpellKey(null);
       handleError(error);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast, handleError, addingSpellKey]);
+  }, [character?.id, addSpell, showToast, handleError, addingSpellKey]);
 
   const handleRemoveSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
     if (!character?.id || removingSpellKey) return;
@@ -301,16 +300,14 @@ export default function SpellsEditor() {
     await new Promise(resolve => setTimeout(resolve, 180));
 
     try {
-      const response = await CharacterAPI.manageSpell(character.id, 'remove', spellId, classIndex, spellLevel);
-      await spells.load({ force: true });
-      await invalidateSubsystems(['combat']);
+      const response = await removeSpell(spellId, classIndex, spellLevel);
       showToast(response.message || 'Spell removed successfully', 'success');
     } catch (error) {
       handleError(error);
     } finally {
       setRemovingSpellKey(null);
     }
-  }, [character?.id, spells, invalidateSubsystems, showToast, handleError, removingSpellKey, addedSpellKey]);
+  }, [character?.id, removeSpell, showToast, handleError, removingSpellKey, addedSpellKey]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(totalSpells / SPELLS_PER_PAGE);

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Input } from '@/components/ui/Input';
@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { Undo2 } from 'lucide-react';
+import { Undo2, History, X } from 'lucide-react';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import { gameStateAPI, ModuleInfo, ModuleVariablesResponse } from '@/services/gameStateApi';
+import { gameStateAPI, ModuleInfo, ModuleVariablesResponse, CampaignBackupInfo } from '@/services/gameStateApi';
 import { display } from '@/utils/dataHelpers';
 
 import { VariableTable, VariableEdit } from '@/components/ui/VariableTable';
@@ -28,8 +28,15 @@ export default function ModuleCampaignTab() {
   const [editedModuleVars, setEditedModuleVars] = useState<Record<string, VariableEdit>>({});
   const [isSavingModule, setIsSavingModule] = useState(false);
 
+  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
+  const [backups, setBackups] = useState<CampaignBackupInfo[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
   const [availableModules, setAvailableModules] = useState<Array<{id: string, name: string, campaign: string, variable_count: number, is_current: boolean}>>([]);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const initialModuleVariablesRef = useRef<Record<string, ModuleVariablesResponse | null>>({});
 
   useEffect(() => {
     if (characterId) {
@@ -57,10 +64,10 @@ export default function ModuleCampaignTab() {
     }
   };
 
-  const loadModuleData = async (moduleId: string) => {
+  const loadModuleData = async (moduleId: string, silent = false) => {
     if (!characterId) return;
 
-    setIsLoadingModule(true);
+    if (!silent) setIsLoadingModule(true);
     setModuleError(null);
 
     try {
@@ -72,10 +79,15 @@ export default function ModuleCampaignTab() {
         campaign: data.campaign,
         entry_area: data.entry_area,
         module_description: data.module_description,
+        campaign_id: data.campaign_id,
         current_module: data.current_module
       });
 
       setModuleVariables(data.variables);
+
+      if (!initialModuleVariablesRef.current[moduleId]) {
+        initialModuleVariablesRef.current[moduleId] = data.variables;
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load module data';
       setModuleError(errorMessage);
@@ -119,7 +131,7 @@ export default function ModuleCampaignTab() {
       }
 
       if (selectedModuleId) {
-        await loadModuleData(selectedModuleId);
+        await loadModuleData(selectedModuleId, true);
       }
       setEditedModuleVars({});
     } catch (err) {
@@ -130,16 +142,131 @@ export default function ModuleCampaignTab() {
     }
   };
 
+  const getInitialVariableValue = (name: string): { value: number | string; type: 'int' | 'string' | 'float' } | null => {
+    const initial = selectedModuleId ? initialModuleVariablesRef.current[selectedModuleId] : null;
+    if (!initial) return null;
+
+    if (name in initial.integers) return { value: initial.integers[name], type: 'int' };
+    if (name in initial.strings) return { value: initial.strings[name], type: 'string' };
+    if (name in initial.floats) return { value: initial.floats[name], type: 'float' };
+    return null;
+  };
+
   const handleRevertVariable = (name: string) => {
-    setEditedModuleVars(prev => {
-      const newVars = { ...prev };
-      delete newVars[name];
-      return newVars;
-    });
+    const initial = getInitialVariableValue(name);
+    if (!initial || !moduleVariables) {
+      setEditedModuleVars(prev => {
+        const newVars = { ...prev };
+        delete newVars[name];
+        return newVars;
+      });
+      return;
+    }
+
+    const currentServerValue =
+      initial.type === 'int' ? moduleVariables.integers[name] :
+      initial.type === 'string' ? moduleVariables.strings[name] :
+      moduleVariables.floats[name];
+
+    if (currentServerValue === initial.value) {
+      setEditedModuleVars(prev => {
+        const newVars = { ...prev };
+        delete newVars[name];
+        return newVars;
+      });
+    } else {
+      setEditedModuleVars(prev => ({
+        ...prev,
+        [name]: { name, value: initial.value, type: initial.type }
+      }));
+    }
   };
 
   const handleRevertAllChanges = () => {
-    setEditedModuleVars({});
+    const initial = selectedModuleId ? initialModuleVariablesRef.current[selectedModuleId] : null;
+    if (!initial || !moduleVariables) {
+      setEditedModuleVars({});
+      return;
+    }
+
+    const reverts: Record<string, VariableEdit> = {};
+
+    for (const [name, value] of Object.entries(initial.integers)) {
+      if (moduleVariables.integers[name] !== value) {
+        reverts[name] = { name, value, type: 'int' };
+      }
+    }
+    for (const [name, value] of Object.entries(initial.strings)) {
+      if (moduleVariables.strings[name] !== value) {
+        reverts[name] = { name, value, type: 'string' };
+      }
+    }
+    for (const [name, value] of Object.entries(initial.floats)) {
+      if (moduleVariables.floats[name] !== value) {
+        reverts[name] = { name, value, type: 'float' };
+      }
+    }
+
+    setEditedModuleVars(reverts);
+  };
+
+  const loadBackups = async () => {
+    if (!characterId) return;
+
+    setIsLoadingBackups(true);
+    setRestoreError(null);
+
+    try {
+      const data = await gameStateAPI.getCampaignBackups(characterId);
+      setBackups(data.backups);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load backups';
+      setRestoreError(errorMessage);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  const handleOpenRestoreDialog = () => {
+    setIsRestoreDialogOpen(true);
+    loadBackups();
+  };
+
+  const handleRestoreFromBackup = async (backupPath: string) => {
+    if (!characterId) return;
+
+    setIsRestoring(true);
+    setRestoreError(null);
+
+    try {
+      await gameStateAPI.restoreModulesFromBackup(backupPath);
+      setIsRestoreDialogOpen(false);
+      if (selectedModuleId) {
+        initialModuleVariablesRef.current = {};
+        await loadModuleData(selectedModuleId);
+      }
+      setEditedModuleVars({});
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to restore from backup';
+      setRestoreError(errorMessage);
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const formatBackupDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString();
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const filteredModuleIntegers = useMemo(() => {
@@ -237,6 +364,68 @@ export default function ModuleCampaignTab() {
         </CardContent>
       </Card>
 
+      {isRestoreDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200">
+          <Card className="w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))] shadow-2xl">
+            <div className="p-4 border-b border-[rgb(var(--color-border))] flex justify-between items-center">
+              <h2 className="text-lg font-semibold">{t('gameState.moduleCampaign.restoreBackupTitle')}</h2>
+              <Button variant="ghost" size="sm" onClick={() => setIsRestoreDialogOpen(false)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-4">
+              <p className="text-sm text-[rgb(var(--color-text-muted))] mb-4">
+                {t('gameState.moduleCampaign.restoreBackupDesc')}
+              </p>
+
+              {restoreError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                  {restoreError}
+                </div>
+              )}
+
+              {isLoadingBackups ? (
+                <div className="py-8 text-center text-[rgb(var(--color-text-muted))]">
+                  {t('common.loading')}
+                </div>
+              ) : backups.length === 0 ? (
+                <div className="py-8 text-center text-[rgb(var(--color-text-muted))]">
+                  {t('gameState.campaign.noBackups')}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {backups.map((backup) => (
+                    <div
+                      key={backup.path}
+                      className="flex items-center justify-between p-3 rounded-lg bg-[rgb(var(--color-surface-secondary))] hover:bg-[rgb(var(--color-surface-tertiary))] transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-sm truncate" title={backup.filename}>
+                          {backup.filename}
+                        </div>
+                        <div className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
+                          {formatBackupDate(backup.created)} - {formatBytes(backup.size_bytes)}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRestoreFromBackup(backup.path)}
+                        disabled={isRestoring}
+                        className="ml-3"
+                      >
+                        {isRestoring ? t('common.loading') : t('common.restore')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
+
       <Card className="flex flex-col min-h-[500px]">
         <CardHeader className="border-b border-[rgb(var(--color-border))]">
           <div className="flex items-center justify-between">
@@ -251,6 +440,14 @@ export default function ModuleCampaignTab() {
               </CardTitle>
             </div>
             <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenRestoreDialog}
+              >
+                <History className="h-4 w-4 mr-2" />
+                {t('gameState.moduleCampaign.restoreBackup')}
+              </Button>
               <div className="w-64">
                 <Input
                   type="text"

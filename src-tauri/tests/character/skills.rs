@@ -93,15 +93,17 @@ async fn test_skill_summary_parity() {
     // Ensure we get a populated list
     assert!(!summary.is_empty(), "Skill summary should not be empty");
 
-    // Check specific entry if possible, or general consistency
-    for entry in summary {
-        // Recalculate modifier manually to verify
-        let expected_mod = character.calculate_skill_modifier(entry.skill_id, &game_data, Some(&ctx.decoder));
-        assert_eq!(entry.modifier, expected_mod, "Modifier mismatch for skill {}", entry.name);
-
-        // Verify Max Ranks match
+    for entry in &summary {
         let expected_max = character.get_max_skill_ranks(entry.skill_id, &game_data);
         assert_eq!(entry.max_ranks, expected_max, "Max ranks mismatch for skill {}", entry.name);
+
+        if entry.untrained || entry.ranks > 0 {
+            let calc_total = character.calculate_skill_modifier(entry.skill_id, &game_data, Some(&ctx.decoder));
+            let expected_total = calc_total + entry.feat_bonus;
+            assert_eq!(entry.total, expected_total, "Total mismatch for skill {}", entry.name);
+        } else {
+            assert_eq!(entry.total, 0, "Untrained skill with 0 ranks should have total 0: {}", entry.name);
+        }
     }
 }
 

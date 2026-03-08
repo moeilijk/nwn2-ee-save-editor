@@ -263,8 +263,17 @@ impl Character {
                 .and_then(|opt| opt.as_deref())
                 .unwrap_or("");
 
-            if label.starts_with("****") || label.starts_with("DEL_") || label.contains("DELETED")
-            {
+            if label.starts_with("****") || label.starts_with("DEL_") || label.contains("DELETED") {
+                continue;
+            }
+
+            let removed = skill_data
+                .get("REMOVED")
+                .or_else(|| skill_data.get("Removed"))
+                .or_else(|| skill_data.get("removed"))
+                .and_then(|opt| opt.as_deref())
+                .is_some_and(|v| v == "1");
+            if removed {
                 continue;
             }
 
@@ -290,16 +299,20 @@ impl Character {
                 (self.ability_modifier(key_ability), 0)
             };
 
-            let total = ranks + ability_mod + item_skill_bonus + feat_bonus;
-
-            let is_class_skill = self.is_class_skill(skill_id, game_data);
-
             let untrained = skill_data
                 .get("untrained")
                 .or_else(|| skill_data.get("Untrained"))
                 .and_then(|opt| opt.as_deref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .map_or(true, |v| v > 0);
+
+            let total = if !untrained && ranks == 0 {
+                0
+            } else {
+                ranks + ability_mod + item_skill_bonus + feat_bonus
+            };
+
+            let is_class_skill = self.is_class_skill(skill_id, game_data);
 
             let armor_check_penalty = skill_data
                 .get("ArmorCheckPenalty")

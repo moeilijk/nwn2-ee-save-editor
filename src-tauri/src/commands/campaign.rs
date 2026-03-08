@@ -1,7 +1,7 @@
 use tauri::State;
 use crate::commands::{CommandError, CommandResult};
 use crate::services::campaign::CampaignManager;
-use crate::parsers::xml::{FullSummary, CompanionStatus};
+use crate::parsers::xml::{FullSummary, CompanionStatus, XmlData};
 use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
 use crate::state::AppState;
 use crate::services::campaign::journal::QuestDefinition;
@@ -15,6 +15,15 @@ pub async fn get_campaign_summary(
     let session = state.session.read();
     let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_summary(handler).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn get_campaign_variables(
+    state: State<'_, AppState>,
+) -> CommandResult<XmlData> {
+    let session = state.session.read();
+    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::get_campaign_variables(handler).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -105,4 +114,40 @@ pub async fn update_companion_influence(
     let mut session = state.session.write();
     let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_companion_influence(handler, &companion_id, new_influence).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn update_module_variable(
+    state: State<'_, AppState>,
+    variable_name: String,
+    value: String,
+    variable_type: String,
+    module_id: Option<String>,
+) -> CommandResult<()> {
+    let session = state.session.read();
+    let handler = session.savegame_handler.as_ref().ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::update_module_variable(
+        handler,
+        &variable_name,
+        &value,
+        &variable_type,
+        module_id.as_deref(),
+    ).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn update_campaign_variable(
+    state: State<'_, AppState>,
+    variable_name: String,
+    value: String,
+    variable_type: String,
+) -> CommandResult<()> {
+    let mut session = state.session.write();
+    let handler = session.savegame_handler.as_mut().ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::update_campaign_variable(
+        handler,
+        &variable_name,
+        &value,
+        &variable_type,
+    ).map_err(CommandError::from)
 }

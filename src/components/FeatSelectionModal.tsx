@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
+import { useFeatManagement } from '@/hooks/useFeatManagement';
 import { useToast } from '@/contexts/ToastContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { FeatInfo } from './Feats/types';
@@ -16,7 +17,8 @@ interface FeatSelectionModalProps {
 }
 
 export function FeatSelectionModal({ isOpen, onClose, featType, title }: FeatSelectionModalProps) {
-  const { character, invalidateSubsystems } = useCharacterContext();
+  const { character } = useCharacterContext();
+  const { addFeat } = useFeatManagement();
   const { showToast } = useToast();
   const { handleError } = useErrorHandler();
   
@@ -53,8 +55,7 @@ export function FeatSelectionModal({ isOpen, onClose, featType, title }: FeatSel
   const handleSelect = async (featId: number) => {
       if (!character?.id) return;
       try {
-          await CharacterAPI.addFeat(character.id, featId);
-          await invalidateSubsystems(['feats', 'combat', 'abilityScores']);
+          await addFeat(featId);
           showToast('Feature added successfully', 'success');
           onClose();
       } catch (err) {

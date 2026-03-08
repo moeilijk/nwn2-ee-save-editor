@@ -265,6 +265,7 @@ export interface ModuleInfo {
   campaign: string;
   entry_area: string;
   module_description: string;
+  campaign_id: string;
   current_module?: string;
 }
 
@@ -357,8 +358,20 @@ export class GameStateAPI {
   }
 
   async getCampaignVariables(characterId: number): Promise<CampaignVariablesResponse> {
-    console.warn("getCampaignVariables not implemented");
-    return { integers: {}, strings: {}, floats: {}, total_count: 0 };
+    const data = await invoke<{
+      integers: Record<string, number>;
+      floats: Record<string, number>;
+      strings: Record<string, string>;
+    }>('get_campaign_variables');
+    const total_count = Object.keys(data.integers).length
+      + Object.keys(data.floats).length
+      + Object.keys(data.strings).length;
+    return {
+      integers: data.integers,
+      floats: data.floats,
+      strings: data.strings,
+      total_count,
+    };
   }
 
   async updateCampaignVariable(
@@ -367,38 +380,57 @@ export class GameStateAPI {
     value: number | string,
     variableType: string
   ): Promise<UpdateCampaignVariableResponse> {
-     console.warn("updateCampaignVariable not implemented");
-     return { success: false, variable_name: variableName, old_value: value, new_value: value, message: "Not implemented", has_unsaved_changes: false };
+    await invoke('update_campaign_variable', {
+      variableName,
+      value: String(value),
+      variableType,
+    });
+    return {
+      success: true,
+      variable_name: variableName,
+      old_value: value,
+      new_value: value,
+      message: 'Updated',
+      has_unsaved_changes: true,
+    };
   }
 
   async getCampaignSettings(characterId: number): Promise<CampaignSettingsResponse> {
-    console.warn("getCampaignSettings not implemented");
-    // Return dummy default
-    return {
-        campaign_file_path: "",
-        guid: "",
-        display_name: "Unknown Campaign",
-        description: "",
-        level_cap: 30,
-        xp_cap: 0,
-        companion_xp_weight: 1.0,
-        henchman_xp_weight: 0.8,
-        attack_neutrals: 0,
-        auto_xp_award: 1,
-        journal_sync: 1,
-        no_char_changing: 1,
-        use_personal_reputation: 0,
-        start_module: "",
-        module_names: []
-    };
+    const [info] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    if (!info.campaign_id) {
+      throw new Error('No campaign associated with this save');
+    }
+    const settings = await invoke<CampaignSettingsResponse>('get_campaign_settings', {
+      campaignId: info.campaign_id,
+    });
+    return settings;
   }
 
   async updateCampaignSettings(
     characterId: number,
-    settings: UpdateCampaignSettingsRequest
+    settingsUpdates: UpdateCampaignSettingsRequest
   ): Promise<UpdateCampaignSettingsResponse> {
-    console.warn("updateCampaignSettings not implemented");
-    return { success: false, updated_fields: [], warning: "Not implemented" };
+    const currentSettings = await this.getCampaignSettings(characterId);
+    const merged = {
+      ...currentSettings,
+      attack_neutrals: Boolean(currentSettings.attack_neutrals),
+      auto_xp_award: Boolean(currentSettings.auto_xp_award),
+      journal_sync: Boolean(currentSettings.journal_sync),
+      no_char_changing: Boolean(currentSettings.no_char_changing),
+      use_personal_reputation: Boolean(currentSettings.use_personal_reputation),
+    };
+    const updatedFields: string[] = [];
+    if (settingsUpdates.level_cap !== undefined) { merged.level_cap = settingsUpdates.level_cap; updatedFields.push('level_cap'); }
+    if (settingsUpdates.xp_cap !== undefined) { merged.xp_cap = settingsUpdates.xp_cap; updatedFields.push('xp_cap'); }
+    if (settingsUpdates.companion_xp_weight !== undefined) { merged.companion_xp_weight = settingsUpdates.companion_xp_weight; updatedFields.push('companion_xp_weight'); }
+    if (settingsUpdates.henchman_xp_weight !== undefined) { merged.henchman_xp_weight = settingsUpdates.henchman_xp_weight; updatedFields.push('henchman_xp_weight'); }
+    if (settingsUpdates.attack_neutrals !== undefined) { merged.attack_neutrals = Boolean(settingsUpdates.attack_neutrals); updatedFields.push('attack_neutrals'); }
+    if (settingsUpdates.auto_xp_award !== undefined) { merged.auto_xp_award = Boolean(settingsUpdates.auto_xp_award); updatedFields.push('auto_xp_award'); }
+    if (settingsUpdates.journal_sync !== undefined) { merged.journal_sync = Boolean(settingsUpdates.journal_sync); updatedFields.push('journal_sync'); }
+    if (settingsUpdates.no_char_changing !== undefined) { merged.no_char_changing = Boolean(settingsUpdates.no_char_changing); updatedFields.push('no_char_changing'); }
+    if (settingsUpdates.use_personal_reputation !== undefined) { merged.use_personal_reputation = Boolean(settingsUpdates.use_personal_reputation); updatedFields.push('use_personal_reputation'); }
+    await invoke('update_campaign_settings', { settings: merged });
+    return { success: true, updated_fields: updatedFields, warning: '' };
   }
 
   async getCampaignBackups(characterId: number): Promise<CampaignBackupsResponse> {
@@ -422,6 +454,19 @@ export class GameStateAPI {
     } catch (e) {
         console.warn("list_backups failed", e);
         return { backups: [], campaign_name: null, campaign_guid: null };
+    }
+  }
+
+  async createBackup(): Promise<void> {
+    await invoke('create_backup');
+  }
+
+  async restoreModulesFromBackup(backupPath: string): Promise<RestoreCampaignResponse> {
+    try {
+      await invoke('restore_modules_from_backup', { backupPath });
+      return { success: true, restored_from: backupPath };
+    } catch (e) {
+      throw new Error(String(e));
     }
   }
 
@@ -487,8 +532,20 @@ export class GameStateAPI {
     variableType: string,
     moduleId?: string
   ): Promise<UpdateModuleVariableResponse> {
-      console.warn("updateModuleVariable not implemented");
-      return { success: false, variable_name: variableName, old_value: value, new_value: value, message: "Not implemented", has_unsaved_changes: false };
+    await invoke('update_module_variable', {
+      variableName,
+      value: String(value),
+      variableType,
+      moduleId: moduleId ?? null,
+    });
+    return {
+      success: true,
+      variable_name: variableName,
+      old_value: value,
+      new_value: value,
+      message: 'Updated',
+      has_unsaved_changes: true,
+    };
   }
 
   async getQuestProgress(characterId: number): Promise<QuestProgressResponse> {

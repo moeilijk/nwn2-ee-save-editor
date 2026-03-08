@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Slider } from '@/components/ui/Slider';
@@ -23,6 +23,7 @@ export default function ReputationInfluenceTab() {
   const characterId = character?.id;
 
   const [companions, setCompanions] = useState<Record<string, CompanionInfluenceData>>({});
+  const initialCompanionsRef = useRef<Record<string, CompanionInfluenceData> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +40,10 @@ export default function ReputationInfluenceTab() {
       try {
         const companionResponse = await gameStateAPI.getCompanionInfluence(characterId);
         setCompanions(companionResponse.companions);
+
+        if (!initialCompanionsRef.current) {
+          initialCompanionsRef.current = companionResponse.companions;
+        }
 
         const companionInfluence: CompanionState = {};
         Object.entries(companionResponse.companions).forEach(([id, data]) => {
@@ -72,15 +77,18 @@ export default function ReputationInfluenceTab() {
   };
 
   const handleRevertCompanion = (companionId: string) => {
+    const initial = initialCompanionsRef.current;
     setLocalCompanionInfluence((prev) => ({
       ...prev,
-      [companionId]: companions[companionId]?.influence ?? null,
+      [companionId]: initial?.[companionId]?.influence ?? null,
     }));
   };
 
   const handleRevertAll = () => {
+    const initial = initialCompanionsRef.current;
+    if (!initial) return;
     const originalInfluence: CompanionState = {};
-    Object.entries(companions).forEach(([id, data]) => {
+    Object.entries(initial).forEach(([id, data]) => {
       originalInfluence[id] = data.influence;
     });
     setLocalCompanionInfluence(originalInfluence);
@@ -88,7 +96,7 @@ export default function ReputationInfluenceTab() {
 
   const isCompanionModified = (companionId: string): boolean => {
     const current = localCompanionInfluence[companionId];
-    const original = companions[companionId]?.influence;
+    const original = initialCompanionsRef.current?.[companionId]?.influence;
     return current !== null && current !== original;
   };
 
@@ -138,7 +146,7 @@ export default function ReputationInfluenceTab() {
   };
 
   const hasChanges = Object.entries(localCompanionInfluence).some(
-    ([id, value]) => value !== null && value !== companions[id]?.influence
+    ([id, value]) => value !== null && value !== initialCompanionsRef.current?.[id]?.influence
   );
 
   if (isLoading) {

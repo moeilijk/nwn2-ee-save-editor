@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle } from 'lucide-react';
 import ReputationInfluenceTab from './ReputationInfluenceTab';
 // FEATURE ON HOLD: Quest mapping produces duplicate/incorrect mappings due to NWN2's
 // script architecture. Variables like "CallumState" cannot be reliably linked to journal
@@ -82,6 +82,11 @@ export default function GameStateEditor() {
             Campaign & Variables
           </TabsTrigger>
         </TabsList>
+
+        <div className="mt-2 flex items-center gap-1.5 px-2 py-1 text-xs text-amber-400/80">
+          <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+          <span>{t('gameState.diskSaveWarning')}</span>
+        </div>
 
         <TabsContent value="reputation" className="mt-4">
           <ReputationInfluenceTab />

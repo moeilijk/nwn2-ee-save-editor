@@ -1,14 +1,17 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use xz2::read::XzDecoder;
-use xz2::stream::Stream;
+use xz2::write::XzEncoder;
+use xz2::stream::{LzmaOptions, Stream};
 use serde::{Deserialize, Serialize};
+use indexmap::IndexMap;
 
 use crate::parsers::erf::ErfParser;
-use crate::parsers::gff::{GffParser, GffValue};
+use crate::parsers::gff::{GffParser, GffValue, GffWriter};
 
 use crate::services::savegame_handler::SaveGameHandler;
 use crate::services::campaign::journal::{parse_journal_gff, QuestDefinition};
@@ -239,6 +242,158 @@ fn parse_module_z_file(path: &Path, module_id: &str, nwn2_paths: &NWN2Paths) -> 
     }
 
     Ok((info, vars))
+}
+
+pub fn update_module_variable(
+    handler: &SaveGameHandler,
+    var_name: &str,
+    value: &str,
+    var_type: &str,
+    module_id: Option<&str>,
+) -> Result<(), String> {
+    let result = update_module_variable_inner(handler, var_name, value, var_type, module_id);
+    if let Err(ref e) = result {
+        error!("Failed to update module variable '{}': {}", var_name, e);
+    }
+    result
+}
+
+fn update_module_variable_inner(
+    handler: &SaveGameHandler,
+    var_name: &str,
+    value: &str,
+    var_type: &str,
+    module_id: Option<&str>,
+) -> Result<(), String> {
+    let current_module_id = handler.extract_current_module().unwrap_or_default();
+    let target_module = module_id.unwrap_or(&current_module_id);
+    let save_dir = handler.save_dir();
+
+    let z_path = find_module_z_file(save_dir, target_module)?;
+
+    info!("Updating module variable '{}' (type={}) in {:?}", var_name, var_type, z_path);
+
+    let file = fs::File::open(&z_path)
+        .map_err(|e| format!("Failed to open .z file: {e}"))?;
+    let stream = Stream::new_lzma_decoder(u64::MAX)
+        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
+    let mut decoder = XzDecoder::new_stream(file, stream);
+    let mut decompressed = Vec::new();
+    decoder.read_to_end(&mut decompressed)
+        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+
+    info!("Decompressed {} bytes from .z file", decompressed.len());
+
+    let mut erf_parser = ErfParser::new();
+    erf_parser.parse_from_bytes(&decompressed)
+        .map_err(|e| format!("Failed to parse ERF: {e}"))?;
+    erf_parser.load_all_resources()
+        .map_err(|e| format!("Failed to load ERF resources: {e}"))?;
+
+    let module_ifo_bytes = erf_parser.extract_resource("module.ifo")
+        .map_err(|e| format!("module.ifo not found: {e}"))?;
+
+    info!("Extracted module.ifo ({} bytes)", module_ifo_bytes.len());
+
+    let gff = GffParser::from_bytes(module_ifo_bytes)
+        .map_err(|e| format!("Failed to parse module.ifo GFF: {e}"))?;
+    let root = gff.read_struct_fields(0)
+        .map_err(|e| format!("Failed to read root struct: {e}"))?;
+
+    let mut owned_fields: IndexMap<String, GffValue<'static>> = root
+        .into_iter()
+        .map(|(k, v)| (k, v.force_owned()))
+        .collect();
+
+    let (type_id, gff_value): (u32, GffValue<'static>) = match var_type {
+        "int" => {
+            let v: i32 = value.parse().map_err(|e| format!("Invalid int value: {e}"))?;
+            (1, GffValue::Int(v))
+        }
+        "float" => {
+            let v: f32 = value.parse().map_err(|e| format!("Invalid float value: {e}"))?;
+            (2, GffValue::Float(v))
+        }
+        "string" => (3, GffValue::String(Cow::Owned(value.to_string()))),
+        _ => return Err(format!("Unknown variable type: {var_type}")),
+    };
+
+    let var_table = owned_fields
+        .entry("VarTable".to_string())
+        .or_insert_with(|| GffValue::ListOwned(Vec::new()));
+
+    if let GffValue::ListOwned(entries) = var_table {
+        let mut found = false;
+        for entry in entries.iter_mut() {
+            let name_matches = matches!(
+                entry.get("Name"),
+                Some(GffValue::String(s)) if s.as_ref() == var_name
+            );
+            if name_matches {
+                entry.insert("Type".to_string(), GffValue::Dword(type_id));
+                entry.insert("Value".to_string(), gff_value.clone());
+                found = true;
+                info!("Updated existing VarTable entry '{}'", var_name);
+                break;
+            }
+        }
+        if !found {
+            let mut new_entry = IndexMap::new();
+            new_entry.insert("Name".to_string(), GffValue::String(Cow::Owned(var_name.to_string())));
+            new_entry.insert("Type".to_string(), GffValue::Dword(type_id));
+            new_entry.insert("Value".to_string(), gff_value);
+            entries.push(new_entry);
+            info!("Added new VarTable entry '{}'", var_name);
+        }
+    } else {
+        return Err(format!("VarTable is not a ListOwned, got: {:?}", std::mem::discriminant(var_table)));
+    }
+
+    let new_ifo_bytes = GffWriter::new("IFO ", "V3.2").write(owned_fields)
+        .map_err(|e| format!("Failed to serialize module.ifo: {e:?}"))?;
+
+    info!("Serialized module.ifo ({} bytes)", new_ifo_bytes.len());
+
+    erf_parser.update_resource("module.ifo", new_ifo_bytes)
+        .map_err(|e| format!("Failed to update module.ifo in ERF: {e}"))?;
+
+    let erf_bytes = erf_parser.to_bytes()
+        .map_err(|e| format!("Failed to serialize ERF: {e}"))?;
+
+    info!("Serialized ERF ({} bytes), compressing with LZMA", erf_bytes.len());
+
+    let lzma_opts = LzmaOptions::new_preset(6)
+        .map_err(|e| format!("Failed to create LZMA options: {e}"))?;
+    let lzma_stream = Stream::new_lzma_encoder(&lzma_opts)
+        .map_err(|e| format!("Failed to create LZMA encoder stream: {e}"))?;
+    let mut encoder = XzEncoder::new_stream(Vec::new(), lzma_stream);
+    encoder.write_all(&erf_bytes)
+        .map_err(|e| format!("Failed to compress ERF: {e}"))?;
+    let compressed = encoder.finish()
+        .map_err(|e| format!("Failed to finish LZMA compression: {e}"))?;
+
+    info!("Compressed to {} bytes, writing to {:?}", compressed.len(), z_path);
+
+    fs::write(&z_path, compressed)
+        .map_err(|e| format!("Failed to write .z file: {e}"))?;
+
+    info!("Successfully updated module variable '{}' in {:?}", var_name, z_path);
+    Ok(())
+}
+
+fn find_module_z_file(save_dir: &Path, module_id: &str) -> Result<PathBuf, String> {
+    if let Ok(entries) = fs::read_dir(save_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file()
+                && path.extension().is_some_and(|e| e == "z")
+                && path.file_stem().is_some_and(|s| s.to_string_lossy() == module_id)
+            {
+                return Ok(path);
+            }
+        }
+    }
+    Err(format!("Module .z file not found for '{module_id}' in {}", save_dir.display()))
 }
 
 pub fn find_campaign_path(campaign_id: &str, paths: &NWN2Paths) -> Option<PathBuf> {

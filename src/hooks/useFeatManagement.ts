@@ -1,13 +1,15 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { CharacterAPI } from '@/services/characterApi';
+import { CharacterAPI, FeatActionResponse } from '@/services/characterApi';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
-import type { 
-  FeatInfo, 
-  FeatsState, 
+import type {
+  FeatInfo,
+  FeatsState,
   ValidationCache,
-  ValidationState 
+  ValidationState
 } from '@/components/Feats/types';
+
+const FEAT_DEPENDENT_SUBSYSTEMS = ['combat', 'abilityScores', 'saves', 'skills'] as const;
 
 interface UseFeatManagementOptions {
   autoLoadFeats?: boolean;
@@ -34,7 +36,7 @@ interface FeatManagementActions {
   loadFeatDetails: (feat: FeatInfo) => Promise<void>;
   validateFeat: (featId: number) => Promise<ValidationState | null>;
   clearValidationCache: () => void;
-  addFeat: (featId: number) => Promise<void>;
+  addFeat: (featId: number) => Promise<FeatActionResponse>;
   removeFeat: (featId: number) => Promise<void>;
   selectFeat: (feat: FeatInfo | null) => void;
   clearSelection: () => void;
@@ -157,38 +159,31 @@ export function useFeatManagement(
     setValidationCache({});
   }, []);
 
-  const addFeat = useCallback(async (featId: number) => {
-    if (!character?.id) return;
+  const addFeat = useCallback(async (featId: number): Promise<FeatActionResponse> => {
+    if (!character?.id) throw new Error('No character loaded');
 
-    try {
-      await CharacterAPI.addFeat(character.id, featId);
-      await feats.load({ force: true });
-      setValidationCache(prev => {
-        const newCache = { ...prev };
-        delete newCache[featId];
-        return newCache;
-      });
-      await invalidateSubsystems(['combat']);
-    } catch (error) {
-      throw error;
-    }
+    const response = await CharacterAPI.addFeat(character.id, featId);
+    await feats.load({ force: true });
+    setValidationCache(prev => {
+      const newCache = { ...prev };
+      delete newCache[featId];
+      return newCache;
+    });
+    await invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]);
+    return response;
   }, [character?.id, feats, invalidateSubsystems]);
 
   const removeFeat = useCallback(async (featId: number) => {
     if (!character?.id) return;
 
-    try {
-      await CharacterAPI.removeFeat(character.id, featId);
-      await feats.load({ force: true });
-      setValidationCache(prev => {
-        const newCache = { ...prev };
-        delete newCache[featId];
-        return newCache;
-      });
-      await invalidateSubsystems(['combat']);
-    } catch (error) {
-      throw error;
-    }
+    await CharacterAPI.removeFeat(character.id, featId);
+    await feats.load({ force: true });
+    setValidationCache(prev => {
+      const newCache = { ...prev };
+      delete newCache[featId];
+      return newCache;
+    });
+    await invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]);
   }, [character?.id, feats, invalidateSubsystems]);
 
   const selectFeat = useCallback((feat: FeatInfo | null) => {
