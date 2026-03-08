@@ -373,16 +373,16 @@ mod tests {
 
         let throws = character.get_saving_throws(&game_data, &decoder);
 
-        assert_eq!(throws.fortitude.base, 0); // Calclated (0 classes)
-        assert_eq!(throws.fortitude.misc, 0); // Misc is handled as 0
+        assert_eq!(throws.fortitude.base, 0);
+        assert_eq!(throws.fortitude.misc, 5); // from fortbonus GFF field
         assert_eq!(throws.fortitude.ability, 2);
-        
+
         assert_eq!(throws.reflex.base, 0);
-        assert_eq!(throws.reflex.misc, 0);
+        assert_eq!(throws.reflex.misc, 3); // from refbonus GFF field
         assert_eq!(throws.reflex.ability, 1);
-        
+
         assert_eq!(throws.will.base, 0);
-        assert_eq!(throws.will.misc, 0);
+        assert_eq!(throws.will.misc, 7); // from willbonus GFF field
         assert_eq!(throws.will.ability, 3);
     }
 
@@ -407,15 +407,15 @@ mod tests {
 
         let fortitude = character.get_save_breakdown(&game_data, &decoder, SaveType::Fortitude);
         assert_eq!(fortitude.base, 0);
-        assert_eq!(fortitude.misc, 0);
+        assert_eq!(fortitude.misc, 5);
         assert_eq!(fortitude.ability, 2);
 
         let reflex = character.get_save_breakdown(&game_data, &decoder, SaveType::Reflex);
         assert_eq!(reflex.base, 0);
-        assert_eq!(reflex.misc, 0);
+        assert_eq!(reflex.misc, 3);
 
         let will = character.get_save_breakdown(&game_data, &decoder, SaveType::Will);
         assert_eq!(will.base, 0);
-        assert_eq!(will.misc, 0);
+        assert_eq!(will.misc, 7);
     }
 }
