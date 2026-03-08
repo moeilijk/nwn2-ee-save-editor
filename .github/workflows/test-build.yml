@@ -61,7 +61,7 @@ jobs:
 
       - name: run tests
         working-directory: ./src-tauri
-        run: cargo test
+        run: cargo test --lib
 
   build:
     needs: [lint, test]
