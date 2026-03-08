@@ -17,11 +17,6 @@ mod tests {
         let rm = Arc::new(RwLock::new(ResourceManager::new(paths)));
         let mut decoder = ItemPropertyDecoder::new(rm.clone());
         
-        // We need to mock some data or ensure ResourceManager can load basic tables
-        // For this test, we might need a mocked GameData or just rely on what's available
-        // If we can't easily mock 2DAs here without files, we might need to rely on the fact 
-        // that ItemPropertyDecoder uses internal maps if we set them manually.
-        
         let mut skills_map = std::collections::HashMap::new();
         skills_map.insert(0, "Concentration".to_string());
         
@@ -61,27 +56,15 @@ mod tests {
         
         item.insert("PropertiesList".to_string(), GffValue::ListOwned(vec![prop]));
         
-        // 2. Equip the item
-        // We need to simulate adding it to inventory then equipping
-        // Manually constructing Equip_ItemList to avoid complex validation logic in equip_item
+        // 2. Equip the item (manually constructing Equip_ItemList to skip equip_item validation)
         let mut equip_item = item.clone();
         equip_item.insert("__struct_id__".to_string(), GffValue::Dword(EquipmentSlot::Head.to_bitmask()));
         
         char.set_list("Equip_ItemList", vec![equip_item]);
         
-        // 3. Calculate skill modifier
-        // We need a GameData instance. Since creating a real one loads files, 
-        // we might fail if paths aren't set.
-        // However, calculate_skill_modifier uses GameData mainly for:
-        // - key ability lookup (defaults to STR if missing)
-        // - ability modifiers 
-        
+        // GameData::new() creates an empty instance; get_skill_key_ability defaults to STR if table missing.
         let tlk = Arc::new(std::sync::RwLock::new(TLKParser::default()));
-        let game_data = app_lib::loaders::GameData::new(tlk); 
-        // Note: GameData::new() is empty. 
-        // We might need to populate it if `calculate_skill_modifier` relies heavily on it.
-        // `get_skill_key_ability` returns STR if table missing.
-        // `ability_modifier` needs base stats. Let's set STR to 10 (+0).
+        let game_data = app_lib::loaders::GameData::new(tlk);
         char.set_ability(app_lib::character::types::AbilityIndex::STR, 10).unwrap();
 
         // 4. Verify Total

@@ -17,30 +17,12 @@ fn test_field_mapper_resolution() {
     let val2 = mapper.get_field_value(&data2, "str_adjust");
     assert_eq!(val2.as_deref(), Some("3"));
     
-    // Test resolution with different casing
+    // Test resolution with non-standard casing: "stRADJUST" won't match alias variants
+    // ("StrAdjust", "stradjust", "STRADJUST"), so the result is intentionally unused.
     let mut data3 = AHashMap::new();
     data3.insert("stRADJUST".to_string(), Some("2".to_string()));
-    // FieldMapper logic checks aliases. If alias is "StrAdjust", input "stRADJUST" should match if we handle iteration case-insensitively or input is case-insensitive.
-    // The implementation iterates aliases and checks key in date.
-    // implementation: 
-    // for alias in aliases {
-    //   if let Some(val) = data.get(alias) { return ... }
-    //   if let Some(val) = data.get(&alias.to_lowercase()) { ... }
-    //   if let Some(val) = data.get(&alias.to_uppercase()) { ... }
-    // }
-    // So if alias is "StrAdjust", it checks "StrAdjust", "stradjust", "STRADJUST".
-    // "stRADJUST" might not match unless input data keys are normalized, but implementation tries lower/upper of ALIAS, checking against DATA keys.
-    // So if data key is "stRADJUST", it won't match explicitly unless it matches one of the 3 variants generated from alias.
-    // Let's test standard "StrAdjust" (exact), "stradjust" (lower), "STRADJUST" (upper) matches.
-    
     let _val3 = mapper.get_field_value(&data3, "str_adjust");
-    // "stRADJUST" is unlikely to be matched by "StrAdjust", "stradjust", "STRADJUST" unless data key matches one of those. 
-    // Actually, implementation checks: data.get(alias), data.get(alias.lower), data.get(alias.upper).
-    // It assumes data keys are consistent with one of these.
-    // If data comes from GFF/2DA with weird casing, it might fail if not one of these 3.
-    // But usually GFF/2DA columns are CaseInsensitive or normalized.
-    // Let's stick to known casing aliases.
-    
+
     // Test fallback to pattern name itself
     let mut data4 = AHashMap::new();
     data4.insert("str_adjust".to_string(), Some("1".to_string()));

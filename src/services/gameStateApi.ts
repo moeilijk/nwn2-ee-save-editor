@@ -434,11 +434,6 @@ export class GameStateAPI {
   }
 
   async getCampaignBackups(characterId: number): Promise<CampaignBackupsResponse> {
-    // We can list GENERAL backups using list_backups, but this method implies "Campaign" backups.
-    // Assuming list_backups returns file backups which might be what this meant (or campaign file backups?).
-    // savegame command `list_backups` returns `BackupInfo`.
-    // CampaignBackupsResponse expects `backups` array + campaign name/guid.
-    // If this is for .bic backups, we can map it.
     try {
         const backups = await invoke<any[]>('list_backups');
         return {

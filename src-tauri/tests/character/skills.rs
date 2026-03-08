@@ -133,19 +133,16 @@ async fn test_skill_costs_and_points() {
              let label = row.get("Label").or_else(|| row.get("label")).and_then(|v| v.as_deref());
              if let Some(lbl) = label {
                  if lbl == "Spellcraft" { spellcraft = SkillId(i as i32); }
-                 if lbl == "Hide" { stealth = SkillId(i as i32); } // Hide is often confused with Stealth/MoveSilently. NWN2 has Hide and Move Silently separately.
-                 // Actually Stealth isn't a single skill in NWN2, it's Hide & Move Silently. 
-                 // Let's use "Hide" (usual cross class for Sorc)
+                 // NWN2 has Hide and Move Silently as separate skills; Hide is cross-class for Sorcerer.
+                 if lbl == "Hide" { stealth = SkillId(i as i32); }
              }
         }
     }
-    
+
     // Verify Class Skill Status
     let is_spell_class = character.is_class_skill(spellcraft, &game_data);
-    
+
     assert!(is_spell_class, "Spellcraft should be class skill for Sorcerer");
-    // Note: Stealth might be class skill if she has another class or specific rules, but standard Sorcerer it is not.
-    // Let's verify dynamically
     let is_stealth_class = character.is_class_skill(stealth, &game_data);
 
     // Verify Costs
@@ -168,7 +165,7 @@ async fn test_skill_costs_and_points() {
     let current_rank = character.skill_rank(spellcraft);
     let new_rank = current_rank + 1;
     
-    // We need to ensure we don't exceed max ranks for this test to be valid
+    // Guard against exceeding max ranks
     let max_rank = character.get_max_skill_ranks(spellcraft, &game_data);
     if new_rank <= max_rank {
         // Mock setting points if too low
@@ -178,16 +175,8 @@ async fn test_skill_costs_and_points() {
 
         let cost = character.set_skill_rank_with_cost(spellcraft, new_rank, &game_data).expect("Failed to set rank");
         assert_eq!(cost, 1);
-        
-        // Verify points deducted
+
         let new_points = character.get_available_skill_points();
-        // Since we ensure points >= 10, and cost is 1, new points should simply be old - 1
-        // But we modified initial points potentially
-        // We can't rely on initial_points variable if we modified it.
-        // But the check above asserts cost is 1. so points should decrease by 1.
-        
-        // We set points to 10 if < 10. So before purchase it was >= 10.
-        // If we set it to 10, new should be 9.
         if initial_points < 10 {
              assert_eq!(new_points, 9, "Points should be 9 after spending 1 from 10");
         } else {

@@ -904,8 +904,6 @@ async fn test_background_retrieval() {
         
         println!("{}: Background = {:?}", character.first_name(), background);
         
-        // We don't enforce a specific background here unless we know the fixture has one,
-        // but we verify the method runs and returns Option<String>.
-        // Most level 1 characters from OC should have a background if strictly created there.
+        // Background presence depends on the fixture; verify the method returns without panicking.
     }
 }

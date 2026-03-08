@@ -25,10 +25,7 @@ fn test_savegame_handler_read_operations() {
     let files = handler.list_files().expect("Failed to list files");
     assert!(!files.is_empty());
     assert!(!files.is_empty());
-    // Note: globals.xml and module.ifo might be on disk (not in zip) for directory saves,
-    // so list_files (which lists zip content) might not show them.
-    // assert!(files.iter().any(|f| f.name == "globals.xml"));
-    // assert!(files.iter().any(|f| f.name == "module.ifo"));
+    // list_files shows zip content only; directory-based files like globals.xml may not appear here.
 
     // Test list_companions
     let companions = handler.list_companions().expect("Failed to list companions");

@@ -28,9 +28,7 @@ async fn test_base_saves_calculation_sanity() {
     for path in fixtures {
         let character = load_character(path);
         
-        // Values stored in the GFF are misc bonuses, not the base save derived from classes.
-        // The method name `base_fortitude()` in Character is misleading (it returns "fortbonus"),
-        // so we treat it as misc_bonus here.
+        // GFF-stored values are misc bonuses, not class-derived base saves.
         let misc_fort = character.base_fortitude();
         let misc_ref = character.base_reflex();
         let misc_will = character.base_will();
@@ -181,39 +179,18 @@ async fn test_epic_save_progression() {
 
     println!("\n=== Epic Save Progression ===");
     
-    // Testing logic for epic saves explicitly
-    // Epic saves: +1 to all saves every 2 levels after 20.
-    // So separate from class tables.
+    // Epic saves grant +1 to all saves every 2 levels after level 20 (separate from class tables).
+    // L30 = 10 epic levels = +5 epic bonus.
 
-    // Let's look at Occidio (L30)
     let character = load_character("occidiooctavon/occidiooctavon4.bic");
-    let total_level = character.total_level(); // Should be 30
+    let total_level = character.total_level();
     assert_eq!(total_level, 30);
 
-    // Levels above 20 = 10.
-    // Epic save bonus = (10 + 1) / 2 = 5 (integer division) - wait, is it?
-    // NWN2 Wiki: "Characters gain a +1 bonus to all saving throws for every two levels after 20th level."
-    // 21: 0 (or 1?)
-    // 22: +1
-    // 24: +2
-    // ...
-    // 30: +5
-    
-    // Our implementation:
-    // let epic_levels = total_level - 20;
-    // let epic_save = (epic_levels + 1) / 2; // (10+1)/2 = 5. Correct.
-    
-    // We can verify this via calculate_base_saves manually summing class parts + epic
     let base_saves = character.calculate_base_saves(game_data);
-    
-    // To strictly check EPIC part, we'd need to subtract the pre-epic class sum.
-    // Instead, let's trust the parity test `test_base_saves_calculation_parity` covers the overall correctness,
-    // and here we just verify high level characters have expectedly high base saves.
-    
+
     println!("L30 Base Saves: F{} R{} W{}", base_saves.fortitude, base_saves.reflex, base_saves.will);
-    
-    // Minimal check: L30 means at least 5 epic bonus, plus at least 20 levels of poor saves (1/3 level approx).
-    // Min base for L20 poor save is ~6. So min total ~11.
+
+    // L30 with 5 epic bonus + ~6 min class progression = at least 10 total.
     assert!(base_saves.fortitude >= 10);
     assert!(base_saves.reflex >= 10);
     assert!(base_saves.will >= 10);

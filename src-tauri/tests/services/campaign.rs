@@ -11,15 +11,7 @@ mod common;
 fn test_campaign_manager_read_operations() {
     let fixture_path = common::fixtures_path().join("saves/Classic_Campaign");
     
-    // Create a temp copy of the fixture to avoid modifying the original if we were writing
-    // But for read ops, we can just point to it? 
-    // SaveGameHandler writes to zip, so we should allow it to be safe.
-    // However, SaveGameHandler::new expects a directory with resgff.zip
-    
-    // Let's assume we can just read.
-    // But SaveGameHandler might create backups or lock files.
-    // Better to copy to temp dir.
-    
+    // Copy to temp dir to avoid SaveGameHandler creating backups in the fixture directory.
     let temp_dir = TempDir::new().unwrap();
     let save_path = temp_dir.path().join("Classic_Campaign");
     

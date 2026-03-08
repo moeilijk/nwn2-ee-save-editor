@@ -585,9 +585,6 @@ export class CharacterAPI {
   }
 
   static async listCharacters(): Promise<CharacterData[]> {
-    // In Rust single-session mode, we don't list characters nicely yet properly
-    // This was for the Python DB which tracked multiple. 
-    // We can list save files instead via savegame commands.
     return [];
   }
 

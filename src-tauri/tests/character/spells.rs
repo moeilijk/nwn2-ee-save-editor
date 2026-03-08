@@ -110,17 +110,9 @@ async fn test_sorcerer_spells() {
     assert!(!character.is_prepared_caster(sorcerer_id, game_data)); // Spontaneous
     assert!(!character.uses_all_spells_known(sorcerer_id, game_data));
 
-    // Caster Level
-    // Pure Sorcerer level 10 + Arcane Scholar 10 (Full progression) + Dragon Disciple 10 (Full?)
-    // Actually AS and DD generally stack. Qara is likely CL 20-30.
-    // Let's check logic:
-    // Caster level is usually per-class unless prestige classes modify it (which we handle via SpellCasterLevel field fallback? or logic)
-    // The current `get_caster_level` implementation checks `SpellCasterLevel` override in ClassList.
-    // Let's see what it returns.
+    // Caster Level: Sorcerer 10 + prestige classes with full progression, expect at least 10.
     let cl = character.get_caster_level(sorcerer_id, game_data);
     println!("Qara Sorcerer Caster Level: {}", cl);
-    // Default Sorcerer logic is `class_level` if Type 4 (Sorcerer is type 4?). Sorcerer is class index 9.
-    // We expect it to be at least 10.
     assert!(cl >= 10);
 
     // Check Spontaneous Casting Slots
@@ -154,15 +146,10 @@ async fn test_paladin_spells() {
     // Properties
     assert!(character.is_spellcaster(paladin_id, game_data));
     assert!(character.is_prepared_caster(paladin_id, game_data)); // Paladins prepare
-    // Paladins technically "know" all spells on their list, similar to Clerics?
-    // Let's check `uses_all_spells_known`.
     let all_known = character.uses_all_spells_known(paladin_id, game_data);
     println!("Paladin uses all spells known: {}", all_known);
-    // Usually Paladins do.
 
-    // Caster Level
-    // Paladin 2DA lookup usually uses Class Level directly (Slot table matches class level).
-    // So for a Level 20 Paladin, we expect 20 for table lookup purposes, even if D&D CL is 10.
+    // Caster Level: Paladin 2DA lookup uses class level directly for slot table.
     let cl = character.get_caster_level(paladin_id, game_data);
     assert_eq!(cl, 20, "Paladin 20 should have Lookup Level 20 for spell slots");
 

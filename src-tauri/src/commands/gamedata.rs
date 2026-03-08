@@ -543,13 +543,6 @@ fn extract_static(text: &mut String, re: &Regex) -> String {
         let end = end_by_tag.min(end_by_newline);
         let content = remaining[..end].trim().to_string();
         
-        // Remove the found section from text so it doesn't get matched again or included in description
-        // To be safe and simple: just strip the <b>Label:</b> part and the content from the text.
-        // Actually, the original implementation removed the *entire* match + content.
-        // Let's replicate that behavior safely.
-        
-        // We need the full span to remove. 
-        // Range to remove = mat.start() .. start + end
         let range_end = start + end;
         if range_end <= text.len() {
              text.replace_range(mat.start()..range_end, "");

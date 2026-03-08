@@ -137,10 +137,8 @@ async fn test_race_change_validation() {
     // Validate a known valid change (to Human, ID 6)
     let human_id = 6; // Standard Human ID in NWN2
     let _validation = character.validate_race_change(human_id, None, &game_data);
-    // Humans are usually valid. If 6 is not human, we might fail, but let's see. 
-    // Wait, let's look up race IDs dynamically if possible or just log.
-    
-    // Actually, ensure we can't change to a non-existent race
+
+    // Ensure we can't change to a non-existent race
     let invalid_race_id = 99999;
     let validation_invalid = character.validate_race_change(invalid_race_id, None, &game_data);
     assert!(!validation_invalid.valid, "Should reject invalid race ID");
@@ -150,12 +148,9 @@ async fn test_race_change_validation() {
     // "Gold Dwarf" is subrace of Dwarf.
     // "Drow" is subrace of Elf (1).
     
-    // Try to set Drow subrace on Human (6) - should fail
+    // Drow base race is Elf; applying Drow subrace to a Human base race should fail.
     let drow_validation = character.validate_subrace(6, "drow", &game_data);
     if drow_validation.valid {
-         // Maybe it allows it if weak check? Logic says: base_race must match.
-         // Drow base race is Elf.
-         // Let's verify if Drow exists in DB first.
          let drow_data = character.get_subrace_data("drow", &game_data);
          if drow_data.is_some() {
              assert!(!drow_validation.valid, "Should not allow Drow subrace on Human base race");
@@ -206,8 +201,7 @@ async fn test_race_change_execution() {
 
     println!("New CON: {}, New CHA: {}", new_con, new_cha);
 
-    // Humans have 0 mods. Dwarves have +2 CON, -2 CHA.
-    // So new should be old + 2, old - 2.
+    // Dwarves have +2 CON, -2 CHA (Humans have no adjustments)
     assert_eq!(new_con, initial_con + 2, "Constitution should increase by 2 for Dwarf");
     assert_eq!(new_cha, initial_cha - 2, "Charisma should decrease by 2 for Dwarf");
 

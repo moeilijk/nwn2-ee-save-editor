@@ -116,7 +116,6 @@ impl SessionState {
         let _character = self.character.as_ref().ok_or("No character loaded")?;
 
         // TODO: serialize character data to GFF and write to save file
-        // This will be implemented when we need the save functionality
         Ok(())
     }
 

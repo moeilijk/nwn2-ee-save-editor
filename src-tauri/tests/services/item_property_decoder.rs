@@ -20,10 +20,6 @@ async fn test_item_property_decoding_from_fixture() {
     
     let root_struct = parser.read_struct_fields(0).expect("Failed to read root fields");
     
-    // Find ItemList or Equip_ItemList
-    // We want to find an item with properties.
-    // Let's traverse inventory.
-    
     let mut item_with_props = None;
     
     if let Some(app_lib::parsers::gff::GffValue::List(items)) = root_struct.get("ItemList") {

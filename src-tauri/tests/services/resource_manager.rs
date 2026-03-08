@@ -23,10 +23,7 @@ async fn test_resource_manager_resolution() {
         println!("feat.2da not found in available files, skipping get_2da check");
     }
 
-    // Test get_string (TLK)
-    // StrRef 0 is usually "Bad StrRef" or something, but valid range exists.
-    // Let's try to get a string if TLK is loaded.
-    let s = resource_manager.get_string(100); // 100 often has something
+    let s = resource_manager.get_string(100);
     println!("String 100: {}", s);
 }
 
@@ -35,10 +32,6 @@ async fn test_resource_manager_initialization() {
     let context = common::create_test_context().await;
     let resource_manager = context.resource_manager.read().await;
     
-    // Ensure it has some indexed resources
-    // The exact count depends on installation, but shouldn't be zero if it initialized correctly.
-    // However, ResourceManager might not expose count directly without inspection.
-    // We can assume if create_test_context passed, initialization worked.
     let files = resource_manager.get_available_2da_files();
     println!("Indexed 2da count: {}", files.len());
 }

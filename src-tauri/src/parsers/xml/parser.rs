@@ -180,9 +180,6 @@ impl RustXmlParser {
         let discovered = self.discover_potential_companions();
         for (comp_id, status) in discovered {
             companion_status.entry(comp_id).or_insert_with(|| {
-                // explicit definitions take precedence
-                // discovered returns HashMap<String, BTreeMap<String, String>>
-                // we need to convert BTreeMap to CompanionStatus
                 let influence_val = status.get("influence").and_then(|s| s.parse::<i32>().ok());
                 
                 CompanionStatus {
@@ -202,23 +199,6 @@ impl RustXmlParser {
         let mut active = HashSet::new();
         
         let sorted_patterns = get_quest_patterns();
-        // Since sorted_patterns is now static and pre-sorted in declaration (or we can assume index order priority if careful),
-        // but wait, we declared them in a specific order in `get_quest_patterns` but `Regex` doesn't implement Ord.
-        // We used `sort_by_key(|k| k.2)` previously. We can sort them once or just iterate.
-        // For OnceLock, it's immutable reference. We can't sort it in place unless we use Mutex or similar.
-        // But we can just iterate. The priorities are small integers.
-        // Better: sort them when initializing the OnceLock vec!
-        // But `Regex` is not `Clone` easily? No, `Regex` is `Clone`.
-        // Let's modify `get_quest_patterns` to return sorted vector or sort it there.
-        // Or just `iterate` and filter.
-        
-        // Actually, sorting the static vec inside `get_or_init` is best.
-        
-        // Let's assume `get_quest_patterns` returns them pre-sorted by us manually in the code order above? 
-        // We wrote them in priority groups, but the priority integer is key.
-        // 1 (Exclusions) -> 5 (Completion) -> 10 (State) -> 11 (Active).
-        // This is ALREADY sorted by priority (1, 1, ..., 5, 5, 10, 11).
-        // So we can just iterate directly.
 
         for (var_name, &value) in &self.data.integers {
             if value <= 0 {
