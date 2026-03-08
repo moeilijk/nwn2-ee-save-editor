@@ -1,0 +1,15 @@
+---
+source: tests/parsing.rs
+expression: owned_root
+---
+FirstName:
+  string_ref: -1
+  substrings:
+    - string: TestName
+      language: 0
+      gender: 0
+Age: 25
+IntVal: 12345
+FloatVal: 3.14
+StructField:
+  NestedField: Nested

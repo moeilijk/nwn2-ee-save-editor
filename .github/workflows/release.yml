@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   create-release:
     permissions:
@@ -13,6 +16,7 @@ jobs:
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
       upload_url: ${{ steps.create-release.outputs.upload_url }}
+      version: ${{ steps.get-version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +25,11 @@ jobs:
         with:
           node-version: 20
       - name: get version
-        run: echo "PACKAGE_VERSION=$(node -pe "require('./frontend/package.json').version")" >> $GITHUB_ENV
+        id: get-version
+        run: |
+          VERSION=$(node -pe "require('./package.json').version")
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: create release
         id: create-release
         uses: actions/github-script@v6
@@ -47,10 +55,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'ubuntu-latest'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
+          - platform: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -60,11 +68,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: cache Rust
+        uses: Swatinem/rust-cache@v2
         with:
-          targets: ''
+          workspaces: src-tauri
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-latest'
@@ -73,100 +86,8 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 file
 
       - name: install frontend dependencies
-        run: npm install
-        working-directory: ./frontend
-
-      - name: setup python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-
-      - name: install python dependencies and build rust extensions
-        shell: bash
-        working-directory: ./backend
-        run: |
-          python -m venv venv
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            source venv/Scripts/activate
-            echo "$PWD/venv/Scripts" >> $GITHUB_PATH
-          else
-            source venv/bin/activate
-            echo "$PWD/venv/bin" >> $GITHUB_PATH
-          fi
-
-          python -m pip install --upgrade pip
-          pip install -r requirements-production.txt
-          pip install maturin nuitka
-
-          maturin develop --release --manifest-path rust/Cargo.toml
-
-      - name: create backend .env file
-        shell: bash
-        working-directory: ./backend
-        run: |
-          cat > .env << 'EOF'
-          # Production build configuration
-          DESKTOP_MODE=True
-          DEBUG=False
-          ENABLE_LOG_VIEWER=false
-          PORT=0
-          HOST=127.0.0.1
-
-          # Performance settings
-          NWN2_MEMORY_CACHE=true
-          NWN2_PRELOAD_2DA=true
-          NWN2_CACHE_MAX_MB=100
-          NWN2_COMPRESS_CACHE=true
-          NWN2_COMPRESS_THRESHOLD_KB=100
-          NWN2_SMART_PRELOAD=true
-          ICON_CACHE_LAZY_LOADING=true
-          USE_PREREQUISITE_GRAPH=true
-          ENABLE_PRECOMPILED_CACHE=true
-          FAST_STARTUP=false
-          EOF
-
-      - name: build fastapi sidecar
-        shell: bash
-        working-directory: ./backend
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            source venv/Scripts/activate
-          else
-            source venv/bin/activate
-          fi
-          python build_fastapi_sidecar.py
-
-      - name: Strip Debug Symbols (Linux)
-        if: matrix.platform == 'ubuntu-latest'
-        shell: bash
-        run: |
-          echo "Original size of sidecar distribution:"
-          du -sh frontend/src-tauri/binaries/fastapi_server.dist || true
-
-          echo "Stripping binaries..."
-          find frontend/src-tauri/binaries/fastapi_server.dist -name "*.so*" -exec strip --strip-unneeded {} \; || true
-          strip --strip-unneeded frontend/src-tauri/binaries/fastapi_server.dist/fastapi-server || true
-
-          echo "Size after stripping:"
-          du -sh frontend/src-tauri/binaries/fastapi_server.dist || true
-
-      - name: Strip Debug Symbols (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          Write-Host "Original size of sidecar distribution:"
-          $size = (Get-ChildItem -Recurse frontend/src-tauri/binaries/fastapi_server.dist | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "$([math]::Round($size, 2)) MB"
-
-          Write-Host "Stripping binaries with llvm-strip..."
-          Get-ChildItem -Recurse frontend/src-tauri/binaries/fastapi_server.dist -Include *.dll,*.pyd,*.exe | ForEach-Object {
-            & "C:\Program Files\LLVM\bin\llvm-strip.exe" --strip-unneeded $_.FullName 2>$null
-          }
-
-          Write-Host "Size after stripping:"
-          $size = (Get-ChildItem -Recurse frontend/src-tauri/binaries/fastapi_server.dist | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "$([math]::Round($size, 2)) MB"
+        run: npm ci
+        working-directory: .
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -175,54 +96,16 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          projectPath: "./frontend"
-          args: ${{ matrix.args }}
-
-      - name: Strip AppImage Contents (Linux)
-        if: matrix.platform == 'ubuntu-latest'
-        shell: bash
-        run: |
-          APPIMAGE_PATH=$(find frontend/src-tauri/target/release/bundle/appimage -name "*.AppImage" 2>/dev/null | head -1)
-          if [ -n "$APPIMAGE_PATH" ]; then
-            echo "Original AppImage size:"
-            du -sh "$APPIMAGE_PATH"
-
-            chmod +x "$APPIMAGE_PATH"
-            cd frontend/src-tauri/target/release/bundle/appimage
-            ./*.AppImage --appimage-extract
-
-            find squashfs-root -name "*.so*" -exec strip --strip-unneeded {} \; 2>/dev/null || true
-            strip --strip-unneeded squashfs-root/usr/bin/app 2>/dev/null || true
-
-            rm -f *.AppImage
-
-            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
-            chmod +x appimagetool
-            ARCH=x86_64 ./appimagetool squashfs-root
-
-            rm -rf squashfs-root appimagetool
-
-            echo "New AppImage size:"
-            du -sh *.AppImage
-          fi
+          projectPath: "."
 
       - name: Package Windows Portable
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          mkdir -p portable-staging/resources/binaries
-          
-          # Copy Main Executable (binary name is 'app.exe' from Cargo.toml)
-          cp "frontend/src-tauri/target/release/app.exe" "portable-staging/NWN2EE Save Editor.exe"
-          
-          # Copy Sidecar (FastAPI Dist)
-          # Tauri resources are expected in 'resources/' relative to the binary
-          cp -r "frontend/src-tauri/binaries/fastapi_server.dist" "portable-staging/resources/binaries/"
-          
-          # Zip it up
-          7z a "frontend/src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-Portable.zip" ./portable-staging/*
-          
-          echo "Portable zip created manually."
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p portable-staging
+          cp "src-tauri/target/release/app.exe" "portable-staging/NWN2EE Save Editor.exe"
+          7z a "src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-${VERSION}-Portable.zip" ./portable-staging/*
 
       - name: Upload Windows Portable Asset
         if: matrix.platform == 'windows-latest'
@@ -231,6 +114,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: frontend/src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-Portable.zip
-          asset_name: NWN2EE-Save-Editor-Portable.zip
+          asset_path: src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Portable.zip
+          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Portable.zip
           asset_content_type: application/zip

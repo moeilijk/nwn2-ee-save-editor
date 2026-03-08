@@ -1,0 +1,364 @@
+//! Class categorization service for NWN2 classes.
+//!
+//! Provides categorization of classes by type (base, prestige, NPC) and
+//! focus (combat, arcane, divine, skill, hybrid, stealth).
+
+use std::collections::HashMap;
+
+use ahash::AHashMap;
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+use crate::loaders::GameData;
+use crate::services::field_mapper::FIELD_PATTERNS;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ClassType {
+    Base,
+    Prestige,
+    Npc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ClassFocus {
+    Combat,
+    ArcaneCaster,
+    DivineCaster,
+    SkillSpecialist,
+    Hybrid,
+    StealthInfiltration,
+}
+
+impl ClassFocus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ClassFocus::Combat => "combat",
+            ClassFocus::ArcaneCaster => "arcane_caster",
+            ClassFocus::DivineCaster => "divine_caster",
+            ClassFocus::SkillSpecialist => "skill_specialist",
+            ClassFocus::Hybrid => "hybrid",
+            ClassFocus::StealthInfiltration => "stealth_infiltration",
+        }
+    }
+}
+
+impl ClassType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ClassType::Base => "base",
+            ClassType::Prestige => "prestige",
+            ClassType::Npc => "npc",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ClassInfo {
+    pub id: i32,
+    pub name: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub class_type: String,
+    pub focus: String,
+    pub max_level: i32,
+    pub hit_die: i32,
+    pub skill_points: i32,
+    pub is_spellcaster: bool,
+    pub has_arcane: bool,
+    pub has_divine: bool,
+    pub primary_ability: String,
+    pub bab_progression: String,
+    pub alignment_restricted: bool,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct FocusInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct Categories {
+    pub base: HashMap<String, Vec<ClassInfo>>,
+    pub prestige: HashMap<String, Vec<ClassInfo>>,
+    pub npc: HashMap<String, Vec<ClassInfo>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CategorizedClasses {
+    pub categories: Categories,
+    pub focus_info: HashMap<String, FocusInfo>,
+    pub total_classes: i32,
+}
+
+fn get_field_value(row: &AHashMap<String, Option<String>>, field: &str) -> Option<String> {
+    if let Some(patterns) = FIELD_PATTERNS.get(field) {
+        for pattern in patterns {
+            let pattern_lower = pattern.to_lowercase();
+            for (key, value) in row {
+                if key.to_lowercase() == pattern_lower
+                    && let Some(v) = value
+                        && !v.is_empty() && v != "****" {
+                            return Some(v.clone());
+                        }
+            }
+        }
+    }
+
+    let field_lower = field.to_lowercase();
+    for (key, value) in row {
+        if key.to_lowercase() == field_lower
+            && let Some(v) = value
+                && !v.is_empty() && v != "****" {
+                    return Some(v.clone());
+                }
+    }
+
+    None
+}
+
+fn get_field_int(row: &AHashMap<String, Option<String>>, field: &str, default: i32) -> i32 {
+    get_field_value(row, field)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+fn get_field_bool(row: &AHashMap<String, Option<String>>, field: &str) -> bool {
+    get_field_value(row, field)
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+}
+
+fn determine_class_type(row: &AHashMap<String, Option<String>>) -> ClassType {
+    let player_class = get_field_value(row, "player_class")
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(1);
+
+    let max_level = get_field_value(row, "max_level")
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(0);
+
+    if player_class == 0 && max_level == 0 {
+        return ClassType::Npc;
+    }
+
+    if max_level > 0 {
+        ClassType::Prestige
+    } else {
+        ClassType::Base
+    }
+}
+
+fn determine_class_focus(row: &AHashMap<String, Option<String>>) -> ClassFocus {
+    let has_arcane = get_field_bool(row, "has_arcane");
+    let has_divine = get_field_bool(row, "has_divine");
+    let skill_points = get_field_int(row, "skill_point_base", 2);
+    let hit_die = get_field_int(row, "hit_die", 8);
+
+    if has_arcane {
+        ClassFocus::ArcaneCaster
+    } else if has_divine {
+        ClassFocus::DivineCaster
+    } else if skill_points >= 6 {
+        ClassFocus::SkillSpecialist
+    } else if hit_die >= 10 {
+        ClassFocus::Combat
+    } else {
+        ClassFocus::Hybrid
+    }
+}
+
+fn is_placeholder_class(row: &AHashMap<String, Option<String>>) -> bool {
+    let name = get_field_value(row, "name").unwrap_or_default().to_lowercase();
+    let label = get_field_value(row, "label").unwrap_or_default().to_lowercase();
+
+    name == "padding" || name == "****" || name.is_empty() || name == "none"
+        || label == "padding" || label == "****" || label.is_empty() || label == "none"
+}
+
+fn get_focus_display_info() -> HashMap<String, FocusInfo> {
+    let mut info = HashMap::new();
+
+    info.insert("combat".to_string(), FocusInfo {
+        id: "combat".to_string(),
+        name: "Combat".to_string(),
+        description: "Warriors and martial specialists".to_string(),
+        icon: String::new(),
+    });
+
+    info.insert("arcane_caster".to_string(), FocusInfo {
+        id: "arcane_caster".to_string(),
+        name: "Arcane Caster".to_string(),
+        description: "Wizards, sorcerers, and arcane magic users".to_string(),
+        icon: String::new(),
+    });
+
+    info.insert("divine_caster".to_string(), FocusInfo {
+        id: "divine_caster".to_string(),
+        name: "Divine Caster".to_string(),
+        description: "Clerics, druids, and divine magic users".to_string(),
+        icon: String::new(),
+    });
+
+    info.insert("skill_specialist".to_string(), FocusInfo {
+        id: "skill_specialist".to_string(),
+        name: "Skill Specialist".to_string(),
+        description: "Rogues, bards, and skill-focused classes".to_string(),
+        icon: String::new(),
+    });
+
+    info.insert("hybrid".to_string(), FocusInfo {
+        id: "hybrid".to_string(),
+        name: "Hybrid".to_string(),
+        description: "Multi-role classes and unique specialists".to_string(),
+        icon: String::new(),
+    });
+
+    info.insert("stealth_infiltration".to_string(), FocusInfo {
+        id: "stealth_infiltration".to_string(),
+        name: "Stealth & Infiltration".to_string(),
+        description: "Assassins, spies, and shadow specialists".to_string(),
+        icon: String::new(),
+    });
+
+    info
+}
+
+pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
+    let mut categories = Categories {
+        base: HashMap::new(),
+        prestige: HashMap::new(),
+        npc: HashMap::new(),
+    };
+
+    for focus in [
+        ClassFocus::Combat,
+        ClassFocus::ArcaneCaster,
+        ClassFocus::DivineCaster,
+        ClassFocus::SkillSpecialist,
+        ClassFocus::Hybrid,
+        ClassFocus::StealthInfiltration,
+    ] {
+        let focus_str = focus.as_str().to_string();
+        categories.base.insert(focus_str.clone(), Vec::new());
+        categories.prestige.insert(focus_str.clone(), Vec::new());
+        categories.npc.insert(focus_str, Vec::new());
+    }
+
+    let Some(classes_table) = game_data.get_table("classes") else {
+        tracing::warn!("Could not load classes table");
+        return CategorizedClasses {
+            categories,
+            focus_info: get_focus_display_info(),
+            total_classes: 0,
+        };
+    };
+
+    let mut total_classes = 0;
+
+    for row_idx in 0..classes_table.row_count() {
+        let Ok(row) = classes_table.get_row(row_idx) else {
+            continue;
+        };
+
+        if is_placeholder_class(&row) {
+            continue;
+        }
+
+        let class_type = determine_class_type(&row);
+        let class_focus = determine_class_focus(&row);
+
+        let name_strref = get_field_value(&row, "name")
+            .and_then(|v| v.parse::<i32>().ok());
+
+        let name = name_strref
+            .and_then(|strref| game_data.get_string(strref))
+            .filter(|n| !n.is_empty())
+            .or_else(|| get_field_value(&row, "label"))
+            .unwrap_or_else(|| format!("Class{row_idx}"));
+
+        let label = get_field_value(&row, "label")
+            .unwrap_or_else(|| format!("Class{row_idx}"));
+
+        let has_arcane = get_field_bool(&row, "has_arcane");
+        let has_divine = get_field_bool(&row, "has_divine");
+
+        let align_restrict = get_field_value(&row, "align_restrict")
+            .and_then(|v| {
+                if let Some(hex) = v.strip_prefix("0x") {
+                    i32::from_str_radix(hex, 16).ok()
+                } else {
+                    v.parse().ok()
+                }
+            })
+            .unwrap_or(0);
+
+        let description_strref = get_field_value(&row, "description")
+            .and_then(|v| v.parse::<i32>().ok());
+
+        let description = description_strref
+            .and_then(|strref| game_data.get_string(strref))
+            .filter(|d| !d.is_empty());
+
+        let class_info = ClassInfo {
+            id: row_idx as i32,
+            name,
+            label,
+            class_type: class_type.as_str().to_string(),
+            focus: class_focus.as_str().to_string(),
+            max_level: get_field_int(&row, "max_level", 0),
+            hit_die: get_field_int(&row, "hit_die", 8),
+            skill_points: get_field_int(&row, "skill_point_base", 2),
+            is_spellcaster: has_arcane || has_divine,
+            has_arcane,
+            has_divine,
+            primary_ability: get_field_value(&row, "primary_ability")
+                .unwrap_or_else(|| "STR".to_string()),
+            bab_progression: get_field_value(&row, "attack_bonus_table")
+                .unwrap_or_else(|| "CLS_ATK_2".to_string()),
+            alignment_restricted: align_restrict > 0,
+            description,
+        };
+
+        let focus_key = class_focus.as_str().to_string();
+
+        match class_type {
+            ClassType::Base => {
+                if let Some(list) = categories.base.get_mut(&focus_key) {
+                    list.push(class_info);
+                }
+            }
+            ClassType::Prestige => {
+                if let Some(list) = categories.prestige.get_mut(&focus_key) {
+                    list.push(class_info);
+                }
+            }
+            ClassType::Npc => {
+                if let Some(list) = categories.npc.get_mut(&focus_key) {
+                    list.push(class_info);
+                }
+            }
+        }
+
+        total_classes += 1;
+    }
+
+    for type_map in [&mut categories.base, &mut categories.prestige, &mut categories.npc] {
+        for list in type_map.values_mut() {
+            list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        }
+    }
+
+    tracing::info!("Categorized {} classes", total_classes);
+
+    CategorizedClasses {
+        categories,
+        focus_info: get_focus_display_info(),
+        total_classes,
+    }
+}

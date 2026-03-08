@@ -1,0 +1,20 @@
+pub mod campaign;
+pub mod character;
+pub mod classes;
+pub mod combat;
+pub mod debug;
+pub mod error;
+pub mod feats;
+pub mod gamedata;
+pub mod inventory;
+pub mod overview;
+pub mod paths;
+pub mod savegame;
+pub mod session;
+pub mod skills;
+pub mod spells;
+pub mod test_deities;
+pub mod types;
+
+pub use error::{CommandError, CommandResult};
+
