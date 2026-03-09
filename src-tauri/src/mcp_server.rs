@@ -34,7 +34,7 @@ pub async fn start(state: McpState, port: u16) {
         .route("/mcp", post(handle_mcp_request))
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("127.0.0.1:{port}");
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("Failed to bind MCP local port");
@@ -101,7 +101,7 @@ fn query_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serde
 
     let table_ref = game_data_lock
         .get_table(table)
-        .ok_or_else(|| anyhow::anyhow!("Table {} not found", table))?;
+        .ok_or_else(|| anyhow::anyhow!("Table {table} not found"))?;
 
     match table_ref.get_row(row_id) {
         Ok(row) => {
@@ -111,7 +111,7 @@ fn query_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serde
             }
             Ok(serde_json::to_value(tree)?)
         }
-        Err(e) => Err(anyhow::anyhow!("Failed to retrieve 2DA row: {}", e)),
+        Err(e) => Err(anyhow::anyhow!("Failed to retrieve 2DA row: {e}")),
     }
 }
 
@@ -130,7 +130,7 @@ fn query_tlk(state: McpState, params: serde_json::Value) -> anyhow::Result<serde
     if let Some(text) = game_data_lock.get_string(strref) {
         Ok(serde_json::json!({ "text": text }))
     } else {
-        Err(anyhow::anyhow!("StrRef {} not found", strref))
+        Err(anyhow::anyhow!("StrRef {strref} not found"))
     }
 }
 
@@ -300,18 +300,18 @@ fn search_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serd
 
     let table_ref = game_data_lock
         .get_table(table)
-        .ok_or_else(|| anyhow::anyhow!("Table {} not found", table))?;
+        .ok_or_else(|| anyhow::anyhow!("Table {table} not found"))?;
 
     let mut results = Vec::new();
     for row_id in 0..table_ref.row_count() {
         if let Ok(row) = table_ref.get_row(row_id) {
             let mut matches = false;
             for val in row.values() {
-                if let Some(s) = val {
-                    if s.to_lowercase().contains(&query) {
-                        matches = true;
-                        break;
-                    }
+                if let Some(s) = val
+                    && s.to_lowercase().contains(&query)
+                {
+                    matches = true;
+                    break;
                 }
             }
             if matches {
@@ -320,7 +320,7 @@ fn search_2da(state: McpState, params: serde_json::Value) -> anyhow::Result<serd
                     if let Some(s) = v {
                         tree.insert(k.clone(), s.clone());
                     } else {
-                        tree.insert(k.clone(), "".to_string());
+                        tree.insert(k.clone(), String::new());
                     }
                 }
                 tree.insert("id".to_string(), row_id.to_string());

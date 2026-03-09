@@ -1307,7 +1307,7 @@ impl Character {
             for spell_level in 0..=MAX_SPELL_LEVEL {
                 let spell_ids = self.known_spells(config.class_id, spell_level);
                 for spell_id in spell_ids {
-                    if let Some(ref table) = spells_table_ref
+                    if let Some(table) = spells_table_ref
                         && let Some(spell_row) = table.get_by_id(spell_id.0)
                         && !is_displayable_spell(&spell_row)
                     {

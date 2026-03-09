@@ -643,7 +643,7 @@ impl ItemPropertyDecoder {
 
                     if let Some(subtype) = skill_id {
                         if let Some(value) = prop.bonus_value {
-                            let key = format!("Skill_{}", subtype);
+                            let key = format!("Skill_{subtype}");
                             *bonuses.skill_bonuses.entry(key).or_insert(0) += value;
                         }
                     } else if let (Some(skill), Some(value)) = (&prop.skill_name, prop.bonus_value)
@@ -714,10 +714,10 @@ impl ItemPropertyDecoder {
                     .filter(|s| !s.is_empty() && s != "****")
             });
 
-            if let Some(display_name) = label {
-                if !is_invalid_label(&display_name) {
-                    options.insert(row_idx as u32, clean_label(&display_name));
-                }
+            if let Some(display_name) = label
+                && !is_invalid_label(&display_name)
+            {
+                options.insert(row_idx as u32, clean_label(&display_name));
             }
         }
         options
@@ -795,29 +795,29 @@ impl ItemPropertyDecoder {
             }
 
             // Resolve cost table options via iprp_costtable indirection
-            if let Some(ref cost_ref) = def.cost_table_ref {
-                if let Some(table_name) = self.resolve_cost_table(cost_ref).await {
-                    meta.cost_table_options = self.load_2da_options(&table_name).await;
-                    meta.has_cost_table = !meta.cost_table_options.is_empty();
-                }
+            if let Some(ref cost_ref) = def.cost_table_ref
+                && let Some(table_name) = self.resolve_cost_table(cost_ref).await
+            {
+                meta.cost_table_options = self.load_2da_options(&table_name).await;
+                meta.has_cost_table = !meta.cost_table_options.is_empty();
             }
 
             // Resolve param1 options via iprp_paramtable indirection
-            if let Some(ref param_ref) = def.param1_ref {
-                if let Some(table_name) = self.resolve_param_table(param_ref).await {
-                    // Some param tables map to context types
-                    let param_key = get_subtype_context_key(&table_name);
-                    meta.param1_options = if let Some(key) = param_key {
-                        match key {
-                            "racial_groups" => context.racial_groups.clone(),
-                            "classes" => context.classes.clone(),
-                            _ => self.load_2da_options(&table_name).await,
-                        }
-                    } else {
-                        self.load_2da_options(&table_name).await
-                    };
-                    meta.has_param1 = !meta.param1_options.is_empty();
-                }
+            if let Some(ref param_ref) = def.param1_ref
+                && let Some(table_name) = self.resolve_param_table(param_ref).await
+            {
+                // Some param tables map to context types
+                let param_key = get_subtype_context_key(&table_name);
+                meta.param1_options = if let Some(key) = param_key {
+                    match key {
+                        "racial_groups" => context.racial_groups.clone(),
+                        "classes" => context.classes.clone(),
+                        _ => self.load_2da_options(&table_name).await,
+                    }
+                } else {
+                    self.load_2da_options(&table_name).await
+                };
+                meta.has_param1 = !meta.param1_options.is_empty();
             }
 
             meta.is_flat = !meta.has_subtype && !meta.has_cost_table && !meta.has_param1;
@@ -881,27 +881,27 @@ impl ItemPropertyDecoder {
                 meta.has_subtype = !meta.subtype_options.is_empty();
             }
 
-            if let Some(ref cost_ref) = def.cost_table_ref {
-                if let Some(table_name) = resolve_cost_table_from_rm(rm, cost_ref) {
-                    meta.cost_table_options = load_2da_options_from_rm(rm, &table_name);
-                    meta.has_cost_table = !meta.cost_table_options.is_empty();
-                }
+            if let Some(ref cost_ref) = def.cost_table_ref
+                && let Some(table_name) = resolve_cost_table_from_rm(rm, cost_ref)
+            {
+                meta.cost_table_options = load_2da_options_from_rm(rm, &table_name);
+                meta.has_cost_table = !meta.cost_table_options.is_empty();
             }
 
-            if let Some(ref param_ref) = def.param1_ref {
-                if let Some(table_name) = resolve_param_table_from_rm(rm, param_ref) {
-                    let param_key = get_subtype_context_key(&table_name);
-                    meta.param1_options = if let Some(key) = param_key {
-                        match key {
-                            "racial_groups" => context.racial_groups.clone(),
-                            "classes" => context.classes.clone(),
-                            _ => load_2da_options_from_rm(rm, &table_name),
-                        }
-                    } else {
-                        load_2da_options_from_rm(rm, &table_name)
-                    };
-                    meta.has_param1 = !meta.param1_options.is_empty();
-                }
+            if let Some(ref param_ref) = def.param1_ref
+                && let Some(table_name) = resolve_param_table_from_rm(rm, param_ref)
+            {
+                let param_key = get_subtype_context_key(&table_name);
+                meta.param1_options = if let Some(key) = param_key {
+                    match key {
+                        "racial_groups" => context.racial_groups.clone(),
+                        "classes" => context.classes.clone(),
+                        _ => load_2da_options_from_rm(rm, &table_name),
+                    }
+                } else {
+                    load_2da_options_from_rm(rm, &table_name)
+                };
+                meta.has_param1 = !meta.param1_options.is_empty();
             }
 
             meta.is_flat = !meta.has_subtype && !meta.has_cost_table && !meta.has_param1;
@@ -985,10 +985,10 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
                 .filter(|s| !s.is_empty() && s != "****")
         });
 
-        if let Some(display_name) = label {
-            if !is_invalid_label(&display_name) {
-                options.insert(row_idx as u32, clean_label(&display_name));
-            }
+        if let Some(display_name) = label
+            && !is_invalid_label(&display_name)
+        {
+            options.insert(row_idx as u32, clean_label(&display_name));
         }
     }
     options

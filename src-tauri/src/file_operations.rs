@@ -502,10 +502,10 @@ pub async fn browse_saves(
         let mut size: u64 = 0;
         if let Ok(dir_entries) = std::fs::read_dir(&entry_path) {
             for f in dir_entries.flatten() {
-                if let Ok(meta) = f.metadata() {
-                    if meta.is_file() {
-                        size += meta.len();
-                    }
+                if let Ok(meta) = f.metadata()
+                    && meta.is_file()
+                {
+                    size += meta.len();
                 }
             }
         }
@@ -518,17 +518,15 @@ pub async fn browse_saves(
         let character_name = match PlayerInfo::get_player_name(&playerinfo_path) {
             Ok(name) => {
                 log::debug!(
-                    "[browse_saves] Parsed character name: {} from {:?}",
-                    name,
-                    playerinfo_path
+                    "[browse_saves] Parsed character name: {name} from {}",
+                    playerinfo_path.display()
                 );
                 Some(name)
             }
             Err(e) => {
                 log::debug!(
-                    "[browse_saves] Failed to parse playerinfo.bin at {:?}: {}",
-                    playerinfo_path,
-                    e
+                    "[browse_saves] Failed to parse playerinfo.bin at {}: {e}",
+                    playerinfo_path.display()
                 );
                 None
             }
@@ -658,10 +656,10 @@ pub async fn browse_backups(path: String) -> Result<Vec<BrowseBackupEntry>, Stri
         let mut size: u64 = 0;
         if let Ok(dir_entries) = std::fs::read_dir(&entry_path) {
             for f in dir_entries.flatten() {
-                if let Ok(meta) = f.metadata() {
-                    if meta.is_file() {
-                        size += meta.len();
-                    }
+                if let Ok(meta) = f.metadata()
+                    && meta.is_file()
+                {
+                    size += meta.len();
                 }
             }
         }

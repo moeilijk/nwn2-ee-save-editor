@@ -95,7 +95,7 @@ impl PlayerInfo {
         if length > 256 {
             return Err(PlayerInfoParseError::InvalidString {
                 position: 0,
-                reason: format!("Name length {} exceeds maximum", length),
+                reason: format!("Name length {length} exceeds maximum"),
             });
         }
 

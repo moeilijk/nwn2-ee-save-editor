@@ -154,10 +154,7 @@ pub async fn apply_point_buy(
     if cost > POINT_BUY_BUDGET {
         return Err(CommandError::ValidationError {
             field: "point_buy_cost".to_string(),
-            reason: format!(
-                "Point buy cost {} exceeds budget {}",
-                cost, POINT_BUY_BUDGET
-            ),
+            reason: format!("Point buy cost {cost} exceeds budget {POINT_BUY_BUDGET}"),
         });
     }
 
@@ -169,13 +166,10 @@ pub async fn apply_point_buy(
         new_scores.wis,
         new_scores.cha,
     ] {
-        if score < POINT_BUY_MIN || score > POINT_BUY_MAX {
+        if !(POINT_BUY_MIN..=POINT_BUY_MAX).contains(&score) {
             return Err(CommandError::ValidationError {
                 field: "ability_score".to_string(),
-                reason: format!(
-                    "Scores must be between {} and {}",
-                    POINT_BUY_MIN, POINT_BUY_MAX
-                ),
+                reason: format!("Scores must be between {POINT_BUY_MIN} and {POINT_BUY_MAX}"),
             });
         }
     }

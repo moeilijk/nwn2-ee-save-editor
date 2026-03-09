@@ -354,63 +354,62 @@ impl ResourceManager {
         let mut best_source = String::new();
 
         // Load base dialog.tlk
-        if let Some(ref tlk_path) = base_tlk_path {
-            if tlk_path.exists() {
-                match module_loader::load_tlk(tlk_path) {
-                    Ok(parser) => {
-                        info!(
-                            "Found base TLK: {} ({} entries)",
-                            tlk_path.display(),
-                            parser.string_count()
-                        );
-                        best_source = tlk_path.display().to_string();
-                        best_parser = Some(parser);
-                    }
-                    Err(e) => warn!("Failed to parse base TLK: {}", e),
+        if let Some(ref tlk_path) = base_tlk_path
+            && tlk_path.exists()
+        {
+            match module_loader::load_tlk(tlk_path) {
+                Ok(parser) => {
+                    info!(
+                        "Found base TLK: {} ({} entries)",
+                        tlk_path.display(),
+                        parser.string_count()
+                    );
+                    best_source = tlk_path.display().to_string();
+                    best_parser = Some(parser);
                 }
+                Err(e) => warn!("Failed to parse base TLK: {}", e),
             }
         }
 
         // NWN2 EE distributes extended TLK via Steam Workshop.
         // Scan workshop items for dialog.TLK with more entries (spell descriptions etc.)
-        if let Some(ref workshop_dir) = workshop_folder {
-            if let Ok(entries) = std::fs::read_dir(workshop_dir) {
-                for entry in entries.flatten() {
-                    if !entry.path().is_dir() {
+        if let Some(ref workshop_dir) = workshop_folder
+            && let Ok(entries) = std::fs::read_dir(workshop_dir)
+        {
+            for entry in entries.flatten() {
+                if !entry.path().is_dir() {
+                    continue;
+                }
+                let tlk_path = entry.path().join("dialog.TLK");
+                if !tlk_path.exists() {
+                    // Also check lowercase
+                    let tlk_lower = entry.path().join("dialog.tlk");
+                    if !tlk_lower.exists() {
                         continue;
                     }
-                    let tlk_path = entry.path().join("dialog.TLK");
-                    if !tlk_path.exists() {
-                        // Also check lowercase
-                        let tlk_lower = entry.path().join("dialog.tlk");
-                        if !tlk_lower.exists() {
-                            continue;
-                        }
-                    }
-                    let actual_path = if entry.path().join("dialog.TLK").exists() {
-                        entry.path().join("dialog.TLK")
-                    } else {
-                        entry.path().join("dialog.tlk")
-                    };
+                }
+                let actual_path = if entry.path().join("dialog.TLK").exists() {
+                    entry.path().join("dialog.TLK")
+                } else {
+                    entry.path().join("dialog.tlk")
+                };
 
-                    match module_loader::load_tlk(&actual_path) {
-                        Ok(parser) => {
-                            let count = parser.string_count();
-                            let best_count =
-                                best_parser.as_ref().map_or(0, TLKParser::string_count);
-                            if count > best_count {
-                                info!(
-                                    "Found Workshop TLK with more entries: {} ({} > {})",
-                                    actual_path.display(),
-                                    count,
-                                    best_count
-                                );
-                                best_source = actual_path.display().to_string();
-                                best_parser = Some(parser);
-                            }
+                match module_loader::load_tlk(&actual_path) {
+                    Ok(parser) => {
+                        let count = parser.string_count();
+                        let best_count = best_parser.as_ref().map_or(0, TLKParser::string_count);
+                        if count > best_count {
+                            info!(
+                                "Found Workshop TLK with more entries: {} ({} > {})",
+                                actual_path.display(),
+                                count,
+                                best_count
+                            );
+                            best_source = actual_path.display().to_string();
+                            best_parser = Some(parser);
                         }
-                        Err(e) => debug!("Skipping Workshop TLK {}: {}", actual_path.display(), e),
                     }
+                    Err(e) => debug!("Skipping Workshop TLK {}: {}", actual_path.display(), e),
                 }
             }
         }
@@ -1078,9 +1077,9 @@ impl ResourceManager {
             .ok()
             .and_then(|v| match v {
                 crate::parsers::gff::GffValue::Int(i) => Some(i),
-                crate::parsers::gff::GffValue::Short(s) => Some(s as i32),
-                crate::parsers::gff::GffValue::Byte(b) => Some(b as i32),
-                crate::parsers::gff::GffValue::Word(w) => Some(w as i32),
+                crate::parsers::gff::GffValue::Short(s) => Some(i32::from(s)),
+                crate::parsers::gff::GffValue::Byte(b) => Some(i32::from(b)),
+                crate::parsers::gff::GffValue::Word(w) => Some(i32::from(w)),
                 crate::parsers::gff::GffValue::Dword(d) => Some(d as i32),
                 _ => None,
             })

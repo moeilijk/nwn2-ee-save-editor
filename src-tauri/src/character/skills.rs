@@ -374,10 +374,10 @@ impl Character {
 
         let normalized_name = name.trim().to_uppercase().replace([' ', '-', '_'], "");
 
-        if normalized_name != normalized_label {
-            if let Some(&bonus) = feat_bonuses.get(&normalized_name) {
-                return bonus;
-            }
+        if normalized_name != normalized_label
+            && let Some(&bonus) = feat_bonuses.get(&normalized_name)
+        {
+            return bonus;
         }
 
         0

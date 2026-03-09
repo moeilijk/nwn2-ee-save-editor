@@ -129,12 +129,11 @@ fn split_camel_case(s: &str) -> String {
             let prev = result.chars().last().unwrap_or(' ');
             if prev.is_ascii_lowercase() {
                 result.push(' ');
-            } else if prev.is_ascii_uppercase() {
-                if let Some(&next) = chars.peek() {
-                    if next.is_ascii_lowercase() {
-                        result.push(' ');
-                    }
-                }
+            } else if prev.is_ascii_uppercase()
+                && let Some(&next) = chars.peek()
+                && next.is_ascii_lowercase()
+            {
+                result.push(' ');
             }
         }
         result.push(c);

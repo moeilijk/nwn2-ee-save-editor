@@ -346,14 +346,14 @@ pub async fn get_available_templates(
 
     let mut grouped: HashMap<PathBuf, Vec<(String, String, String)>> = HashMap::new();
     for (resref, info) in &templates {
-        if let crate::services::resource_manager::ContainerType::Zip = &info.container_type {
-            if let Some(internal_path) = &info.internal_path {
-                let source = format!("{:?}", info.source);
-                grouped
-                    .entry(info.container_path.clone())
-                    .or_default()
-                    .push((resref.clone(), internal_path.clone(), source));
-            }
+        if let crate::services::resource_manager::ContainerType::Zip = &info.container_type
+            && let Some(internal_path) = &info.internal_path
+        {
+            let source = format!("{:?}", info.source);
+            grouped
+                .entry(info.container_path.clone())
+                .or_default()
+                .push((resref.clone(), internal_path.clone(), source));
         }
     }
 
@@ -474,9 +474,9 @@ pub async fn get_available_templates(
                 .ok()
                 .and_then(|v| match v {
                     crate::parsers::gff::GffValue::Int(i) => Some(i),
-                    crate::parsers::gff::GffValue::Short(s) => Some(s as i32),
-                    crate::parsers::gff::GffValue::Byte(b) => Some(b as i32),
-                    crate::parsers::gff::GffValue::Word(w) => Some(w as i32),
+                    crate::parsers::gff::GffValue::Short(s) => Some(i32::from(s)),
+                    crate::parsers::gff::GffValue::Byte(b) => Some(i32::from(b)),
+                    crate::parsers::gff::GffValue::Word(w) => Some(i32::from(w)),
                     crate::parsers::gff::GffValue::Dword(d) => Some(d as i32),
                     _ => None,
                 })

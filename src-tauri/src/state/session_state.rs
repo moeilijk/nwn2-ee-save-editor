@@ -170,9 +170,9 @@ impl SessionState {
         let first_name = character.first_name();
         let last_name = character.last_name();
         let filename = if last_name.is_empty() {
-            format!("{}.bic", first_name)
+            format!("{first_name}.bic")
         } else {
-            format!("{} {}.bic", first_name, last_name)
+            format!("{first_name} {last_name}.bic")
         };
 
         let sanitized_filename = filename

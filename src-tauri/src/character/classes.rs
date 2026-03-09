@@ -891,22 +891,17 @@ impl Character {
                             for spell_entry in spells {
                                 if let Some(spell_id) =
                                     spell_entry.get("Spell").and_then(gff_value_to_i32)
-                                {
-                                    if let Some(mut known_list) =
+                                    && let Some(mut known_list) =
                                         super::gff_helpers::extract_list_from_map(
                                             class_entry,
                                             &list_key,
                                         )
-                                    {
-                                        known_list.retain(|s| {
-                                            s.get("Spell").and_then(gff_value_to_i32)
-                                                != Some(spell_id)
-                                        });
-                                        class_entry.insert(
-                                            list_key.clone(),
-                                            GffValue::ListOwned(known_list),
-                                        );
-                                    }
+                                {
+                                    known_list.retain(|s| {
+                                        s.get("Spell").and_then(gff_value_to_i32) != Some(spell_id)
+                                    });
+                                    class_entry
+                                        .insert(list_key.clone(), GffValue::ListOwned(known_list));
                                 }
                             }
                         }
@@ -2151,22 +2146,17 @@ impl Character {
                             for class_entry in &mut class_list {
                                 if class_entry.get("Class").and_then(gff_value_to_i32)
                                     == Some(class_id.0)
-                                {
-                                    if let Some(mut known_list) =
+                                    && let Some(mut known_list) =
                                         super::gff_helpers::extract_list_from_map(
                                             class_entry,
                                             &list_key,
                                         )
-                                    {
-                                        known_list.retain(|s| {
-                                            s.get("Spell").and_then(gff_value_to_i32)
-                                                != Some(spell_id)
-                                        });
-                                        class_entry.insert(
-                                            list_key.clone(),
-                                            GffValue::ListOwned(known_list),
-                                        );
-                                    }
+                                {
+                                    known_list.retain(|s| {
+                                        s.get("Spell").and_then(gff_value_to_i32) != Some(spell_id)
+                                    });
+                                    class_entry
+                                        .insert(list_key.clone(), GffValue::ListOwned(known_list));
                                 }
                             }
                         }
@@ -2289,15 +2279,15 @@ impl Character {
         let mut changed = false;
         for (idx, entry) in lvl_stat_list.iter_mut().enumerate() {
             let char_level = (idx + 1) as i32;
-            if char_level % ABILITY_INCREASE_INTERVAL == 0 {
-                if entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255) {
-                    entry.insert(
-                        "LvlStatAbility".to_string(),
-                        GffValue::Byte(ability_index.0),
-                    );
-                    changed = true;
-                    break;
-                }
+            if char_level % ABILITY_INCREASE_INTERVAL == 0
+                && entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255)
+            {
+                entry.insert(
+                    "LvlStatAbility".to_string(),
+                    GffValue::Byte(ability_index.0),
+                );
+                changed = true;
+                break;
             }
         }
 
