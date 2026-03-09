@@ -6,6 +6,7 @@ import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import ClientOnlyApp from '@/components/ClientOnlyApp';
 import SettingsPage from '@/pages/SettingsPage';
+import Shell from '@/blueprint/layout/Shell';
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +30,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<ClientOnlyApp />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/prototype" element={<Shell />} />
       </Routes>
     </AppProviders>
   );
