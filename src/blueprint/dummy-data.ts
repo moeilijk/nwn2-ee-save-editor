@@ -27,7 +27,46 @@ export const CHARACTER = {
   size: 'Medium',
   saves: { fort: 16, ref: 12, will: 10 },
   biography: 'A stout dwarf from Ironfist Hold who left his clan to find glory in combat. He seeks to prove himself worthy of becoming a monk of the Long Death.',
+  domains: [
+    { name: 'Strength' },
+    { name: 'War' },
+  ],
+  spellResistance: 26,
+  damageResistances: [
+    { type: 'Fire', amount: 10 },
+    { type: 'Cold', amount: 5 },
+  ],
+  damageImmunities: ['Poison', 'Disease'],
+  totalSkillPoints: 61,
+  totalFeats: 22,
+  knownSpells: 12,
+  campaign: {
+    gameAct: 2,
+    difficulty: 'Normal',
+    lastSaved: 1710000000,
+    campaignName: 'Neverwinter Nights 2 OC',
+    moduleName: 'Act II - Crossroad Keep',
+    location: 'Crossroad Keep - Courtyard',
+    playTime: '48h 23m',
+    language: 'English',
+    questProgress: { completed: 14, active: 4, completionRate: 78 },
+  },
 };
+
+export const DEITIES = [
+  { name: 'Tyr', alignment: 'Lawful Good', portfolio: 'Justice, Law, War', favoredWeapon: 'Longsword', description: 'Tyr is the god of justice and law. Known as the Even-Handed, he is the leader of the Triad alongside Torm and Ilmater.' },
+  { name: 'Tempus', alignment: 'Chaotic Neutral', portfolio: 'War, Battle, Warriors', favoredWeapon: 'Battleaxe', description: 'Tempus is the god of war. He is random in his favors, granting victory to one side one day and the other the next.' },
+  { name: 'Mystra', alignment: 'Neutral Good', portfolio: 'Magic, Spells, The Weave', favoredWeapon: 'Shuriken', description: 'Mystra is the goddess of magic and the Weave. She provides and tends the Weave, the conduit through which mortal spellcasters channel magical energy.' },
+  { name: 'Lathander', alignment: 'Neutral Good', portfolio: 'Spring, Dawn, Birth, Renewal', favoredWeapon: 'Mace', description: 'Lathander is the god of dawn, renewal, and vitality. He encourages new beginnings and the pursuit of perfection.' },
+  { name: 'Kelemvor', alignment: 'Lawful Neutral', portfolio: 'Death, The Dead', favoredWeapon: 'Bastard Sword', description: 'Kelemvor is the god of death and the dead. He guides the souls of the recently deceased to the Fugue Plane.' },
+  { name: 'Sune', alignment: 'Chaotic Good', portfolio: 'Beauty, Love, Passion', favoredWeapon: 'Whip', description: 'Sune is the goddess of beauty, love, and passion. She encourages the pursuit of beauty in all its forms.' },
+  { name: 'Oghma', alignment: 'True Neutral', portfolio: 'Knowledge, Invention, Inspiration', favoredWeapon: 'Longsword', description: 'Oghma is the god of knowledge, invention, and inspiration. He is patron of bards and all who seek to create.' },
+  { name: 'Helm', alignment: 'Lawful Neutral', portfolio: 'Guardians, Protectors, Protection', favoredWeapon: 'Bastard Sword', description: 'Helm is the god of guardians and protectors. The Great Guard is the epitome of the guardian and the ever-watchful sentry.' },
+  { name: 'Ilmater', alignment: 'Lawful Good', portfolio: 'Endurance, Suffering, Martyrdom', favoredWeapon: 'Unarmed', description: 'Ilmater is the god of endurance and suffering. He offers succor and calming to those in pain and oppression.' },
+  { name: 'Chauntea', alignment: 'Neutral Good', portfolio: 'Agriculture, Plants, Farmers', favoredWeapon: 'Scythe', description: 'Chauntea is the goddess of agriculture and plants. The Great Mother is beloved by all who work the soil.' },
+  { name: 'Bane', alignment: 'Lawful Evil', portfolio: 'Strife, Hatred, Tyranny', favoredWeapon: 'Morningstar', description: 'Bane is the god of strife, hatred, and tyranny. The Black Lord rules through fear and seeks to control all of Faerun.' },
+  { name: 'Cyric', alignment: 'Chaotic Evil', portfolio: 'Murder, Lies, Intrigue, Deception', favoredWeapon: 'Longsword', description: 'Cyric is the god of murder, lies, and deception. The Prince of Lies revels in chaos and treachery.' },
+];
 
 export const ABILITIES = [
   { name: 'STR', full: 'Strength', base: 20, effective: 22, modifier: 6, racial: 0, equip: 2, level: 2, enhance: 0 },
