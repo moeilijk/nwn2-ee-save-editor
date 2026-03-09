@@ -1,0 +1,45 @@
+@import '@blueprintjs/core/lib/css/blueprint.css';
+@import '@blueprintjs/icons/lib/css/blueprint-icons.css';
+
+.bp-app .bp5-input {
+  background: #faf7f2;
+  border-color: #d9d0c1;
+  color: #2d2d30;
+}
+.bp-app .bp5-input:focus {
+  border-color: #a0522d;
+  box-shadow: 0 0 0 1px #a0522d;
+}
+
+.bp-app .bp5-numeric-input .bp5-button-group .bp5-button {
+  color: #8a8478;
+}
+
+.bp-app .bp5-html-table-striped tbody tr:nth-child(odd) td {
+  background: #f5f0e8;
+}
+.bp-app .bp5-html-table-bordered th,
+.bp-app .bp5-html-table-bordered td {
+  border-color: #e5ddd0;
+}
+.bp-app .bp5-html-table th {
+  color: #8a8478;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bp-app .bp5-tree-node.bp5-tree-node-selected > .bp5-tree-node-content {
+  background: rgba(160, 82, 45, 0.1);
+}
+
+.bp-app .bp5-progress-bar .bp5-progress-meter {
+  background: #a0522d;
+}
+.bp-app .bp5-progress-bar.bp5-intent-success .bp5-progress-meter {
+  background: #5a7a5a;
+}
+.bp-app .bp5-progress-bar.bp5-intent-warning .bp5-progress-meter {
+  background: #b8952f;
+}
