@@ -106,7 +106,7 @@ export function ClassesPanel() {
 
         {/* XP bar */}
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${T.borderLight}` }}>
-          <span style={{ color: T.textMuted, fontSize: 12, fontWeight: 600 }}>XP</span>
+          <span style={{ color: T.textMuted, fontWeight: 600 }}>XP</span>
           <input
             type="text"
             value={xpInput}
@@ -119,18 +119,18 @@ export function ClassesPanel() {
               if (e.key === 'Escape') handleXpReset();
             }}
             className="bp6-input"
-            style={{ width: 110, textAlign: 'center', fontSize: 13, padding: '2px 8px', height: 26 }}
+            style={{ width: 110, textAlign: 'center', padding: '2px 8px', height: 26 }}
           />
-          <Button small minimal icon="tick" intent="success" onClick={handleXpSubmit} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
-          <Button small minimal icon="cross" onClick={handleXpReset} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
+          <Button minimal icon="tick" intent="success" onClick={handleXpSubmit} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
+          <Button minimal icon="cross" onClick={handleXpReset} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
           <div style={{ flex: 1 }}>
             <ProgressBar value={xp / xpNext} intent="primary" stripes={false} animate={false} style={{ height: 4 }} />
           </div>
-          <span style={{ fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap' }}>
+          <span style={{ color: T.textMuted, whiteSpace: 'nowrap' }}>
             Lvl {xpLevel} | {fmtNum(xpNext - xp)} to next
           </span>
           {hasLevelMismatch && (
-            <Tag minimal round intent="warning" icon="warning-sign" style={{ fontSize: 10 }}>
+            <Tag minimal round intent="warning" icon="warning-sign" style={{ fontSize: 'inherit' }}>
               XP Lvl {xpLevel} / Class Lvl {totalLevel}
             </Tag>
           )}
