@@ -27,8 +27,8 @@ export function AbilitiesPanel() {
       {/* Ability Scores card */}
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
-          <span style={{ color: T.textMuted, fontSize: 12 }}>Spent: <strong style={{ color: T.text }}>32</strong></span>
-          <span style={{ color: T.textMuted, fontSize: 12 }}>Available: <strong style={{ color: T.accent }}>0</strong></span>
+          <span style={{ color: T.textMuted, fontSize: 14 }}>Spent: <strong style={{ color: T.text }}>32</strong></span>
+          <span style={{ color: T.textMuted, fontSize: 14 }}>Available: <strong style={{ color: T.accent }}>0</strong></span>
           <Button icon="reset" text="Respec" small minimal style={{ color: T.textMuted }} onClick={() => setIsRespecOpen(true)} />
         </div>
         <div style={{ padding: '12px 16px 16px' }}>

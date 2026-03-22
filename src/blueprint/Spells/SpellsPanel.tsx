@@ -16,15 +16,15 @@ export function SpellsPanel() {
       <div style={{ padding: '16px 24px', borderBottom: `1px solid ${T.borderLight}` }}>
         <div style={{ display: 'flex', gap: 24 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>Caster Class</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>Caster Class</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{caster.className}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>Caster Level</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>Caster Level</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{caster.casterLevel}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>Base Spell DC</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>Base Spell DC</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{caster.spellDC}</div>
           </div>
         </div>

@@ -31,7 +31,7 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
   border-color: #e5ddd0;
 }
 .bp-app .bp6-html-table th {
-  color: #4a453c;
+  color: #2d2d30;
   font-size: 14px;
   font-weight: 600;
 }
@@ -63,6 +63,25 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 }
 .bp-app .bp6-progress-bar.bp6-intent-warning .bp6-progress-meter {
   background: #b8952f;
+}
+
+.bp-app .bp6-button.bp6-intent-primary {
+  color: #a0522d;
+}
+.bp-app .bp6-button.bp6-intent-primary.bp6-outlined {
+  border-color: #a0522d;
+}
+.bp-app .bp6-button.bp6-intent-primary:not(.bp6-minimal):not(.bp6-outlined) {
+  background: #a0522d;
+  color: #fff;
+}
+.bp-app .bp6-button.bp6-intent-primary:hover {
+  background: rgba(160, 82, 45, 0.15);
+  color: #a0522d;
+}
+.bp-app .bp6-button.bp6-intent-primary:not(.bp6-minimal):not(.bp6-outlined):hover {
+  background: #8a4525;
+  color: #fff;
 }
 
 .bp-app ul {
