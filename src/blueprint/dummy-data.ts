@@ -11,8 +11,8 @@ export const CHARACTER = {
   background: 'Bully',
   level: 16,
   classes: [
-    { name: 'Fighter', level: 4, hitDie: 10 },
-    { name: 'Monk', level: 12, hitDie: 8 },
+    { name: 'Fighter', level: 4, hitDie: 10, bab: 4, fort: 4, ref: 1, will: 1, skillPoints: 2, type: 'base' as const, maxLevel: 60, primaryAbility: 'STR', isSpellcaster: false },
+    { name: 'Monk', level: 12, hitDie: 8, bab: 9, fort: 8, ref: 8, will: 8, skillPoints: 4, type: 'base' as const, maxLevel: 60, primaryAbility: 'WIS', isSpellcaster: false },
   ],
   xp: 136_000,
   xpNext: 153_000,
@@ -83,23 +83,72 @@ export const SAVES_DETAIL = [
   { name: 'Will', total: 10, base: 5, ability: 3, equip: 2, feat: 0, racial: 0, misc: 0 },
 ];
 
+export const VITAL_STATS = {
+  hitPoints: 142,
+  maxHitPoints: 168,
+  initiative: {
+    base: 0,
+    total: 3,
+    dexMod: 3,
+    feats: 0,
+  },
+};
+
+export const AC_DETAIL = [
+  { name: 'AC',          base: 10, dex: 3, armor: 0, shield: 0, natural: 3, dodge: 3, deflect: 2, size: 0, misc: 0, total: 21 },
+  { name: 'Touch',       base: 10, dex: 3, armor: 0, shield: 0, natural: 0, dodge: 3, deflect: 2, size: 0, misc: 0, total: 18 },
+  { name: 'Flat-Footed', base: 10, dex: 0, armor: 0, shield: 0, natural: 3, dodge: 0, deflect: 2, size: 0, misc: 0, total: 15 },
+];
+
 export const LEVEL_HISTORY = [
-  { level: 1, className: 'Fighter', hpGained: 10, featsGained: ['Power Attack', 'Cleave', 'Weapon Focus (Kama)'], skillPoints: 3, abilityIncrease: null as string | null },
-  { level: 2, className: 'Fighter', hpGained: 8, featsGained: ['Weapon Specialization (Kama)'], skillPoints: 3, abilityIncrease: null },
-  { level: 3, className: 'Fighter', hpGained: 9, featsGained: ['Toughness'], skillPoints: 3, abilityIncrease: null },
-  { level: 4, className: 'Fighter', hpGained: 7, featsGained: [] as string[], skillPoints: 3, abilityIncrease: 'STR' },
-  { level: 5, className: 'Monk', hpGained: 8, featsGained: ['Improved Unarmed Strike', 'Stunning Fist'], skillPoints: 4, abilityIncrease: null },
-  { level: 6, className: 'Monk', hpGained: 6, featsGained: ['Combat Reflexes'], skillPoints: 4, abilityIncrease: null },
-  { level: 7, className: 'Monk', hpGained: 7, featsGained: [] as string[], skillPoints: 4, abilityIncrease: null },
-  { level: 8, className: 'Monk', hpGained: 5, featsGained: ['Ki Strike (Magic)'], skillPoints: 4, abilityIncrease: 'STR' },
-  { level: 9, className: 'Monk', hpGained: 8, featsGained: ['Spring Attack'], skillPoints: 4, abilityIncrease: null },
-  { level: 10, className: 'Monk', hpGained: 6, featsGained: ['Improved Evasion'], skillPoints: 4, abilityIncrease: null },
-  { level: 11, className: 'Monk', hpGained: 7, featsGained: ['Diamond Body'], skillPoints: 4, abilityIncrease: null },
-  { level: 12, className: 'Monk', hpGained: 8, featsGained: ['Great Cleave', 'Ki Strike (Lawful)'], skillPoints: 4, abilityIncrease: 'STR' },
-  { level: 13, className: 'Monk', hpGained: 6, featsGained: ['Diamond Soul'], skillPoints: 4, abilityIncrease: null },
-  { level: 14, className: 'Monk', hpGained: 7, featsGained: [] as string[], skillPoints: 4, abilityIncrease: null },
-  { level: 15, className: 'Monk', hpGained: 8, featsGained: ['Improved Critical (Kama)'], skillPoints: 4, abilityIncrease: null },
-  { level: 16, className: 'Monk', hpGained: 5, featsGained: ['Ki Strike (Adamantine)'], skillPoints: 4, abilityIncrease: 'STR' },
+  { level: 1, className: 'Fighter', classLevel: 1, hpGained: 10, skillPointsRemaining: 0, abilityIncrease: null as string | null,
+    skillsGained: [{ name: 'Intimidate', ranks: 4 }, { name: 'Discipline', ranks: 4 }],
+    featsGained: ['Power Attack', 'Cleave', 'Weapon Focus (Kama)', 'Armor Proficiency (Light)', 'Armor Proficiency (Medium)', 'Armor Proficiency (Heavy)', 'Shield Proficiency', 'Weapon Proficiency (Martial)', 'Weapon Proficiency (Simple)'] },
+  { level: 2, className: 'Fighter', classLevel: 2, hpGained: 8, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Intimidate', ranks: 1 }, { name: 'Discipline', ranks: 1 }],
+    featsGained: ['Weapon Specialization (Kama)'] },
+  { level: 3, className: 'Fighter', classLevel: 3, hpGained: 9, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Intimidate', ranks: 1 }],
+    featsGained: ['Toughness'] },
+  { level: 4, className: 'Fighter', classLevel: 4, hpGained: 7, skillPointsRemaining: 1, abilityIncrease: 'STR',
+    skillsGained: [{ name: 'Discipline', ranks: 1 }],
+    featsGained: [] as string[] },
+  { level: 5, className: 'Monk', classLevel: 1, hpGained: 8, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 4 }, { name: 'Concentration', ranks: 4 }],
+    featsGained: ['Improved Unarmed Strike', 'Stunning Fist', 'Monk AC Bonus'] },
+  { level: 6, className: 'Monk', classLevel: 2, hpGained: 6, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Move Silently', ranks: 3 }],
+    featsGained: ['Combat Reflexes', 'Deflect Arrows'] },
+  { level: 7, className: 'Monk', classLevel: 3, hpGained: 7, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Concentration', ranks: 3 }],
+    featsGained: ['Still Mind'] },
+  { level: 8, className: 'Monk', classLevel: 4, hpGained: 5, skillPointsRemaining: 0, abilityIncrease: 'STR',
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Hide', ranks: 3 }],
+    featsGained: ['Ki Strike (Magic)', 'Slow Fall (20 ft)'] },
+  { level: 9, className: 'Monk', classLevel: 5, hpGained: 8, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Listen', ranks: 3 }],
+    featsGained: ['Spring Attack', 'Purity of Body'] },
+  { level: 10, className: 'Monk', classLevel: 6, hpGained: 6, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Spot', ranks: 3 }],
+    featsGained: ['Improved Evasion', 'Slow Fall (30 ft)'] },
+  { level: 11, className: 'Monk', classLevel: 7, hpGained: 7, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Concentration', ranks: 4 }],
+    featsGained: ['Diamond Body', 'Wholeness of Body'] },
+  { level: 12, className: 'Monk', classLevel: 8, hpGained: 8, skillPointsRemaining: 0, abilityIncrease: 'STR',
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Concentration', ranks: 3 }],
+    featsGained: ['Great Cleave', 'Ki Strike (Lawful)', 'Slow Fall (40 ft)'] },
+  { level: 13, className: 'Monk', classLevel: 9, hpGained: 6, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Listen', ranks: 3 }],
+    featsGained: ['Diamond Soul', 'Improved Evasion'] },
+  { level: 14, className: 'Monk', classLevel: 10, hpGained: 7, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Spot', ranks: 4 }],
+    featsGained: ['Slow Fall (50 ft)'] },
+  { level: 15, className: 'Monk', classLevel: 11, hpGained: 8, skillPointsRemaining: 0, abilityIncrease: null,
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Concentration', ranks: 3 }],
+    featsGained: ['Improved Critical (Kama)', 'Greater Flurry'] },
+  { level: 16, className: 'Monk', classLevel: 12, hpGained: 5, skillPointsRemaining: 0, abilityIncrease: 'STR',
+    skillsGained: [{ name: 'Tumble', ranks: 1 }, { name: 'Hide', ranks: 3 }],
+    featsGained: ['Ki Strike (Adamantine)', 'Slow Fall (60 ft)'] },
 ];
 
 export const SKILLS = [
@@ -202,6 +251,53 @@ export const BACKPACK = [
   { name: 'Gem - Star Sapphire', qty: 2, weight: 0.0, value: 1000 },
   { name: 'Key to Crossroad Keep', qty: 1, weight: 0.0, value: 0 },
 ];
+
+export const AVAILABLE_CLASSES = {
+  base: {
+    combat: [
+      { id: 4, name: 'Fighter', label: 'Fighter', type: 'base' as const, focus: 'combat', maxLevel: 60, hitDie: 10, skillPoints: 2, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'STR', babProgression: 'high', alignmentRestricted: false, description: 'A warrior with exceptional combat capability and unequaled skill with weapons.' },
+      { id: 1, name: 'Barbarian', label: 'Barbarian', type: 'base' as const, focus: 'combat', maxLevel: 60, hitDie: 12, skillPoints: 4, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'STR', babProgression: 'high', alignmentRestricted: true, description: 'A ferocious warrior who uses fury and instinct to bring down foes.' },
+      { id: 11, name: 'Paladin', label: 'Paladin', type: 'base' as const, focus: 'combat', maxLevel: 60, hitDie: 10, skillPoints: 2, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'CHA', babProgression: 'high', alignmentRestricted: true, description: 'A champion of justice and destroyer of evil, protected and empowered by divine powers.' },
+      { id: 12, name: 'Ranger', label: 'Ranger', type: 'base' as const, focus: 'combat', maxLevel: 60, hitDie: 8, skillPoints: 6, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'DEX', babProgression: 'high', alignmentRestricted: false, description: 'A cunning, skilled warrior of the wilderness.' },
+    ],
+    arcaneCaster: [
+      { id: 15, name: 'Wizard', label: 'Wizard', type: 'base' as const, focus: 'arcane_caster', maxLevel: 60, hitDie: 4, skillPoints: 2, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'INT', babProgression: 'low', alignmentRestricted: false, description: 'A potent spellcaster schooled in the arcane arts.' },
+      { id: 13, name: 'Sorcerer', label: 'Sorcerer', type: 'base' as const, focus: 'arcane_caster', maxLevel: 60, hitDie: 4, skillPoints: 2, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'CHA', babProgression: 'low', alignmentRestricted: false, description: 'A spellcaster with inborn magical ability.' },
+      { id: 16, name: 'Warlock', label: 'Warlock', type: 'base' as const, focus: 'arcane_caster', maxLevel: 60, hitDie: 6, skillPoints: 2, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'CHA', babProgression: 'medium', alignmentRestricted: false, description: 'A wielder of eldritch power drawn from dark pacts.' },
+    ],
+    divineCaster: [
+      { id: 2, name: 'Cleric', label: 'Cleric', type: 'base' as const, focus: 'divine_caster', maxLevel: 60, hitDie: 8, skillPoints: 2, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'WIS', babProgression: 'medium', alignmentRestricted: false, description: 'A master of divine magic and target of a deity.' },
+      { id: 3, name: 'Druid', label: 'Druid', type: 'base' as const, focus: 'divine_caster', maxLevel: 60, hitDie: 8, skillPoints: 4, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'WIS', babProgression: 'medium', alignmentRestricted: true, description: 'A divine spellcaster who draws power from nature.' },
+      { id: 14, name: 'Spirit Shaman', label: 'Spirit Shaman', type: 'base' as const, focus: 'divine_caster', maxLevel: 60, hitDie: 8, skillPoints: 2, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'WIS', babProgression: 'medium', alignmentRestricted: false, description: 'A divine caster who channels the power of the spirit world.' },
+    ],
+    skillSpecialist: [
+      { id: 0, name: 'Bard', label: 'Bard', type: 'base' as const, focus: 'skill_specialist', maxLevel: 60, hitDie: 6, skillPoints: 6, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'CHA', babProgression: 'medium', alignmentRestricted: false, description: 'A jack-of-all-trades, using skill and spell alike.' },
+      { id: 8, name: 'Monk', label: 'Monk', type: 'base' as const, focus: 'skill_specialist', maxLevel: 60, hitDie: 8, skillPoints: 4, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'WIS', babProgression: 'medium', alignmentRestricted: true, description: 'A master of martial arts, harnessing the power of the body in pursuit of perfection.' },
+      { id: 9, name: 'Rogue', label: 'Rogue', type: 'base' as const, focus: 'skill_specialist', maxLevel: 60, hitDie: 6, skillPoints: 8, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'DEX', babProgression: 'medium', alignmentRestricted: false, description: 'A tricky, skillful scout and spy who wins the battle by stealth.' },
+      { id: 10, name: 'Swashbuckler', label: 'Swashbuckler', type: 'base' as const, focus: 'skill_specialist', maxLevel: 60, hitDie: 10, skillPoints: 4, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'DEX', babProgression: 'high', alignmentRestricted: false, description: 'A dashing swordsman who relies on agility and charm.' },
+    ],
+  },
+  prestige: {
+    combat: [
+      { id: 20, name: 'Weapon Master', label: 'Weapon Master', type: 'prestige' as const, focus: 'combat', maxLevel: 7, hitDie: 10, skillPoints: 2, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'STR', babProgression: 'high', alignmentRestricted: false, description: 'For the weapon master, perfection is found in the mastery of a single weapon.' },
+      { id: 21, name: 'Frenzied Berserker', label: 'Frenzied Berserker', type: 'prestige' as const, focus: 'combat', maxLevel: 10, hitDie: 12, skillPoints: 2, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'STR', babProgression: 'high', alignmentRestricted: false, description: 'A warrior who channels destructive fury into a terrifying frenzy.' },
+      { id: 22, name: 'Divine Champion', label: 'Divine Champion', type: 'prestige' as const, focus: 'combat', maxLevel: 10, hitDie: 10, skillPoints: 2, isSpellcaster: false, hasArcane: false, hasDivine: false, primaryAbility: 'STR', babProgression: 'high', alignmentRestricted: false, description: 'A holy warrior who fights in the name of a patron deity.' },
+    ],
+    arcaneCaster: [
+      { id: 25, name: 'Arcane Trickster', label: 'Arcane Trickster', type: 'prestige' as const, focus: 'arcane_caster', maxLevel: 10, hitDie: 4, skillPoints: 4, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'INT', babProgression: 'low', alignmentRestricted: false, description: 'A spellcaster who combines stealth with arcane magic.' },
+      { id: 26, name: 'Eldritch Knight', label: 'Eldritch Knight', type: 'prestige' as const, focus: 'arcane_caster', maxLevel: 10, hitDie: 6, skillPoints: 2, isSpellcaster: true, hasArcane: true, hasDivine: false, primaryAbility: 'INT', babProgression: 'high', alignmentRestricted: false, description: 'A warrior who combines martial skill with arcane magic.' },
+    ],
+    divineCaster: [
+      { id: 30, name: 'Stormlord', label: 'Stormlord', type: 'prestige' as const, focus: 'divine_caster', maxLevel: 10, hitDie: 8, skillPoints: 2, isSpellcaster: true, hasArcane: false, hasDivine: true, primaryAbility: 'WIS', babProgression: 'medium', alignmentRestricted: false, description: 'A divine spellcaster who channels the fury of storms.' },
+    ],
+  },
+  focusInfo: {
+    combat: { name: 'Combat', description: 'Warriors and martial combatants', icon: 'shield' },
+    arcane_caster: { name: 'Arcane Casters', description: 'Wielders of arcane magic', icon: 'flame' },
+    divine_caster: { name: 'Divine Casters', description: 'Wielders of divine magic', icon: 'heart' },
+    skill_specialist: { name: 'Skill Specialists', description: 'Experts in skills and versatility', icon: 'wrench' },
+  },
+};
 
 export const GAME_STATE = {
   campaignVars: [
