@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Button, Dialog, DialogBody, DialogFooter, InputGroup } from '@blueprintjs/core';
+import { Button, InputGroup } from '@blueprintjs/core';
 import { T } from '../theme';
+import { ParchmentDialog } from '../shared';
 import { DEITIES } from '../dummy-data';
 
 interface DeityDialogProps {
@@ -38,15 +39,17 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
   };
 
   return (
-    <Dialog
+    <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
       onOpened={handleOpen}
       title="Select Deity"
-      style={{ width: 720, paddingBottom: 0, background: T.surface }}
-      canOutsideClickClose
+      width={720}
+      footerActions={
+        <Button text="Confirm" intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
+      }
     >
-      <DialogBody style={{ display: 'flex', gap: 0, padding: 0, margin: 0, minHeight: 400 }}>
+      <div style={{ display: 'flex', gap: 0, margin: -16, minHeight: 400 }}>
         {/* Left: search + list */}
         <div style={{ width: 240, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column', background: T.surfaceAlt }}>
           <div style={{ padding: 8 }}>
@@ -120,17 +123,8 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
             </div>
           )}
         </div>
-      </DialogBody>
-
-      <DialogFooter
-        actions={
-          <>
-            <Button text="Cancel" onClick={onClose} />
-            <Button text="Confirm" intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
-          </>
-        }
-      />
-    </Dialog>
+      </div>
+    </ParchmentDialog>
   );
 }
 
