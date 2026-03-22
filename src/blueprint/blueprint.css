@@ -1,45 +1,91 @@
 @import '@blueprintjs/core/lib/css/blueprint.css';
 @import '@blueprintjs/icons/lib/css/blueprint-icons.css';
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/500.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource/ibm-plex-serif/700.css';
 
-.bp-app .bp5-input {
+.bp-app {
+  font-family: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+}
+
+.bp-app .bp6-input {
   background: #faf7f2;
   border-color: #d9d0c1;
   color: #2d2d30;
 }
-.bp-app .bp5-input:focus {
+.bp-app .bp6-input:focus {
   border-color: #a0522d;
   box-shadow: 0 0 0 1px #a0522d;
 }
 
-.bp-app .bp5-numeric-input .bp5-button-group .bp5-button {
-  color: #8a8478;
-}
 
-.bp-app .bp5-html-table-striped tbody tr:nth-child(odd) td {
-  background: #f5f0e8;
+table.bp6-html-table.bp6-html-table-striped tbody tr:nth-child(2n+1) td {
+  background: #f5ede0;
 }
-.bp-app .bp5-html-table-bordered th,
-.bp-app .bp5-html-table-bordered td {
+table.bp6-html-table.bp6-interactive tbody tr:hover td {
+  background: rgba(160, 82, 45, 0.1);
+}
+.bp-app .bp6-html-table-bordered th,
+.bp-app .bp6-html-table-bordered td {
   border-color: #e5ddd0;
 }
-.bp-app .bp5-html-table th {
-  color: #8a8478;
-  font-size: 11px;
+.bp-app .bp6-html-table th {
+  color: #4a453c;
+  font-size: 14px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.bp-app .bp5-tree-node.bp5-tree-node-selected > .bp5-tree-node-content {
+.bp6-dialog {
+  background: #faf7f2;
+}
+.bp6-dialog-header {
+  background: #f5f0e8;
+  border-bottom: 1px solid #d9d0c1;
+}
+.bp6-dialog-header .bp6-heading {
+  color: #2d2d30;
+}
+.bp6-dialog-footer {
+  background: #f5f0e8;
+  border-top: 1px solid #e5ddd0;
+}
+
+.bp-app .bp6-tree-node.bp6-tree-node-selected > .bp6-tree-node-content {
   background: rgba(160, 82, 45, 0.1);
 }
 
-.bp-app .bp5-progress-bar .bp5-progress-meter {
+.bp-app .bp6-progress-bar .bp6-progress-meter {
   background: #a0522d;
 }
-.bp-app .bp5-progress-bar.bp5-intent-success .bp5-progress-meter {
+.bp-app .bp6-progress-bar.bp6-intent-success .bp6-progress-meter {
   background: #5a7a5a;
 }
-.bp-app .bp5-progress-bar.bp5-intent-warning .bp5-progress-meter {
+.bp-app .bp6-progress-bar.bp6-intent-warning .bp6-progress-meter {
   background: #b8952f;
+}
+
+.bp-app ul {
+  list-style-type: disc;
+}
+
+.bp-app .step-input-btn .bp6-icon svg {
+  fill: #a0522d;
+}
+.bp-app .step-input-btn:disabled .bp6-icon svg {
+  fill: #d9d0c1;
+}
+
+.bp6-dialog ::-webkit-scrollbar {
+  width: 8px;
+}
+.bp6-dialog ::-webkit-scrollbar-track {
+  background: #f5f0e8;
+}
+.bp6-dialog ::-webkit-scrollbar-thumb {
+  background: #c9bfae;
+  border-radius: 4px;
+}
+.bp6-dialog ::-webkit-scrollbar-thumb:hover {
+  background: #a0522d;
 }
