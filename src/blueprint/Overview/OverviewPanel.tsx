@@ -60,13 +60,8 @@ export function OverviewPanel() {
               <Button icon="edit" minimal small style={{ color: T.textMuted }} onClick={() => setIsEditingName(true)} />
             </div>
           )}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
-            {CHARACTER.classes.map((c, i) => (
-              <Tag key={i} minimal round style={{ background: T.sectionBg, color: T.accent, border: `1px solid ${T.sectionBorder}`, fontSize: 12 }}>
-                {c.name} {c.level}
-              </Tag>
-            ))}
-            <span style={{ color: T.textMuted, fontSize: 12 }}>Level {CHARACTER.level}</span>
+          <div style={{ color: T.textMuted, marginBottom: 10 }}>
+            {CHARACTER.classes.map(c => `${c.name} ${c.level}`).join(' / ')} <span style={{ color: T.textMuted }}>&mdash; Level {CHARACTER.level}</span>
           </div>
 
           {/* Character details */}
