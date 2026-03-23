@@ -483,4 +483,18 @@ export const GAME_STATE = {
     moduleNames: ['West Harbor', 'Highcliff', 'Neverwinter', 'Crossroad Keep', 'Vale of Merdelain'],
     campaignFilePath: 'C:\\NWN2\\campaigns\\neverwinter2.cam',
   },
+  backups: [
+    { filename: 'neverwinter2_backup_20260322_143012.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260322_143012.cam', sizeBytes: 245760, created: '2026-03-22T14:30:12' },
+    { filename: 'neverwinter2_backup_20260322_081200.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260322_081200.cam', sizeBytes: 244736, created: '2026-03-22T08:12:00' },
+    { filename: 'neverwinter2_backup_20260321_233415.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260321_233415.cam', sizeBytes: 243200, created: '2026-03-21T23:34:15' },
+    { filename: 'neverwinter2_backup_20260321_140522.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260321_140522.cam', sizeBytes: 243712, created: '2026-03-21T14:05:22' },
+    { filename: 'neverwinter2_backup_20260320_091547.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260320_091547.cam', sizeBytes: 241664, created: '2026-03-20T09:15:47' },
+    { filename: 'neverwinter2_backup_20260319_172033.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260319_172033.cam', sizeBytes: 240128, created: '2026-03-19T17:20:33' },
+    { filename: 'neverwinter2_backup_20260319_063301.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260319_063301.cam', sizeBytes: 239616, created: '2026-03-19T06:33:01' },
+    { filename: 'neverwinter2_backup_20260318_220833.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260318_220833.cam', sizeBytes: 238592, created: '2026-03-18T22:08:33' },
+    { filename: 'neverwinter2_backup_20260317_110245.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260317_110245.cam', sizeBytes: 237056, created: '2026-03-17T11:02:45' },
+    { filename: 'neverwinter2_backup_20260316_194518.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260316_194518.cam', sizeBytes: 236032, created: '2026-03-16T19:45:18' },
+    { filename: 'neverwinter2_backup_20260315_084712.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260315_084712.cam', sizeBytes: 234496, created: '2026-03-15T08:47:12' },
+    { filename: 'neverwinter2_backup_20260314_153900.cam', path: 'C:\\NWN2\\campaigns\\backups\\neverwinter2_backup_20260314_153900.cam', sizeBytes: 233472, created: '2026-03-14T15:39:00' },
+  ],
 };
