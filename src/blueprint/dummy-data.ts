@@ -152,104 +152,206 @@ export const LEVEL_HISTORY = [
 ];
 
 export const SKILLS = [
-  { name: 'Concentration', total: 19, ranks: 19, abilityMod: 4, misc: 0, ability: 'CON', isClassSkill: true },
-  { name: 'Craft Alchemy', total: 1, ranks: 0, abilityMod: 1, misc: 0, ability: 'INT', isClassSkill: false },
-  { name: 'Diplomacy', total: -1, ranks: 0, abilityMod: -1, misc: 0, ability: 'CHA', isClassSkill: false },
-  { name: 'Hide', total: 11, ranks: 8, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true },
-  { name: 'Intimidate', total: 5, ranks: 6, abilityMod: -1, misc: 0, ability: 'CHA', isClassSkill: true },
-  { name: 'Listen', total: 15, ranks: 12, abilityMod: 3, misc: 0, ability: 'WIS', isClassSkill: true },
-  { name: 'Lore', total: 5, ranks: 4, abilityMod: 1, misc: 0, ability: 'INT', isClassSkill: true },
-  { name: 'Move Silently', total: 14, ranks: 11, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true },
-  { name: 'Parry', total: 6, ranks: 0, abilityMod: 6, misc: 0, ability: 'STR', isClassSkill: false },
-  { name: 'Spot', total: 12, ranks: 9, abilityMod: 3, misc: 0, ability: 'WIS', isClassSkill: true },
-  { name: 'Tumble', total: 22, ranks: 19, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true },
+  { name: 'Concentration', total: 19, ranks: 19, abilityMod: 4, misc: 0, ability: 'CON', isClassSkill: true, acp: false },
+  { name: 'Craft Alchemy', total: 1, ranks: 0, abilityMod: 1, misc: 0, ability: 'INT', isClassSkill: false, acp: false },
+  { name: 'Diplomacy', total: -1, ranks: 0, abilityMod: -1, misc: 0, ability: 'CHA', isClassSkill: false, acp: false },
+  { name: 'Hide', total: 11, ranks: 8, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true, acp: true },
+  { name: 'Intimidate', total: 5, ranks: 6, abilityMod: -1, misc: 0, ability: 'CHA', isClassSkill: true, acp: false },
+  { name: 'Listen', total: 15, ranks: 12, abilityMod: 3, misc: 0, ability: 'WIS', isClassSkill: true, acp: false },
+  { name: 'Lore', total: 5, ranks: 4, abilityMod: 1, misc: 0, ability: 'INT', isClassSkill: true, acp: false },
+  { name: 'Move Silently', total: 14, ranks: 11, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true, acp: true },
+  { name: 'Parry', total: 6, ranks: 0, abilityMod: 6, misc: 0, ability: 'STR', isClassSkill: false, acp: false },
+  { name: 'Swim', total: 2, ranks: 0, abilityMod: 6, misc: -4, ability: 'STR', isClassSkill: false, acp: true },
+  { name: 'Spot', total: 12, ranks: 9, abilityMod: 3, misc: 0, ability: 'WIS', isClassSkill: true, acp: false },
+  { name: 'Tumble', total: 22, ranks: 19, abilityMod: 3, misc: 0, ability: 'DEX', isClassSkill: true, acp: true },
 ];
 
-export const FEATS = {
-  general: [
-    { name: 'Power Attack', description: 'Trade attack bonus for damage.', icon: 'ife_powerattack' },
-    { name: 'Cleave', description: 'Extra melee attack after dropping a foe.', icon: 'ife_cleave' },
-    { name: 'Great Cleave', description: 'Unlimited cleave attacks per round.', icon: 'ife_greatcleave' },
-    { name: 'Toughness', description: '+1 HP per level.', icon: 'ife_toughness' },
-    { name: 'Combat Reflexes', description: 'Additional attacks of opportunity.', icon: 'ife_combatreflexes' },
-    { name: 'Spring Attack', description: 'Move before and after melee attack.', icon: 'ife_springattack' },
-    { name: 'Improved Critical (Kama)', description: 'Double critical threat range for kamas.', icon: 'ife_improvedcritical' },
-  ],
-  classBonusFeats: [
-    { name: 'Weapon Focus (Kama)', description: '+1 attack with kamas.', icon: 'ife_weaponfocus' },
-    { name: 'Weapon Specialization (Kama)', description: '+2 damage with kamas.', icon: 'ife_weaponspec' },
-    { name: 'Improved Unarmed Strike', description: 'Unarmed attacks do not provoke AoO.', icon: 'ife_improvedunarmedstrike' },
-    { name: 'Stunning Fist', description: 'Attempt to stun opponent with unarmed strike.', icon: 'ife_stunningfist' },
-    { name: 'Improved Evasion', description: 'Half damage on failed Reflex saves.', icon: 'ife_evasion' },
-    { name: 'Ki Strike (Magic)', description: 'Unarmed strikes count as magic weapons.', icon: 'ife_kistrike' },
-    { name: 'Ki Strike (Lawful)', description: 'Unarmed strikes count as lawful weapons.', icon: 'ife_kistrike' },
-    { name: 'Ki Strike (Adamantine)', description: 'Unarmed strikes count as adamantine.', icon: 'ife_kistrike' },
-    { name: 'Diamond Body', description: 'Immunity to poison.', icon: 'ife_diamondbody' },
-    { name: 'Diamond Soul', description: 'Spell resistance 10 + monk level.', icon: 'ife_diamondsoul' },
-  ],
-  background: [
-    { name: 'Bully', description: '+2 to Intimidate checks.', icon: 'ife_bully' },
-  ],
-  racial: [
-    { name: 'Dwarven Stonecunning', description: '+2 to Search checks in stonework areas.', icon: 'ife_stonecunning' },
-    { name: 'Hardiness vs. Poisons', description: '+2 racial bonus on saves vs. poison.', icon: 'ife_hardiness' },
-    { name: 'Hardiness vs. Spells', description: '+2 racial bonus on saves vs. spells.', icon: 'ife_hardiness' },
-    { name: 'Darkvision', description: 'See in the dark up to 60 feet.', icon: 'ife_darkvision' },
-  ],
+export type DummyFeat = {
+  id: number;
+  name: string;
+  description: string;
+  use?: string;
+  icon: string;
+  type: string;
+  isProtected: boolean;
+  prerequisites: { name: string; met: boolean; current?: number; required?: number }[];
 };
+
+export const FEAT_TYPE_OPTIONS = ['General', 'Combat', 'Proficiency', 'Metamagic', 'Divine', 'Class', 'Background', 'Racial'] as const;
+
+export const FEATS: Record<string, { title: string; feats: DummyFeat[] }> = {
+  general: {
+    title: 'General Feats',
+    feats: [
+      { id: 28, name: 'Power Attack', description: 'You can make exceptionally powerful melee attacks by trading attack bonus for damage. Subtract a number from attack rolls and add the same number to melee damage.', use: 'Activated as a combat mode. While active, you take a -5 penalty on attack rolls and gain +5 bonus to damage.', icon: 'ife_powerattack', type: 'Combat', isProtected: false, prerequisites: [{ name: 'STR 13', met: true, current: 20, required: 13 }] },
+      { id: 6, name: 'Cleave', description: 'If you deal a creature enough damage to make it drop, you get an immediate extra melee attack against another creature in range.', icon: 'ife_cleave', type: 'Combat', isProtected: false, prerequisites: [{ name: 'STR 13', met: true, current: 20, required: 13 }, { name: 'Power Attack', met: true }] },
+      { id: 13, name: 'Great Cleave', description: 'As Cleave, except there is no limit to the number of times you can use it per round.', icon: 'ife_greatcleave', type: 'Combat', isProtected: false, prerequisites: [{ name: 'STR 13', met: true }, { name: 'Cleave', met: true }, { name: 'BAB +4', met: true, current: 14, required: 4 }] },
+      { id: 49, name: 'Toughness', description: 'You gain +1 hit point per character level.', icon: 'ife_toughness', type: 'General', isProtected: false, prerequisites: [] },
+      { id: 8, name: 'Combat Reflexes', description: 'You may make a number of additional attacks of opportunity equal to your Dexterity modifier.', icon: 'ife_combatreflexes', type: 'Combat', isProtected: false, prerequisites: [] },
+      { id: 44, name: 'Spring Attack', description: 'When using the attack action with a melee weapon, you can move both before and after the attack, provided total distance is not greater than your speed.', icon: 'ife_springattack', type: 'Combat', isProtected: false, prerequisites: [{ name: 'DEX 13', met: true, current: 16, required: 13 }, { name: 'Dodge', met: false }, { name: 'Mobility', met: false }, { name: 'BAB +4', met: true, current: 14, required: 4 }] },
+      { id: 17, name: 'Improved Critical (Kama)', description: 'When using a kama, your critical threat range is doubled.', icon: 'ife_improvedcritical', type: 'Combat', isProtected: false, prerequisites: [{ name: 'BAB +8', met: true, current: 14, required: 8 }, { name: 'Weapon Proficiency', met: true }] },
+    ],
+  },
+  classBonusFeats: {
+    title: 'Class Bonus Feats',
+    feats: [
+      { id: 52, name: 'Weapon Focus (Kama)', description: '+1 attack bonus with kamas.', icon: 'ife_weaponfocus', type: 'Combat', isProtected: true, prerequisites: [{ name: 'BAB +1', met: true, current: 14, required: 1 }] },
+      { id: 53, name: 'Weapon Specialization (Kama)', description: '+2 damage bonus with kamas.', icon: 'ife_weaponspec', type: 'Combat', isProtected: true, prerequisites: [{ name: 'Weapon Focus (Kama)', met: true }, { name: 'Fighter Lv4', met: true }] },
+      { id: 19, name: 'Improved Unarmed Strike', description: 'You are considered armed even when unarmed. Your unarmed attacks do not provoke attacks of opportunity.', icon: 'ife_improvedunarmedstrike', type: 'Combat', isProtected: true, prerequisites: [] },
+      { id: 45, name: 'Stunning Fist', description: 'Attempt to stun an opponent with an unarmed strike. DC 10 + half level + WIS modifier.', use: 'Activated as a combat mode. Your next unarmed attack attempts to stun the target for 3 rounds.', icon: 'ife_stunningfist', type: 'Combat', isProtected: true, prerequisites: [{ name: 'DEX 13', met: true }, { name: 'WIS 13', met: true }, { name: 'Improved Unarmed Strike', met: true }] },
+      { id: 18, name: 'Improved Evasion', description: 'You take half damage on a failed Reflex save and no damage on a successful one.', icon: 'ife_evasion', type: 'Class', isProtected: true, prerequisites: [] },
+      { id: 21, name: 'Ki Strike (Magic)', description: 'Unarmed strikes are treated as magic weapons for overcoming damage reduction.', icon: 'ife_kistrike', type: 'Class', isProtected: true, prerequisites: [] },
+      { id: 22, name: 'Ki Strike (Lawful)', description: 'Unarmed strikes are treated as lawful-aligned for overcoming damage reduction.', icon: 'ife_kistrike', type: 'Class', isProtected: true, prerequisites: [] },
+      { id: 23, name: 'Ki Strike (Adamantine)', description: 'Unarmed strikes are treated as adamantine for overcoming damage reduction.', icon: 'ife_kistrike', type: 'Class', isProtected: true, prerequisites: [] },
+      { id: 10, name: 'Diamond Body', description: 'You gain immunity to all poisons.', icon: 'ife_diamondbody', type: 'Class', isProtected: true, prerequisites: [] },
+      { id: 11, name: 'Diamond Soul', description: 'You gain spell resistance equal to 10 + monk level.', icon: 'ife_diamondsoul', type: 'Class', isProtected: true, prerequisites: [] },
+    ],
+  },
+  background: {
+    title: 'Background Feats',
+    feats: [
+      { id: 100, name: 'Bully', description: '+2 bonus to Intimidate checks.', icon: 'ife_bully', type: 'Background', isProtected: true, prerequisites: [] },
+    ],
+  },
+  racial: {
+    title: 'Racial Feats',
+    feats: [
+      { id: 200, name: 'Dwarven Stonecunning', description: '+2 racial bonus to Search checks made in subterranean areas.', icon: 'ife_stonecunning', type: 'Racial', isProtected: true, prerequisites: [] },
+      { id: 201, name: 'Hardiness vs. Poisons', description: '+2 racial bonus on saving throws against poison.', icon: 'ife_hardiness', type: 'Racial', isProtected: true, prerequisites: [] },
+      { id: 202, name: 'Hardiness vs. Spells', description: '+2 racial bonus on saving throws against spells.', icon: 'ife_hardiness', type: 'Racial', isProtected: true, prerequisites: [] },
+      { id: 203, name: 'Darkvision', description: 'You can see in the dark up to 60 feet.', icon: 'ife_darkvision', type: 'Racial', isProtected: true, prerequisites: [] },
+    ],
+  },
+};
+
+export const ALL_FEATS: (DummyFeat & { canTake: boolean; hasFeat: boolean })[] = [
+  ...Object.values(FEATS).flatMap(cat => cat.feats.map(f => ({ ...f, canTake: true, hasFeat: true }))),
+  { id: 3, name: 'Alertness', description: '+2 bonus to Listen and Spot checks.', icon: 'ife_alertness', type: 'General', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 5, name: 'Blind-Fight', description: 'In melee, every time you miss because of concealment, you can re-roll the miss chance.', icon: 'ife_blindfight', type: 'Combat', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 9, name: 'Dodge', description: '+1 dodge bonus to AC against a selected opponent.', icon: 'ife_dodge', type: 'General', isProtected: false, prerequisites: [{ name: 'DEX 13', met: true, current: 16, required: 13 }], canTake: true, hasFeat: false },
+  { id: 14, name: 'Improved Initiative', description: '+4 bonus on initiative checks.', icon: 'ife_improvedinit', type: 'General', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 15, name: 'Improved Knockdown', description: 'You do not provoke an attack of opportunity when using Knockdown.', icon: 'ife_improvedknockdown', type: 'Combat', isProtected: false, prerequisites: [{ name: 'Knockdown', met: false }], canTake: false, hasFeat: false },
+  { id: 16, name: 'Iron Will', description: '+2 bonus on Will saving throws.', icon: 'ife_ironwill', type: 'General', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 24, name: 'Lightning Reflexes', description: '+2 bonus on Reflex saving throws.', icon: 'ife_lightningreflexes', type: 'General', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 25, name: 'Mobility', description: '+4 dodge bonus to AC against attacks of opportunity from movement.', icon: 'ife_mobility', type: 'General', isProtected: false, prerequisites: [{ name: 'DEX 13', met: true }, { name: 'Dodge', met: false }], canTake: false, hasFeat: false },
+  { id: 30, name: 'Weapon Finesse', description: 'Use DEX modifier instead of STR for attack rolls with light weapons.', icon: 'ife_weaponfinesse', type: 'Combat', isProtected: false, prerequisites: [{ name: 'BAB +1', met: true, current: 14, required: 1 }], canTake: true, hasFeat: false },
+  { id: 31, name: 'Extend Spell', description: 'An extended spell lasts twice as long as normal.', icon: 'ife_extendspell', type: 'Metamagic', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 32, name: 'Empower Spell', description: 'All variable, numeric effects of an empowered spell are increased by one-half.', icon: 'ife_empowerspell', type: 'Metamagic', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+  { id: 33, name: 'Maximize Spell', description: 'All variable, numeric effects of a maximized spell are maximized.', icon: 'ife_maximizespell', type: 'Metamagic', isProtected: false, prerequisites: [], canTake: true, hasFeat: false },
+];
+
+export type DummySpell = {
+  id: number;
+  name: string;
+  school: string;
+  description: string;
+  isDomain: boolean;
+  innateLevel?: number;
+  casterLevel?: string;
+  descriptor?: string;
+  components?: string;
+  range?: string;
+  area?: string;
+  duration?: string;
+  save?: string;
+  spellResistance?: string;
+};
+
+export const SPELL_SCHOOL_OPTIONS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'] as const;
 
 export const SPELLS = {
   casterClasses: [
-    { className: 'Cleric', casterLevel: 10, spellDC: 13, spellsPerDay: [4, 3, 3, 2, 1, 0, 0, 0, 0, 0] },
+    { className: 'Cleric', classLevel: 10, casterLevel: 10, spellDC: 15, spellType: 'prepared' as const, canEdit: true, spellSlots: [4, 4, 3, 3, 2, 1, 0, 0, 0, 0] },
   ],
   known: [
     { level: 0, spells: [
-      { name: 'Light', school: 'Evocation', description: 'Object shines like a torch.', memorized: 1 },
-      { name: 'Cure Minor Wounds', school: 'Conjuration', description: 'Cures 1 point of damage.', memorized: 1 },
-      { name: 'Resistance', school: 'Abjuration', description: '+1 on saving throws.', memorized: 1 },
-      { name: 'Virtue', school: 'Transmutation', description: 'Subject gains 1 temporary hp.', memorized: 1 },
+      { id: 1, name: 'Light', school: 'Evocation', description: 'This spell causes an object to glow like a torch, shedding bright light in a 20-foot radius.', isDomain: false, innateLevel: 0, casterLevel: 'Bard 0, Cleric 0, Druid 0, Wizard / Sorcerer 0', components: 'Verbal, Material', range: 'Touch', area: 'Single', duration: '10 min./level', save: 'None', spellResistance: 'No' },
+      { id: 2, name: 'Cure Minor Wounds', school: 'Conjuration', description: 'Cures 1 point of damage.', isDomain: false, innateLevel: 0, casterLevel: 'Cleric 0, Druid 0', descriptor: 'Positive', components: 'Verbal, Somatic', range: 'Touch', area: 'Single', duration: 'Instant', save: 'None', spellResistance: 'Yes' },
+      { id: 3, name: 'Resistance', school: 'Abjuration', description: 'The subject gains a +1 resistance bonus on saving throws.', isDomain: false, innateLevel: 0, casterLevel: 'Bard 0, Cleric 0, Druid 0, Paladin 1, Wizard / Sorcerer 0', components: 'Verbal, Somatic, Material', range: 'Touch', area: 'Single', duration: '1 Turn', save: 'None', spellResistance: 'Yes' },
+      { id: 4, name: 'Virtue', school: 'Transmutation', description: 'The subject gains 1 temporary hit point.', isDomain: false, innateLevel: 0, casterLevel: 'Cleric 0, Druid 0, Paladin 1', components: 'Verbal, Somatic', range: 'Touch', area: 'Single', duration: '1 Turn', save: 'None', spellResistance: 'Yes' },
     ]},
     { level: 1, spells: [
-      { name: 'Bless', school: 'Enchantment', description: 'Allies gain +1 on attack rolls and saves vs. fear.', memorized: 1 },
-      { name: 'Cure Light Wounds', school: 'Conjuration', description: 'Cures 1d8+1/level damage.', memorized: 1 },
-      { name: 'Shield of Faith', school: 'Abjuration', description: 'Aura grants +2 deflection bonus.', memorized: 1 },
+      { id: 10, name: 'Bless', school: 'Enchantment', description: 'Bless fills your allies with courage. Each ally gains a +1 morale bonus on attack rolls and on saving throws against fear effects.', isDomain: false, innateLevel: 1, casterLevel: 'Cleric 1, Paladin 1', components: 'Verbal, Somatic', range: 'Medium', area: 'Colossal', duration: '1 min./level', save: 'None', spellResistance: 'Yes' },
+      { id: 11, name: 'Cure Light Wounds', school: 'Conjuration', description: 'When laying your hand upon a living creature, you channel positive energy that cures 1d8 points of damage +1 point per caster level (maximum +5).', isDomain: false, innateLevel: 1, casterLevel: 'Bard 1, Cleric 1, Druid 1, Paladin 1, Ranger 2', descriptor: 'Positive', components: 'Verbal, Somatic', range: 'Touch', area: 'Single', duration: 'Instant', save: 'Will half (harmless)', spellResistance: 'Yes' },
+      { id: 12, name: 'Shield of Faith', school: 'Abjuration', description: 'This spell creates a shimmering, magical field around the target that grants a +2 deflection bonus to AC, with an additional +1 per 6 caster levels.', isDomain: false, innateLevel: 1, casterLevel: 'Cleric 1', components: 'Verbal, Somatic, Material', range: 'Touch', area: 'Single', duration: '1 min./level', save: 'None', spellResistance: 'No' },
+      { id: 13, name: 'Divine Favor', school: 'Evocation', description: 'Calling upon the strength and wisdom of a deity, you gain a +1 luck bonus on attack and weapon damage rolls for every three caster levels you have (maximum +3).', isDomain: false, innateLevel: 1, casterLevel: 'Cleric 1, Paladin 1', components: 'Verbal, Somatic', range: 'Personal', area: 'Caster', duration: '1 Turn', save: 'None', spellResistance: 'No' },
+      { id: 14, name: 'Enlarge Person', school: 'Transmutation', description: 'Humanoid creature doubles in size. +2 Str, -2 Dex, -1 attack/AC.', isDomain: true, innateLevel: 1, casterLevel: 'Wizard / Sorcerer 1', components: 'Verbal, Somatic, Material', range: 'Short', area: 'Single', duration: '1 min./level', save: 'Fortitude negates', spellResistance: 'Yes' },
+      { id: 15, name: 'Magic Weapon', school: 'Transmutation', description: 'Magic weapon gives a weapon a +1 enhancement bonus on attack and damage rolls.', isDomain: true, innateLevel: 1, casterLevel: 'Cleric 1, Paladin 1, Wizard / Sorcerer 1', components: 'Verbal, Somatic', range: 'Touch', area: 'Single', duration: '1 min./level', save: 'None', spellResistance: 'No' },
     ]},
     { level: 2, spells: [
-      { name: "Bull's Strength", school: 'Transmutation', description: 'Subject gains +4 to Str.', memorized: 1 },
-      { name: 'Cure Moderate Wounds', school: 'Conjuration', description: 'Cures 2d8+1/level damage.', memorized: 1 },
-      { name: 'Hold Person', school: 'Enchantment', description: 'Paralyzes one humanoid.', memorized: 1 },
+      { id: 20, name: "Bull's Strength", school: 'Transmutation', description: 'Subject gains +4 enhancement bonus to Strength for 1 min/level.', isDomain: true },
+      { id: 21, name: 'Cure Moderate Wounds', school: 'Conjuration', description: 'Cures 2d8 damage +1 per caster level (max +10).', isDomain: false },
+      { id: 22, name: 'Hold Person', school: 'Enchantment', description: 'Paralyzes one humanoid for 1 round per level.', isDomain: false },
+      { id: 23, name: 'Silence', school: 'Illusion', description: 'Negates sound in a 20-ft radius. Prevents spellcasting within.', isDomain: false },
     ]},
     { level: 3, spells: [
-      { name: 'Cure Serious Wounds', school: 'Conjuration', description: 'Cures 3d8+1/level damage.', memorized: 1 },
-      { name: 'Prayer', school: 'Enchantment', description: 'Allies +1 bonus, enemies -1 penalty.', memorized: 1 },
+      { id: 30, name: 'Cure Serious Wounds', school: 'Conjuration', description: 'Cures 3d8 damage +1 per caster level (max +15).', isDomain: false },
+      { id: 31, name: 'Prayer', school: 'Enchantment', description: 'Allies get +1 bonus on most rolls, enemies get -1 penalty.', isDomain: false },
+      { id: 32, name: 'Dispel Magic', school: 'Abjuration', description: 'Cancels magical spells and effects. Caster level check DC 11 + caster level.', isDomain: false },
     ]},
     { level: 4, spells: [
-      { name: 'Cure Critical Wounds', school: 'Conjuration', description: 'Cures 4d8+1/level damage.', memorized: 1 },
+      { id: 40, name: 'Cure Critical Wounds', school: 'Conjuration', description: 'Cures 4d8 damage +1 per caster level (max +20).', isDomain: false },
+      { id: 41, name: 'Divine Power', school: 'Evocation', description: 'You gain BAB equal to your level, +6 Str, and 1 temporary hp per level.', isDomain: true },
     ]},
   ],
 };
 
+export const MEMORIZED_SPELLS: { id: number; name: string; school: string; level: number; count: number; isDomain: boolean }[] = [
+  { id: 2, name: 'Cure Minor Wounds', school: 'Conjuration', level: 0, count: 2, isDomain: false },
+  { id: 3, name: 'Resistance', school: 'Abjuration', level: 0, count: 1, isDomain: false },
+  { id: 1, name: 'Light', school: 'Evocation', level: 0, count: 1, isDomain: false },
+  { id: 11, name: 'Cure Light Wounds', school: 'Conjuration', level: 1, count: 2, isDomain: false },
+  { id: 10, name: 'Bless', school: 'Enchantment', level: 1, count: 1, isDomain: false },
+  { id: 15, name: 'Magic Weapon', school: 'Transmutation', level: 1, count: 1, isDomain: true },
+  { id: 21, name: 'Cure Moderate Wounds', school: 'Conjuration', level: 2, count: 2, isDomain: false },
+  { id: 20, name: "Bull's Strength", school: 'Transmutation', level: 2, count: 1, isDomain: true },
+  { id: 30, name: 'Cure Serious Wounds', school: 'Conjuration', level: 3, count: 2, isDomain: false },
+  { id: 32, name: 'Dispel Magic', school: 'Abjuration', level: 3, count: 1, isDomain: false },
+  { id: 40, name: 'Cure Critical Wounds', school: 'Conjuration', level: 4, count: 1, isDomain: false },
+  { id: 41, name: 'Divine Power', school: 'Evocation', level: 4, count: 1, isDomain: true },
+];
+
+export const ALL_SPELLS: (DummySpell & { level: number; isLearned: boolean })[] = [
+  ...SPELLS.known.flatMap(g => g.spells.map(s => ({ ...s, level: g.level, isLearned: true }))),
+  { id: 50, name: 'Doom', school: 'Necromancy', description: 'One subject takes -2 on attack rolls, damage rolls, saves, and checks.', isDomain: false, level: 1, isLearned: false },
+  { id: 51, name: 'Command', school: 'Enchantment', description: 'One subject obeys selected command for 1 round.', isDomain: false, level: 1, isLearned: false },
+  { id: 52, name: 'Inflict Light Wounds', school: 'Necromancy', description: 'Touch deals 1d8 damage +1 per caster level (max +5).', isDomain: false, level: 1, isLearned: false },
+  { id: 53, name: "Bear's Endurance", school: 'Transmutation', description: 'Subject gains +4 enhancement bonus to Constitution.', isDomain: false, level: 2, isLearned: false },
+  { id: 54, name: 'Spiritual Weapon', school: 'Evocation', description: 'A weapon of force attacks subjects at your direction. BAB = caster level.', isDomain: false, level: 2, isLearned: false },
+  { id: 55, name: 'Flame Strike', school: 'Evocation', description: 'Smite foes with divine fire (1d6 per level, max 15d6). Half fire, half divine.', isDomain: false, level: 4, isLearned: false },
+  { id: 56, name: 'Death Ward', school: 'Necromancy', description: 'Grants immunity to all death spells and negative energy effects.', isDomain: false, level: 4, isLearned: false },
+  { id: 57, name: 'Raise Dead', school: 'Conjuration', description: 'Restores life to a deceased subject. Subject loses a level.', isDomain: false, level: 5, isLearned: false },
+  { id: 58, name: 'Slay Living', school: 'Necromancy', description: 'Touch attack kills subject. Fort save for 3d6+1/level instead.', isDomain: false, level: 5, isLearned: false },
+  { id: 59, name: 'Blade Barrier', school: 'Evocation', description: 'Wall of whirling blades deals 1d6 per level damage (max 15d6).', isDomain: false, level: 6, isLearned: false },
+  { id: 60, name: 'Heal', school: 'Conjuration', description: 'Cures 10 points per level of damage, all diseases and mental conditions.', isDomain: false, level: 6, isLearned: false },
+];
+
+export const ABILITY_SPELLS = [
+  { id: 500, name: 'Wholeness of Body', source: 'Monk', description: 'Heal yourself for monk level x 2 hit points per day.', usesPerDay: 1 },
+  { id: 501, name: 'Quivering Palm', source: 'Monk', description: 'Set up fatal vibrations in a living creature. Fort save or die.', usesPerDay: 1 },
+];
+
 export const INVENTORY = [
-  { slot: 'Main Hand', name: 'Kamas +3', type: 'Weapon', weight: 2.0, value: 18302, properties: ['Enhancement +3', 'Keen', 'Fire Damage 1d6'] },
-  { slot: 'Off Hand', name: 'Kamas +2', type: 'Weapon', weight: 2.0, value: 8302, properties: ['Enhancement +2', 'Cold Damage 1d4'] },
-  { slot: 'Head', name: 'Headband of Intellect +2', type: 'Accessory', weight: 0.1, value: 4000, properties: ['Intelligence +2'] },
-  { slot: 'Chest', name: "Monk's Belt of the Sun Soul", type: 'Armor', weight: 1.0, value: 25000, properties: ['AC Bonus +3', 'Wisdom +2'] },
-  { slot: 'Hands', name: 'Gloves of the Long Death +3', type: 'Accessory', weight: 0.5, value: 12000, properties: ['Enhancement +3', 'Massive Criticals 1d8'] },
-  { slot: 'Feet', name: 'Boots of Striding +2', type: 'Accessory', weight: 1.0, value: 5600, properties: ['Dexterity +2', 'Freedom of Movement'] },
-  { slot: 'Cloak', name: 'Cloak of Fortification +2', type: 'Accessory', weight: 1.0, value: 8000, properties: ['Fortitude +2', 'Concealment 10%'] },
-  { slot: 'Ring 1', name: 'Ring of Protection +2', type: 'Accessory', weight: 0.0, value: 8000, properties: ['Deflection AC +2'] },
-  { slot: 'Ring 2', name: 'Ring of Regeneration', type: 'Accessory', weight: 0.0, value: 15000, properties: ['Regeneration +2'] },
-  { slot: 'Belt', name: 'Belt of Storm Giant Strength', type: 'Accessory', weight: 1.0, value: 36000, properties: ['Strength +6'] },
-  { slot: 'Amulet', name: 'Amulet of Natural Armor +3', type: 'Accessory', weight: 0.1, value: 18000, properties: ['Natural AC +3'] },
+  { slot: 'Main Hand', name: 'Kamas +3', baseItem: 'Kama', type: 'Weapon', weight: 2.0, value: 18302, enhancement: 3, charges: null as { current: number; max: number } | null, rarity: 'rare' as const, description: 'A pair of finely crafted kamas imbued with elemental fire. The blades shimmer with a faint orange glow.', flags: { custom: true }, properties: ['Enhancement +3', 'Keen', 'Fire Damage 1d6'] },
+  { slot: 'Off Hand', name: 'Kamas +2', baseItem: 'Kama', type: 'Weapon', weight: 2.0, value: 8302, enhancement: 2, charges: null as { current: number; max: number } | null, rarity: 'uncommon' as const, description: 'A sturdy kama enchanted with frost magic.', flags: {}, properties: ['Enhancement +2', 'Cold Damage 1d4'] },
+  { slot: 'Head', name: 'Headband of Intellect +2', baseItem: 'Headband', type: 'Accessory', weight: 0.1, value: 4000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'uncommon' as const, description: 'A silver headband set with a sapphire that sharpens the wearer\'s mind.', flags: {}, properties: ['Intelligence +2'] },
+  { slot: 'Chest', name: "Monk's Belt of the Sun Soul", baseItem: 'Monk Robe', type: 'Armor', weight: 1.0, value: 25000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'epic' as const, description: 'A sacred vestment of the Order of the Sun Soul, woven with golden thread and blessed by the Morninglord himself.', flags: { plot: true }, properties: ['AC Bonus +3', 'Wisdom +2'] },
+  { slot: 'Hands', name: 'Gloves of the Long Death +3', baseItem: 'Gloves', type: 'Accessory', weight: 0.5, value: 12000, enhancement: 3, charges: null as { current: number; max: number } | null, rarity: 'rare' as const, description: 'Black leather gloves bearing the insignia of the Order of the Long Death.', flags: {}, properties: ['Enhancement +3', 'Massive Criticals 1d8'] },
+  { slot: 'Feet', name: 'Boots of Striding +2', baseItem: 'Boots', type: 'Accessory', weight: 1.0, value: 5600, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'uncommon' as const, description: 'Enchanted boots that grant the wearer unusual agility and freedom of movement.', flags: {}, properties: ['Dexterity +2', 'Freedom of Movement'] },
+  { slot: 'Cloak', name: 'Cloak of Fortification +2', baseItem: 'Cloak', type: 'Accessory', weight: 1.0, value: 8000, enhancement: null as number | null, charges: { current: 8, max: 10 }, rarity: 'rare' as const, description: 'A heavy cloak that shimmers faintly, protecting the wearer from critical strikes.', flags: { cursed: true }, properties: ['Fortitude +2', 'Concealment 10%'] },
+  { slot: 'Ring 1', name: 'Ring of Protection +2', baseItem: 'Ring', type: 'Accessory', weight: 0.0, value: 8000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'uncommon' as const, description: 'A plain silver ring that deflects blows with an invisible barrier.', flags: {}, properties: ['Deflection AC +2'] },
+  { slot: 'Ring 2', name: 'Ring of Regeneration', baseItem: 'Ring', type: 'Accessory', weight: 0.0, value: 15000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'rare' as const, description: 'A gold ring set with an emerald that mends the wearer\'s wounds over time.', flags: { stolen: true }, properties: ['Regeneration +2'] },
+  { slot: 'Belt', name: 'Belt of Storm Giant Strength', baseItem: 'Belt', type: 'Accessory', weight: 1.0, value: 36000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'epic' as const, description: 'A massive girdle forged from storm giant hide, granting tremendous physical might to the wearer.', flags: { custom: true }, properties: ['Strength +6'] },
+  { slot: 'Amulet', name: 'Amulet of Natural Armor +3', baseItem: 'Amulet', type: 'Accessory', weight: 0.1, value: 18000, enhancement: null as number | null, charges: null as { current: number; max: number } | null, rarity: 'rare' as const, description: 'A bone amulet carved with druidic runes that toughens the wearer\'s skin.', flags: {}, properties: ['Natural AC +3'] },
 ];
 
 export const BACKPACK = [
-  { name: 'Potion of Heal', qty: 5, weight: 0.5, value: 750 },
-  { name: 'Potion of Barkskin', qty: 3, weight: 0.5, value: 300 },
-  { name: 'Bolt of Lightning', qty: 12, weight: 0.1, value: 50 },
-  { name: "Thieves' Tools +6", qty: 1, weight: 1.0, value: 850 },
-  { name: 'Gem - Star Sapphire', qty: 2, weight: 0.0, value: 1000 },
-  { name: 'Key to Crossroad Keep', qty: 1, weight: 0.0, value: 0 },
+  { name: 'Potion of Heal', type: 'Potion', qty: 5, weight: 0.5, value: 750, rarity: 'rare' as const },
+  { name: 'Potion of Barkskin', type: 'Potion', qty: 3, weight: 0.5, value: 300, rarity: 'uncommon' as const },
+  { name: 'Bolt of Lightning', type: 'Ammunition', qty: 12, weight: 0.1, value: 50, rarity: 'common' as const },
+  { name: "Thieves' Tools +6", type: 'Tool', qty: 1, weight: 1.0, value: 850, rarity: 'uncommon' as const },
+  { name: 'Gem - Star Sapphire', type: 'Gem', qty: 2, weight: 0.0, value: 1000, rarity: 'rare' as const },
+  { name: 'Key to Crossroad Keep', type: 'Key', qty: 1, weight: 0.0, value: 0, rarity: 'common' as const },
 ];
 
 export const AVAILABLE_CLASSES = {
@@ -300,32 +402,85 @@ export const AVAILABLE_CLASSES = {
 };
 
 export const GAME_STATE = {
-  campaignVars: [
-    { name: 'nKhelgarMonkPath', type: 'int', value: '1' },
-    { name: 'nShardraComplete', type: 'int', value: '0' },
-    { name: 'nCrossroadKeepUpgrades', type: 'int', value: '5' },
-    { name: 'sLastVisitedArea', type: 'string', value: 'Crossroad Keep - Courtyard' },
-    { name: 'fPlayerReputation', type: 'float', value: '85.5' },
-    { name: 'nActComplete', type: 'int', value: '2' },
-    { name: 'nRomanceActive', type: 'int', value: '1' },
-    { name: 'nShadowReaperKilled', type: 'int', value: '0' },
-  ],
-  quests: [
-    { name: 'The Kalach-Cha', status: 'active', entries: 12 },
-    { name: "Khelgar's Redemption", status: 'active', entries: 8 },
-    { name: 'Crossroad Keep', status: 'active', entries: 15 },
-    { name: 'The Shadow Reaper', status: 'active', entries: 3 },
-    { name: 'Missing Miners', status: 'completed', entries: 6 },
-    { name: 'Bandit Ambush', status: 'completed', entries: 4 },
-    { name: 'The Githyanki Threat', status: 'failed', entries: 5 },
-  ],
   companions: [
-    { name: 'Neeshka', influence: 72, status: 'In Party' },
-    { name: 'Elanee', influence: 55, status: 'In Party' },
-    { name: 'Sand', influence: 48, status: 'At Keep' },
-    { name: 'Casavir', influence: 60, status: 'At Keep' },
-    { name: 'Grobnar', influence: 80, status: 'In Party' },
-    { name: 'Qara', influence: 15, status: 'At Keep' },
-    { name: 'Bishop', influence: 30, status: 'Left Party' },
+    { name: 'Neeshka', influence: 72, status: 'In Party', recruitment: 'recruited' as const },
+    { name: 'Elanee', influence: 55, status: 'In Party', recruitment: 'recruited' as const },
+    { name: 'Sand', influence: 48, status: 'At Keep', recruitment: 'recruited' as const },
+    { name: 'Casavir', influence: 60, status: 'At Keep', recruitment: 'recruited' as const },
+    { name: 'Grobnar', influence: 80, status: 'In Party', recruitment: 'recruited' as const },
+    { name: 'Qara', influence: 15, status: 'At Keep', recruitment: 'met' as const },
+    { name: 'Bishop', influence: 30, status: 'Left Party', recruitment: 'met' as const },
+    { name: 'Zhjaeve', influence: 0, status: 'At Keep', recruitment: 'not_recruited' as const },
   ],
+  modules: [
+    { id: 'mod1', name: 'Act I - West Harbor', isCurrent: false, varCount: 42 },
+    { id: 'mod2', name: 'Act II - Crossroad Keep', isCurrent: true, varCount: 67 },
+    { id: 'mod3', name: 'Act III - Vale of Merdelain', isCurrent: false, varCount: 23 },
+  ],
+  moduleInfo: {
+    moduleName: 'Act II - Crossroad Keep',
+    campaign: 'Neverwinter Nights 2 OC',
+    currentArea: 'Crossroad Keep - Courtyard',
+    entryArea: 'Crossroad Keep - Gate',
+  },
+  moduleVars: {
+    integers: [
+      { name: 'nKeepDefenseLevel', value: 3 },
+      { name: 'nKeepMerchantTier', value: 2 },
+      { name: 'nSiegePrepared', value: 1 },
+      { name: 'nGreycloakRecruited', value: 45 },
+      { name: 'nKeepRoadPatrol', value: 1 },
+      { name: 'nFarmerSettled', value: 8 },
+      { name: 'nMineOperational', value: 1 },
+      { name: 'nChurchBuilt', value: 0 },
+    ],
+    strings: [
+      { name: 'sLastDialogSpeaker', value: 'Kana' },
+      { name: 'sKeepSteward', value: 'Kana' },
+      { name: 'sCurrentObjective', value: 'Fortify the Keep' },
+      { name: 'sLastAreaTransition', value: 'ck_courtyard_to_interior' },
+    ],
+    floats: [
+      { name: 'fKeepMorale', value: 0.85 },
+      { name: 'fTaxRate', value: 0.10 },
+      { name: 'fGreycloakTraining', value: 0.65 },
+    ],
+  },
+  campaignVars: {
+    integers: [
+      { name: 'nKhelgarMonkPath', value: 1 },
+      { name: 'nShardraComplete', value: 0 },
+      { name: 'nCrossroadKeepUpgrades', value: 5 },
+      { name: 'nActComplete', value: 2 },
+      { name: 'nRomanceActive', value: 1 },
+      { name: 'nShadowReaperKilled', value: 0 },
+      { name: 'nTrialVerdict', value: 1 },
+      { name: 'nLuskansDefeated', value: 1 },
+    ],
+    strings: [
+      { name: 'sLastVisitedArea', value: 'Crossroad Keep - Courtyard' },
+      { name: 'sRomanceTarget', value: 'Elanee' },
+      { name: 'sPlayerTitle', value: 'Captain of Crossroad Keep' },
+    ],
+    floats: [
+      { name: 'fPlayerReputation', value: 85.5 },
+      { name: 'fGoodEvilShift', value: 12.0 },
+    ],
+  },
+  campaignSettings: {
+    displayName: 'Neverwinter Nights 2 OC',
+    description: 'The original Neverwinter Nights 2 campaign by Obsidian Entertainment.',
+    levelCap: 30,
+    xpCap: 435000,
+    companionXpWeight: 1,
+    henchmanXpWeight: 0,
+    attackNeutrals: 0,
+    autoXpAward: 1,
+    journalSync: 1,
+    noCharChanging: 0,
+    usePersonalReputation: 0,
+    startModule: 'ar_0001_west_harbor',
+    moduleNames: ['West Harbor', 'Highcliff', 'Neverwinter', 'Crossroad Keep', 'Vale of Merdelain'],
+    campaignFilePath: 'C:\\NWN2\\campaigns\\neverwinter2.cam',
+  },
 };

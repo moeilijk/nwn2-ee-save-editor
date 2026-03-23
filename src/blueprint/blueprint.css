@@ -95,16 +95,75 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
   fill: #d9d0c1;
 }
 
-.bp6-dialog ::-webkit-scrollbar {
+.bp-app ::-webkit-scrollbar {
   width: 8px;
 }
-.bp6-dialog ::-webkit-scrollbar-track {
+.bp-app ::-webkit-scrollbar-track {
   background: #f5f0e8;
 }
-.bp6-dialog ::-webkit-scrollbar-thumb {
+.bp-app ::-webkit-scrollbar-thumb {
   background: #c9bfae;
   border-radius: 4px;
 }
-.bp6-dialog ::-webkit-scrollbar-thumb:hover {
+.bp-app ::-webkit-scrollbar-thumb:hover {
   background: #a0522d;
+}
+
+/* Tabs */
+.bp-app .bp6-tabs .bp6-tab-list {
+  border-bottom: 1px solid #d9d0c1;
+}
+.bp-app .bp6-tabs .bp6-tab {
+  color: #4a453c;
+  font-weight: 600;
+  font-size: 14px;
+}
+.bp-app .bp6-tabs .bp6-tab[aria-selected="true"] {
+  color: #a0522d;
+}
+.bp-app .bp6-tabs .bp6-tab-indicator {
+  background: #a0522d;
+}
+.bp-app .bp6-tabs .bp6-tab:hover {
+  color: #a0522d;
+}
+
+/* Slider */
+.bp-app .bp6-slider-track .bp6-slider-progress {
+  background: #a0522d;
+}
+.bp-app .bp6-slider-handle {
+  background: #a0522d;
+  border-color: #8a4525;
+}
+.bp-app .bp6-slider-handle:hover {
+  background: #8a4525;
+}
+
+/* Switch */
+.bp-app .bp6-control.bp6-switch input:checked ~ .bp6-control-indicator {
+  background: #a0522d;
+}
+.bp-app .bp6-control.bp6-switch .bp6-control-indicator {
+  background: #c9bfae;
+}
+
+/* Checkbox */
+.bp-app .bp6-control.bp6-checkbox input:checked ~ .bp6-control-indicator {
+  background: #a0522d;
+  border-color: #a0522d;
+}
+.bp-app .bp6-control.bp6-checkbox .bp6-control-indicator {
+  border-color: #c9bfae;
+}
+
+/* HTMLSelect */
+.bp-app .bp6-html-select select {
+  background: #faf7f2;
+  border-color: #d9d0c1;
+  color: #2d2d30;
+}
+.bp-app .bp6-html-select select:focus {
+  border-color: #a0522d;
+  box-shadow: 0 0 0 1px #a0522d;
 }
