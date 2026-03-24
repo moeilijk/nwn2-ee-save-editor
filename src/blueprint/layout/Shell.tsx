@@ -12,6 +12,7 @@ import { FeatsPanel } from '../Feats/FeatsPanel';
 import { SpellsPanel } from '../Spells/SpellsPanel';
 import { InventoryPanel } from '../Inventory/InventoryPanel';
 import { GameStatePanel } from '../GameState/GameStatePanel';
+import { LevelHelper } from '../shared';
 
 const PANELS: Record<string, React.ComponentType> = {
   overview: OverviewPanel,
@@ -40,6 +41,7 @@ export default function Shell() {
             backgroundImage: PATTERN_BG,
             backgroundSize: '200px 200px',
           }}>
+            <LevelHelper onNavigate={setActiveTab} />
             {Panel ? <Panel /> : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <div style={{ textAlign: 'center' }}>

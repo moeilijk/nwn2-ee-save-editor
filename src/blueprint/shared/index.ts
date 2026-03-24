@@ -7,3 +7,4 @@ export { SplitPane } from './SplitPane';
 export { GroupedList } from './GroupedList';
 export type { ListSection } from './GroupedList';
 export { DetailSection } from './DetailSection';
+export { LevelHelper } from './LevelHelper';
