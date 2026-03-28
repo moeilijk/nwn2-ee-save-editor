@@ -7,6 +7,8 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import ClientOnlyApp from '@/components/ClientOnlyApp';
 import SettingsPage from '@/pages/SettingsPage';
 import Shell from '@/blueprint/layout/Shell';
+import ManuscriptTest from '@/pages/ManuscriptTest';
+import DashboardPanel from '@/blueprint/Dashboard/DashboardPanel';
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/" element={<ClientOnlyApp />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/prototype" element={<Shell />} />
+        <Route path="/manuscript-test" element={<ManuscriptTest />} />
+        <Route path="/dashboard" element={<DashboardPanel />} />
       </Routes>
     </AppProviders>
   );

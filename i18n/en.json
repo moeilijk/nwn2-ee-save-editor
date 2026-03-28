@@ -3,6 +3,17 @@
     "title": "NWN2 Save Editor",
     "description": "Modern save editor for Neverwinter Nights 2 Enhanced Edition"
   },
+  "dashboard": {
+    "title": "NWN2:EE Save Editor",
+    "tagline": "Neverwinter Nights 2 Enhanced Edition",
+    "saveGames": "Save Games",
+    "browse": "Browse...",
+    "noSaves": "No saves found. Use Browse to locate your save files.",
+    "loadSave": "Load Save",
+    "continueEditing": "Continue Editing",
+    "closeSession": "Close Session",
+    "active": "Active"
+  },
   "navigation": {
     "overview": "Overview",
     "characterBuilder": "Character Builder",

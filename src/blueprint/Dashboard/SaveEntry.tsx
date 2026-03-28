@@ -1,0 +1,88 @@
+import { Icon, Tag } from '@blueprintjs/core';
+import { useTranslations } from '@/hooks/useTranslations';
+import { T } from '../theme';
+
+export interface SaveEntryData {
+  characterName: string;
+  folderName: string;
+  date: string;
+  thumbnail: string | null;
+  isActive: boolean;
+}
+
+interface SaveEntryProps {
+  save: SaveEntryData;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+export function SaveEntry({ save, isSelected, onClick }: SaveEntryProps) {
+  const t = useTranslations();
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '10px 16px',
+        cursor: 'pointer',
+        borderBottom: `1px solid ${T.borderLight}`,
+        borderLeft: isSelected ? `3px solid ${T.accent}` : '3px solid transparent',
+        background: isSelected ? 'rgba(160, 82, 45, 0.06)' : 'transparent',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.background = 'rgba(160, 82, 45, 0.03)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = isSelected ? 'rgba(160, 82, 45, 0.06)' : 'transparent';
+      }}
+    >
+      <div style={{
+        width: 128,
+        height: 96,
+        borderRadius: 4,
+        background: T.surfaceAlt,
+        border: `1px solid ${T.borderLight}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <Icon icon="media" size={32} color={T.border} />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: isSelected ? T.accent : T.text,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {save.characterName}
+          </span>
+          {save.isActive && (
+            <Tag minimal round style={{
+              fontSize: 10,
+              background: 'rgba(160, 82, 45, 0.12)',
+              color: T.accent,
+            }}>
+              {t('dashboard.active')}
+            </Tag>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+          {save.folderName}
+        </div>
+        <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+          {save.date}
+        </div>
+      </div>
+    </div>
+  );
+}
