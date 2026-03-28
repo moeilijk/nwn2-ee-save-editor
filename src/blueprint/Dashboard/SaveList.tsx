@@ -1,18 +1,24 @@
+import { useState } from 'react';
 import { Button, Icon } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { SectionBar } from '../shared';
 import { T } from '../theme';
 import { SaveEntry } from './SaveEntry';
 import type { SaveEntryData } from './SaveEntry';
+import { FileBrowserDialog } from './FileBrowserDialog';
+import type { FileInfo } from './FileBrowserDialog';
 
 interface SaveListProps {
   saves: SaveEntryData[];
   selectedIndex: number | null;
   onSelect: (index: number) => void;
+  demoFiles?: FileInfo[];
 }
 
-export function SaveList({ saves, selectedIndex, onSelect }: SaveListProps) {
+export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveListProps) {
   const t = useTranslations();
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [browserPath, setBrowserPath] = useState('');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -55,11 +61,24 @@ export function SaveList({ saves, selectedIndex, onSelect }: SaveListProps) {
             cursor: 'pointer',
           }}
         >
-          <Button minimal icon="folder-open" intent="primary">
+          <Button minimal icon="folder-open" intent="primary" onClick={() => setShowBrowser(true)}>
             {t('dashboard.browse')}
           </Button>
         </div>
       </div>
+
+      <FileBrowserDialog
+        isOpen={showBrowser}
+        onClose={() => setShowBrowser(false)}
+        mode="load-saves"
+        currentPath={browserPath || 'C:/Users/Player/Documents/Neverwinter Nights 2/saves'}
+        onPathChange={setBrowserPath}
+        demoFiles={demoFiles}
+        onSelectFile={(file) => {
+          console.log('Selected save:', file.path);
+          setShowBrowser(false);
+        }}
+      />
     </div>
   );
 }
