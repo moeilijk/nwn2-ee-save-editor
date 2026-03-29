@@ -50,7 +50,6 @@ export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveList
           </div>
         )}
 
-        {/* Browse row at the end of the list */}
         <div
           style={{
             display: 'flex',

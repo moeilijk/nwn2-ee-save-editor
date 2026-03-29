@@ -42,10 +42,8 @@ export function OverviewPanel() {
   return (
     <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
-      {/* ── Left: Identity + Flavor + Context ── */}
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
-        {/* Identity */}
         <div style={{ padding: '14px 16px 12px' }}>
           {isEditingName ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -64,7 +62,6 @@ export function OverviewPanel() {
             {CHARACTER.classes.map(c => `${c.name} ${c.level}`).join(' / ')} <span style={{ color: T.textMuted }}>&mdash; Level {CHARACTER.level}</span>
           </div>
 
-          {/* Character details */}
           <div style={{ fontSize: 13 }}>
             <KVRow label="Race" value={CHARACTER.race} />
             <KVRow label="Gender / Age" value={`${CHARACTER.gender}, ${CHARACTER.age} yrs`} />
@@ -80,7 +77,6 @@ export function OverviewPanel() {
             <KVRow label="Gold" value={fmtNum(CHARACTER.gold)} color={T.gold} />
           </div>
 
-          {/* Domains */}
           {CHARACTER.domains.length > 0 && (
             <div style={{ marginTop: 8 }}>
               <KVRow label="Domains" value={CHARACTER.domains.map(d => d.name).join(', ')} />
@@ -88,7 +84,6 @@ export function OverviewPanel() {
           )}
         </div>
 
-        {/* Progression */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Progression</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
@@ -99,7 +94,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Biography */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>Biography</span>
@@ -123,7 +117,6 @@ export function OverviewPanel() {
           )}
         </div>
 
-        {/* Campaign */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px', fontSize: 13 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Campaign</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
@@ -137,7 +130,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Quest Progress */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Quest Progress</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
@@ -148,10 +140,8 @@ export function OverviewPanel() {
         </div>
       </Card>
 
-      {/* ── Right: All mechanical / numbers ── */}
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
-        {/* Health */}
         <div style={{ padding: '12px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Health</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -175,7 +165,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Combat */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Combat</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
@@ -188,7 +177,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Saves */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Saves</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
@@ -198,7 +186,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Ability Scores */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Ability Scores</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
@@ -208,7 +195,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Alignment */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Alignment</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, marginBottom: 10 }}>
@@ -245,7 +231,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        {/* Special Defenses */}
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Special Defenses</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>

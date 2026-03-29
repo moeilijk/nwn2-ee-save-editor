@@ -50,7 +50,6 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
       }
     >
       <div style={{ display: 'flex', gap: 0, margin: -16, minHeight: 400 }}>
-        {/* Left: search + list */}
         <div style={{ width: 240, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column', background: T.surfaceAlt }}>
           <div style={{ padding: 8 }}>
             <InputGroup
@@ -99,7 +98,6 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
           </div>
         </div>
 
-        {/* Right: detail */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {detail ? (
             <div>

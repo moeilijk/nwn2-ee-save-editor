@@ -202,7 +202,6 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
         />
       </Popover>
 
-      {/* Badge */}
       <div style={{
         position: 'absolute',
         top: -4,

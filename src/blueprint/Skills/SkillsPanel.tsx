@@ -76,7 +76,6 @@ export function SkillsPanel() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
-        {/* Budget bar + search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
           <span style={{ color: T.textMuted }}>Spent: <strong style={{ color: T.text }}>{BUDGET.spent}</strong></span>
           <span style={{ color: T.textMuted }}>Available: <strong style={{ color: T.accent }}>{BUDGET.available}</strong></span>
@@ -91,7 +90,6 @@ export function SkillsPanel() {
           <Button icon="reset" text="Reset" minimal style={{ color: T.textMuted }} />
         </div>
 
-        {/* Skills table */}
         <div style={{ padding: '12px 16px 16px' }}>
           <SectionLabel>Skills</SectionLabel>
           <HTMLTable compact striped bordered interactive style={{ width: '100%', tableLayout: 'fixed' }}>

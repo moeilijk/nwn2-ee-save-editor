@@ -1,17 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem } from '@blueprintjs/core';
-import { T } from '../theme';
+import { T, SPELL_SCHOOL_COLORS } from '../theme';
 import { SPELLS, MEMORIZED_SPELLS, ALL_SPELLS, ABILITY_SPELLS, SPELL_SCHOOL_OPTIONS } from '../dummy-data';
 import type { DummySpell } from '../dummy-data';
 import { SplitPane, GroupedList } from '../shared';
 import type { ListSection } from '../shared';
 import { SpellDetail } from './SpellDetail';
-
-const SCHOOL_COLORS: Record<string, string> = {
-  Abjuration: '#1565c0', Conjuration: '#2e7d32', Enchantment: '#7b1fa2',
-  Evocation: '#d84315', Transmutation: '#0277bd', Necromancy: '#b71c1c',
-  Divination: '#00838f', Illusion: '#ad1457', Universal: '#546e7a',
-};
 
 type SpellWithLevel = DummySpell & { level: number; memorizedCount?: number };
 
@@ -131,7 +125,7 @@ export function SpellsPanel() {
   );
 
   const renderSpellItem = useCallback((spell: SpellWithLevel, selected: boolean) => {
-    const schoolColor = SCHOOL_COLORS[spell.school] || T.textMuted;
+    const schoolColor = SPELL_SCHOOL_COLORS[spell.school] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{

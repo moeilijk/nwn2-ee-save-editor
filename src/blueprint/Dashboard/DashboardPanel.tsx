@@ -92,7 +92,6 @@ export default function DashboardPanel() {
         backgroundSize: '200px 200px',
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
       }}>
-        {/* Top bar */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -111,7 +110,6 @@ export default function DashboardPanel() {
           </div>
         </div>
 
-        {/* Save list */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <SaveList
             saves={DUMMY_SAVES}

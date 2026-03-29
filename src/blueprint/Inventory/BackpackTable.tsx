@@ -1,14 +1,7 @@
 import { HTMLTable } from '@blueprintjs/core';
 import { BACKPACK } from '../dummy-data';
 import { fmtNum } from '../shared';
-import { T } from '../theme';
-
-const RARITY_COLORS = {
-  common: T.text,
-  uncommon: T.positive,
-  rare: '#1565c0',
-  epic: '#6a1b9a',
-} as const;
+import { T, RARITY_COLORS } from '../theme';
 
 interface BackpackTableProps {
   selectedIndex: number | null;

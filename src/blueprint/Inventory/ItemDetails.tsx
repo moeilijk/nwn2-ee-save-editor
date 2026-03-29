@@ -1,18 +1,11 @@
 import { Button, ButtonGroup, H4, Icon, ProgressBar } from '@blueprintjs/core';
-import { T } from '../theme';
+import { T, RARITY_COLORS } from '../theme';
 import { INVENTORY, BACKPACK } from '../dummy-data';
 import { fmtNum } from '../shared';
 
 type InventoryItem = typeof INVENTORY[number];
 type BackpackItem = typeof BACKPACK[number];
 export type AnyItem = InventoryItem | BackpackItem;
-
-const RARITY_COLORS: Record<string, string> = {
-  common: T.text,
-  uncommon: T.positive,
-  rare: '#1565c0',
-  epic: '#6a1b9a',
-};
 
 function isEquippedItem(item: AnyItem): item is InventoryItem {
   return 'slot' in item;
@@ -41,7 +34,6 @@ export function ItemDetails({ item, onEdit }: ItemDetailsProps) {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ padding: '14px 16px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
@@ -60,7 +52,6 @@ export function ItemDetails({ item, onEdit }: ItemDetailsProps) {
         </div>
       </div>
 
-      {/* Details */}
       <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
         <div style={{ fontWeight: 700, color: T.accent, marginBottom: 6 }}>Details</div>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 4 }}>
@@ -82,7 +73,6 @@ export function ItemDetails({ item, onEdit }: ItemDetailsProps) {
         </div>
       </div>
 
-      {/* Description */}
       {equipped && item.description && (
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontWeight: 700, color: T.accent, marginBottom: 8 }}>Description</div>
@@ -92,7 +82,6 @@ export function ItemDetails({ item, onEdit }: ItemDetailsProps) {
         </div>
       )}
 
-      {/* Properties */}
       {equipped && item.properties.length > 0 && (
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontWeight: 700, color: T.accent, marginBottom: 8 }}>Properties</div>

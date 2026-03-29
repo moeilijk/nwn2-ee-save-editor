@@ -193,7 +193,6 @@ export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {/* Filter bar */}
         <div style={{ padding: '6px 0', borderBottom: `1px solid ${T.borderLight}`, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Tabs
             id="add-item-tabs" selectedTabId={tab}
@@ -215,7 +214,6 @@ export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
           <Button minimal icon="filter-remove" text="Clear" onClick={clearFilters} disabled={!hasFilters} />
         </div>
 
-        {/* Virtualized list */}
         <div ref={containerRef} style={{ flex: 1, minHeight: LIST_HEIGHT }}>
           {itemCount > 0 ? (
             <List

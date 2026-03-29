@@ -101,10 +101,8 @@ export function ClassesPanel() {
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* XP + Classes */}
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
-        {/* XP bar */}
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${T.borderLight}` }}>
           <span style={{ color: T.textMuted, fontWeight: 600 }}>XP</span>
           <input
@@ -136,7 +134,6 @@ export function ClassesPanel() {
           )}
         </div>
 
-        {/* Classes table */}
         <div style={{ padding: '12px 16px 16px' }}>
           <SectionLabel>Classes</SectionLabel>
           <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
@@ -232,7 +229,6 @@ export function ClassesPanel() {
         </div>
       </Card>
 
-      {/* Level History */}
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
         <SectionLabel>Level History</SectionLabel>
         <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>

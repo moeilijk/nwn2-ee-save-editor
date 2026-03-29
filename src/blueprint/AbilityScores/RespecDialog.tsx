@@ -73,7 +73,6 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
         <Button text="Reset All" icon="reset" minimal onClick={reset} style={{ color: T.negative }} />
       }
     >
-      {/* Warning */}
       <div style={{
         padding: '8px 12px', marginBottom: 16, borderRadius: 4,
         background: '#fde8e8', border: `1px solid ${T.negative}30`,
@@ -82,7 +81,6 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
         This will reset all base ability scores to the point buy values. Level-up increases, racial bonuses, and equipment bonuses are recalculated automatically.
       </div>
 
-      {/* Budget bar */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
@@ -103,7 +101,6 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
         />
       </div>
 
-      {/* Ability rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {KEYS.map(key => {
           const score = scores[key];

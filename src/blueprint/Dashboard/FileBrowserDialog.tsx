@@ -9,7 +9,7 @@ import {
 } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { display, formatNumber } from '@/utils/dataHelpers';
-import { T } from '../theme';
+import { T, formatBytes } from '../theme';
 
 type SortField = 'name' | 'date' | 'size' | 'character_name';
 type SortDirection = 'asc' | 'desc';
@@ -258,13 +258,6 @@ export function FileBrowserDialog({
     return new Date(ts * 1000).toLocaleString();
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return '-';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
-  };
-
   const handleFileClick = (file: FileInfo) => setSelectedFile(file);
 
   const handleConfirm = () => {
@@ -375,7 +368,6 @@ export function FileBrowserDialog({
         canOutsideClickClose
       >
         <DialogBody style={{ padding: 0, margin: 0, background: T.surface, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, minHeight: 0 }}>
-          {/* Location bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -405,7 +397,6 @@ export function FileBrowserDialog({
             />
           </div>
 
-          {/* Success message */}
           {successMessage && (
             <div style={{
               margin: '8px 16px 0',
@@ -419,7 +410,6 @@ export function FileBrowserDialog({
             </div>
           )}
 
-          {/* Table header */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -463,7 +453,6 @@ export function FileBrowserDialog({
             </div>
           </div>
 
-          {/* File list */}
           <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {loading && files.length === 0 ? (
               <NonIdealState
@@ -564,7 +553,7 @@ export function FileBrowserDialog({
                             {formatDate(file.modified)}
                           </div>
                           <div style={{ width: 72, color: T.textMuted }}>
-                            {formatSize(file.size)}
+                            {formatBytes(file.size)}
                           </div>
                         </div>
                       );
@@ -611,7 +600,6 @@ export function FileBrowserDialog({
         </DialogFooter>
       </Dialog>
 
-      {/* Restore confirmation */}
       <Dialog
         isOpen={showRestoreConfirm && !!selectedFile}
         onClose={() => setShowRestoreConfirm(false)}

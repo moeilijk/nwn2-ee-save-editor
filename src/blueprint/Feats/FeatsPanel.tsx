@@ -1,17 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem } from '@blueprintjs/core';
-import { T } from '../theme';
+import { T, FEAT_TYPE_COLORS } from '../theme';
 import { FEATS, ALL_FEATS, FEAT_TYPE_OPTIONS } from '../dummy-data';
 import type { DummyFeat } from '../dummy-data';
 import { SplitPane, GroupedList } from '../shared';
 import type { ListSection } from '../shared';
 import { FeatDetail } from './FeatDetail';
-
-const TYPE_COLORS: Record<string, string> = {
-  Combat: '#d84315', General: '#43a047', Class: '#1e88e5', Proficiency: '#6d4c41',
-  Metamagic: '#8e24aa', Divine: '#f9a825', Background: '#00897b', Racial: '#00acc1',
-  Epic: '#e53935',
-};
 
 type TabId = 'my' | 'all';
 
@@ -60,7 +54,7 @@ export function FeatsPanel() {
   const sections = tab === 'my' ? mySections : allSections;
 
   const renderFeatItem = useCallback((feat: DummyFeat, selected: boolean) => {
-    const typeColor = TYPE_COLORS[feat.type] || T.textMuted;
+    const typeColor = FEAT_TYPE_COLORS[feat.type] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{

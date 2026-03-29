@@ -24,7 +24,6 @@ export function AbilitiesPanel() {
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* Ability Scores card */}
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
           <span style={{ color: T.textMuted, fontSize: 14 }}>Spent: <strong style={{ color: T.text }}>32</strong></span>
@@ -85,7 +84,6 @@ export function AbilitiesPanel() {
         </div>
       </Card>
 
-      {/* Saving Throws + Initiative */}
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
         <SectionLabel>Saving Throws & Initiative</SectionLabel>
         <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
@@ -144,7 +142,6 @@ export function AbilitiesPanel() {
         </HTMLTable>
       </Card>
 
-      {/* Armor Class */}
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
         <SectionLabel>Armor Class</SectionLabel>
         <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>

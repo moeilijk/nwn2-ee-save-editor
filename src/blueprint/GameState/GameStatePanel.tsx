@@ -3,17 +3,11 @@ import {
   Button, Card, Elevation, HTMLTable, InputGroup, Menu, MenuItem,
   Popover, Switch, Tab, Tabs,
 } from '@blueprintjs/core';
-import { T } from '../theme';
+import { T, formatBytes } from '../theme';
 import { GAME_STATE } from '../dummy-data';
 import { KVRow, ParchmentDialog, StepInput } from '../shared';
 
 const MODIFIED = '#d97706';
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function RestoreBackupDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -119,8 +113,6 @@ const RECRUITMENT_COLOR: Record<string, string> = {
   not_recruited: T.textMuted,
 };
 
-// ─── Reputation Tab ──────────────────────────────────────────
-
 function ReputationTab() {
   const [influences, setInfluences] = useState<Record<string, number>>(() => {
     const map: Record<string, number> = {};
@@ -200,8 +192,6 @@ function ReputationTab() {
     </>
   );
 }
-
-// ─── Variable Table with modification tracking ───────────────
 
 type VarEntry = { name: string; value: number | string };
 
@@ -348,8 +338,6 @@ function useVariableEdits() {
   return { edits, onEdit, onRevert, onRevertAll, onSave, changeCount: Object.keys(edits).length };
 }
 
-// ─── Module Tab ──────────────────────────────────────────────
-
 function ModuleInfoSection() {
   const [selectedModule, setSelectedModule] = useState(
     GAME_STATE.modules.find(m => m.isCurrent)?.id || GAME_STATE.modules[0]?.id || '',
@@ -397,8 +385,6 @@ function ModuleVariablesSection() {
     />
   );
 }
-
-// ─── Campaign Tab ────────────────────────────────────────────
 
 function CampaignSettingsSection() {
   const s = GAME_STATE.campaignSettings;
@@ -485,8 +471,6 @@ function CampaignVariablesSection() {
     />
   );
 }
-
-// ─── Main Panel ──────────────────────────────────────────────
 
 export function GameStatePanel() {
   const [activeTab, setActiveTab] = useState<string>('reputation');

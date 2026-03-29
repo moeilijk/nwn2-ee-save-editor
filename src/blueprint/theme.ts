@@ -20,6 +20,32 @@ export const T = {
   sectionBorder: '#c9bfae',
 } as const;
 
+export const FEAT_TYPE_COLORS: Record<string, string> = {
+  Combat: '#d84315', General: '#43a047', Class: '#1e88e5', Proficiency: '#6d4c41',
+  Metamagic: '#8e24aa', Divine: '#f9a825', Background: '#00897b', Racial: '#00acc1',
+  Epic: '#e53935',
+};
+
+export const SPELL_SCHOOL_COLORS: Record<string, string> = {
+  Abjuration: '#1565c0', Conjuration: '#2e7d32', Enchantment: '#7b1fa2',
+  Evocation: '#d84315', Transmutation: '#0277bd', Necromancy: '#b71c1c',
+  Divination: '#00838f', Illusion: '#ad1457', Universal: '#546e7a',
+};
+
+export const RARITY_COLORS: Record<string, string> = {
+  common: T.text,
+  uncommon: T.positive,
+  rare: '#1565c0',
+  epic: '#6a1b9a',
+};
+
+export function formatBytes(bytes: number) {
+  if (bytes === 0) return '-';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
+
 const NOISE_SVG = encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(#n)' opacity='0.15'/></svg>`
 );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Card, Elevation, ProgressBar } from '@blueprintjs/core';
-import { T } from '../theme';
+import { T, RARITY_COLORS } from '../theme';
 import { CHARACTER, INVENTORY, BACKPACK } from '../dummy-data';
 import { fmtNum } from '../shared';
 import { ItemDetails, type AnyItem } from './ItemDetails';
@@ -8,13 +8,6 @@ import { AddItemDialog } from './AddItemDialog';
 import { EditItemDialog } from './EditItemDialog';
 
 type InventoryItem = typeof INVENTORY[number];
-
-const RARITY_COLORS: Record<string, string> = {
-  common: T.text,
-  uncommon: T.positive,
-  rare: '#1565c0',
-  epic: '#6a1b9a',
-};
 
 const SLOT_LABELS: Record<string, string> = {
   'Main Hand': 'MH',
@@ -148,10 +141,8 @@ export function InventoryPanel() {
     <div style={{ padding: 16, height: '100%' }}>
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden', display: 'flex', height: '100%' }}>
 
-        {/* Left pane: equipment + backpack grids */}
         <div style={{ width: 400, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column' }}>
 
-          {/* Equipment */}
           <div style={{ padding: '12px 16px' }}>
             <div style={{ fontWeight: 700, color: T.accent, marginBottom: 10 }}>Equipment</div>
 
@@ -173,7 +164,6 @@ export function InventoryPanel() {
                 </div>
               ))}
 
-              {/* Ammo row */}
               <div style={{ display: 'flex', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderLight}` }}>
                 {AMMO_SLOTS.map(slot => {
                   const item = getItemForSlot(slot);
@@ -190,7 +180,6 @@ export function InventoryPanel() {
             </div>
           </div>
 
-          {/* Backpack */}
           <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px', flex: 1, overflow: 'auto', minHeight: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontWeight: 700, color: T.accent }}>
@@ -216,7 +205,6 @@ export function InventoryPanel() {
             </div>
           </div>
 
-          {/* Footer: weight + gold */}
           <div style={{ padding: '10px 16px', borderTop: `1px solid ${T.borderLight}`, background: T.surfaceAlt }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ color: weightRatio > 0.75 ? T.negative : T.textMuted }}>
@@ -249,7 +237,6 @@ export function InventoryPanel() {
           </div>
         </div>
 
-        {/* Right pane: item detail */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ItemDetails item={selectedItem} onEdit={() => setEditItemOpen(true)} />
         </div>
