@@ -6,9 +6,10 @@ import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { useSpellManagement } from '@/hooks/useSpellManagement';
 import { useSpellSearch } from '@/hooks/useSpellSearch';
+import { mapKnownSpellsToSpellInfo, groupMemorizedSpells, mapCasterClasses, filterSpells, sortSpells } from '@/utils/spellUtils';
 import { SpellNavBar, type SpellTab } from './SpellNavBar';
 import { SpellTabContent } from './SpellTabContent';
-import type { SpellInfo, SpellsState, SpellcastingClass, KnownSpell } from './types';
+import type { SpellInfo, SpellsState } from './types';
 import { useToast } from '@/contexts/ToastContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -126,15 +127,7 @@ export default function SpellsEditor() {
     loadAvailableSpells();
   }, [character?.id, activeTab, currentPage, SPELLS_PER_PAGE, selectedClasses, selectedSchools, selectedLevels, searchTerm, setTotalSpells, debugMode]);
 
-  const casterClasses = useMemo(() => {
-    if (!spellsData?.spellcasting_classes) return [];
-    return spellsData.spellcasting_classes.map((cls: SpellcastingClass) => ({
-      index: cls.index,
-      name: cls.class_name,
-      class_id: cls.class_id,
-      can_edit_spells: cls.can_edit_spells,
-    }));
-  }, [spellsData]);
+  const casterClasses = useMemo(() => mapCasterClasses(spellsData?.spellcasting_classes), [spellsData]);
 
   const hasEditableClasses = useMemo(() => {
     return casterClasses.some(cls => cls.can_edit_spells);
@@ -154,90 +147,19 @@ export default function SpellsEditor() {
     }));
   }, [spellsData]);
 
-  /* Known Spells */
-  const allMySpells = useMemo((): SpellInfo[] => {
-    if (!spellsData?.known_spells) return [];
+  const allMySpells = useMemo(() => mapKnownSpellsToSpellInfo(spellsData?.known_spells), [spellsData?.known_spells]);
 
-    return spellsData.known_spells.map((ks: KnownSpell) => ({
-      id: ks.spell_id,
-      name: ks.name,
-      level: ks.level,
-      icon: ks.icon,
-      school_name: ks.school_name,
-      description: ks.description,
-      class_id: ks.class_id,
-      available_classes: [],
-      is_domain_spell: ks.is_domain_spell,
-    })) as SpellInfo[];
-  }, [spellsData?.known_spells]);
-
-  /* Prepared Spells */
-  const preparedSpells = useMemo((): SpellInfo[] => {
-    if (!spellsData?.memorized_spells) return [];
-
-    const spellMap = new Map<string, { spell: SpellInfo; count: number }>();
-
-    for (const ms of spellsData.memorized_spells) {
-      const key = `${ms.spell_id}-${ms.level}-${ms.class_id}`;
-      const existing = spellMap.get(key);
-
-      if (existing) {
-        existing.count++;
-      } else {
-        spellMap.set(key, {
-            spell: {
-                id: ms.spell_id,
-                name: ms.name,
-                level: ms.level,
-                icon: ms.icon,
-                school_name: ms.school_name,
-                description: ms.description,
-                class_id: ms.class_id,
-                available_classes: [],
-            },
-            count: 1,
-        });
-      }
-    }
-
-    return Array.from(spellMap.values()).map(({ spell, count }) => ({
-      ...spell,
-      memorized_count: count,
-    }));
-  }, [spellsData?.memorized_spells]);
+  const preparedSpells = useMemo(() => groupMemorizedSpells(spellsData?.memorized_spells), [spellsData?.memorized_spells]);
 
   const ownedSpellIds = useMemo(() => new Set(allMySpells.map(s => s.id)), [allMySpells]);
 
   const filterAndSortSpells = useCallback((spells: SpellInfo[]) => {
-    let filtered = [...spells];
-
-    if (selectedClasses.size > 0) {
-      const classIds = new Set(Array.from(selectedClasses).map(c => Number(c)));
-      filtered = filtered.filter(spell => 
-        spell.class_id !== undefined && classIds.has(spell.class_id)
-      );
-    }
-
-    if (selectedSchools.size > 0) {
-      filtered = filtered.filter(spell => 
-        spell.school_name && selectedSchools.has(spell.school_name)
-      );
-    }
-
-    if (selectedLevels.size > 0) {
-      filtered = filtered.filter(spell => selectedLevels.has(spell.level));
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name': return a.name.localeCompare(b.name);
-        case 'level': return a.level - b.level;
-        case 'school': return (a.school_name || '').localeCompare(b.school_name || '');
-        default: return 0;
-      }
+    const filtered = filterSpells(spells, {
+      classes: selectedClasses,
+      schools: selectedSchools,
+      levels: selectedLevels,
     });
-
-    return filtered;
+    return sortSpells(filtered, sortBy);
   }, [selectedClasses, selectedSchools, selectedLevels, sortBy]);
 
   const { searchResults: searchedMySpells } = useSpellSearch(allMySpells, searchTerm);
@@ -247,19 +169,7 @@ export default function SpellsEditor() {
     const spellsToShow = debugMode
       ? availableSpells
       : availableSpells.filter(spell => !ownedSpellIds.has(spell.id));
-
-    return spellsToShow.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'level':
-          return a.level - b.level;
-        case 'school':
-          return (a.school_name || '').localeCompare(b.school_name || '');
-        default:
-          return 0;
-      }
-    });
+    return sortSpells(spellsToShow, sortBy);
   }, [availableSpells, ownedSpellIds, sortBy, debugMode]);
 
   const finalAvailableSpells = filteredAvailableSpells;

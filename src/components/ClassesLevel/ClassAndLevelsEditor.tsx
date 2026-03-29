@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { formatModifier, formatNumber } from '@/utils/dataHelpers';
+import { capXP, aggregateClassStats, hasLevelMismatch } from '@/utils/classUtils';
 import { useClassesLevel, type ClassesData } from '@/hooks/useClassesLevel';
 import ClassSelectorModal from './ClassSelectorModal';
 import LevelHistoryModal from './LevelHistoryModal';
@@ -212,12 +213,9 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
   const handleXPSubmit = async () => {
     let newXP = parseInt(xpInput, 10);
     if (isNaN(newXP) || newXP < 0) return;
-    
-    // Cap at Level 60 XP (1,770,000)
-    if (newXP > 1770000) {
-      newXP = 1770000;
-      setXpInput("1770000");
-    }
+
+    newXP = capXP(newXP);
+    setXpInput(String(newXP));
     const actionId = 'xp';
     
     setProcessingActions(prev => {
@@ -246,12 +244,8 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
     }
   };
 
-  // Check if XP level differs from class level
-  const hasLevelMismatch = xpProgress && xpProgress.current_level !== totalLevel;
-  const totalBAB = classes.reduce((sum, c) => sum + c.baseAttackBonus, 0);
-  const totalFort = classes.reduce((sum, c) => sum + c.fortitudeSave, 0);
-  const totalRef = classes.reduce((sum, c) => sum + c.reflexSave, 0);
-  const totalWill = classes.reduce((sum, c) => sum + c.willSave, 0);
+  const levelMismatch = hasLevelMismatch(xpProgress, totalLevel);
+  const { totalBAB, totalFort, totalRef, totalWill } = aggregateClassStats(classes);
 
   if (isLoading || classesSubsystem.isLoading || isMetadataLoading) {
     return (
@@ -428,7 +422,7 @@ export default function ClassAndLevelsEditor({ onNavigate: _onNavigate, onLevelG
                   <div className="flex flex-col items-center gap-0.5 text-[10px] uppercase font-medium tracking-tight text-[rgb(var(--color-text-muted))] w-full">
                      <div className="flex items-center justify-center gap-1.5 w-full">
                         <span>{t('classes.xpLevel')} {xpProgress.current_level}</span>
-                        {hasLevelMismatch && (
+                        {levelMismatch && (
                           <div className="relative group cursor-help">
                             <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
                             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 text-yellow-200 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none w-64 z-[100] border border-yellow-500/30 text-center">

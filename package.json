@@ -12,7 +12,9 @@
     "tauri:dev:quiet": "cross-env RUST_LOG=warn tauri dev",
     "tauri:build": "cross-env RUST_LOG=info tauri build",
     "tauri:build:debug": "cross-env RUST_LOG=debug tauri build",
-    "build:all": "npm run tauri:build"
+    "build:all": "npm run tauri:build",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
     "@blueprintjs/core": "^6.9.1",
@@ -63,6 +65,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "typescript-eslint": "^8.52.0"
+    "typescript-eslint": "^8.52.0",
+    "vitest": "^4.1.2"
   }
 }

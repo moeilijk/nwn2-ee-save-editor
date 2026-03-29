@@ -21,56 +21,14 @@ import { BaseItem, ItemTemplate } from '@/services/inventoryApi';
 import { safeToNumber } from '@/utils/dataHelpers';
 import { getRarityBorderColor } from '@/utils/itemHelpers';
 import { stripNwn2Tags } from '@/utils/nwn2Markup';
-import type { FullInventorySummary, FullInventoryItem, FullEquippedItem, FullEncumbrance } from '@/lib/bindings';
+import { SLOT_MAPPING, INVENTORY_COLS, INVENTORY_ROWS, parseInventoryGrid, mapSlotName, resolveEquipSlot, getEquippedItemForSlot as getEquippedForSlot, type GridItem } from '@/utils/inventoryUtils';
+import type { FullInventorySummary, FullInventoryItem, FullEquippedItem } from '@/lib/bindings';
 
-
-interface Item {
-  id: string;
-  name: string;
-  icon?: string;
-  stackSize?: number;
-  maxStack?: number;
-  type: 'weapon' | 'armor' | 'accessory' | 'consumable' | 'misc';
-  equipped?: boolean;
-  slot?: string;
-  defaultSlot?: string;
-  rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-  enhancement_bonus?: number;
-  charges?: number;
-  is_custom?: boolean;
-  is_identified?: boolean;
-  is_plot?: boolean;
-  is_cursed?: boolean;
-  is_stolen?: boolean;
-}
-
-// Use the actual types from bindings directly
+type Item = GridItem;
 type ExtendedInventoryItem = FullInventoryItem;
-type ExtendedEquippedItem = FullEquippedItem;
-type ExtendedEncumbrance = FullEncumbrance;
-
-// Map slot name to equipped item info
-type EquippedItemsMap = Record<string, { name: string; base_item: number; custom?: boolean }>;
 
 
 
-const INVENTORY_COLS = 8;
-const INVENTORY_ROWS = 8;
-
-const SLOT_MAPPING: Record<string, string> = {
-  'helmet': 'head', 'head': 'head',
-  'chest': 'chest',
-  'belt': 'belt',
-  'boots': 'boots',
-  'neck': 'neck',
-  'cloak': 'cloak',
-  'gloves': 'gloves',
-  'l ring': 'left_ring', 'left_ring': 'left_ring',
-  'r ring': 'right_ring', 'right_ring': 'right_ring',
-  'l hand': 'left_hand', 'left_hand': 'left_hand',
-  'r hand': 'right_hand', 'right_hand': 'right_hand',
-  'arrows': 'arrows', 'bullets': 'bullets', 'bolts': 'bolts'
-};
 
 export default function InventoryEditor() {
   const t = useTranslations();
@@ -105,46 +63,7 @@ export default function InventoryEditor() {
   }, [character, inventoryData, combatSubsystem]);
   
 
-  const parseInventoryData = (data: FullInventorySummary | null): (Item | null)[] => {
-    const inv = Array(INVENTORY_COLS * INVENTORY_ROWS).fill(null);
-
-    if (!data) {
-      return inv;
-    }
-
-    const inventoryItems = data.inventory || [];
-
-    inventoryItems.forEach((itemInfo: ExtendedInventoryItem) => {
-      const targetIndex = safeToNumber(itemInfo.index, -1);
-
-      if (targetIndex >= 0 && targetIndex < INVENTORY_COLS * INVENTORY_ROWS && itemInfo) {
-        const baseItem = itemInfo.base_item || 0;
-        const isCustom = itemInfo.is_custom || false;
-        const itemName = itemInfo.name || `Item ${baseItem}`;
-
-        const isEquipped = false;
-
-        inv[targetIndex] = {
-          id: `inventory_${targetIndex}`,
-          name: itemName,
-          type: itemInfo.category || 'misc',
-          rarity: isCustom ? 'legendary' : 'common',
-          equipped: isEquipped,
-          defaultSlot: itemInfo.default_slot || undefined,
-          stackSize: itemInfo.stack_size > 1 ? itemInfo.stack_size : undefined,
-          enhancement_bonus: itemInfo.enhancement || 0,
-          charges: itemInfo.charges,
-          is_custom: isCustom,
-          is_identified: itemInfo.identified,
-          is_plot: itemInfo.plot,
-          is_cursed: itemInfo.cursed,
-          is_stolen: itemInfo.stolen
-        };
-      }
-    });
-
-    return inv;
-  };
+  const parseInventoryData = (data: FullInventorySummary | null) => parseInventoryGrid(data);
 
   const [inventory, setInventory] = useState<(Item | null)[]>(() =>
     parseInventoryData(inventoryData.data as FullInventorySummary | null)
@@ -261,7 +180,7 @@ export default function InventoryEditor() {
   const handleEquipItem = async (itemData: Record<string, unknown>, slot: string, inventoryIndex?: number | null) => {
     if (!character?.id) return;
 
-    const mappedSlot = SLOT_MAPPING[slot.toLowerCase()];
+    const mappedSlot = mapSlotName(slot);
     if (!mappedSlot) {
       showToast(`Invalid slot: ${slot}`, 'error');
       return;
@@ -295,7 +214,7 @@ export default function InventoryEditor() {
   const handleUnequipItem = async (slot: string) => {
     if (!character?.id) return;
 
-    const mappedSlot = SLOT_MAPPING[slot.toLowerCase()];
+    const mappedSlot = mapSlotName(slot);
     if (!mappedSlot) {
       showToast(`Invalid slot: ${slot}`, 'error');
       return;
@@ -457,29 +376,15 @@ export default function InventoryEditor() {
 
   const getSelectedItemDefaultSlot = (): string | null => {
     if (selectedItemInventoryIndex === null) return null;
-    const inventoryItem = inventorySummary?.inventory?.[selectedItemInventoryIndex] as ExtendedInventoryItem | undefined;
+    const inventoryItem = inventorySummary?.inventory?.[selectedItemInventoryIndex];
     if (!inventoryItem) return null;
 
-    let targetSlot = inventoryItem.default_slot;
+    const defaultSlot = inventoryItem.default_slot;
+    if (!defaultSlot) return null;
 
-    const extItem = inventoryItem as ExtendedInventoryItem;
-    if (extItem.equippable_slots && extItem.equippable_slots.length > 1) {
-      const invData = inventoryData.data as FullInventorySummary | null;
-      if (invData && targetSlot) {
-        const defaultOccupied = invData.equipped?.some(e => e.slot.toLowerCase() === targetSlot?.toLowerCase());
-
-        if (defaultOccupied) {
-          const emptySlot = extItem.equippable_slots.find(slot =>
-            !invData.equipped?.some(e => e.slot.toLowerCase() === slot.toLowerCase())
-          );
-          if (emptySlot) {
-            targetSlot = emptySlot;
-          }
-        }
-      }
-    }
-
-    return targetSlot || null;
+    const equippableSlots = inventoryItem.equippable_slots || [];
+    const equipped = (inventoryData.data as FullInventorySummary | null)?.equipped || [];
+    return resolveEquipSlot(defaultSlot, equippableSlots, equipped);
   };
 
   const canEquipSelectedItem = (): boolean => {
@@ -487,22 +392,8 @@ export default function InventoryEditor() {
     return !!(selectedItem.defaultSlot);
   };
 
-  const getEquippedItemForSlot = (slotName: string) => {
-    const invData = inventoryData.data as FullInventorySummary | null;
-    if (!invData) return null;
-
-    const mappedSlot = SLOT_MAPPING[slotName.toLowerCase()];
-    const targetSlot = mappedSlot || slotName;
-    const equipData = invData.equipped?.find(e => e.slot.toLowerCase() === targetSlot.toLowerCase());
-
-    if (!equipData) return null;
-
-    return {
-      name: equipData.name || `Item ${equipData.base_item}`,
-      base_item: equipData.base_item,
-      is_custom: equipData.custom || false
-    };
-  };
+  const getEquippedItemForSlot = (slotName: string) =>
+    getEquippedForSlot(inventoryData.data as FullInventorySummary | null, slotName);
 
   const DraggableInventoryItem = ({ item, index, isSelected, onClick, children }: { item: Item; index: number; isSelected: boolean; onClick: () => void; children: React.ReactNode }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({

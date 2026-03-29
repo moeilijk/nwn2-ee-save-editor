@@ -9,7 +9,7 @@ import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier } from '@/utils/dataHelpers';
 import { useSkillManagement } from '@/hooks/useSkillManagement';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import type { SkillSummaryEntry } from '@/lib/bindings';
+import { applySkillOverrides, categorizeSkills, calculateSkillBudget, filterAndSortSkills as filterAndSortSkillsUtil } from '@/utils/skillUtils';
 
 export default function SkillsEditor() {
   const t = useTranslations();
@@ -54,25 +54,11 @@ export default function SkillsEditor() {
   useEffect(() => {
     setLocalSkillOverrides({});
   }, [skillsData]);
-  const applyOverrides = (skillList: SkillSummaryEntry[]) => {
-    return skillList.map(skill => {
-      const overrideRanks = localSkillOverrides[skill.skill_id];
-      if (overrideRanks !== undefined) {
-        const rankDiff = overrideRanks - skill.ranks;
-        return {
-          ...skill,
-          ranks: overrideRanks,
-          total: skill.total + rankDiff
-        };
-      }
-      return skill;
-    });
-  };
 
-  const isValidSkillName = (name: string) => !name.startsWith('DEL_') && !name.startsWith('***');
-  const classSkills = applyOverrides(skillsData?.class_skills?.filter(skill => isValidSkillName(skill.name)) || []);
-  const crossClassSkills = applyOverrides(skillsData?.cross_class_skills?.filter(skill => isValidSkillName(skill.name)) || []);
-  const skills = [...classSkills, ...crossClassSkills];
+  const skills = applySkillOverrides(
+    categorizeSkills(skillsData?.class_skills, skillsData?.cross_class_skills),
+    localSkillOverrides
+  );
 
   const [fixedTotalBudget, setFixedTotalBudget] = useState<number | null>(null);
 
@@ -83,11 +69,8 @@ export default function SkillsEditor() {
   }, [skillsData, fixedTotalBudget]);
 
   const totalAvailable = fixedTotalBudget ?? skillsData?.total_available ?? 0;
-  const rawSpentPoints = skillsData?.spent_points || 0;
-  const pointsBalance = totalAvailable - rawSpentPoints;
-  const availableSkillPoints = Math.max(0, pointsBalance);
-  const overdrawnSkillPoints = pointsBalance < 0 ? Math.abs(pointsBalance) : 0;
-  const displayedSpentPoints = Math.min(rawSpentPoints, totalAvailable);
+  const { available: availableSkillPoints, displayedSpent: displayedSpentPoints, overdrawn: overdrawnSkillPoints } =
+    calculateSkillBudget(totalAvailable, skillsData?.spent_points || 0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -202,28 +185,7 @@ export default function SkillsEditor() {
     }
   };
 
-  const sortedAndFilteredSkills = [...skills]
-    .filter(skill => 
-      skill.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (!sortColumn) return 0;
-      
-      let compareValue = 0;
-      switch (sortColumn) {
-        case 'name':
-          compareValue = a.name.localeCompare(b.name);
-          break;
-        case 'total':
-          compareValue = a.total - b.total;
-          break;
-        case 'ranks':
-          compareValue = a.ranks - b.ranks;
-          break;
-      }
-      
-      return sortDirection === 'asc' ? compareValue : -compareValue;
-    });
+  const sortedAndFilteredSkills = filterAndSortSkillsUtil(skills, searchTerm, sortColumn, sortDirection);
 
   useEffect(() => {
     const measureColumnWidths = () => {

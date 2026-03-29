@@ -7,6 +7,7 @@ import { CharacterAPI } from '@/services/characterApi';
 import { useFeatManagement } from '@/hooks/useFeatManagement';
 import { useFeatSearch } from '@/hooks/useFeatSearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { aggregateFeats, filterFeatsByType, sortFeats, filterOwnedFeats } from '@/utils/featUtils';
 import { FeatNavBar, type FeatTab } from './FeatNavBar';
 import { FeatTabContent } from './FeatTabContent';
 import type { FeatInfo, FeatsState } from './types';
@@ -108,25 +109,7 @@ export default function FeatsEditor() {
   }, [character?.id, activeTab, currentPage, FEATS_PER_PAGE, selectedTypes, debouncedSearch, showAvailableOnly, setTotalFeats]);
 
 
-  const allMyFeats = useMemo(() => {
-    if (!featsData?.summary) return [];
-
-    const allFeats = [
-      ...(featsData.summary.protected || []),
-      ...(featsData.summary.class_feats || []),
-      ...(featsData.summary.general_feats || []),
-      ...(featsData.summary.custom_feats || []),
-      ...(featsData.summary.background_feats || []),
-      ...(featsData.summary.domain_feats || []),
-    ];
-
-    const uniqueFeats = new Map<number, FeatInfo>();
-    allFeats.forEach(feat => {
-      uniqueFeats.set(feat.id, feat);
-    });
-
-    return Array.from(uniqueFeats.values());
-  }, [featsData]);
+  const allMyFeats = useMemo(() => aggregateFeats(featsData?.summary), [featsData]);
 
   const ownedFeatIds = useMemo(() => {
     return new Set(allMyFeats.map(f => f.id));
@@ -138,59 +121,25 @@ export default function FeatsEditor() {
   }, [featsData]);
 
   const filterAndSortFeats = useCallback((feats: FeatInfo[]) => {
-    let filtered = [...feats];
-
-    if (selectedTypes.size > 0) {
-      filtered = filtered.filter(feat => {
-        return Array.from(selectedTypes).some(type => (feat.type & type) !== 0);
-      });
-    }
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'type':
-          return a.type - b.type;
-        case 'level':
-          return 0;
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
+    const filtered = filterFeatsByType(feats, selectedTypes);
+    return sortFeats(filtered, sortBy);
   }, [selectedTypes, sortBy]);
 
   const { searchResults: searchedMyFeats } = useFeatSearch(allMyFeats, searchTerm);
   const filteredMyFeats = useMemo(() => filterAndSortFeats(searchedMyFeats), [searchedMyFeats, filterAndSortFeats]);
 
   const filteredAvailableFeats = useMemo(() => {
-    let listToFilter = availableFeats;
-    
-    // Filter out owned feats
-    listToFilter = listToFilter.filter(feat => !ownedFeatIds.has(feat.id));
+    let listToFilter = filterOwnedFeats(availableFeats, ownedFeatIds);
 
     if (showAvailableOnly && searchTerm) {
-       const lowerSearch = searchTerm.toLowerCase();
-       listToFilter = listToFilter.filter(feat => 
-          feat.name.toLowerCase().includes(lowerSearch) || 
-          feat.label?.toLowerCase().includes(lowerSearch)
-       );
+      const lowerSearch = searchTerm.toLowerCase();
+      listToFilter = listToFilter.filter(feat =>
+        feat.name.toLowerCase().includes(lowerSearch) ||
+        feat.label?.toLowerCase().includes(lowerSearch)
+      );
     }
 
-    return listToFilter.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'type':
-          return a.type - b.type;
-        case 'level':
-          return 0;
-        default:
-          return 0;
-      }
-    });
+    return sortFeats(listToFilter, sortBy);
   }, [availableFeats, ownedFeatIds, sortBy, showAvailableOnly, searchTerm]);
 
   const finalAvailableFeats = filteredAvailableFeats;
