@@ -35,7 +35,7 @@ dotenvy = "0.15"
 # Error handling & logging
 thiserror = "2.0"
 anyhow = "1.0"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_info"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Type-safe IPC
