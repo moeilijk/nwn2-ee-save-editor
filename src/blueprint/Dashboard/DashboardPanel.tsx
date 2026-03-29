@@ -7,6 +7,7 @@ import { SaveList } from './SaveList';
 import type { SaveEntryData } from './SaveEntry';
 import { FileBrowserDialog } from './FileBrowserDialog';
 import type { FileInfo } from './FileBrowserDialog';
+import { SettingsDialog } from '../Settings/SettingsPanel';
 
 const now = Date.now() / 1000;
 
@@ -68,6 +69,7 @@ export default function DashboardPanel() {
   const [showBackupBrowser, setShowBackupBrowser] = useState(false);
   const [backupPath, setBackupPath] = useState('');
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div
@@ -105,7 +107,7 @@ export default function DashboardPanel() {
             <Button minimal small icon="import" onClick={() => setShowVaultBrowser(true)}>{t('actions.importCharacter')}</Button>
             <Button minimal small icon="folder-open">{t('actions.openDocumentsFolder')}</Button>
             <Button minimal small icon="history" onClick={() => setShowBackupBrowser(true)}>{t('actions.manageBackups')}</Button>
-            <Button minimal small icon="cog">{t('navigation.settings')}</Button>
+            <Button minimal small icon="cog" onClick={() => setShowSettings(true)}>{t('navigation.settings')}</Button>
           </div>
         </div>
 
@@ -150,6 +152,8 @@ export default function DashboardPanel() {
           setBackupRefreshKey(prev => prev + 1);
         }}
       />
+
+      {showSettings && <SettingsDialog isOpen onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
