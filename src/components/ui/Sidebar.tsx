@@ -53,6 +53,11 @@ const baseNavItems: NavItem[] = [
     labelKey: 'navigation.gameState',
     icon: 'b_journal'
   },
+  {
+    id: 'character-builder',
+    labelKey: 'navigation.characterBuilder',
+    icon: 'ia_appear'
+  },
 ];
 
 // Development items (shown at bottom)

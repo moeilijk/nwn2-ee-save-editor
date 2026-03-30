@@ -296,6 +296,7 @@ pub fn run() {
             // Debug
             crate::commands::test_deities::debug_deities,
             crate::commands::debug::export_debug_log,
+            crate::commands::debug::log_js_error,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

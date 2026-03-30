@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, instrument, warn};
 
+use crate::parsers::gff::{GffParser, GffValue, GffWriter};
+
 use crate::character::{Character, FeatInfo};
 use crate::services::resource_manager::ResourceManager;
 use crate::services::savegame_handler::SaveGameHandler;
@@ -108,13 +110,62 @@ impl SessionState {
     }
 
     pub fn save_character(&mut self) -> Result<(), String> {
-        let _handler = self
-            .savegame_handler
-            .as_mut()
-            .ok_or("No active save handler")?;
-        let _character = self.character.as_ref().ok_or("No character loaded")?;
+        if self.savegame_handler.is_none() {
+            return Err("No active save handler".to_string());
+        }
+        if self.character.is_none() {
+            return Err("No character loaded".to_string());
+        }
 
-        // TODO: serialize character data to GFF and write to save file
+        // Clone character GFF data (released before mutable borrow of handler)
+        let char_fields = self.character.as_ref().unwrap().clone_gff();
+
+        // Read the original playerlist.ifo to preserve root-level fields
+        let playerlist_data = self
+            .savegame_handler
+            .as_ref()
+            .unwrap()
+            .extract_player_data()
+            .map_err(|e| format!("Failed to read save file: {e}"))?;
+
+        let gff = GffParser::from_bytes(playerlist_data)
+            .map_err(|e| format!("GFF parse error: {e}"))?;
+
+        let file_type = gff.file_type.clone();
+        let file_version = gff.file_version.clone();
+
+        // Read root struct fields and force-own all values
+        let root_fields_raw = gff
+            .read_struct_fields(0)
+            .map_err(|e| format!("Failed to read IFO root struct: {e}"))?;
+
+        let mut root_fields: indexmap::IndexMap<String, GffValue<'static>> = root_fields_raw
+            .into_iter()
+            .map(|(k, v)| (k, v.force_owned()))
+            .collect();
+
+        // Replace Mod_PlayerList[0] with updated character data
+        root_fields.insert(
+            "Mod_PlayerList".to_string(),
+            GffValue::ListOwned(vec![char_fields]),
+        );
+
+        // Serialize back to GFF bytes
+        let bytes = GffWriter::new(&file_type, &file_version)
+            .write(root_fields)
+            .map_err(|e| format!("GFF serialization error: {e}"))?;
+
+        // Write updated playerlist.ifo back into the save archive
+        self.savegame_handler
+            .as_mut()
+            .unwrap()
+            .update_file("playerlist.ifo", &bytes)
+            .map_err(|e| format!("Failed to write save file: {e}"))?;
+
+        // Clear modified flag
+        self.character.as_mut().unwrap().mark_saved();
+
+        info!("Character saved successfully ({} bytes written)", bytes.len());
         Ok(())
     }
 

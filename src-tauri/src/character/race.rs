@@ -312,17 +312,24 @@ impl Character {
                 continue;
             }
 
-            let name = row_data
-                .get("Name")
-                .or_else(|| row_data.get("name"))
-                .and_then(std::clone::Clone::clone)
-                .unwrap_or_default();
-
             let label = row_data
                 .get("Label")
                 .or_else(|| row_data.get("label"))
                 .and_then(std::clone::Clone::clone)
-                .unwrap_or_else(|| name.clone());
+                .unwrap_or_default();
+
+            // Name column contains a TLK string reference — resolve it for display
+            let name = row_data
+                .get("Name")
+                .or_else(|| row_data.get("name"))
+                .and_then(std::clone::Clone::clone)
+                .and_then(|s| s.parse::<i32>().ok())
+                .and_then(|strref| game_data.get_string(strref))
+                .unwrap_or_else(|| label.clone());
+
+            if name.is_empty() && label.is_empty() {
+                continue;
+            }
 
             subraces.push(SubraceInfo {
                 id: row_idx as i32,

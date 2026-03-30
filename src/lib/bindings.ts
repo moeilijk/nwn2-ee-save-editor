@@ -775,21 +775,14 @@ export interface CommandError {
 export interface AvailableRace {
   id: RaceId;
   name: string;
-  description: string | null;
-  icon: string | null;
-  ability_adjustments: AbilityModifiers;
-  favored_class: ClassId | null;
+  is_playable: boolean;
 }
 
 export interface AvailableClass {
   id: ClassId;
-  name: string;
-  description: string | null;
-  icon: string | null;
+  name: string | null;
   hit_die: number;
   is_prestige: boolean;
-  is_spellcaster: boolean;
-  primary_ability: AbilityIndex;
 }
 
 export interface AvailableFeat {

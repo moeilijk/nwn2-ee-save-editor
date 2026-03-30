@@ -99,6 +99,7 @@ pub struct AvailableClass {
     pub id: i32,
     pub name: Option<String>,
     pub is_prestige: bool,
+    pub hit_die: i32,
 }
 
 #[tauri::command]
@@ -115,12 +116,37 @@ pub async fn get_available_classes(
     let mut classes = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("name").and_then(std::clone::Clone::clone);
+            // Name column contains a TLK string reference — resolve it
+            let name = if let Some(Some(strref_str)) = row.get("Name")
+                && let Ok(strref) = strref_str.parse::<i32>()
+                && let Some(resolved) = game_data.get_string(strref)
+            {
+                resolved
+            } else {
+                row.get("Label")
+                    .and_then(std::clone::Clone::clone)
+                    .unwrap_or_default()
+            };
+
+            if name.is_empty() {
+                continue;
+            }
+
+            let hit_die = row.get("HitDie")
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+
+            if hit_die == 0 {
+                continue;
+            }
+
             let is_prestige = row.get("PreReqTable").and_then(|v| v.as_ref()).is_some();
             classes.push(AvailableClass {
                 id: i as i32,
-                name,
+                name: Some(name),
                 is_prestige,
+                hit_die,
             });
         }
     }
@@ -338,7 +364,7 @@ pub async fn get_available_spells(
 #[derive(serde::Serialize)]
 pub struct AvailableRace {
     pub id: i32,
-    pub name: Option<String>,
+    pub name: String,
     pub is_playable: bool,
 }
 
@@ -354,7 +380,23 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
     let mut races = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("name").and_then(std::clone::Clone::clone);
+            // Name column contains a TLK string reference (integer) — resolve it
+            let name = if let Some(Some(strref_str)) = row.get("Name")
+                && let Ok(strref) = strref_str.parse::<i32>()
+                && let Some(resolved) = game_data.get_string(strref)
+            {
+                resolved
+            } else {
+                // Fall back to Label column
+                row.get("Label")
+                    .and_then(std::clone::Clone::clone)
+                    .unwrap_or_default()
+            };
+
+            if name.is_empty() {
+                continue;
+            }
+
             let is_playable = row
                 .get("PlayerRace")
                 .and_then(|v| v.as_ref())

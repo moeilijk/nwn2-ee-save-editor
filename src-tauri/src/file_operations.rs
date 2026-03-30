@@ -111,16 +111,24 @@ pub async fn select_nwn2_directory(app: tauri::AppHandle) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub async fn find_nwn2_saves(_app: tauri::AppHandle) -> Result<Vec<SaveFile>, String> {
+pub async fn find_nwn2_saves(
+    _app: tauri::AppHandle,
+    save_mode: Option<String>,
+) -> Result<Vec<SaveFile>, String> {
     use std::time::Instant;
     let start_time = Instant::now();
     log::info!("[Rust] Finding available NWN2 saves.");
 
     // Use NWN2Paths to get saves directory
     let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let saves_path = nwn2_paths
+    let base_saves_path = nwn2_paths
         .saves()
         .ok_or("Could not determine NWN2 saves path")?;
+    let saves_path = if save_mode.as_deref() == Some("mp") {
+        base_saves_path.join("multiplayer")
+    } else {
+        base_saves_path
+    };
     let mut saves = Vec::new();
 
     let scan_start = Instant::now();
@@ -578,11 +586,16 @@ pub async fn browse_saves(
 }
 
 #[tauri::command]
-pub async fn get_default_saves_path() -> Result<String, String> {
+pub async fn get_default_saves_path(save_mode: Option<String>) -> Result<String, String> {
     let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let saves_path = nwn2_paths
+    let base_saves_path = nwn2_paths
         .saves()
         .ok_or("Could not determine NWN2 saves path")?;
+    let saves_path = if save_mode.as_deref() == Some("mp") {
+        base_saves_path.join("multiplayer")
+    } else {
+        base_saves_path
+    };
     Ok(saves_path.to_string_lossy().to_string())
 }
 

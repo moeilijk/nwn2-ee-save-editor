@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import CampaignOverview from './CampaignOverview';
 import DeitySelectionModal from './DeitySelectionModal';
+import RaceSelectionModal from './RaceSelectionModal';
 
 interface CharacterOverviewProps {
   onNavigate?: (tab: string) => void;
@@ -82,6 +83,9 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const [isDeityModalOpen, setIsDeityModalOpen] = useState(false);
   const [, setDeity] = useState('');
 
+  // Race editing state
+  const [isRaceModalOpen, setIsRaceModalOpen] = useState(false);
+
   
   // Biography editing state
   const [isEditingBio, setIsEditingBio] = useState(false);
@@ -152,6 +156,16 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
     setIsEditingName(false);
   };
   
+  const handleSelectRace = async (raceId: number, raceName: string, subrace: string | null) => {
+    if (!character?.id) return;
+    try {
+      await CharacterAPI.changeRace(character.id, raceId, subrace);
+      updateCharacterPartial({ race: raceName, subrace: subrace ?? undefined });
+    } catch (e) {
+      console.error('Failed to change race:', e);
+    }
+  };
+
   const handleSelectDeity = async (selectedDeityName: string) => {
     if (!character?.id || isSaving) return;
     
@@ -341,8 +355,23 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 pb-4 border-b border-[rgb(var(--color-surface-border)/0.2)]">
                          <div>
                             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Race & Origin</div>
-                            <div className="font-medium text-[rgb(var(--color-text-primary))] truncate" title={character.subrace ? `${character.race} (${character.subrace})` : character.race}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-[rgb(var(--color-text-primary))] truncate" title={character.subrace ? `${character.race} (${character.subrace})` : character.race}>
                                 {character.race}{character.subrace ? <span className="text-[rgb(var(--color-text-secondary))] text-sm ml-1">({character.subrace})</span> : null}
+                              </span>
+                              <Button
+                                type="button"
+                                onClick={() => setIsRaceModalOpen(true)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+                                disabled={isSaving}
+                                title="Change Race"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </Button>
                             </div>
                          </div>
                          <div>
@@ -707,6 +736,14 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
         onSelectDeity={handleSelectDeity}
         characterId={character?.id || 0}
         currentDeity={character.deity}
+      />
+
+      <RaceSelectionModal
+        isOpen={isRaceModalOpen}
+        onClose={() => setIsRaceModalOpen(false)}
+        onSelectRace={handleSelectRace}
+        currentRaceName={character.race}
+        currentSubrace={character.subrace}
       />
     </div>
   );

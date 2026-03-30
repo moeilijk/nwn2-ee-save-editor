@@ -1064,6 +1064,10 @@ export class CharacterAPI {
     return { success: true, deity: deityName };
   }
 
+  static async changeRace(_characterId: number, raceId: number, subrace: string | null): Promise<void> {
+    await invoke('change_race', { raceId, subrace });
+  }
+
   static async updateHitPoints(characterId: number, currentHp?: number, maxHp?: number): Promise<{ success: boolean; current_hp?: number; max_hp?: number }> {
     const res = await invoke<{current: number, max: number}>('update_hit_points', { current: currentHp, max: maxHp });
     return { success: true, current_hp: res.current, max_hp: res.max };

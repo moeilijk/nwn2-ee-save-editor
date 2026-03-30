@@ -54,8 +54,8 @@ export class TauriAPI {
     return await invoke('select_nwn2_directory');
   }
 
-  static async findNWN2Saves(): Promise<SaveFile[]> {
-    return await invoke('find_nwn2_saves');
+  static async findNWN2Saves(saveMode?: 'sp' | 'mp'): Promise<SaveFile[]> {
+    return await invoke('find_nwn2_saves', { saveMode });
   }
 
   static async selectCharacterFile(): Promise<string | null> {
@@ -138,8 +138,8 @@ export class TauriAPI {
     return TauriAPI.selectSaveFile();
   }
   
-  async findNWN2Saves(): Promise<SaveFile[]> {
-    return TauriAPI.findNWN2Saves();
+  async findNWN2Saves(saveMode?: 'sp' | 'mp'): Promise<SaveFile[]> {
+    return TauriAPI.findNWN2Saves(saveMode);
   }
 
   // Window Management

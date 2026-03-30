@@ -38,6 +38,7 @@ export function SaveFileSelector() {
     character?: string;
   }
 
+  const [saveMode, setSaveMode] = useState<'sp' | 'mp'>('sp');
   const [selectedFile, setSelectedFile] = useState<SaveFile | null>(null);
   const [saves, setSaves] = useState<ExtendedSaveFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,14 +54,14 @@ export function SaveFileSelector() {
   const [backupPath, setBackupPath] = useState<string>('');
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
 
-  const loadAvailableSaves = useCallback(async () => {
+  const loadAvailableSaves = useCallback(async (mode: 'sp' | 'mp' = saveMode) => {
     // Rust-only implementation
     if (!api) return;
-    
+
     setLoading(true);
     setError(null);
     try {
-      const saves = await api.findNWN2Saves();
+      const saves = await api.findNWN2Saves(mode);
       if (saves) {
           const mapped: ExtendedSaveFile[] = saves.map(s => ({
               ...s,
@@ -77,7 +78,7 @@ export function SaveFileSelector() {
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, saveMode]);
 
   const importSaveFile = useCallback(async (saveFile: SaveFile) => {
     setImporting(true);
@@ -157,7 +158,7 @@ export function SaveFileSelector() {
       backupsPath = `${savesDir}/backups/${saveName}`;
     } else {
       try {
-        const defaultSavesPath = await invoke<string>('get_default_saves_path');
+        const defaultSavesPath = await invoke<string>('get_default_saves_path', { saveMode });
         backupsPath = defaultSavesPath.replace(/\\/g, '/') + '/backups';
       } catch {
         backupsPath = '';
@@ -198,13 +199,22 @@ export function SaveFileSelector() {
     }
   }, []);
 
+  const handleModeChange = (mode: 'sp' | 'mp') => {
+    setSaveMode(mode);
+    setSaves([]);
+    setSelectedFile(null);
+    setCurrentPath('');
+    setAutoScanComplete(false);
+    loadAvailableSaves(mode).finally(() => setAutoScanComplete(true));
+  };
+
   useEffect(() => {
     if (isAvailable && api && !autoScanComplete) {
-      loadAvailableSaves().finally(() => {
+      loadAvailableSaves(saveMode).finally(() => {
         setAutoScanComplete(true);
       });
     }
-  }, [isAvailable, api, autoScanComplete, loadAvailableSaves]);
+  }, [isAvailable, api, autoScanComplete, loadAvailableSaves, saveMode]);
 
   useEffect(() => {
     (window as Window & { __openBackups?: () => void }).__openBackups = handleOpenBackupsFolder;
@@ -214,6 +224,14 @@ export function SaveFileSelector() {
   }, [handleOpenBackupsFolder]);
 
   const handleSelectFile = async () => {
+    if (!currentPath) {
+      try {
+        const defaultPath = await invoke<string>('get_default_saves_path', { saveMode });
+        setCurrentPath(defaultPath);
+      } catch {
+        // ignore, FileBrowserModal will use its own default
+      }
+    }
     setShowFileBrowser(true);
   };
 
@@ -266,7 +284,24 @@ export function SaveFileSelector() {
         </div>
       )}
 
-      <div className="flex gap-2 mt-4 mb-6">
+      <div className="flex gap-1 mt-4 mb-3 rounded-lg overflow-hidden border border-[rgb(var(--color-surface-border))]">
+        <button
+          className={`flex-1 py-1.5 text-sm font-medium transition-colors ${saveMode === 'sp' ? 'bg-[rgb(var(--color-primary))] text-white' : 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))]'}`}
+          onClick={() => handleModeChange('sp')}
+          disabled={importing || characterLoading}
+        >
+          Single Player
+        </button>
+        <button
+          className={`flex-1 py-1.5 text-sm font-medium transition-colors ${saveMode === 'mp' ? 'bg-[rgb(var(--color-primary))] text-white' : 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))]'}`}
+          onClick={() => handleModeChange('mp')}
+          disabled={importing || characterLoading}
+        >
+          Multiplayer
+        </button>
+      </div>
+
+      <div className="flex gap-2 mb-6">
         <Button
           variant="outline"
           size="md"
@@ -283,7 +318,7 @@ export function SaveFileSelector() {
       ) : saves.length > 0 ? (
         <Card variant="container">
           <div className="recent-saves-header">
-            Last 3 Save Games
+            Last 3 {saveMode === 'mp' ? 'Multiplayer' : 'Single Player'} Saves
           </div>
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {saves.map((save, index) => (

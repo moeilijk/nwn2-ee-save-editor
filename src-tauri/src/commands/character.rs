@@ -524,7 +524,7 @@ pub async fn set_subrace(state: State<'_, AppState>, subrace: Option<String>) ->
 #[tauri::command]
 pub async fn get_available_subraces(
     state: State<'_, AppState>,
-    _race_id: i32,
+    race_id: i32,
 ) -> CommandResult<Vec<crate::character::SubraceInfo>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
@@ -532,7 +532,7 @@ pub async fn get_available_subraces(
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.available_subraces(&game_data))
+    Ok(character.get_available_subraces_for_race(race_id, &game_data))
 }
 
 #[tauri::command]

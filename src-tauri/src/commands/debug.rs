@@ -1,7 +1,7 @@
 use serde::Serialize;
 use specta::Type;
 use tauri::State;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::config::nwn2_paths::PathSource;
 use crate::state::AppState;
@@ -47,6 +47,17 @@ fn path_source_to_string(source: PathSource) -> String {
         PathSource::Discovery => "auto-detected".to_string(),
         PathSource::Environment => "environment".to_string(),
         PathSource::Config => "manual".to_string(),
+    }
+}
+
+#[tauri::command]
+pub async fn log_js_error(message: String, source: Option<String>, stack: Option<String>) {
+    let src = source.as_deref().unwrap_or("unknown");
+    let stack_str = stack.as_deref().unwrap_or("");
+    if stack_str.is_empty() {
+        error!("[JS] {} (source: {})", message, src);
+    } else {
+        error!("[JS] {} (source: {})\n{}", message, src, stack_str);
     }
 }
 

@@ -409,12 +409,8 @@ pub async fn get_filtered_feats(
             if let Some(ref search_str) = search_lower {
                 let name_lower = feat_info.name.to_lowercase();
                 let label_lower = feat_info.label.to_lowercase();
-                let desc_lower = feat_info.description.to_lowercase();
 
-                if !name_lower.contains(search_str)
-                    && !label_lower.contains(search_str)
-                    && !desc_lower.contains(search_str)
-                {
+                if !name_lower.contains(search_str) && !label_lower.contains(search_str) {
                     return false;
                 }
             }

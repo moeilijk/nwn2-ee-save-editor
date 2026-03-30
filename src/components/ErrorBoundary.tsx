@@ -11,13 +11,26 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  errorMessage?: string;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message ?? String(error) };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    import('@/lib/errorLogging').then(({ setupErrorLogging: _ }) => {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('log_js_error', {
+          message: error.message,
+          source: 'ErrorBoundary',
+          stack: (error.stack ?? '') + '\nComponent:' + info.componentStack,
+        }).catch(() => {});
+      });
+    });
   }
 
   handleRetry = () => {
@@ -41,6 +54,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className="text-sm text-[rgb(var(--color-text-secondary))] max-w-md">
             {message}
           </p>
+          {this.state.errorMessage && (
+            <p className="text-xs font-mono text-red-400 bg-red-900/20 px-3 py-2 rounded max-w-lg break-all">
+              {this.state.errorMessage}
+            </p>
+          )}
           <Button variant="secondary" onClick={this.handleRetry}>
             <RotateCcw className="w-4 h-4 mr-2" />
             {retry}
