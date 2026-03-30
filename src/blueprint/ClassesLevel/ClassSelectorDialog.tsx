@@ -2,111 +2,71 @@ import { useState, useMemo } from 'react';
 import { Button, InputGroup, Tab, Tabs, Tag, HTMLTable } from '@blueprintjs/core';
 import { ParchmentDialog } from '../shared';
 import { T } from '../theme';
-import { AVAILABLE_CLASSES } from '../dummy-data';
-
-interface ClassEntry {
-  name: string;
-  level: number;
-  hitDie: number;
-  bab: number;
-  fort: number;
-  ref: number;
-  will: number;
-  skillPoints: number;
-  type: 'base' | 'prestige';
-  maxLevel: number;
-  primaryAbility: string;
-  isSpellcaster: boolean;
-}
-
-interface AvailableClass {
-  id: number;
-  name: string;
-  label: string;
-  type: 'base' | 'prestige';
-  focus: string;
-  maxLevel: number;
-  hitDie: number;
-  skillPoints: number;
-  isSpellcaster: boolean;
-  hasArcane: boolean;
-  hasDivine: boolean;
-  primaryAbility: string;
-  babProgression: string;
-  alignmentRestricted: boolean;
-  description: string;
-}
+import type { CategorizedClassesResponse, ClassInfo } from '@/hooks/useClassesLevel';
 
 interface ClassSelectorDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (cls: ClassEntry) => void;
-  currentClasses: ClassEntry[];
+  onSelect: (classInfo: ClassInfo) => void;
+  currentClassIds: number[];
+  categorizedClasses: CategorizedClassesResponse | null | undefined;
   isChanging: boolean;
   totalLevel: number;
   maxLevel: number;
   maxClasses: number;
+  currentClassCount: number;
 }
 
-function estimateStats(cls: AvailableClass): Omit<ClassEntry, 'level'> {
-  const babMap: Record<string, number> = { high: 1, medium: 0, low: 0 };
-  return {
-    name: cls.name,
-    hitDie: cls.hitDie,
-    bab: babMap[cls.babProgression] ?? 0,
-    fort: 0, ref: 0, will: 0,
-    skillPoints: cls.skillPoints,
-    type: cls.type,
-    maxLevel: cls.maxLevel,
-    primaryAbility: cls.primaryAbility,
-    isSpellcaster: cls.isSpellcaster,
-  };
+function canSelect(
+  cls: ClassInfo,
+  currentClassIds: number[],
+  isChanging: boolean,
+  totalLevel: number,
+  maxLevel: number,
+  maxClasses: number,
+  currentClassCount: number,
+): { ok: boolean; reason?: string } {
+  const hasClass = currentClassIds.includes(cls.id);
+  if (hasClass && !isChanging) return { ok: false, reason: 'Already have this class' };
+  if (!isChanging && currentClassCount >= maxClasses) return { ok: false, reason: `Max ${maxClasses} classes` };
+  if (!isChanging && totalLevel >= maxLevel) return { ok: false, reason: 'At max level' };
+  if (cls.type === 'prestige' && totalLevel < 6) return { ok: false, reason: 'Requires level 6+' };
+  return { ok: true };
 }
 
 export function ClassSelectorDialog({
-  isOpen, onClose, onSelect, currentClasses, isChanging, totalLevel, maxLevel, maxClasses,
+  isOpen, onClose, onSelect, currentClassIds, categorizedClasses, isChanging,
+  totalLevel, maxLevel, maxClasses, currentClassCount,
 }: ClassSelectorDialogProps) {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<string>('base');
 
-  const allClasses = useMemo(() => {
-    const result: AvailableClass[] = [];
-    for (const group of Object.values(AVAILABLE_CLASSES.base)) {
-      result.push(...group);
+  const allClasses = useMemo((): ClassInfo[] => {
+    if (!categorizedClasses) return [];
+    const result: ClassInfo[] = [];
+    for (const focusClasses of Object.values(categorizedClasses.categories.base)) {
+      result.push(...focusClasses);
     }
-    for (const group of Object.values(AVAILABLE_CLASSES.prestige)) {
-      result.push(...group);
+    for (const focusClasses of Object.values(categorizedClasses.categories.prestige)) {
+      result.push(...focusClasses);
     }
     return result;
-  }, []);
+  }, [categorizedClasses]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.toLowerCase();
-    return allClasses.filter(c => c.name.toLowerCase().includes(q) || c.label.toLowerCase().includes(q));
+    return allClasses.filter(c =>
+      c.name.toLowerCase().includes(q) || c.label.toLowerCase().includes(q)
+    );
   }, [search, allClasses]);
 
-  const canSelect = (cls: AvailableClass): { ok: boolean; reason?: string } => {
-    const hasClass = currentClasses.some(c => c.name === cls.name);
-    if (hasClass && !isChanging) return { ok: false, reason: 'Already have this class' };
-    if (!isChanging && currentClasses.length >= maxClasses) return { ok: false, reason: `Max ${maxClasses} classes` };
-    if (!isChanging && totalLevel >= maxLevel) return { ok: false, reason: 'At max level' };
-    if (cls.type === 'prestige' && totalLevel < 6) return { ok: false, reason: 'Requires level 6+' };
-    return { ok: true };
-  };
-
-  const handleSelect = (cls: AvailableClass) => {
-    const { ok } = canSelect(cls);
-    if (!ok) return;
-    onSelect({ ...estimateStats(cls), level: 1 });
-  };
-
-  const renderRow = (cls: AvailableClass) => {
-    const { ok, reason } = canSelect(cls);
+  const renderRow = (cls: ClassInfo) => {
+    const { ok, reason } = canSelect(cls, currentClassIds, isChanging, totalLevel, maxLevel, maxClasses, currentClassCount);
     return (
       <tr
         key={cls.id}
-        onClick={() => ok && handleSelect(cls)}
+        onClick={() => ok && onSelect(cls)}
         style={{
           cursor: ok ? 'pointer' : 'not-allowed',
           opacity: ok ? 1 : 0.5,
@@ -118,30 +78,32 @@ export function ClassSelectorDialog({
             <div style={{ fontSize: 10, color: T.negative }}>{reason}</div>
           )}
         </td>
-        <td style={{ textAlign: 'center' }}>{cls.primaryAbility}</td>
-        <td style={{ textAlign: 'center' }}>d{cls.hitDie}</td>
-        <td style={{ textAlign: 'center' }}>{cls.skillPoints}</td>
+        <td style={{ textAlign: 'center' }}>{cls.primary_ability}</td>
+        <td style={{ textAlign: 'center' }}>d{cls.hit_die}</td>
+        <td style={{ textAlign: 'center' }}>{cls.skill_points}</td>
         <td style={{ textAlign: 'center' }}>
-          {cls.isSpellcaster && (
+          {cls.is_spellcaster && (
             <Tag minimal round style={{ fontSize: 10 }}>
-              {cls.hasArcane ? 'Arcane' : 'Divine'}
+              {cls.has_arcane ? 'Arcane' : 'Divine'}
             </Tag>
           )}
         </td>
         <td style={{ textAlign: 'center' }}>
-          {cls.alignmentRestricted && <Tag minimal round intent="warning" style={{ fontSize: 10 }}>Restricted</Tag>}
+          {cls.alignment_restricted && (
+            <Tag minimal round intent="warning" style={{ fontSize: 10 }}>Restricted</Tag>
+          )}
         </td>
       </tr>
     );
   };
 
-  const renderFocusGroup = (focusKey: string, classList: AvailableClass[]) => {
+  const renderFocusGroup = (focusKey: string, classList: ClassInfo[]) => {
     if (!classList.length) return null;
-    const info = AVAILABLE_CLASSES.focusInfo[focusKey as keyof typeof AVAILABLE_CLASSES.focusInfo];
+    const focusInfo = categorizedClasses?.focus_info[focusKey];
     return (
       <div key={focusKey} style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.accent, marginBottom: 4 }}>
-          {info?.name || focusKey} ({classList.length})
+          {focusInfo?.name || focusKey} ({classList.length})
         </div>
         <HTMLTable compact bordered interactive style={{ width: '100%', tableLayout: 'fixed' }}>
           <colgroup>
@@ -160,9 +122,8 @@ export function ClassSelectorDialog({
     );
   };
 
-  const baseGroups = AVAILABLE_CLASSES.base;
-  const prestigeGroups = AVAILABLE_CLASSES.prestige;
-
+  const baseGroups = categorizedClasses?.categories.base ?? {};
+  const prestigeGroups = categorizedClasses?.categories.prestige ?? {};
   const totalClasses = allClasses.length;
 
   return (
@@ -174,7 +135,7 @@ export function ClassSelectorDialog({
       footerActions={<></>}
       footerLeft={
         <div style={{ fontSize: 11, color: T.textMuted }}>
-          {totalClasses} classes available | {currentClasses.length}/{maxClasses} slots used
+          {totalClasses} classes available | {currentClassCount}/{maxClasses} slots used
         </div>
       }
     >
@@ -186,7 +147,11 @@ export function ClassSelectorDialog({
         style={{ marginBottom: 12 }}
       />
 
-      {filtered ? (
+      {!categorizedClasses ? (
+        <div style={{ color: T.textMuted, fontSize: 12, padding: '8px 0' }}>
+          Loading class data...
+        </div>
+      ) : filtered ? (
         <div>
           <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
             {filtered.length} results for &ldquo;{search}&rdquo;
@@ -219,6 +184,8 @@ export function ClassSelectorDialog({
           } />
         </Tabs>
       )}
+
+      <Button minimal style={{ marginTop: 8 }} onClick={onClose}>Cancel</Button>
     </ParchmentDialog>
   );
 }

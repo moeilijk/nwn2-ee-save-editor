@@ -1,66 +1,159 @@
-import { useState, useMemo, useCallback } from 'react';
-import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem } from '@blueprintjs/core';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem, Spinner, NonIdealState } from '@blueprintjs/core';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { T, SPELL_SCHOOL_COLORS } from '../theme';
-import { SPELLS, MEMORIZED_SPELLS, ALL_SPELLS, ABILITY_SPELLS, SPELL_SCHOOL_OPTIONS } from '../dummy-data';
-import type { DummySpell } from '../dummy-data';
 import { SplitPane, GroupedList } from '../shared';
 import type { ListSection } from '../shared';
 import { SpellDetail } from './SpellDetail';
-
-type SpellWithLevel = DummySpell & { level: number; memorizedCount?: number };
+import { useSubsystem } from '@/contexts/CharacterContext';
+import { useCharacterContext } from '@/contexts/CharacterContext';
+import { CharacterAPI } from '@/services/characterApi';
+import { mapKnownSpellsToSpellInfo, groupMemorizedSpells, mapCasterClasses } from '@/utils/spellUtils';
+import type { SpellInfo, SpellsState } from '@/components/Spells/types';
+import { display } from '@/utils/dataHelpers';
 
 type TabId = 'known' | 'prepared' | 'all';
 
+const SPELLS_PER_PAGE = 100;
+
+const SPELL_SCHOOL_OPTIONS = [
+  'Abjuration', 'Conjuration', 'Divination', 'Enchantment',
+  'Evocation', 'Illusion', 'Necromancy', 'Transmutation',
+];
+
 export function SpellsPanel() {
+  const { character } = useCharacterContext();
+  const spells = useSubsystem('spells');
+  const spellsData = spells.data as SpellsState | null;
+
   const [tab, setTab] = useState<TabId>('known');
   const [search, setSearch] = useState('');
   const [activeSchool, setActiveSchool] = useState<string>('all');
   const [activeLevel, setActiveLevel] = useState<string>('all');
   const [activeClass, setActiveClass] = useState<string>('all');
-  const [selectedSpell, setSelectedSpell] = useState<SpellWithLevel | null>(null);
+  const [selectedSpell, setSelectedSpell] = useState<SpellInfo | null>(null);
 
-  const casterClasses = SPELLS.casterClasses;
+  const [allSpells, setAllSpells] = useState<SpellInfo[]>([]);
+  const [allSpellsLoading, setAllSpellsLoading] = useState(false);
+  const [allSpellsPage, setAllSpellsPage] = useState(1);
+  const [allSpellsTotal, setAllSpellsTotal] = useState(0);
+  const [allSpellsHasNext, setAllSpellsHasNext] = useState(false);
+  const [allSpellsHasPrev, setAllSpellsHasPrev] = useState(false);
+
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const [abilitySpells, setAbilitySpells] = useState<Array<{
+    spell_id: number;
+    name: string;
+    icon: string;
+    description?: string;
+    school_name?: string;
+    innate_level: number;
+  }>>([]);
+
+  useEffect(() => {
+    if (character?.id && !spells.data && !spells.isLoading) {
+      spells.load();
+    }
+  }, [character?.id, spells.data, spells.isLoading, spells]);
+
+  useEffect(() => {
+    if (character?.id) {
+      CharacterAPI.getAbilitySpells()
+        .then(setAbilitySpells)
+        .catch(() => setAbilitySpells([]));
+    }
+  }, [character?.id]);
+
+  useEffect(() => {
+    const characterId = character?.id;
+    if (!characterId) return;
+
+    const loadAllSpells = async () => {
+      setAllSpellsLoading(true);
+      try {
+        const schoolParam = activeSchool !== 'all' ? activeSchool : undefined;
+        const levelParam = activeLevel !== 'all' ? activeLevel : undefined;
+        const searchParam = debouncedSearch.length >= 3 ? debouncedSearch : undefined;
+        const foundClass = activeClass !== 'all'
+          ? casterClasses.find(c => c.name === activeClass)
+          : undefined;
+        const classParam = foundClass?.class_id;
+
+        const response = await CharacterAPI.getLegitimateSpells(characterId, {
+          page: allSpellsPage,
+          limit: SPELLS_PER_PAGE,
+          schools: schoolParam,
+          levels: levelParam,
+          search: searchParam,
+          ...(classParam !== undefined ? { class_id: classParam } : {}),
+        });
+
+        setAllSpells(response.spells);
+        setAllSpellsTotal(response.pagination.total);
+        setAllSpellsHasNext(response.pagination.has_next);
+        setAllSpellsHasPrev(response.pagination.has_previous);
+      } catch {
+        setAllSpells([]);
+      } finally {
+        setAllSpellsLoading(false);
+      }
+    };
+
+    if (tab === 'all') {
+      loadAllSpells();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.id, tab, allSpellsPage, activeSchool, activeLevel, activeClass, debouncedSearch]);
+
+  const casterClasses = useMemo(() => mapCasterClasses(spellsData?.spellcasting_classes), [spellsData]);
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setActiveSchool('all');
     setActiveLevel('all');
     setActiveClass('all');
+    setAllSpellsPage(1);
   }, []);
 
-  const filterSpell = useCallback((name: string, school: string, level: number) => {
-    if (search.length >= 3 && !name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (activeSchool !== 'all' && school !== activeSchool) return false;
-    if (activeLevel !== 'all' && level !== Number(activeLevel)) return false;
+  const clientFilter = useCallback((spell: SpellInfo) => {
+    if (search.length >= 3 && !spell.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (activeSchool !== 'all' && (spell.school_name || spell.school) !== activeSchool) return false;
+    if (activeLevel !== 'all' && spell.level !== Number(activeLevel)) return false;
+    if (activeClass !== 'all') {
+      const cls = casterClasses.find(c => c.name === activeClass);
+      if (cls && spell.class_id !== undefined && spell.class_id !== cls.class_id) return false;
+    }
     return true;
-  }, [search, activeSchool, activeLevel]);
+  }, [search, activeSchool, activeLevel, activeClass, casterClasses]);
 
-  const totalKnown = SPELLS.known.reduce((sum, g) => sum + g.spells.length, 0);
-  const totalPrepared = MEMORIZED_SPELLS.length;
+  const knownSpells = useMemo(() => mapKnownSpellsToSpellInfo(spellsData?.known_spells), [spellsData?.known_spells]);
+  const preparedSpells = useMemo(() => groupMemorizedSpells(spellsData?.memorized_spells), [spellsData?.memorized_spells]);
 
   const levelLabel = (l: number) => l === 0 ? 'Cantrips' : `Level ${l} Spells`;
 
-  const knownSections: ListSection<SpellWithLevel>[] = useMemo(() =>
-    SPELLS.known.map(g => ({
-      key: `lvl-${g.level}`,
-      title: levelLabel(g.level),
-      items: g.spells
-        .filter(s => filterSpell(s.name, s.school, g.level))
-        .map(s => ({ ...s, level: g.level })),
-    })).filter(s => s.items.length > 0),
-    [filterSpell]
-  );
-
-  const preparedSections: ListSection<SpellWithLevel>[] = useMemo(() => {
-    const filtered = MEMORIZED_SPELLS.filter(s => filterSpell(s.name, s.school, s.level));
-    const grouped = new Map<number, SpellWithLevel[]>();
+  const knownSections: ListSection<SpellInfo>[] = useMemo(() => {
+    const filtered = knownSpells.filter(clientFilter);
+    const grouped = new Map<number, SpellInfo[]>();
     for (const s of filtered) {
       if (!grouped.has(s.level)) grouped.set(s.level, []);
-      grouped.get(s.level)!.push({
-        id: s.id, name: s.name, school: s.school,
-        description: '', isDomain: s.isDomain,
-        level: s.level, memorizedCount: s.count,
-      });
+      grouped.get(s.level)!.push(s);
+    }
+    return [...grouped.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([level, items]) => ({
+        key: `lvl-${level}`,
+        title: levelLabel(level),
+        items,
+      }));
+  }, [knownSpells, clientFilter]);
+
+  const preparedSections: ListSection<SpellInfo>[] = useMemo(() => {
+    const filtered = preparedSpells.filter(clientFilter);
+    const grouped = new Map<number, SpellInfo[]>();
+    for (const s of filtered) {
+      if (!grouped.has(s.level)) grouped.set(s.level, []);
+      grouped.get(s.level)!.push(s);
     }
     return [...grouped.entries()]
       .sort(([a], [b]) => a - b)
@@ -69,14 +162,13 @@ export function SpellsPanel() {
         title: levelLabel(level),
         items,
       }));
-  }, [filterSpell]);
+  }, [preparedSpells, clientFilter]);
 
-  const allSections: ListSection<SpellWithLevel>[] = useMemo(() => {
-    const filtered = ALL_SPELLS.filter(s => filterSpell(s.name, s.school, s.level));
-    const grouped = new Map<number, SpellWithLevel[]>();
-    for (const s of filtered) {
+  const allSections: ListSection<SpellInfo>[] = useMemo(() => {
+    const grouped = new Map<number, SpellInfo[]>();
+    for (const s of allSpells) {
       if (!grouped.has(s.level)) grouped.set(s.level, []);
-      grouped.get(s.level)!.push({ ...s, level: s.level });
+      grouped.get(s.level)!.push(s);
     }
     return [...grouped.entries()]
       .sort(([a], [b]) => a - b)
@@ -85,7 +177,7 @@ export function SpellsPanel() {
         title: levelLabel(level),
         items,
       }));
-  }, [filterSpell]);
+  }, [allSpells]);
 
   const hasFilters = search.length > 0 || activeSchool !== 'all' || activeLevel !== 'all' || activeClass !== 'all';
 
@@ -93,6 +185,7 @@ export function SpellsPanel() {
 
   const schoolLabel = activeSchool === 'all' ? 'School: All' : activeSchool;
   const levelFilterLabel = activeLevel === 'all' ? 'Level: All' : activeLevel === '0' ? 'Cantrips' : `Level ${activeLevel}`;
+  const classLabel = activeClass === 'all' ? 'Class: All' : activeClass;
 
   const schoolMenu = (
     <Menu>
@@ -113,19 +206,18 @@ export function SpellsPanel() {
     </Menu>
   );
 
-  const classLabel = activeClass === 'all' ? 'Class: All' : activeClass;
-
   const classMenu = (
     <Menu>
       <MenuItem text="All" active={activeClass === 'all'} onClick={() => setActiveClass('all')} />
       {casterClasses.map(c => (
-        <MenuItem key={c.className} text={c.className} active={activeClass === c.className} onClick={() => setActiveClass(c.className)} />
+        <MenuItem key={c.class_id} text={c.name} active={activeClass === c.name} onClick={() => setActiveClass(c.name)} />
       ))}
     </Menu>
   );
 
-  const renderSpellItem = useCallback((spell: SpellWithLevel, selected: boolean) => {
-    const schoolColor = SPELL_SCHOOL_COLORS[spell.school] || T.textMuted;
+  const renderSpellItem = useCallback((spell: SpellInfo, selected: boolean) => {
+    const schoolName = spell.school_name || spell.school;
+    const schoolColor = SPELL_SCHOOL_COLORS[schoolName || ''] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{
@@ -133,35 +225,46 @@ export function SpellsPanel() {
           fontWeight: selected ? 600 : 400,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {spell.name}
+          {display(spell.name)}
         </span>
-        {spell.isDomain && (
+        {spell.is_domain_spell && (
           <span style={{ color: '#c62828', fontWeight: 500, flexShrink: 0 }}>Domain</span>
         )}
-        {spell.memorizedCount && spell.memorizedCount > 0 && (
-          <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>{spell.memorizedCount}x</span>
+        {spell.memorized_count !== undefined && spell.memorized_count > 0 && (
+          <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>{spell.memorized_count}x</span>
         )}
-        <span style={{ color: schoolColor, fontWeight: 500, flexShrink: 0 }}>
-          {spell.school}
-        </span>
+        {schoolName && (
+          <span style={{ color: schoolColor, fontWeight: 500, flexShrink: 0 }}>
+            {schoolName}
+          </span>
+        )}
       </div>
     );
   }, []);
+
+  const totalKnown = knownSpells.length;
+  const totalPrepared = preparedSpells.length;
+
+  const allTabTitle = allSpellsTotal > 0
+    ? `All Spells (${allSpellsTotal})`
+    : 'All Spells';
 
   const toolbar = (
     <>
       <Tabs
         id="spell-tabs" selectedTabId={tab}
-        onChange={(id) => { setTab(id as TabId); setSelectedSpell(null); }}
+        onChange={(id) => { setTab(id as TabId); setSelectedSpell(null); setAllSpellsPage(1); }}
         renderActiveTabPanelOnly
       >
         <Tab id="known" title={`Known (${totalKnown})`} />
         <Tab id="prepared" title={`Prepared (${totalPrepared})`} />
-        <Tab id="all" title={`All Spells (${ALL_SPELLS.length})`} />
+        <Tab id="all" title={allTabTitle} />
       </Tabs>
-      <Popover content={classMenu} placement="bottom-start" minimal>
-        <Button minimal rightIcon="caret-down" text={classLabel} />
-      </Popover>
+      {casterClasses.length > 1 && (
+        <Popover content={classMenu} placement="bottom-start" minimal>
+          <Button minimal rightIcon="caret-down" text={classLabel} />
+        </Popover>
+      )}
       <Popover content={schoolMenu} placement="bottom-start" minimal>
         <Button minimal rightIcon="caret-down" text={schoolLabel} />
       </Popover>
@@ -179,19 +282,66 @@ export function SpellsPanel() {
     </>
   );
 
+  const isLoadingInitial = spells.isLoading && !spellsData;
+
+  const listContent = () => {
+    if (isLoadingInitial) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
+          <Spinner size={32} />
+        </div>
+      );
+    }
+
+    if (!character) {
+      return (
+        <NonIdealState
+          icon="person"
+          title="No character loaded"
+          description="Load a save file to view spells."
+        />
+      );
+    }
+
+    if (tab === 'all' && allSpellsLoading) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
+          <Spinner size={32} />
+        </div>
+      );
+    }
+
+    if (sections.length === 0) {
+      return (
+        <div style={{ padding: 24, textAlign: 'center', color: T.textMuted }}>
+          No spells match your filters.
+        </div>
+      );
+    }
+
+    return (
+      <GroupedList
+        sections={sections}
+        selectedId={selectedSpell?.id ?? null}
+        onSelect={setSelectedSpell}
+        renderItem={renderSpellItem}
+      />
+    );
+  };
+
   const list = (
     <div>
-      {sections.length > 0 ? (
-        <GroupedList
-          sections={sections}
-          selectedId={selectedSpell?.id ?? null}
-          onSelect={setSelectedSpell}
-          renderItem={renderSpellItem}
-        />
-      ) : (
-        <div style={{ padding: 24, textAlign: 'center', color: T.textMuted }}>No spells match your filters.</div>
+      {listContent()}
+      {tab === 'all' && allSpellsTotal > SPELLS_PER_PAGE && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 12px', borderTop: `1px solid ${T.sectionBorder}` }}>
+          <Button minimal small icon="chevron-left" disabled={!allSpellsHasPrev} onClick={() => setAllSpellsPage(p => Math.max(1, p - 1))} />
+          <span style={{ color: T.textMuted, fontSize: 12 }}>
+            Page {allSpellsPage} of {Math.ceil(allSpellsTotal / SPELLS_PER_PAGE)}
+          </span>
+          <Button minimal small icon="chevron-right" disabled={!allSpellsHasNext} onClick={() => setAllSpellsPage(p => p + 1)} />
+        </div>
       )}
-      {ABILITY_SPELLS.length > 0 && (
+      {abilitySpells.length > 0 && (
         <>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -201,17 +351,19 @@ export function SpellsPanel() {
             borderTop: `1px solid ${T.sectionBorder}`,
           }}>
             <span style={{ fontWeight: 700, color: T.accent, flex: 1 }}>Special Abilities</span>
-            <span style={{ color: T.textMuted }}>{ABILITY_SPELLS.length}</span>
+            <span style={{ color: T.textMuted }}>{abilitySpells.length}</span>
           </div>
-          {ABILITY_SPELLS.map(a => (
-            <div key={a.id} style={{
+          {abilitySpells.map(a => (
+            <div key={a.spell_id} style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '5px 12px 5px 28px',
               borderBottom: `1px solid ${T.borderLight}`,
             }}>
-              <span style={{ color: T.text, flex: 1 }}>{a.name}</span>
-              <span style={{ color: T.textMuted, flexShrink: 0 }}>{a.source}</span>
-              <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>{a.usesPerDay}/day</span>
+              <span style={{ color: T.text, flex: 1 }}>{display(a.name)}</span>
+              {a.school_name && (
+                <span style={{ color: T.textMuted, flexShrink: 0 }}>{a.school_name}</span>
+              )}
+              <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>Lv {a.innate_level}</span>
             </div>
           ))}
         </>
@@ -219,11 +371,13 @@ export function SpellsPanel() {
     </div>
   );
 
+  const detailMemoizedCount = selectedSpell?.memorized_count;
+
   return (
     <SplitPane
       toolbar={toolbar}
       list={list}
-      detail={<SpellDetail spell={selectedSpell} memorizedCount={selectedSpell?.memorizedCount} />}
+      detail={<SpellDetail spell={selectedSpell} memorizedCount={detailMemoizedCount} />}
     />
   );
 }

@@ -4,8 +4,6 @@ import { TauriProvider } from '@/providers/TauriProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import ClientOnlyApp from '@/components/ClientOnlyApp';
-import SettingsPage from '@/pages/SettingsPage';
 import Shell from '@/blueprint/layout/Shell';
 import DashboardPanel from '@/blueprint/Dashboard/DashboardPanel';
 
@@ -29,9 +27,7 @@ export default function App() {
   return (
     <AppProviders>
       <Routes>
-        <Route path="/" element={<ClientOnlyApp />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/prototype" element={<Shell />} />
+        <Route path="/" element={<Shell />} />
         <Route path="/dashboard" element={<DashboardPanel />} />
       </Routes>
     </AppProviders>

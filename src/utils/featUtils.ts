@@ -1,4 +1,21 @@
 import type { FeatInfo } from '@/components/Feats/types';
+import { FEAT_TYPES } from '@/components/Feats/types';
+
+export const FEAT_TYPE_LABELS: Record<number, string> = {
+  [FEAT_TYPES.GENERAL]: 'General',
+  [FEAT_TYPES.COMBAT]: 'Combat',
+  [FEAT_TYPES.METAMAGIC]: 'Metamagic',
+  [FEAT_TYPES.DIVINE]: 'Divine',
+  [FEAT_TYPES.EPIC]: 'Epic',
+  [FEAT_TYPES.CLASS]: 'Class',
+  [FEAT_TYPES.BACKGROUND]: 'Background',
+  [FEAT_TYPES.DOMAIN]: 'Domain',
+};
+
+export function getFeatTypeLabel(type: number): string {
+  const match = Object.entries(FEAT_TYPE_LABELS).find(([bit]) => (type & Number(bit)) !== 0);
+  return match ? match[1] : 'General';
+}
 
 interface FeatsSummary {
   protected?: FeatInfo[];

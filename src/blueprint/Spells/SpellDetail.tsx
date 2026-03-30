@@ -1,9 +1,10 @@
 import { T, SPELL_SCHOOL_COLORS } from '../theme';
-import type { DummySpell } from '../dummy-data';
+import type { SpellInfo } from '@/components/Spells/types';
 import { DetailSection } from '../shared';
+import { display } from '@/utils/dataHelpers';
 
 interface SpellDetailProps {
-  spell: (DummySpell & { level: number; memorizedCount?: number }) | null;
+  spell: SpellInfo | null;
   memorizedCount?: number;
 }
 
@@ -25,43 +26,48 @@ export function SpellDetail({ spell, memorizedCount }: SpellDetailProps) {
     );
   }
 
-  const schoolColor = SPELL_SCHOOL_COLORS[spell.school] || T.textMuted;
+  const schoolName = spell.school_name || spell.school;
+  const schoolColor = SPELL_SCHOOL_COLORS[schoolName || ''] || T.textMuted;
 
   return (
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       <div>
-        <span style={{ fontWeight: 700, color: T.text }}>{spell.name}</span>
-        <span style={{ color: T.textMuted }}> — </span>
-        <span style={{ color: schoolColor, fontWeight: 500 }}>{spell.school}</span>
+        <span style={{ fontWeight: 700, color: T.text }}>{display(spell.name)}</span>
+        {schoolName && (
+          <>
+            <span style={{ color: T.textMuted }}> — </span>
+            <span style={{ color: schoolColor, fontWeight: 500 }}>{schoolName}</span>
+          </>
+        )}
       </div>
-
 
       <DetailSection title="Spell Info">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {spell.casterLevel && <InfoRow label="Caster Level(s)" value={spell.casterLevel} />}
-          <InfoRow label="Innate Level" value={spell.innateLevel !== undefined ? String(spell.innateLevel) : String(spell.level)} />
-          <InfoRow label="School" value={spell.school} color={schoolColor} />
-          {spell.descriptor && <InfoRow label="Descriptor(s)" value={spell.descriptor} />}
+          <InfoRow label="Innate Level" value={spell.innate_level !== undefined ? String(spell.innate_level) : String(spell.level)} />
+          {schoolName && <InfoRow label="School" value={schoolName} color={schoolColor} />}
           {spell.components && <InfoRow label="Component(s)" value={spell.components} />}
           {spell.range && <InfoRow label="Range" value={spell.range} />}
-          {spell.area && <InfoRow label="Area of Effect / Target" value={spell.area} />}
-          {spell.duration && <InfoRow label="Duration" value={spell.duration} />}
-          {spell.save && <InfoRow label="Save" value={spell.save} />}
-          {spell.spellResistance && <InfoRow label="Spell Resistance" value={spell.spellResistance} />}
-          {spell.isDomain && <InfoRow label="Source" value="Domain Spell" color="#c62828" />}
+          {spell.target_type && <InfoRow label="Target" value={spell.target_type} />}
+          {spell.cast_time && <InfoRow label="Cast Time" value={spell.cast_time} />}
+          {spell.available_metamagic && <InfoRow label="Metamagic" value={spell.available_metamagic} />}
+          {spell.is_domain_spell && <InfoRow label="Source" value="Domain Spell" color="#c62828" />}
           {memorizedCount !== undefined && memorizedCount > 0 && (
             <InfoRow label="Memorized" value={`${memorizedCount}x`} />
+          )}
+          {spell.available_classes && spell.available_classes.length > 0 && (
+            <InfoRow label="Available To" value={spell.available_classes.join(', ')} />
           )}
         </div>
       </DetailSection>
 
-
-      <DetailSection title="Description">
-        <div style={{ color: T.text, lineHeight: 1.6 }}>
-          {spell.description}
-        </div>
-      </DetailSection>
+      {spell.description && (
+        <DetailSection title="Description">
+          <div style={{ color: T.text, lineHeight: 1.6 }}>
+            {spell.description}
+          </div>
+        </DetailSection>
+      )}
     </div>
   );
 }

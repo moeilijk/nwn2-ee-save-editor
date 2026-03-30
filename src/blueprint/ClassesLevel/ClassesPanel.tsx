@@ -1,24 +1,14 @@
-import { useState } from 'react';
-import { Button, Card, Elevation, HTMLTable, ProgressBar, Tag } from '@blueprintjs/core';
+import { useState, useEffect, useMemo } from 'react';
+import { Button, Card, Elevation, HTMLTable, NonIdealState, ProgressBar, Spinner, Tag } from '@blueprintjs/core';
 import { T } from '../theme';
-import { CHARACTER, LEVEL_HISTORY } from '../dummy-data';
-import { mod, fmtNum, StepInput } from '../shared';
+import { StepInput } from '../shared';
 import { ClassSelectorDialog } from './ClassSelectorDialog';
-
-interface ClassEntry {
-  name: string;
-  level: number;
-  hitDie: number;
-  bab: number;
-  fort: number;
-  ref: number;
-  will: number;
-  skillPoints: number;
-  type: 'base' | 'prestige';
-  maxLevel: number;
-  primaryAbility: string;
-  isSpellcaster: boolean;
-}
+import { useSubsystem } from '@/contexts/CharacterContext';
+import { useClassesLevel, type ClassesData, type ClassInfo } from '@/hooks/useClassesLevel';
+import { useTranslations } from '@/hooks/useTranslations';
+import { formatModifier, formatNumber } from '@/utils/dataHelpers';
+import { capXP, aggregateClassStats, hasLevelMismatch } from '@/utils/classUtils';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 function SectionLabel({ children, right }: { children: string; right?: React.ReactNode }) {
   return (
@@ -32,50 +22,109 @@ function SectionLabel({ children, right }: { children: string; right?: React.Rea
 }
 
 export function ClassesPanel() {
-  const [classes, setClasses] = useState<ClassEntry[]>([...CHARACTER.classes]);
-  const [xpInput, setXpInput] = useState(CHARACTER.xp.toString());
-  const [xp, setXp] = useState(CHARACTER.xp);
+  const t = useTranslations();
+  const { handleError } = useErrorHandler();
+
+  const classesSubsystem = useSubsystem('classes');
+  const {
+    classes,
+    totalLevel,
+    xpProgress,
+    categorizedClasses,
+    isUpdating,
+    adjustClassLevel,
+    changeClass,
+    addClass,
+    removeClass,
+    isAtMaxLevel,
+    getRemainingLevels,
+    setExperience,
+    fetchXPProgress,
+  } = useClassesLevel(classesSubsystem.data as ClassesData | null);
+
+  const [xpInput, setXpInput] = useState('');
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [changingIndex, setChangingIndex] = useState<number | null>(null);
 
   const maxLevel = 60;
   const maxClasses = 4;
-  const totalLevel = classes.reduce((s, c) => s + c.level, 0);
-  const totalBab = classes.reduce((s, c) => s + c.bab, 0);
-  const totalFort = classes.reduce((s, c) => s + c.fort, 0);
-  const totalRef = classes.reduce((s, c) => s + c.ref, 0);
-  const totalWill = classes.reduce((s, c) => s + c.will, 0);
 
-  const xpNext = CHARACTER.xpNext;
-  const xpLevel = Math.floor((-1 + Math.sqrt(1 + 8 * xp / 1000)) / 2) + 1;
-  const hasLevelMismatch = xpLevel !== totalLevel;
-  const xpDirty = xpInput !== xp.toString();
+  // Sync XP input when xpProgress loads or changes
+  useEffect(() => {
+    if (xpProgress) {
+      setXpInput(xpProgress.current_xp.toString());
+    }
+  }, [xpProgress]);
 
-  const handleXpSubmit = () => {
+  // Load subsystem on mount if not already loaded
+  useEffect(() => {
+    if (!classesSubsystem.data && !classesSubsystem.isLoading) {
+      classesSubsystem.load().catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classesSubsystem.data, classesSubsystem.isLoading]);
+
+  // Fetch XP progress when data is loaded but xpProgress missing
+  useEffect(() => {
+    if (classesSubsystem.data && !xpProgress) {
+      fetchXPProgress().catch(() => {});
+    }
+  }, [classesSubsystem.data, xpProgress, fetchXPProgress]);
+
+  const levelHistoryReversed = useMemo(
+    () => [...(classesSubsystem.data?.level_history ?? [])].reverse(),
+    [classesSubsystem.data?.level_history]
+  );
+
+  const currentXP = xpProgress?.current_xp ?? 0;
+  const xpDirty = xpInput !== currentXP.toString();
+  const levelMismatch = hasLevelMismatch(xpProgress, totalLevel);
+  const { totalBAB, totalFort, totalRef, totalWill } = useMemo(
+    () => aggregateClassStats(
+      classes.map(c => ({
+        baseAttackBonus: c.baseAttackBonus,
+        fortitudeSave: c.fortitudeSave,
+        reflexSave: c.reflexSave,
+        willSave: c.willSave,
+      }))
+    ),
+    [classes]
+  );
+
+  const handleXpSubmit = async () => {
     let val = parseInt(xpInput, 10);
     if (isNaN(val) || val < 0) return;
-    if (val > 1_770_000) {
-      val = 1_770_000;
-      setXpInput('1770000');
+    val = capXP(val);
+    if (val.toString() !== xpInput) setXpInput(val.toString());
+    try {
+      await setExperience(val);
+    } catch (err) {
+      handleError(err);
     }
-    setXp(val);
   };
 
   const handleXpReset = () => {
-    setXpInput(xp.toString());
+    setXpInput(currentXP.toString());
   };
 
-  const handleAdjustLevel = (index: number, delta: number) => {
-    setClasses(prev => prev.map((c, i) => {
-      if (i !== index) return c;
-      const newLevel = Math.max(1, Math.min(c.maxLevel, c.level + delta));
-      return { ...c, level: newLevel };
-    }));
+  const handleAdjustLevel = async (index: number, delta: number) => {
+    const cls = classes[index];
+    if (!cls) return;
+    try {
+      await adjustClassLevel(cls.id, delta);
+    } catch (err) {
+      handleError(err);
+    }
   };
 
-  const handleRemoveClass = (index: number) => {
-    if (classes.length <= 1) return;
-    setClasses(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveClass = async (index: number) => {
+    const cls = classes[index];
+    if (!cls) return;
+    try {
+      await removeClass(cls.id);
+    } catch (err) {
+      handleError(err);
+    }
   };
 
   const handleOpenChangeClass = (index: number) => {
@@ -88,23 +137,78 @@ export function ClassesPanel() {
     setSelectorOpen(true);
   };
 
-  const handleSelectClass = (cls: ClassEntry) => {
-    if (changingIndex !== null) {
-      setClasses(prev => prev.map((c, i) => i === changingIndex ? { ...cls, level: c.level } : c));
-    } else {
-      setClasses(prev => [...prev, { ...cls, level: 1 }]);
+  const handleSelectClass = async (classInfo: ClassInfo) => {
+    try {
+      if (changingIndex !== null) {
+        const cls = classes[changingIndex];
+        if (cls) {
+          await changeClass(cls.id, classInfo);
+        }
+      } else {
+        await addClass(classInfo);
+      }
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setSelectorOpen(false);
+      setChangingIndex(null);
     }
-    setSelectorOpen(false);
-    setChangingIndex(null);
   };
+
+  // Loading state
+  if (classesSubsystem.isLoading && !classesSubsystem.data) {
+    return (
+      <div style={{ padding: 32, display: 'flex', justifyContent: 'center' }}>
+        <Spinner size={32} />
+      </div>
+    );
+  }
+
+  // Error state
+  if (classesSubsystem.error && !classesSubsystem.data) {
+    return (
+      <div style={{ padding: 16 }}>
+        <NonIdealState
+          icon="error"
+          title="Failed to load class data"
+          description={classesSubsystem.error}
+          action={
+            <Button intent="primary" onClick={() => classesSubsystem.load()}>
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  // Empty / no character state
+  if (!classesSubsystem.data) {
+    return (
+      <div style={{ padding: 16 }}>
+        <NonIdealState
+          icon="person"
+          title="No character loaded"
+          description="Load a save file to view class data."
+        />
+      </div>
+    );
+  }
+
+  // Build currentClasses in the shape ClassSelectorDialog expects
+  const selectorCurrentClasses = classes.map(c => ({
+    id: c.id,
+    name: c.name,
+  }));
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
+        {/* XP Bar */}
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${T.borderLight}` }}>
-          <span style={{ color: T.textMuted, fontWeight: 600 }}>XP</span>
+          <span style={{ color: T.textMuted, fontWeight: 600 }}>{t('classes.experience')}</span>
           <input
             type="text"
             value={xpInput}
@@ -118,24 +222,35 @@ export function ClassesPanel() {
             }}
             className="bp6-input"
             style={{ width: 110, textAlign: 'center', padding: '2px 8px', height: 26 }}
+            disabled={isUpdating}
           />
-          <Button minimal icon="tick" intent="success" onClick={handleXpSubmit} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
-          <Button minimal icon="cross" onClick={handleXpReset} disabled={!xpDirty} style={{ opacity: xpDirty ? 1 : 0.3 }} />
+          <Button minimal icon="tick" intent="success" onClick={handleXpSubmit} disabled={!xpDirty || isUpdating} style={{ opacity: xpDirty ? 1 : 0.3 }} />
+          <Button minimal icon="cross" onClick={handleXpReset} disabled={!xpDirty || isUpdating} style={{ opacity: xpDirty ? 1 : 0.3 }} />
           <div style={{ flex: 1 }}>
-            <ProgressBar value={xp / xpNext} intent="primary" stripes={false} animate={false} style={{ height: 4 }} />
+            <ProgressBar
+              value={xpProgress ? xpProgress.progress_percent / 100 : 0}
+              intent="primary"
+              stripes={false}
+              animate={false}
+              style={{ height: 4 }}
+            />
           </div>
           <span style={{ color: T.textMuted, whiteSpace: 'nowrap' }}>
-            Lvl {xpLevel} | {fmtNum(xpNext - xp)} to next
+            {t('classes.lvl')} {xpProgress?.current_level ?? '-'} | {formatNumber(xpProgress?.xp_remaining)} {t('classes.xpToNextLevel')}
           </span>
-          {hasLevelMismatch && (
+          {levelMismatch && xpProgress && (
             <Tag minimal round intent="warning" icon="warning-sign" style={{ fontSize: 'inherit' }}>
-              XP Lvl {xpLevel} / Class Lvl {totalLevel}
+              {t('classes.xpLevelMismatchWarning', {
+                xpLevel: String(xpProgress.current_level),
+                classLevel: String(totalLevel),
+              })}
             </Tag>
           )}
         </div>
 
+        {/* Classes Table */}
         <div style={{ padding: '12px 16px 16px' }}>
-          <SectionLabel>Classes</SectionLabel>
+          <SectionLabel>{t('classes.currentClasses')}</SectionLabel>
           <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 140 }} />
@@ -150,60 +265,68 @@ export function ClassesPanel() {
             </colgroup>
             <thead>
               <tr>
-                <th>Class</th>
-                <th style={{ textAlign: 'center' }}>Level</th>
-                <th style={{ textAlign: 'center' }}>BAB</th>
-                <th style={{ textAlign: 'center' }}>Fort</th>
-                <th style={{ textAlign: 'center' }}>Ref</th>
-                <th style={{ textAlign: 'center' }}>Will</th>
-                <th style={{ textAlign: 'center' }}>HD</th>
-                <th style={{ textAlign: 'center' }}>SP</th>
+                <th>{t('classes.class')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.level')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.bab')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.fortitude')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.reflex')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.will')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.hitDie')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.skillPoints')}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {classes.map((cls, i) => (
-                <tr key={`${cls.name}-${i}`}>
-                  <td>
-                    <Button small minimal rightIcon="edit" onClick={() => handleOpenChangeClass(i)}
-                      style={{ fontWeight: 500, color: T.accent }}>
-                      {cls.name}
-                    </Button>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <StepInput
-                      value={cls.level}
-                      onValueChange={(v) => handleAdjustLevel(i, v - cls.level)}
-                      min={1}
-                      max={Math.min(cls.maxLevel, maxLevel - totalLevel + cls.level)}
-                      width={88}
-                    />
-                    {cls.type === 'prestige' && cls.maxLevel < 60 && (
-                      <div style={{ fontSize: 10, color: cls.level >= cls.maxLevel ? T.negative : T.textMuted, marginTop: 1 }}>
-                        {cls.level >= cls.maxLevel ? 'Max Level' : `${cls.maxLevel - cls.level} left`}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'center', fontWeight: 500 }}>{mod(cls.bab)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 500 }}>{mod(cls.fort)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 500 }}>{mod(cls.ref)}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 500 }}>{mod(cls.will)}</td>
-                  <td style={{ textAlign: 'center' }}>d{cls.hitDie}</td>
-                  <td style={{ textAlign: 'center' }}>{cls.skillPoints}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    {classes.length > 1 && (
-                      <Button small minimal icon="trash" intent="danger" onClick={() => handleRemoveClass(i)}>Remove</Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {classes.map((cls, i) => {
+                const atMax = isAtMaxLevel(cls.id);
+                const remaining = getRemainingLevels(cls.id);
+                const maxForClass = Math.min(cls.max_level ?? maxLevel, maxLevel - totalLevel + cls.level);
+                return (
+                  <tr key={`${cls.id}-${i}`}>
+                    <td>
+                      <Button small minimal rightIcon="edit" onClick={() => handleOpenChangeClass(i)}
+                        style={{ fontWeight: 500, color: T.accent }} disabled={isUpdating}>
+                        {cls.name}
+                      </Button>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <StepInput
+                        value={cls.level}
+                        onValueChange={(v) => handleAdjustLevel(i, v - cls.level)}
+                        min={1}
+                        max={maxForClass}
+                        width={88}
+                        disabled={isUpdating}
+                      />
+                      {cls.max_level && cls.max_level < 60 && (
+                        <div style={{ fontSize: 10, color: atMax ? T.negative : T.textMuted, marginTop: 1 }}>
+                          {atMax ? 'Max Level' : `${remaining} left`}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.baseAttackBonus)}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.fortitudeSave)}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.reflexSave)}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.willSave)}</td>
+                    <td style={{ textAlign: 'center' }}>d{cls.hitDie}</td>
+                    <td style={{ textAlign: 'center' }}>{cls.skillPoints}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {classes.length > 1 && (
+                        <Button small minimal icon="trash" intent="danger" disabled={isUpdating} onClick={() => handleRemoveClass(i)}>
+                          {t('classes.remove')}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               <tr style={{ fontWeight: 700 }}>
-                <td style={{ color: T.textMuted }}>Totals</td>
+                <td style={{ color: T.textMuted }}>{t('classes.stats')}</td>
                 <td style={{ textAlign: 'center' }}>{totalLevel}<span style={{ color: T.textMuted, fontWeight: 400 }}>/60</span></td>
-                <td style={{ textAlign: 'center' }}>{mod(totalBab)}</td>
-                <td style={{ textAlign: 'center' }}>{mod(totalFort)}</td>
-                <td style={{ textAlign: 'center' }}>{mod(totalRef)}</td>
-                <td style={{ textAlign: 'center' }}>{mod(totalWill)}</td>
+                <td style={{ textAlign: 'center' }}>{formatModifier(totalBAB)}</td>
+                <td style={{ textAlign: 'center' }}>{formatModifier(totalFort)}</td>
+                <td style={{ textAlign: 'center' }}>{formatModifier(totalRef)}</td>
+                <td style={{ textAlign: 'center' }}>{formatModifier(totalWill)}</td>
                 <td />
                 <td />
                 <td />
@@ -213,82 +336,91 @@ export function ClassesPanel() {
           {classes.length < maxClasses && totalLevel < maxLevel && (
             <button
               onClick={handleOpenAddClass}
+              disabled={isUpdating}
               style={{
                 width: '100%', marginTop: 8, padding: '8px 0',
                 border: `2px dashed ${T.border}`, borderRadius: 4,
                 background: 'transparent', color: T.accent,
-                fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                fontSize: 13, fontWeight: 500, cursor: isUpdating ? 'not-allowed' : 'pointer',
                 transition: 'background 0.15s, border-color 0.15s',
+                opacity: isUpdating ? 0.5 : 1,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = `${T.accent}10`; e.currentTarget.style.borderColor = T.accent; }}
+              onMouseEnter={e => { if (!isUpdating) { e.currentTarget.style.background = `${T.accent}10`; e.currentTarget.style.borderColor = T.accent; } }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = T.border; }}
             >
-              + Add Class
+              + {t('classes.addClass')}
             </button>
           )}
         </div>
       </Card>
 
+      {/* Level History */}
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
-        <SectionLabel>Level History</SectionLabel>
-        <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: 64 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 56 }} />
-            <col style={{ width: 50 }} />
-            <col style={{ width: 72 }} />
-            <col style={{ width: '25%' }} />
-            <col />
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'center' }}>Level</th>
-              <th>Class</th>
-              <th style={{ textAlign: 'center' }}>HP</th>
-              <th style={{ textAlign: 'center' }}>SP Left</th>
-              <th style={{ textAlign: 'center' }}>Ability</th>
-              <th>Skills</th>
-              <th>Feats</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...LEVEL_HISTORY].reverse().map(lv => (
-              <tr key={lv.level}>
-                <td style={{ textAlign: 'center', fontWeight: 600 }}>{lv.level}</td>
-                <td style={{ color: T.accent, fontWeight: 500 }}>{lv.className} {lv.classLevel}</td>
-                <td style={{ textAlign: 'center', color: T.positive, fontWeight: 500 }}>+{lv.hpGained}</td>
-                <td style={{ textAlign: 'center' }}>{lv.skillPointsRemaining}</td>
-                <td style={{ textAlign: 'center', color: lv.abilityIncrease ? T.accent : T.textMuted, fontWeight: lv.abilityIncrease ? 600 : 400 }}>
-                  {lv.abilityIncrease || '-'}
-                </td>
-                <td>
-                  {lv.skillsGained.length > 0
-                    ? lv.skillsGained.map(s => `${s.name} +${s.ranks}`).join(', ')
-                    : <span style={{ color: T.textMuted }}>-</span>
-                  }
-                </td>
-                <td>
-                  {lv.featsGained.length > 0
-                    ? lv.featsGained.join(', ')
-                    : <span style={{ color: T.textMuted }}>-</span>
-                  }
-                </td>
+        <SectionLabel>{t('classes.levelHistory')}</SectionLabel>
+        {levelHistoryReversed.length === 0 ? (
+          <div style={{ color: T.textMuted, fontSize: 12, padding: '8px 0' }}>{t('classes.noLevelHistory')}</div>
+        ) : (
+          <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 64 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 56 }} />
+              <col style={{ width: 50 }} />
+              <col style={{ width: 72 }} />
+              <col style={{ width: '25%' }} />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'center' }}>{t('classes.level')}</th>
+                <th>{t('classes.class')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.hpGained')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.skillPointsRemaining')}</th>
+                <th style={{ textAlign: 'center' }}>{t('classes.abilityIncrease')}</th>
+                <th>{t('classes.skills')}</th>
+                <th>{t('classes.feats')}</th>
               </tr>
-            ))}
-          </tbody>
-        </HTMLTable>
+            </thead>
+            <tbody>
+              {levelHistoryReversed.map(lv => (
+                <tr key={lv.level}>
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{lv.level}</td>
+                  <td style={{ color: T.accent, fontWeight: 500 }}>{lv.class_name}</td>
+                  <td style={{ textAlign: 'center', color: T.positive, fontWeight: 500 }}>+{lv.hp_gained}</td>
+                  <td style={{ textAlign: 'center' }}>{lv.skill_points_gained}</td>
+                  <td style={{ textAlign: 'center', color: lv.ability_increase ? T.accent : T.textMuted, fontWeight: lv.ability_increase ? 600 : 400 }}>
+                    {lv.ability_increase ?? '-'}
+                  </td>
+                  <td>
+                    {lv.skill_ranks && lv.skill_ranks.length > 0
+                      ? lv.skill_ranks.map(s => `Skill ${s.skill_id} +${s.ranks}`).join(', ')
+                      : <span style={{ color: T.textMuted }}>-</span>
+                    }
+                  </td>
+                  <td>
+                    {lv.feats_gained && lv.feats_gained.length > 0
+                      ? lv.feats_gained.join(', ')
+                      : <span style={{ color: T.textMuted }}>-</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </HTMLTable>
+        )}
       </Card>
 
       <ClassSelectorDialog
         isOpen={selectorOpen}
         onClose={() => { setSelectorOpen(false); setChangingIndex(null); }}
         onSelect={handleSelectClass}
-        currentClasses={classes}
+        currentClassIds={selectorCurrentClasses.map(c => c.id)}
+        categorizedClasses={categorizedClasses}
         isChanging={changingIndex !== null}
         totalLevel={totalLevel}
         maxLevel={maxLevel}
         maxClasses={maxClasses}
+        currentClassCount={classes.length}
       />
     </div>
   );

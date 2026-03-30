@@ -141,7 +141,7 @@ export default function SpellsEditor() {
 
   const availableClassFilters = useMemo(() => {
     if (!spellsData?.spellcasting_classes) return [];
-    return spellsData.spellcasting_classes.map((cls: SpellcastingClass) => ({
+    return spellsData.spellcasting_classes.map((cls) => ({
       name: cls.class_name,
       value: cls.class_id.toString(),
     }));

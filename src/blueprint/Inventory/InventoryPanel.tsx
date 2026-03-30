@@ -1,13 +1,35 @@
-import { useState } from 'react';
-import { Button, Card, Elevation, ProgressBar } from '@blueprintjs/core';
-import { T, RARITY_COLORS } from '../theme';
-import { CHARACTER, INVENTORY, BACKPACK } from '../dummy-data';
+import { useEffect, useState } from 'react';
+import { Button, Card, Elevation, NonIdealState, ProgressBar, Spinner } from '@blueprintjs/core';
+import { useTranslations } from '@/hooks/useTranslations';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { T } from '../theme';
 import { fmtNum } from '../shared';
-import { ItemDetails, type AnyItem } from './ItemDetails';
+import { ItemDetails, makeEquippedItem, makeInventoryItem, type AnyItem } from './ItemDetails';
 import { AddItemDialog } from './AddItemDialog';
 import { EditItemDialog } from './EditItemDialog';
+import { BackpackTable } from './BackpackTable';
+import { useSubsystem } from '@/contexts/CharacterContext';
+import { useInventoryManagement } from '@/hooks/useInventoryManagement';
+import { inventoryAPI } from '@/services/inventoryApi';
+import { useCharacterContext } from '@/contexts/CharacterContext';
+import type { FullEquippedItem } from '@/lib/bindings';
 
-type InventoryItem = typeof INVENTORY[number];
+const DISPLAY_SLOT_TO_API: Record<string, string> = {
+  'Main Hand': 'right_hand',
+  'Off Hand': 'left_hand',
+  'Head': 'head',
+  'Chest': 'chest',
+  'Hands': 'gloves',
+  'Feet': 'boots',
+  'Cloak': 'cloak',
+  'Ring 1': 'left_ring',
+  'Ring 2': 'right_ring',
+  'Belt': 'belt',
+  'Amulet': 'neck',
+  'Arrows': 'arrows',
+  'Bullets': 'bullets',
+  'Bolts': 'bolts',
+};
 
 const SLOT_LABELS: Record<string, string> = {
   'Main Hand': 'MH',
@@ -32,19 +54,30 @@ const EQUIPMENT_GRID: (string | null)[][] = [
 
 const AMMO_SLOTS = ['Arrows', 'Bullets', 'Bolts'];
 
-function getItemForSlot(slot: string): InventoryItem | undefined {
-  return INVENTORY.find(item => item.slot === slot);
+function getEquippedItemForDisplaySlot(
+  equippedItems: FullEquippedItem[],
+  displaySlot: string,
+): FullEquippedItem | undefined {
+  const apiSlot = DISPLAY_SLOT_TO_API[displaySlot];
+  if (!apiSlot) return undefined;
+  return equippedItems.find(e => e.slot.toLowerCase() === apiSlot.toLowerCase());
 }
 
-function EquipSlot({ slot, selected, onSelect }: { slot: string; selected: boolean; onSelect: () => void }) {
-  const item = getItemForSlot(slot);
+interface EquipSlotProps {
+  slot: string;
+  equippedItem: FullEquippedItem | undefined;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function EquipSlot({ slot, equippedItem, selected, onSelect }: EquipSlotProps) {
   const label = SLOT_LABELS[slot] || slot.charAt(0);
-  const hasItem = !!item;
+  const hasItem = !!equippedItem;
 
   return (
     <div
       onClick={onSelect}
-      title={item ? `${item.name} (${slot})` : slot}
+      title={equippedItem ? `${equippedItem.name} (${slot})` : slot}
       style={{
         width: 44, height: 44,
         borderRadius: 4,
@@ -61,9 +94,9 @@ function EquipSlot({ slot, selected, onSelect }: { slot: string; selected: boole
           width: 30, height: 30, borderRadius: 3,
           background: T.sectionBg,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, color: RARITY_COLORS[item.rarity] || T.text,
+          fontWeight: 700, color: T.accent,
         }}>
-          {item.name.charAt(0)}
+          {equippedItem.name.charAt(0)}
         </div>
       ) : (
         <span style={{ fontWeight: 600, color: T.border }}>{label}</span>
@@ -72,70 +105,109 @@ function EquipSlot({ slot, selected, onSelect }: { slot: string; selected: boole
   );
 }
 
-function BackpackRow({ item, selected, onSelect }: {
-  item: typeof BACKPACK[number];
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '5px 8px',
-        borderRadius: 3,
-        background: selected ? `${T.accent}15` : 'transparent',
-        cursor: 'pointer',
-        transition: 'background 0.1s',
-      }}
-    >
-      <div style={{
-        width: 26, height: 26, borderRadius: 3, flexShrink: 0,
-        background: T.sectionBg, border: `1px solid ${T.borderLight}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 700, color: RARITY_COLORS[item.rarity] || T.text,
-      }}>
-        {item.name.charAt(0)}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontWeight: 500, color: RARITY_COLORS[item.rarity] || T.text,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {item.name}
-        </div>
-      </div>
-      <span style={{ color: T.textMuted, flexShrink: 0 }}>
-        {item.qty > 1 ? `x${item.qty}` : ''}
-      </span>
-      <span style={{ color: item.value > 0 ? T.gold : T.border, fontWeight: 600, flexShrink: 0, minWidth: 32, textAlign: 'right' }}>
-        {item.value > 0 ? fmtNum(item.value) : '-'}
-      </span>
-    </div>
-  );
-}
-
 export function InventoryPanel() {
-  const [selectedItem, setSelectedItem] = useState<AnyItem | null>(INVENTORY[0] ?? null);
-  const [goldInput, setGoldInput] = useState(CHARACTER.gold.toString());
-  const [gold, setGold] = useState(CHARACTER.gold);
+  const t = useTranslations();
+  const { handleError } = useErrorHandler();
+  const { character, characterId } = useCharacterContext();
+  const inventorySubsystem = useSubsystem('inventory');
+  const { unequipItem, deleteItem } = useInventoryManagement();
+
+  const [selectedItem, setSelectedItem] = useState<AnyItem | null>(null);
+  const [goldInput, setGoldInput] = useState('0');
+  const [gold, setGold] = useState(0);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editItemOpen, setEditItemOpen] = useState(false);
 
+  const inventoryData = inventorySubsystem.data;
+
+  useEffect(() => {
+    if (!inventorySubsystem.data && !inventorySubsystem.isLoading && characterId) {
+      inventorySubsystem.load();
+    }
+  }, [characterId, inventorySubsystem]);
+
+  useEffect(() => {
+    if (inventoryData) {
+      const g = inventoryData.gold ?? character?.gold ?? 0;
+      setGold(g);
+      setGoldInput(g.toString());
+    }
+  }, [inventoryData, character?.gold]);
+
   const goldDirty = goldInput !== gold.toString();
 
-  const handleGoldSubmit = () => {
+  const handleGoldSubmit = async () => {
     const val = parseInt(goldInput, 10);
     if (isNaN(val) || val < 0) return;
-    setGold(Math.min(val, 99_999_999));
+    const clamped = Math.min(val, 99_999_999);
+    try {
+      await inventoryAPI.updateGold(characterId!, clamped);
+      setGold(clamped);
+      setGoldInput(clamped.toString());
+      await inventorySubsystem.load({ silent: true });
+    } catch (err) {
+      handleError(err);
+      setGoldInput(gold.toString());
+    }
   };
 
   const handleGoldReset = () => setGoldInput(gold.toString());
 
-  const totalWeight = INVENTORY.reduce((s, i) => s + i.weight, 0) + BACKPACK.reduce((s, i) => s + i.weight * i.qty, 0);
-  const maxWeight = 200;
-  const weightRatio = totalWeight / maxWeight;
-  const totalItems = INVENTORY.length + BACKPACK.length;
+  const handleUnequip = async (slot: string) => {
+    try {
+      await unequipItem({ slot });
+      setSelectedItem(null);
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
+  const handleDelete = async (index: number) => {
+    try {
+      await deleteItem(index);
+      setSelectedItem(null);
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
+  const equippedItems = inventoryData?.equipped ?? [];
+  const backpackItems = inventoryData?.inventory ?? [];
+  const encumbrance = inventoryData?.encumbrance;
+
+  const totalWeight = encumbrance?.total_weight ?? 0;
+  const maxWeight = encumbrance?.heavy_load ?? 200;
+  const weightRatio = maxWeight > 0 ? Math.min(totalWeight / maxWeight, 1) : 0;
+  const totalItems = equippedItems.length + backpackItems.length;
+
+  if (inventorySubsystem.isLoading) {
+    return (
+      <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (inventorySubsystem.error) {
+    return (
+      <div style={{ padding: 16, height: '100%' }}>
+        <NonIdealState
+          icon="error"
+          title="Failed to load inventory"
+          description={inventorySubsystem.error}
+          action={<Button onClick={() => inventorySubsystem.load()}>Retry</Button>}
+        />
+      </div>
+    );
+  }
+
+  if (!inventoryData) {
+    return (
+      <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <NonIdealState icon="person" title="No character loaded" description="Load a character to view inventory." />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 16, height: '100%' }}>
@@ -144,20 +216,27 @@ export function InventoryPanel() {
         <div style={{ width: 400, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column' }}>
 
           <div style={{ padding: '12px 16px' }}>
-            <div style={{ fontWeight: 700, color: T.accent, marginBottom: 10 }}>Equipment</div>
+            <div style={{ fontWeight: 700, color: T.accent, marginBottom: 10 }}>{t('inventory.equipment')}</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
               {EQUIPMENT_GRID.map((row, ri) => (
                 <div key={ri} style={{ display: 'flex', gap: 4 }}>
                   {row.map((slot, ci) => {
                     if (!slot) return <div key={ci} style={{ width: 44, height: 44 }} />;
-                    const item = getItemForSlot(slot);
+                    const equippedItem = getEquippedItemForDisplaySlot(equippedItems, slot);
                     return (
                       <EquipSlot
                         key={slot}
                         slot={slot}
-                        selected={selectedItem !== null && 'slot' in selectedItem && selectedItem.slot === slot}
-                        onSelect={() => item && setSelectedItem(item)}
+                        equippedItem={equippedItem}
+                        selected={
+                          selectedItem !== null &&
+                          selectedItem._kind === 'equipped' &&
+                          selectedItem.slot === DISPLAY_SLOT_TO_API[slot]
+                        }
+                        onSelect={() => {
+                          if (equippedItem) setSelectedItem(makeEquippedItem(equippedItem));
+                        }}
                       />
                     );
                   })}
@@ -166,13 +245,20 @@ export function InventoryPanel() {
 
               <div style={{ display: 'flex', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderLight}` }}>
                 {AMMO_SLOTS.map(slot => {
-                  const item = getItemForSlot(slot);
+                  const equippedItem = getEquippedItemForDisplaySlot(equippedItems, slot);
                   return (
                     <EquipSlot
                       key={slot}
                       slot={slot}
-                      selected={selectedItem !== null && 'slot' in selectedItem && selectedItem.slot === slot}
-                      onSelect={() => item && setSelectedItem(item)}
+                      equippedItem={equippedItem}
+                      selected={
+                        selectedItem !== null &&
+                        selectedItem._kind === 'equipped' &&
+                        selectedItem.slot === DISPLAY_SLOT_TO_API[slot]
+                      }
+                      onSelect={() => {
+                        if (equippedItem) setSelectedItem(makeEquippedItem(equippedItem));
+                      }}
                     />
                   );
                 })}
@@ -183,32 +269,34 @@ export function InventoryPanel() {
           <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px', flex: 1, overflow: 'auto', minHeight: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontWeight: 700, color: T.accent }}>
-                Backpack <span style={{ fontWeight: 400, color: T.textMuted }}>({BACKPACK.length})</span>
+                Backpack <span style={{ fontWeight: 400, color: T.textMuted }}>({backpackItems.length})</span>
               </div>
-              <Button icon="add" small minimal text="Add item" style={{ color: T.textMuted }} onClick={() => setAddItemOpen(true)} />
+              <Button
+                icon="add"
+                small
+                minimal
+                text={t('inventory.addItem')}
+                style={{ color: T.textMuted }}
+                onClick={() => setAddItemOpen(true)}
+              />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 4px', marginBottom: 2, borderBottom: `1px solid ${T.borderLight}` }}>
-              <div style={{ width: 26 }} />
-              <div style={{ flex: 1, fontWeight: 600, color: T.textMuted }}>Item</div>
-              <span style={{ fontWeight: 600, color: T.textMuted, flexShrink: 0 }}>Qty</span>
-              <span style={{ fontWeight: 600, color: T.textMuted, flexShrink: 0, minWidth: 32, textAlign: 'right' }}>Value</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {BACKPACK.map((item, i) => (
-                <BackpackRow
-                  key={i}
-                  item={item}
-                  selected={selectedItem === item}
-                  onSelect={() => setSelectedItem(item)}
-                />
-              ))}
-            </div>
+            <BackpackTable
+              items={backpackItems}
+              selectedIndex={selectedItem?._kind === 'inventory' ? (selectedItem as unknown as { index: number }).index : null}
+              onSelectItem={(index) => {
+                const item = backpackItems.find(i => i.index === index);
+                if (item) setSelectedItem(makeInventoryItem(item));
+              }}
+            />
           </div>
 
           <div style={{ padding: '10px 16px', borderTop: `1px solid ${T.borderLight}`, background: T.surfaceAlt }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ color: weightRatio > 0.75 ? T.negative : T.textMuted }}>
                 {totalWeight.toFixed(1)} / {maxWeight} lbs
+                {encumbrance && (
+                  <span style={{ marginLeft: 6, color: T.textMuted }}>({encumbrance.encumbrance_level})</span>
+                )}
               </span>
               <div style={{ flex: 1 }}>
                 <ProgressBar
@@ -222,7 +310,7 @@ export function InventoryPanel() {
               <span style={{ color: T.textMuted }}>{totalItems} items</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: T.gold, fontWeight: 600 }}>Gold</span>
+              <span style={{ color: T.gold, fontWeight: 600 }}>{t('inventory.gold')}</span>
               <input
                 type="text"
                 value={goldInput}
@@ -231,6 +319,7 @@ export function InventoryPanel() {
                 className="bp6-input"
                 style={{ width: 100, textAlign: 'center', padding: '2px 8px', height: 24 }}
               />
+              <span style={{ color: T.textMuted, fontSize: 12 }}>{fmtNum(gold)} gp</span>
               <Button minimal icon="tick" intent="success" onClick={handleGoldSubmit} disabled={!goldDirty} style={{ opacity: goldDirty ? 1 : 0.3 }} />
               <Button minimal icon="cross" onClick={handleGoldReset} disabled={!goldDirty} style={{ opacity: goldDirty ? 1 : 0.3 }} />
             </div>
@@ -238,7 +327,12 @@ export function InventoryPanel() {
         </div>
 
         <div style={{ flex: 1, overflow: 'auto' }}>
-          <ItemDetails item={selectedItem} onEdit={() => setEditItemOpen(true)} />
+          <ItemDetails
+            item={selectedItem}
+            onEdit={() => setEditItemOpen(true)}
+            onUnequip={handleUnequip}
+            onDelete={handleDelete}
+          />
         </div>
       </Card>
 
