@@ -55,8 +55,9 @@ pub async fn save_character(
 ) -> CommandResult<bool> {
     info!("Save character command invoked");
 
+    let game_data = state.game_data.read();
     let mut session = state.session.write();
-    match session.save_character() {
+    match session.save_character(&game_data) {
         Ok(()) => {
             info!("Character saved successfully via command");
             Ok(true)

@@ -6,14 +6,25 @@ import type {
   AbilityScores,
   AbilitiesState,
   FeatSlots,
-  FeatSummary,
-  FeatInfo,
 } from '@/lib/bindings';
+import type { FeatInfo } from '@/components/Feats/types';
+
+// Matches the actual Rust FeatSummary struct
+interface FeatSummary {
+  total: number;
+  protected: FeatInfo[];
+  class_feats: FeatInfo[];
+  general_feats: FeatInfo[];
+  custom_feats: FeatInfo[];
+  background_feats: FeatInfo[];
+  domain_feats: FeatInfo[];
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SubraceInfo {
   name: string;
+  label: string;
   description: string | null;
   ability_adjustments: { Str: number; Dex: number; Con: number; Int: number; Wis: number; Cha: number };
 }
@@ -30,6 +41,11 @@ interface FilteredFeatsResponse {
   pages: number;
   has_next: boolean;
   has_previous: boolean;
+}
+
+interface FeatActionResult {
+  success: boolean;
+  message: string;
 }
 
 // ─── Point Buy ───────────────────────────────────────────────────────────────
@@ -129,13 +145,15 @@ function StepRace({
 
   useEffect(() => {
     (async () => {
-      const [allRaces, currentRace] = await Promise.all([
+      const [allRaces, currentRace, currentSubrace] = await Promise.all([
         invoke<AvailableRace[]>('get_available_races'),
         invoke<number>('get_race_id').catch(() => null),
+        invoke<string | null>('get_subrace').catch(() => null),
       ]);
       setRaces(allRaces.filter(r => r.is_playable));
       setCurrentRaceId(currentRace);
       setSelectedRaceId(currentRace);
+      setSelectedSubrace(currentSubrace);
     })();
   }, []);
 
@@ -145,6 +163,18 @@ function StepRace({
       .then(setSubraces)
       .catch(() => setSubraces([]));
   }, [selectedRaceId]);
+
+  useEffect(() => {
+    if (selectedSubrace === null || subraces.length === 0) return;
+
+    const exactMatch = subraces.some(sr => sr.label === selectedSubrace);
+    if (exactMatch) return;
+
+    const matchedSubrace = subraces.find(sr => sr.name === selectedSubrace);
+    if (matchedSubrace) {
+      setSelectedSubrace(matchedSubrace.label);
+    }
+  }, [selectedSubrace, subraces]);
 
   const apply = async () => {
     if (selectedRaceId === null) return;
@@ -161,6 +191,14 @@ function StepRace({
   };
 
   const selectedRace = races.find(r => r.id === selectedRaceId);
+  const handleRaceSelect = (raceId: number) => {
+    setSelectedRaceId(prevRaceId => {
+      if (prevRaceId !== raceId) {
+        setSelectedSubrace(null);
+      }
+      return raceId;
+    });
+  };
 
   return (
     <div>
@@ -179,7 +217,7 @@ function StepRace({
           return (
             <button
               key={race.id}
-              onClick={() => { setSelectedRaceId(race.id); setSelectedSubrace(null); }}
+              onClick={() => handleRaceSelect(race.id)}
               className={`text-left p-3 rounded-lg border transition-all ${
                 isSelected
                   ? 'border-[rgb(var(--color-primary))] bg-[rgb(var(--color-primary)/0.1)]'
@@ -215,10 +253,10 @@ function StepRace({
             </button>
             {subraces.map(sr => (
               <button
-                key={sr.name}
-                onClick={() => setSelectedSubrace(sr.name)}
+                key={sr.label}
+                onClick={() => setSelectedSubrace(sr.label)}
                 className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                  selectedSubrace === sr.name
+                  selectedSubrace === sr.label
                     ? 'border-[rgb(var(--color-primary))] bg-[rgb(var(--color-primary)/0.1)] text-[rgb(var(--color-primary))]'
                     : 'border-[rgb(var(--color-surface-border))] text-[rgb(var(--color-text-secondary))]'
                 }`}
@@ -278,7 +316,11 @@ function StepClass({ onDone, onBack }: { onDone: () => void; onBack: () => void 
     setError(null);
     try {
       if (currentClassId !== null && currentClassId !== selectedClassId) {
-        await invoke('change_class', { oldClassId: currentClassId, newClassId: selectedClassId });
+        await invoke('change_class', {
+          oldClassId: currentClassId,
+          newClassId: selectedClassId,
+          preserveLevel: true,
+        });
       }
       onDone();
     } catch (e) {
@@ -468,7 +510,7 @@ function StepAbilities({ onDone, onBack }: { onDone: () => void; onBack: () => v
 function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const [slots, setSlots] = useState<FeatSlots | null>(null);
   const [summary, setSummary] = useState<FeatSummary | null>(null);
-  const [featNameMap, setFeatNameMap] = useState<Map<number, string>>(new Map());
+  const [chosenFeats, setChosenFeats] = useState<FeatInfo[]>([]);
   const [availableFeats, setAvailableFeats] = useState<FeatInfo[]>([]);
   const [totalAvailable, setTotalAvailable] = useState(0);
   const [page, setPage] = useState(1);
@@ -481,14 +523,19 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
   const LIMIT = 20;
 
   const refresh = useCallback(async () => {
-    const [s, sm, allFeats] = await Promise.all([
-      invoke<FeatSlots>('get_feat_slots'),
-      invoke<FeatSummary>('get_feat_summary'),
-      invoke<FeatInfo[]>('get_all_feats').catch(() => [] as FeatInfo[]),
-    ]);
-    setSlots(s);
-    setSummary(sm);
-    setFeatNameMap(new Map(allFeats.map(f => [f.id, f.name])));
+    try {
+      const [s, sm, chosen] = await Promise.all([
+        invoke<FeatSlots>('get_feat_slots'),
+        invoke<FeatSummary>('get_feat_summary'),
+        invoke<FeatInfo[]>('get_slot_chosen_feats'),
+      ]);
+      setSlots(s);
+      setSummary(sm);
+      setChosenFeats(chosen);
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    }
   }, []);
 
   const loadFeats = useCallback(async (p: number, q: string) => {
@@ -518,7 +565,10 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
   const removeFeat = async (featId: number) => {
     setActionError(null);
     try {
-      await invoke('remove_feat', { featId });
+      const result = await invoke<FeatActionResult>('remove_feat', { featId });
+      if (!result.success) {
+        throw new Error(result.message);
+      }
       await Promise.all([refresh(), loadFeats(page, search)]);
     } catch (e) {
       setActionError(String(e));
@@ -528,14 +578,25 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
   const addFeat = async (featId: number) => {
     setActionError(null);
     try {
-      await invoke('add_feat', { featId });
+      const result = await invoke<FeatActionResult>('add_feat', { featId });
+      if (!result.success) {
+        throw new Error(result.message);
+      }
       await Promise.all([refresh(), loadFeats(page, search)]);
     } catch (e) {
       setActionError(String(e));
     }
   };
 
-  const currentFeatIds = new Set(summary?.feats?.map(f => f.feat_id) ?? []);
+  const currentFeatIds = new Set<number>([
+    ...(summary?.protected ?? []),
+    ...(summary?.class_feats ?? []),
+    ...(summary?.general_feats ?? []),
+    ...(summary?.custom_feats ?? []),
+    ...(summary?.background_feats ?? []),
+    ...(summary?.domain_feats ?? []),
+  ].map(f => f.id));
+  const visibleAvailableFeats = availableFeats.filter(feat => !currentFeatIds.has(feat.id));
 
   const handleSearch = () => {
     setPage(1);
@@ -565,31 +626,44 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       {error && <div className="mb-3 p-2 rounded bg-red-900/30 text-red-300 text-sm">{error}</div>}
       {actionError && <div className="mb-3 p-2 rounded bg-red-900/30 text-red-300 text-sm">{actionError}</div>}
 
-      {/* Current feats */}
-      {summary?.feats && summary.feats.length > 0 && (
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2">
-            Current Feats ({summary.feats.length})
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+            Chosen Feats ({chosenFeats.length})
           </h3>
-          <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto p-2 rounded-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))]">
-            {summary.feats.map(fe => (
-              <span
-                key={fe.feat_id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-secondary))] border border-[rgb(var(--color-surface-border))]"
+          <span className="text-xs text-[rgb(var(--color-text-muted))]">
+            Removable picks from feat slots
+          </span>
+        </div>
+
+        {chosenFeats.length > 0 ? (
+          <div className="space-y-1 max-h-[180px] overflow-y-auto pr-1">
+            {chosenFeats.map(feat => (
+              <div
+                key={feat.id}
+                className="flex items-center gap-2 p-2 rounded-lg text-sm border border-[rgb(var(--color-primary)/0.35)] bg-[rgb(var(--color-primary)/0.08)]"
               >
-                {featNameMap.get(fe.feat_id) ?? `Feat #${fe.feat_id}`}
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-[rgb(var(--color-text-primary))]">{feat.name}</span>
+                  {feat.description && (
+                    <p className="text-xs text-[rgb(var(--color-text-muted))] truncate mt-0.5">{feat.description}</p>
+                  )}
+                </div>
                 <button
-                  onClick={() => removeFeat(fe.feat_id)}
-                  className="hover:text-red-400 transition-colors leading-none"
-                  title="Remove feat"
+                  onClick={() => removeFeat(feat.id)}
+                  className="shrink-0 px-2 py-1 rounded text-xs border border-red-500/50 text-red-400 hover:bg-red-900/20 transition-colors"
                 >
-                  ×
+                  Remove
                 </button>
-              </span>
+              </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="rounded-lg border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-muted))]">
+            No chosen feat picks are available to remove.
+          </div>
+        )}
+      </div>
 
       {/* Search */}
       <div className="flex gap-2 mb-3">
@@ -611,43 +685,31 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
 
       {/* Available feats */}
       <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1 mb-3">
-        {availableFeats.map(feat => {
-          const already = currentFeatIds.has(feat.id);
-          return (
+        {visibleAvailableFeats.length > 0 ? (
+          visibleAvailableFeats.map(feat => (
             <div
               key={feat.id}
-              className={`flex items-center gap-2 p-2 rounded-lg text-sm border transition-colors ${
-                already
-                  ? 'border-[rgb(var(--color-primary)/0.3)] bg-[rgb(var(--color-primary)/0.05)]'
-                  : 'border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))]'
-              }`}
+              className="flex items-center gap-2 p-2 rounded-lg text-sm border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))]"
             >
               <div className="flex-1 min-w-0">
-                <span className={`font-medium ${already ? 'text-[rgb(var(--color-primary))]' : 'text-[rgb(var(--color-text-primary))]'}`}>
-                  {feat.name}
-                </span>
+                <span className="font-medium text-[rgb(var(--color-text-primary))]">{feat.name}</span>
                 {feat.description && (
                   <p className="text-xs text-[rgb(var(--color-text-muted))] truncate mt-0.5">{feat.description}</p>
                 )}
               </div>
-              {already ? (
-                <button
-                  onClick={() => removeFeat(feat.id)}
-                  className="shrink-0 px-2 py-1 rounded text-xs border border-red-500/50 text-red-400 hover:bg-red-900/20 transition-colors"
-                >
-                  Remove
-                </button>
-              ) : (
-                <button
-                  onClick={() => addFeat(feat.id)}
-                  className="shrink-0 px-2 py-1 rounded text-xs border border-[rgb(var(--color-primary)/0.5)] text-[rgb(var(--color-primary))] hover:bg-[rgb(var(--color-primary)/0.1)] transition-colors"
-                >
-                  Add
-                </button>
-              )}
+              <button
+                onClick={() => addFeat(feat.id)}
+                className="shrink-0 px-2 py-1 rounded text-xs border border-[rgb(var(--color-primary)/0.5)] text-[rgb(var(--color-primary))] hover:bg-[rgb(var(--color-primary)/0.1)] transition-colors"
+              >
+                Add
+              </button>
             </div>
-          );
-        })}
+          ))
+        ) : (
+          <div className="rounded-lg border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-muted))]">
+            No additional feats match the current search.
+          </div>
+        )}
       </div>
 
       {/* Pagination */}

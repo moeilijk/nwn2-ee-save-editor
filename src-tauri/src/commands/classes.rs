@@ -223,6 +223,7 @@ pub async fn change_class(
     state: State<'_, AppState>,
     old_class_id: i32,
     new_class_id: i32,
+    preserve_level: Option<bool>,
 ) -> CommandResult<()> {
     let mut session = state.session.write();
     let game_data = state.game_data.read();
@@ -231,12 +232,20 @@ pub async fn change_class(
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    character
-        .swap_class(ClassId(old_class_id), ClassId(new_class_id), &game_data)
-        .map_err(|e| CommandError::ValidationError {
-            field: "change_class".to_string(),
-            reason: e.to_string(),
-        })
+    let result = if preserve_level.unwrap_or(true) {
+        character.change_class_preserving_levels(
+            ClassId(old_class_id),
+            ClassId(new_class_id),
+            &game_data,
+        )
+    } else {
+        character.swap_class(ClassId(old_class_id), ClassId(new_class_id), &game_data)
+    };
+
+    result.map_err(|e| CommandError::ValidationError {
+        field: "change_class".to_string(),
+        reason: e.to_string(),
+    })
 }
 
 #[tauri::command]

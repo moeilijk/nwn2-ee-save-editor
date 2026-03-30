@@ -151,6 +151,7 @@ pub fn run() {
             crate::commands::feats::has_feat,
             crate::commands::feats::get_feat_info,
             crate::commands::feats::get_feat_summary,
+            crate::commands::feats::get_slot_chosen_feats,
             crate::commands::feats::get_feat_slots,
             crate::commands::feats::validate_feat_prerequisites,
             crate::commands::feats::add_feat,

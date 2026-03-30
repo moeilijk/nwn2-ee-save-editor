@@ -492,11 +492,12 @@ pub async fn get_race_name(state: State<'_, AppState>) -> CommandResult<String> 
 #[tauri::command]
 pub async fn get_subrace(state: State<'_, AppState>) -> CommandResult<Option<String>> {
     let session = state.session.read();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.subrace())
+    Ok(character.subrace_name(&game_data))
 }
 
 #[tauri::command]
@@ -513,11 +514,17 @@ pub async fn set_race(state: State<'_, AppState>, race_id: i32) -> CommandResult
 #[tauri::command]
 pub async fn set_subrace(state: State<'_, AppState>, subrace: Option<String>) -> CommandResult<()> {
     let mut session = state.session.write();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    character.set_subrace(subrace);
+    character
+        .change_race(character.race_id().0, subrace, false, &game_data)
+        .map_err(|e| CommandError::ValidationError {
+            field: "subrace".to_string(),
+            reason: e.to_string(),
+        })?;
     Ok(())
 }
 
@@ -567,22 +574,24 @@ pub async fn change_race(
     subrace: Option<String>,
 ) -> CommandResult<RaceChangedEvent> {
     let mut session = state.session.write();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    let old_race_id = character.race_id();
-    let old_subrace = character.subrace();
-
-    character.set_race(RaceId(race_id));
-    character.set_subrace(subrace.clone());
+    let result = character
+        .change_race(race_id, subrace.clone(), false, &game_data)
+        .map_err(|e| CommandError::ValidationError {
+            field: "race".to_string(),
+            reason: e.to_string(),
+        })?;
 
     Ok(RaceChangedEvent {
-        old_race_id: Some(old_race_id.0),
-        new_race_id: race_id,
-        old_subrace,
-        new_subrace: subrace,
+        old_race_id: Some(result.old_race_id),
+        new_race_id: result.new_race_id,
+        old_subrace: result.old_subrace,
+        new_subrace: result.new_subrace,
     })
 }
 

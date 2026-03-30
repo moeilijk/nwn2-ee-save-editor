@@ -132,7 +132,8 @@ pub async fn get_available_classes(
                 continue;
             }
 
-            let hit_die = row.get("HitDie")
+            let hit_die = row
+                .get("HitDie")
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .unwrap_or(0);
