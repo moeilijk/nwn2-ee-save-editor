@@ -81,6 +81,7 @@ pub fn run() {
             get_default_localvault_path,
             // Session
             crate::commands::session::load_character,
+            crate::commands::session::list_save_characters,
             crate::commands::session::save_character,
             crate::commands::session::close_character,
             crate::commands::session::get_session_info,
@@ -95,6 +96,7 @@ pub fn run() {
             crate::commands::character::get_full_name,
             crate::commands::character::set_character_age,
             crate::commands::character::get_character_age,
+            crate::commands::character::set_gender,
             crate::commands::character::get_experience_points,
             crate::commands::character::set_experience_points,
             crate::commands::character::get_alignment,
@@ -104,6 +106,7 @@ pub fn run() {
             crate::commands::character::set_biography,
             crate::commands::character::get_biography,
             crate::commands::character::get_background,
+            crate::commands::character::set_background,
             crate::commands::character::get_domains,
             // Character - Abilities
             crate::commands::character::set_attribute,
@@ -269,7 +272,7 @@ pub fn run() {
             crate::commands::paths::reset_game_folder,
             crate::commands::paths::reset_documents_folder,
             crate::commands::paths::reset_steam_workshop_folder,
-            crate::commands::paths::reset_steam_workshop_folder,
+            crate::commands::paths::set_path_setup_mode,
             crate::commands::paths::auto_detect_paths,
             // Campaign
             crate::commands::campaign::get_campaign_summary,

@@ -399,6 +399,14 @@ enum SaveType {
     FortitudeAndWill,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+struct FeatDescriptionSections<'a> {
+    flavor: &'a str,
+    prerequisites: Option<&'a str>,
+    effects: Option<&'a str>,
+}
+
 static SAVE_PATTERNS: LazyLock<Vec<(Regex, SaveType)>> = LazyLock::new(|| {
     vec![
         (
@@ -1272,9 +1280,7 @@ impl Character {
                 if class_feat_table.get(feat_id).copied() == Some(3) {
                     continue;
                 }
-                if let Some(feat_type) = self.get_feat_type(FeatId(*feat_id), game_data)
-                    && Self::AUTO_GRANTED_FEAT_TYPES.contains(&feat_type.0)
-                {
+                if !self.is_slot_eligible_feat(FeatId(*feat_id), game_data) {
                     continue;
                 }
                 selectable_feats.push(*feat_id);
@@ -1335,8 +1341,59 @@ impl Character {
     }
 
     fn is_slot_eligible_feat(&self, feat_id: FeatId, game_data: &GameData) -> bool {
-        self.get_feat_type(feat_id, game_data)
-            .is_some_and(|feat_type| !Self::AUTO_GRANTED_FEAT_TYPES.contains(&feat_type.0))
+        let Some(feat_info) = self.get_feat_info(feat_id, game_data) else {
+            return false;
+        };
+        let is_domain = self.is_domain_feat(feat_id, game_data);
+        let raw_feat_type = self.get_feat_type(feat_id, game_data).unwrap_or(feat_info.feat_type);
+        let raw_category = FeatCategory::from_feat_type(raw_feat_type, is_domain);
+
+        if feat_info.is_protected {
+            return false;
+        }
+
+        if matches!(
+            self.feat_source(feat_id),
+            Some(FeatSource::Race | FeatSource::Background | FeatSource::Domain | FeatSource::Class)
+        ) {
+            return false;
+        }
+
+        if matches!(
+            raw_category,
+            FeatCategory::Background
+                | FeatCategory::History
+                | FeatCategory::Heritage
+                | FeatCategory::Racial
+                | FeatCategory::Domain
+                | FeatCategory::Class
+        ) {
+            return false;
+        }
+
+        if matches!(
+            feat_info.category,
+            FeatCategory::Background
+                | FeatCategory::History
+                | FeatCategory::Heritage
+                | FeatCategory::Racial
+                | FeatCategory::Domain
+                | FeatCategory::Class
+        ) {
+            return false;
+        }
+
+        let label_upper = feat_info.label.to_ascii_uppercase();
+        let name_upper = feat_info.name.to_ascii_uppercase();
+        if label_upper.starts_with("FEAT_EPITHET_")
+            || name_upper.starts_with("FEAT_EPITHET_")
+            || label_upper.starts_with("WATCH_RANK_")
+            || name_upper.starts_with("WATCH_RANK_")
+        {
+            return false;
+        }
+
+        !Self::AUTO_GRANTED_FEAT_TYPES.contains(&raw_feat_type.0)
     }
 
     fn load_class_feat_table(
@@ -1693,9 +1750,11 @@ impl Character {
             };
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
+            let relevant_text_lower = relevant_text.to_ascii_lowercase();
 
-            if is_conditional_feat(&feat_data, &description_lower, SAVE_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(&feat_data, &relevant_text_lower, SAVE_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
@@ -1704,7 +1763,7 @@ impl Character {
             let mut found_will = false;
 
             for (pattern, save_type) in SAVE_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -1779,14 +1838,16 @@ impl Character {
                 .to_lowercase();
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
+            let relevant_text_lower = relevant_text.to_ascii_lowercase();
 
-            if is_conditional_feat(&feat_data, &description_lower, AC_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(&feat_data, &relevant_text_lower, AC_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
             if label.contains("dodge") || label.contains("mobility") {
-                if let Some(captures) = AC_DODGE_PATTERN.captures(&description) {
+                if let Some(captures) = AC_DODGE_PATTERN.captures(relevant_text) {
                     if let Some(bonus_str) = captures.get(1)
                         && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                     {
@@ -1800,7 +1861,7 @@ impl Character {
             }
 
             for pattern in AC_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -1839,9 +1900,11 @@ impl Character {
             }
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
 
             for pattern in INITIATIVE_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -1900,21 +1963,26 @@ impl Character {
             };
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let effects_text = sections.effects;
+            let conditional_text = effects_text.unwrap_or(&description);
+            let conditional_text_lower = conditional_text.to_ascii_lowercase();
 
             let feat_label = feat_data
                 .get("label")
                 .and_then(|s| s.as_ref().map(String::as_str))
                 .unwrap_or("unknown");
 
-            if is_conditional_feat(&feat_data, &description_lower, SKILL_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(
+                &feat_data,
+                &conditional_text_lower,
+                SKILL_CONDITIONAL_KEYWORDS,
+            ) {
                 debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
                 continue;
             }
 
-            if description_lower.contains("effects:") {
-                let effects_start = description_lower.find("effects:").unwrap();
-                let effects_text = &description[effects_start..];
+            if let Some(effects_text) = effects_text {
                 debug!(
                     "[feat_skill] Feat '{}' has effects line: {:?}",
                     feat_label, effects_text
@@ -2019,6 +2087,32 @@ impl Character {
         }
 
         String::new()
+    }
+
+    fn parse_feat_description_sections(description: &str) -> FeatDescriptionSections<'_> {
+        let description_lower = description.to_ascii_lowercase();
+        let prerequisite_index = description_lower.find("prerequisite:");
+        let effects_index = description_lower.find("effects:");
+
+        let flavor_end = match (prerequisite_index, effects_index) {
+            (Some(prereq), Some(effects)) => prereq.min(effects),
+            (Some(prereq), None) => prereq,
+            (None, Some(effects)) => effects,
+            (None, None) => description.len(),
+        };
+
+        let prerequisites = prerequisite_index.map(|start| {
+            let end = effects_index.unwrap_or(description.len());
+            description[start..end].trim()
+        });
+
+        let effects = effects_index.map(|start| description[start..].trim());
+
+        FeatDescriptionSections {
+            flavor: description[..flavor_end].trim(),
+            prerequisites,
+            effects,
+        }
     }
 
     fn strip_html_tags(text: &str) -> String {
@@ -2861,6 +2955,66 @@ mod tests {
         Character::from_gff(fields)
     }
 
+    fn create_slot_test_character_with_story_history() -> Character {
+        let mut fields = IndexMap::new();
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(2));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let make_feat_entry = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_one.insert("LvlStatHitDie".to_string(), GffValue::Byte(10));
+        level_one.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_one.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_one.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(2),
+                make_feat_entry(5),
+                make_feat_entry(6),
+                make_feat_entry(1),
+            ]),
+        );
+
+        let mut level_two = IndexMap::new();
+        level_two.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_two.insert("LvlStatHitDie".to_string(), GffValue::Byte(8));
+        level_two.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_two.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_two.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![make_feat_entry(4)]),
+        );
+
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![level_one, level_two]),
+        );
+        fields.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(1),
+                make_feat_entry(2),
+                make_feat_entry(4),
+                make_feat_entry(5),
+                make_feat_entry(6),
+            ]),
+        );
+
+        Character::from_gff(fields)
+    }
+
     fn create_slot_test_game_data() -> GameData {
         let mut game_data = create_mock_game_data();
 
@@ -2907,22 +3061,25 @@ mod tests {
             ),
         );
 
-        let make_feat_row = |feat_type: &str| {
+        let make_feat_row = |feat_type: &str, label: &str| {
             let mut row = AHashMap::new();
             row.insert("FEAT".to_string(), Some(feat_type.to_string()));
+            row.insert("label".to_string(), Some(label.to_string()));
             row
         };
         game_data.tables.insert(
             "feat".to_string(),
             create_loaded_table(
                 "feat",
-                &["FEAT"],
+                &["FEAT", "label"],
                 vec![
-                    make_feat_row("GENERAL"),
-                    make_feat_row("GENERAL"),
-                    make_feat_row("GENERAL"),
-                    make_feat_row("BACKGROUND"),
-                    make_feat_row("GENERAL"),
+                    make_feat_row("GENERAL", "AUTO_0"),
+                    make_feat_row("GENERAL", "POWER_ATTACK"),
+                    make_feat_row("GENERAL", "AUTO_CLASS_FEAT"),
+                    make_feat_row("BACKGROUND", "BACKGROUND_PICK"),
+                    make_feat_row("GENERAL", "WEAPON_FOCUS_LONGSWORD"),
+                    make_feat_row("GENERAL", "FEAT_EPITHET_MERCHANTS_FRIEND"),
+                    make_feat_row("GENERAL", "FEAT_EPITHET_BLESSED_OF_WAUKEEN"),
                 ],
             ),
         );
@@ -2960,6 +3117,19 @@ mod tests {
         assert_eq!(chosen, vec![FeatId(1), FeatId(4)]);
         assert_eq!(slots.filled_slots, 2);
         assert_eq!(chosen.len() as i32, slots.filled_slots);
+    }
+
+    #[test]
+    fn test_slot_chosen_feat_ids_ignore_story_feats_in_level_history() {
+        let character = create_slot_test_character_with_story_history();
+        let game_data = create_slot_test_game_data();
+
+        let chosen = character.get_slot_chosen_feat_ids(&game_data);
+        let slots = character.get_feat_slots(&game_data);
+
+        assert_eq!(chosen, vec![FeatId(1), FeatId(4)]);
+        assert_eq!(slots.filled_slots, 2);
+        assert_eq!(slots.open_slots, 0);
     }
 
     #[test]
@@ -3167,5 +3337,20 @@ mod tests {
 
         let captures = pattern.captures("PowerAttack");
         assert!(captures.is_none());
+    }
+
+    #[test]
+    fn test_parse_feat_description_sections_splits_flavor_prereq_and_effects() {
+        let description =
+            "Flavor text here. Prerequisite: Dexterity 10+ Effects: +1 Listen, -1 Intimidate";
+
+        let sections = Character::parse_feat_description_sections(description);
+
+        assert_eq!(sections.flavor, "Flavor text here.");
+        assert_eq!(sections.prerequisites, Some("Prerequisite: Dexterity 10+"));
+        assert_eq!(
+            sections.effects,
+            Some("Effects: +1 Listen, -1 Intimidate")
+        );
     }
 }

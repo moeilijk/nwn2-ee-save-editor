@@ -19,6 +19,8 @@ export interface PathConfig {
   custom_override_folders: CustomFolderInfo[];
   custom_module_folders: CustomFolderInfo[];
   custom_hak_folders: CustomFolderInfo[];
+  setup_mode: 'auto' | 'manual' | 'unset';
+  needs_initial_setup: boolean;
 }
 
 export interface PathsResponse {
@@ -90,6 +92,10 @@ export class PathService {
 
   async autoDetect(): Promise<AutoDetectResponse> {
     return await invoke<AutoDetectResponse>('auto_detect_paths');
+  }
+
+  async setSetupMode(mode: 'auto' | 'manual'): Promise<PathUpdateResponse> {
+    return await invoke<PathUpdateResponse>('set_path_setup_mode', { mode });
   }
 }
 

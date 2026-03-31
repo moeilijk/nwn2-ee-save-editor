@@ -1,5 +1,4 @@
-
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from '@/hooks/useTranslations';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -27,7 +26,6 @@ export default function SkillsEditor() {
   const [hoveredSkillId, setHoveredSkillId] = useState<number | null>(null);
   const [clickedButton, setClickedButton] = useState<string | null>(null);
   const [showFixedHeader, setShowFixedHeader] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<number[]>([]);
   const [tableWidth, setTableWidth] = useState<number>(0);
   const [tableLeft, setTableLeft] = useState<number>(0);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -77,10 +75,10 @@ export default function SkillsEditor() {
   const [fixedTotalBudget, setFixedTotalBudget] = useState<number | null>(null);
 
   useEffect(() => {
-    if (skillsData && fixedTotalBudget === null) {
+    if (skillsData) {
       setFixedTotalBudget(skillsData.total_available);
     }
-  }, [skillsData, fixedTotalBudget]);
+  }, [skillsData]);
 
   const totalAvailable = fixedTotalBudget ?? skillsData?.total_available ?? 0;
   const rawSpentPoints = skillsData?.spent_points || 0;
@@ -88,46 +86,6 @@ export default function SkillsEditor() {
   const availableSkillPoints = Math.max(0, pointsBalance);
   const overdrawnSkillPoints = pointsBalance < 0 ? Math.abs(pointsBalance) : 0;
   const displayedSpentPoints = Math.min(rawSpentPoints, totalAvailable);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (headerRef.current) {
-        const rect = headerRef.current.getBoundingClientRect();
-        setShowFixedHeader(rect.bottom < 87);
-      }
-    };
-
-    const measureColumnWidths = () => {
-      if (headerRef.current && cardRef.current) {
-        const ths = headerRef.current.querySelectorAll('th');
-        const widths = Array.from(ths).map(th => th.getBoundingClientRect().width);
-        setColumnWidths(widths);
-
-        const cardRect = cardRef.current.getBoundingClientRect();
-        setTableWidth(cardRect.width);
-        setTableLeft(cardRect.left);
-      }
-    };
-
-    const scrollContainer = document.querySelector('main');
-
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll);
-    }
-    window.addEventListener('resize', measureColumnWidths);
-
-    setTimeout(() => {
-      handleScroll();
-      measureColumnWidths();
-    }, 100);
-
-    return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', handleScroll);
-      }
-      window.removeEventListener('resize', measureColumnWidths);
-    };
-  }, []);
 
   const handleUpdateSkillRank = async (skillId: number, newRank: number) => {
     if (!character?.id) return;
@@ -226,90 +184,154 @@ export default function SkillsEditor() {
     });
 
   useEffect(() => {
-    const measureColumnWidths = () => {
-      if (headerRef.current && cardRef.current) {
-        const ths = headerRef.current.querySelectorAll('th');
-        const widths = Array.from(ths).map(th => th.getBoundingClientRect().width);
-        setColumnWidths(widths);
+    const scrollContainer = document.querySelector('main');
+    const stickyTop = 87;
+    let scrollAnimationFrame = 0;
+    let resizeAnimationFrame = 0;
 
-        const cardRect = cardRef.current.getBoundingClientRect();
-        setTableWidth(cardRect.width);
-        setTableLeft(cardRect.left);
-      }
+    const updateMeasurements = () => {
+      const card = cardRef.current;
+      if (!card) return;
+
+      const cardRect = card.getBoundingClientRect();
+      const nextLeft = Math.round(cardRect.left);
+      const nextWidth = Math.round(cardRect.width);
+
+      setTableLeft(prev => (prev === nextLeft ? prev : nextLeft));
+      setTableWidth(prev => (prev === nextWidth ? prev : nextWidth));
     };
 
-    setTimeout(measureColumnWidths, 0);
-  }, [sortedAndFilteredSkills]);
+    const updateFloatingVisibility = () => {
+      const headerRow = headerRef.current;
+      const card = cardRef.current;
+      const table = tableRef.current;
+      if (!headerRow || !card || !table) return;
+
+      const cardRect = card.getBoundingClientRect();
+      const tableRect = table.getBoundingClientRect();
+      const headerHeight = headerRow.getBoundingClientRect().height;
+
+      const shouldShow =
+        cardRect.top <= stickyTop && tableRect.bottom > stickyTop + headerHeight;
+
+      setShowFixedHeader(prev => (prev === shouldShow ? prev : shouldShow));
+    };
+
+    const scheduleScrollUpdate = () => {
+      if (scrollAnimationFrame !== 0) return;
+      scrollAnimationFrame = requestAnimationFrame(() => {
+        scrollAnimationFrame = 0;
+        updateFloatingVisibility();
+      });
+    };
+
+    const scheduleResizeUpdate = () => {
+      if (resizeAnimationFrame !== 0) return;
+      resizeAnimationFrame = requestAnimationFrame(() => {
+        resizeAnimationFrame = 0;
+        updateMeasurements();
+        updateFloatingVisibility();
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleResizeUpdate);
+    if (cardRef.current) {
+      resizeObserver.observe(cardRef.current);
+    }
+    if (headerRef.current) {
+      resizeObserver.observe(headerRef.current);
+    }
+
+    scrollContainer?.addEventListener('scroll', scheduleScrollUpdate, { passive: true });
+    window.addEventListener('resize', scheduleResizeUpdate);
+    updateMeasurements();
+    updateFloatingVisibility();
+
+    return () => {
+      cancelAnimationFrame(scrollAnimationFrame);
+      cancelAnimationFrame(resizeAnimationFrame);
+      resizeObserver.disconnect();
+      scrollContainer?.removeEventListener('scroll', scheduleScrollUpdate);
+      window.removeEventListener('resize', scheduleResizeUpdate);
+    };
+  }, [sortedAndFilteredSkills.length, sortColumn, sortDirection, searchTerm]);
+
+  const renderHeaderRow = (rowRef?: Ref<HTMLTableRowElement>) => (
+    <tr
+      ref={rowRef}
+      className="border-b border-[rgb(var(--color-surface-border)/0.6)]"
+    >
+      <th
+        className="bg-[rgb(var(--color-surface-2))] text-left p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
+        onClick={() => handleSort('name')}
+      >
+        <div className="flex items-center space-x-1">
+          <span>Skill Name</span>
+          {sortColumn === 'name' && (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+            </svg>
+          )}
+        </div>
+      </th>
+      <th
+        className="bg-[rgb(var(--color-surface-2))] text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
+        onClick={() => handleSort('total')}
+      >
+        <div className="flex items-center justify-center space-x-1">
+          <span>Total</span>
+          {sortColumn === 'total' && (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+            </svg>
+          )}
+        </div>
+      </th>
+      <th
+        className="bg-[rgb(var(--color-surface-2))] text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
+        onClick={() => handleSort('ranks')}
+      >
+        <div className="flex items-center justify-center space-x-1">
+          <span>Ranks</span>
+          {sortColumn === 'ranks' && (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+            </svg>
+          )}
+        </div>
+      </th>
+      <th className="bg-[rgb(var(--color-surface-2))] text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Ability</th>
+      <th className="bg-[rgb(var(--color-surface-2))] text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Misc</th>
+      <th className="bg-[rgb(var(--color-surface-2))] text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Class</th>
+    </tr>
+  );
 
   const FixedHeader = () => {
-    if (!showFixedHeader || typeof document === 'undefined') return null;
-    
+    if (!showFixedHeader || typeof document === 'undefined' || tableWidth <= 0) {
+      return null;
+    }
+
     return createPortal(
-      <div 
+      <div
         className="fixed top-[87px] z-50"
-        style={{ 
-          left: `${tableLeft}px`, 
-          width: `${tableWidth}px` 
+        style={{
+          left: `${tableLeft}px`,
+          width: `${tableWidth}px`
         }}
       >
-        <Card className="fixed-table-header rounded-t-none shadow-lg border-b-0">
+        <Card className="rounded-t-none shadow-lg border-b-0">
           <CardContent className="p-0" style={{ paddingTop: '0', paddingBottom: '0' }}>
             <div className="overflow-x-auto">
               <table className="w-full" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: `${columnWidths[0]}px` }} />
-                  <col style={{ width: `${columnWidths[1]}px` }} />
-                  <col style={{ width: `${columnWidths[2]}px` }} />
-                  <col style={{ width: `${columnWidths[3]}px` }} />
-                  <col style={{ width: `${columnWidths[4]}px` }} />
-                  <col style={{ width: `${columnWidths[5]}px` }} />
+                  <col style={{ width: '40%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '15%' }} />
                 </colgroup>
-                <thead>
-                  <tr className="border-b border-[rgb(var(--color-surface-border)/0.6)]">
-                    <th 
-                      className="text-left p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{t('skills.skillName')}</span>
-                        {sortColumn === 'name' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                      onClick={() => handleSort('total')}
-                    >
-                      <div className="flex items-center justify-center space-x-1">
-                        <span>{t('skills.total')}</span>
-                        {sortColumn === 'total' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                      onClick={() => handleSort('ranks')}
-                    >
-                      <div className="flex items-center justify-center space-x-1">
-                        <span>{t('skills.ranks')}</span>
-                        {sortColumn === 'ranks' && (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                          </svg>
-                        )}
-                      </div>
-                    </th>
-                    <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">{t('skills.ability')}</th>
-                    <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">{t('skills.misc')}</th>
-                    <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">{t('skills.class')}</th>
-                  </tr>
-                </thead>
+                <thead>{renderHeaderRow()}</thead>
               </table>
             </div>
           </CardContent>
@@ -408,52 +430,7 @@ export default function SkillsEditor() {
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '15%' }} />
               </colgroup>
-              <thead>
-                <tr ref={headerRef} className="border-b border-[rgb(var(--color-surface-border)/0.6)]">
-                  <th 
-                    className="text-left p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                    onClick={() => handleSort('name')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Skill Name</span>
-                      {sortColumn === 'name' && (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                    onClick={() => handleSort('total')}
-                  >
-                    <div className="flex items-center justify-center space-x-1">
-                      <span>Total</span>
-                      {sortColumn === 'total' && (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))] cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
-                    onClick={() => handleSort('ranks')}
-                  >
-                    <div className="flex items-center justify-center space-x-1">
-                      <span>Ranks</span>
-                      {sortColumn === 'ranks' && (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                        </svg>
-                      )}
-                    </div>
-                  </th>
-                  <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Ability</th>
-                  <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Misc</th>
-                  <th className="text-center p-3 font-medium text-[rgb(var(--color-text-secondary))]">Class</th>
-                </tr>
-              </thead>
+              <thead>{renderHeaderRow(headerRef)}</thead>
               <tbody>
                 {sortedAndFilteredSkills.map((skill) => {
                   return (

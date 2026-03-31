@@ -133,7 +133,7 @@ interface CharacterContextState {
   
   // Actions
   loadCharacter: (characterId: number) => Promise<void>;
-  importCharacter: (savePath: string) => Promise<void>;
+  importCharacter: (savePath: string, playerIndex?: number) => Promise<void>;
   loadSubsystem: (subsystem: SubsystemType, options?: { force?: boolean; silent?: boolean }) => Promise<unknown>;
   updateSubsystem: (subsystem: SubsystemType, data: unknown) => Promise<void>;
   updateSubsystemData: (subsystem: SubsystemType, data: unknown) => void;
@@ -390,13 +390,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   }, [loadMetadataInternal]);
 
   // Import character from save
-  const importCharacter = useCallback(async (savePath: string) => {
+  const importCharacter = useCallback(async (savePath: string, playerIndex?: number) => {
     setIsLoading(true);
     setError(null);
     
     try {
       // Step 1: Import the save game (creates backend session)
-      const importResponse = await CharacterAPI.importCharacter(savePath);
+      const importResponse = await CharacterAPI.importCharacter(savePath, playerIndex);
       const newCharacterId = importResponse.id;
       
       if (!newCharacterId) {
@@ -421,7 +421,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [characterId, loadMetadataInternal]);
+  }, [loadMetadataInternal]);
 
   const refreshAll = useCallback(async () => {
     if (!characterId) return;

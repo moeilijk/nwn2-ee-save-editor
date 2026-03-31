@@ -7,7 +7,7 @@
 //!
 //! All methods are sync (no async). ClassList structure in GFF:
 //! - ClassList: List of structs
-//!   - Class: Byte (class ID)
+//!   - Class: class ID (engine saves commonly serialize this as Int)
 //!   - ClassLevel: Short (level in that class)
 //!   - SpellCasterLevel: Optional (for spellcasters)
 
@@ -342,7 +342,19 @@ impl Character {
     }
 
     pub fn normalize_class_fields_for_save(&mut self, game_data: &GameData) {
-        let class_list = self.get_list_owned("ClassList").unwrap_or_default();
+        let mut class_list = self.get_list_owned("ClassList").unwrap_or_default();
+
+        for entry in class_list.iter_mut() {
+            if let Some(class_id) = entry.get("Class").and_then(gff_value_to_i32) {
+                entry.insert("Class".to_string(), GffValue::Int(class_id));
+            }
+            if let Some(class_level) = entry.get("ClassLevel").and_then(gff_value_to_i32) {
+                entry.insert("ClassLevel".to_string(), GffValue::Short(class_level as i16));
+            }
+        }
+        self.set_list("ClassList", class_list.clone());
+        self.remove_field("Class");
+
         let class_count = class_list.len();
 
         let normalized_level_up_index = if class_count == 0 {
@@ -2591,7 +2603,7 @@ impl Character {
     pub fn get_skill_points_summary(&self, game_data: &GameData) -> SkillPointsSummary {
         let theoretical_map = self.get_theoretical_skill_points(game_data);
         let theoretical_total: i32 = theoretical_map.values().sum();
-        let actual_spent = self.total_skill_points_spent();
+        let actual_spent = self.calculate_total_spent_with_costs(game_data);
         let current_unspent = self.get_available_skill_points();
 
         let mismatch = theoretical_total - (actual_spent + current_unspent);
@@ -2937,13 +2949,6 @@ impl Character {
             });
         }
 
-        if self.has_class(new_class_id) {
-            return Err(CharacterError::AlreadyExists {
-                entity: "Class",
-                id: new_class_id.0,
-            });
-        }
-
         let mut class_list = self
             .get_list_owned("ClassList")
             .ok_or(CharacterError::FieldMissing { field: "ClassList" })?;
@@ -2956,7 +2961,31 @@ impl Character {
             });
         };
 
-        if let Some(class_entry) = class_list.get_mut(class_index) {
+        let existing_new_index = class_list.iter().position(|entry| {
+            entry.get("Class").and_then(gff_value_to_i32) == Some(new_class_id.0)
+        });
+
+        if let Some(new_class_index) = existing_new_index {
+            if new_class_index != class_index {
+                let merged_level = self.class_level(new_class_id) + old_class_level;
+                let mut merged_entry = class_list[new_class_index].clone();
+                merged_entry.insert("Class".to_string(), GffValue::Byte(new_class_id.0 as u8));
+                merged_entry.insert("ClassLevel".to_string(), GffValue::Short(merged_level as i16));
+
+                let mut indices_to_remove = [class_index, new_class_index];
+                indices_to_remove.sort_unstable_by(|a, b| b.cmp(a));
+                for index in indices_to_remove {
+                    class_list.remove(index);
+                }
+
+                let insert_index = class_index.min(class_list.len());
+                class_list.insert(insert_index, merged_entry);
+            } else if let Some(class_entry) = class_list.get_mut(class_index) {
+                class_entry.insert("Class".to_string(), GffValue::Byte(new_class_id.0 as u8));
+                Self::clear_known_spell_lists(class_entry);
+                class_entry.shift_remove("SpellCasterLevel");
+            }
+        } else if let Some(class_entry) = class_list.get_mut(class_index) {
             class_entry.insert("Class".to_string(), GffValue::Byte(new_class_id.0 as u8));
             Self::clear_known_spell_lists(class_entry);
             class_entry.shift_remove("SpellCasterLevel");
@@ -3666,6 +3695,32 @@ mod tests {
     }
 
     #[test]
+    fn test_change_class_preserving_levels_merges_into_existing_class() {
+        let mut character = create_multiclass_character_for_preserve_change();
+        let game_data = create_game_data_with_class_rows(&[
+            (0, "Barbarian", 12, 4),
+            (1, "Bard", 6, 6),
+        ]);
+
+        character
+            .change_class_preserving_levels(ClassId(0), ClassId(1), &game_data)
+            .expect("Expected preserve-level class change to merge into existing class");
+
+        assert_eq!(character.total_level(), 6);
+        let entries = character.class_entries();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].class_id.0, 1);
+        assert_eq!(entries[0].level, 6);
+        assert_eq!(character.get_i32("Class"), Some(1));
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        assert_eq!(history.len(), 6);
+        assert!(history
+            .iter()
+            .all(|entry| entry.get("LvlStatClass").and_then(gff_value_to_i32) == Some(1)));
+    }
+
+    #[test]
     fn test_level_up_reuses_engine_style_history_shape() {
         let mut character = create_level_one_character_with_full_history_entry();
         let game_data = create_game_data_with_class_rows(&[(4, "Fighter", 10, 2)]);
@@ -3734,6 +3789,19 @@ mod tests {
 
         assert_eq!(character.get_i32("MClassLevUpIn"), Some(0));
         assert_eq!(character.get_i32("StartingPackage"), Some(4));
+        assert!(!character.has_field("Class"));
+
+        let class_list = character
+            .get_list_owned("ClassList")
+            .expect("Expected normalized class list");
+        assert!(matches!(
+            class_list[0].get("Class"),
+            Some(GffValue::Int(4))
+        ));
+        assert!(matches!(
+            class_list[0].get("ClassLevel"),
+            Some(GffValue::Short(2))
+        ));
 
         let history = character
             .get_list_owned("LvlStatList")
@@ -3760,5 +3828,37 @@ mod tests {
         ));
         assert!(!history[1].contains_key("KnownList0"));
         assert!(!history[1].contains_key("KnownRemoveList0"));
+    }
+
+    #[test]
+    fn test_normalize_skill_points_uses_cross_class_costs() {
+        let mut fields = IndexMap::new();
+
+        let mut fighter = IndexMap::new();
+        fighter.insert("Class".to_string(), GffValue::Byte(4));
+        fighter.insert("ClassLevel".to_string(), GffValue::Short(1));
+        fields.insert("ClassList".to_string(), GffValue::ListOwned(vec![fighter]));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(6));
+
+        let mut skill_list = zero_rank_skill_list(30);
+        skill_list[0].insert("Rank".to_string(), GffValue::Byte(2));
+        fields.insert("SkillList".to_string(), GffValue::ListOwned(skill_list));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![create_history_entry(4, 10, 0, 30)]),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = create_game_data_with_class_rows(&[(4, "Fighter", 10, 2)]);
+
+        let before = character.get_skill_points_summary(&game_data);
+        assert_eq!(before.theoretical_total, 8);
+        assert_eq!(before.actual_spent, 4);
+        assert_eq!(before.current_unspent, 6);
+        assert_eq!(before.mismatch, -2);
+
+        character.normalize_skill_points(&game_data);
+        assert_eq!(character.get_available_skill_points(), 4);
     }
 }

@@ -222,21 +222,6 @@
   background: rgb(var(--color-primary));
 }
 
-/* Fixed table header styles */
-.fixed-table-header {
-  height: auto;
-}
-
-.fixed-table-header table {
-  border-spacing: 0;
-  margin: 0;
-}
-
-.fixed-table-header th {
-  padding: 0.75rem !important; /* 12px - matches p-3 */
-}
-
-
   /* ==========================================================================
      SAVE FILE MANAGEMENT COMPONENTS
      ========================================================================== */

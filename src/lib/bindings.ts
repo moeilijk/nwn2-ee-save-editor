@@ -846,6 +846,8 @@ export interface AvailableBackground {
   id: number;
   name: string;
   description: string | null;
+  can_take: boolean;
+  missing_requirements: string[];
 }
 
 export interface AvailableAbility {

@@ -58,6 +58,14 @@ export interface DeityResponse {
   deity: string;
 }
 
+export interface BackgroundOption {
+  id: number;
+  name: string;
+  description?: string;
+  can_take?: boolean;
+  missing_requirements?: string[];
+}
+
 export interface SetDeityResponse {
   success: boolean;
   deity: string;
@@ -87,6 +95,19 @@ export interface SaveResult {
   success: boolean;
   changes: Record<string, unknown>;
   backup_created: boolean;
+}
+
+export interface SaveCharacterClass {
+  name: string;
+  level: number;
+}
+
+export interface SaveCharacterOption {
+  player_index: number;
+  name: string;
+  race: string;
+  total_level: number;
+  classes: SaveCharacterClass[];
 }
 
 export interface FeatResponse {
@@ -369,6 +390,10 @@ export interface CharacterData {
   gender: string;
   age: number;
   alignment: string;
+  alignment_values?: {
+    law_chaos: number;
+    good_evil: number;
+  };
   deity: string;
   biography?: string;
   level: number;
@@ -535,6 +560,7 @@ export class CharacterAPI {
         gender: overview.gender,
         age: overview.age,
         alignment: overview.alignment_string,
+        alignment_values: overview.alignment,
         deity: overview.deity,
         biography: overview.description,
         level: overview.total_level,
@@ -588,9 +614,18 @@ export class CharacterAPI {
     return [];
   }
 
-  static async importCharacter(savePath: string): Promise<{id: number; name: string}> {
+  static async listSaveCharacters(savePath: string): Promise<SaveCharacterOption[]> {
     try {
-      await invoke('load_character', { filePath: savePath });
+      return await invoke<SaveCharacterOption[]>('list_save_characters', { filePath: savePath });
+    } catch (error) {
+      console.error('Error listing save characters:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async importCharacter(savePath: string, playerIndex?: number): Promise<{id: number; name: string}> {
+    try {
+      await invoke('load_character', { filePath: savePath, playerIndex });
       const name = await invoke<string>('get_character_name');
       return {
         id: Date.now(), // Unique session ID to trigger state updates
@@ -630,6 +665,26 @@ export class CharacterAPI {
       return this.getCharacterState(characterId);
     } catch (error) {
       console.error("Error updating character:", error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async setGender(characterId: number, gender: number): Promise<CharacterData> {
+    try {
+      await invoke('set_gender', { gender });
+      return this.getCharacterState(characterId);
+    } catch (error) {
+      console.error('Error updating gender:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async setBackground(characterId: number, backgroundId: number | null): Promise<CharacterData> {
+    try {
+      await invoke('set_background', { backgroundId });
+      return this.getCharacterState(characterId);
+    } catch (error) {
+      console.error('Error updating background:', error);
       throw new Error(String(error));
     }
   }

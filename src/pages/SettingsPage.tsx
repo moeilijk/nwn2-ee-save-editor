@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
@@ -17,7 +17,15 @@ interface AppSettings {
   fontSize: 'small' | 'medium' | 'large';
 }
 
-export default function SettingsPage() {
+interface SettingsPageProps {
+  initialTab?: 'general' | 'theme' | 'paths';
+  onPathsUpdated?: (paths: PathConfig) => void;
+}
+
+export default function SettingsPage({
+  initialTab = 'general',
+  onPathsUpdated
+}: SettingsPageProps) {
   const { locale, setLocale } = useLocale();
   const t = useTranslations();
   const [paths, setPaths] = useState<PathConfig | null>(null);
@@ -31,10 +39,28 @@ export default function SettingsPage() {
   const [debugExporting, setDebugExporting] = useState(false);
   const [debugExportResult, setDebugExportResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  const applyPaths = useCallback((nextPaths: PathConfig) => {
+    setPaths(nextPaths);
+    onPathsUpdated?.(nextPaths);
+  }, [onPathsUpdated]);
+
+  const loadPaths = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await pathService.getConfig();
+      applyPaths(response.paths);
+    } catch (err) {
+      setError('Failed to load path configuration');
+      console.error('Error loading paths:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyPaths]);
+
   useEffect(() => {
     loadPaths();
     loadAppSettings();
-  }, []);
+  }, [loadPaths]);
 
   const loadAppSettings = () => {
     try {
@@ -84,19 +110,6 @@ export default function SettingsPage() {
     }
   };
 
-  const loadPaths = async () => {
-    try {
-      setLoading(true);
-      const response = await pathService.getConfig();
-      setPaths(response.paths);
-    } catch (err) {
-      setError('Failed to load path configuration');
-      console.error('Error loading paths:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const selectFolder = async (title: string): Promise<string | null> => {
     const selected = await open({
       directory: true,
@@ -130,7 +143,8 @@ export default function SettingsPage() {
           response = await pathService.setSteamWorkshopFolder(selected);
           break;
       }
-      setPaths(response.paths);
+      applyPaths(response.paths);
+      setError(null);
     } catch (err) {
       setError(`Failed to update ${type} folder`);
       console.error('Error updating path:', err);
@@ -156,7 +170,8 @@ export default function SettingsPage() {
           response = await pathService.resetSteamWorkshopFolder();
           break;
       }
-      setPaths(response.paths);
+      applyPaths(response.paths);
+      setError(null);
     } catch (err) {
       setError(`Failed to reset ${type} folder`);
       console.error('Error resetting path:', err);
@@ -181,7 +196,8 @@ export default function SettingsPage() {
           response = await pathService.addHakFolder(selected);
           break;
       }
-      setPaths(response.paths);
+      applyPaths(response.paths);
+      setError(null);
     } catch (err) {
       setError(`Failed to add custom ${type} folder`);
       console.error('Error adding custom folder:', err);
@@ -202,7 +218,8 @@ export default function SettingsPage() {
           response = await pathService.removeHakFolder(path);
           break;
       }
-      setPaths(response.paths);
+      applyPaths(response.paths);
+      setError(null);
     } catch (err) {
       setError(`Failed to remove custom ${type} folder`);
       console.error('Error removing custom folder:', err);
@@ -228,6 +245,34 @@ export default function SettingsPage() {
       });
     } finally {
       setDebugExporting(false);
+    }
+  };
+
+  const handleAutoDiscover = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const response = await pathService.autoDetect();
+      applyPaths(response.current_paths);
+    } catch (err) {
+      setError('Failed to auto-discover game folders');
+      console.error('Error auto-detecting paths:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSetupModeChange = async (mode: 'auto' | 'manual') => {
+    try {
+      setSaving(true);
+      setError(null);
+      const response = await pathService.setSetupMode(mode);
+      applyPaths(response.paths);
+    } catch (err) {
+      setError(`Failed to switch startup mode to ${mode}`);
+      console.error('Error updating setup mode:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -320,7 +365,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-[rgb(var(--color-text-primary))]">Settings</h2>
       
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="w-full flex bg-transparent p-0 gap-2 mb-6">
           <TabsTrigger 
             value="general" 
@@ -449,6 +494,43 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Startup Path Mode</CardTitle>
+          <CardDescription>
+            Choose whether the app should auto-discover missing NWN2 install and save folders on startup or wait for manual paths.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Current mode:</span>
+            <span className="rounded px-2 py-0.5 text-xs font-medium bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))]">
+              {paths.setup_mode === 'auto'
+                ? 'Auto-Discover'
+                : paths.setup_mode === 'manual'
+                  ? 'Manual'
+                  : 'Not chosen'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handleAutoDiscover}
+              variant={paths.setup_mode === 'auto' ? 'primary' : 'outline'}
+              disabled={saving}
+            >
+              {paths.setup_mode === 'auto' ? 'Re-run Auto-Discover' : 'Use Auto-Discover'}
+            </Button>
+            <Button
+              onClick={() => handleSetupModeChange('manual')}
+              variant={paths.setup_mode === 'manual' ? 'secondary' : 'outline'}
+              disabled={saving}
+            >
+              Use Manual Setup
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

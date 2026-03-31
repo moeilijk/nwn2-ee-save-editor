@@ -8,6 +8,7 @@ import type {
   FeatSlots,
 } from '@/lib/bindings';
 import type { FeatInfo } from '@/components/Feats/types';
+import { getErrorMessage, isCommandError } from '@/lib/api/errors';
 
 // Matches the actual Rust FeatSummary struct
 interface FeatSummary {
@@ -32,6 +33,11 @@ interface SubraceInfo {
 interface ClassEntry {
   class_id: number;
   level: number;
+}
+
+interface ResolvedLevelHistoryEntry {
+  character_level: number;
+  class_id: number;
 }
 
 interface FilteredFeatsResponse {
@@ -73,6 +79,35 @@ function totalCost(scores: AbilityScores): number {
   );
 }
 
+function nextEditableScore(current: number, delta: number): number {
+  if (delta > 0) {
+    if (current < SCORE_MIN) {
+      return SCORE_MIN;
+    }
+    return Math.min(SCORE_MAX, current + 1);
+  }
+
+  if (delta < 0) {
+    if (current > SCORE_MAX) {
+      return SCORE_MAX;
+    }
+    return Math.max(SCORE_MIN, current - 1);
+  }
+
+  return current;
+}
+
+function canAcceptPointBuyTransition(currentScores: AbilityScores, nextScores: AbilityScores): boolean {
+  const currentCost = totalCost(currentScores);
+  const nextCost = totalCost(nextScores);
+
+  if (currentCost > POINT_BUY_BUDGET) {
+    return nextCost <= currentCost;
+  }
+
+  return nextCost <= POINT_BUY_BUDGET;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const ABILITIES: { key: keyof AbilityScores; label: string }[] = [
@@ -92,6 +127,24 @@ function modStr(v: number) {
 function adjStr(v: number) {
   if (v === 0) return '';
   return v > 0 ? `+${v}` : `${v}`;
+}
+
+function formatInvokeError(error: unknown): string {
+  if (isCommandError(error)) {
+    return getErrorMessage(error);
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'An unexpected error occurred';
+  }
 }
 
 // ─── Step indicator ──────────────────────────────────────────────────────────
@@ -184,7 +237,7 @@ function StepRace({
       await invoke('change_race', { raceId: selectedRaceId, subrace: selectedSubrace });
       onDone();
     } catch (e) {
-      setError(String(e));
+      setError(formatInvokeError(e));
     } finally {
       setApplying(false);
     }
@@ -293,18 +346,21 @@ function StepClass({ onDone, onBack }: { onDone: () => void; onBack: () => void 
   const [classes, setClasses] = useState<AvailableClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [currentClassId, setCurrentClassId] = useState<number | null>(null);
+  const [existingClassIds, setExistingClassIds] = useState<number[]>([]);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [allClasses, entries] = await Promise.all([
+      const [allClasses, entries, levelHistory] = await Promise.all([
         invoke<AvailableClass[]>('get_available_classes'),
         invoke<ClassEntry[]>('get_class_entries').catch(() => [] as ClassEntry[]),
+        invoke<ResolvedLevelHistoryEntry[]>('get_level_history').catch(() => [] as ResolvedLevelHistoryEntry[]),
       ]);
       // Only show non-prestige classes for level 1
       setClasses(allClasses.filter(c => !c.is_prestige));
-      const startingClass = entries[0]?.class_id ?? null;
+      const startingClass = levelHistory[0]?.class_id ?? entries[0]?.class_id ?? null;
+      setExistingClassIds(entries.map(entry => entry.class_id));
       setCurrentClassId(startingClass);
       setSelectedClassId(startingClass);
     })();
@@ -324,13 +380,11 @@ function StepClass({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       }
       onDone();
     } catch (e) {
-      setError(String(e));
+      setError(formatInvokeError(e));
     } finally {
       setApplying(false);
     }
   };
-
-  const selectedClass = classes.find(c => c.id === selectedClassId);
 
   return (
     <div>
@@ -345,6 +399,7 @@ function StepClass({ onDone, onBack }: { onDone: () => void; onBack: () => void 
         {classes.map(cls => {
           const isSelected = selectedClassId === cls.id;
           const isCurrent = currentClassId === cls.id;
+          const alreadyTaken = existingClassIds.includes(cls.id) && !isCurrent;
 
           return (
             <button
@@ -360,6 +415,9 @@ function StepClass({ onDone, onBack }: { onDone: () => void; onBack: () => void 
                 <span className="font-semibold text-sm text-[rgb(var(--color-text-primary))]">{cls.name}</span>
                 {isCurrent && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-[rgb(var(--color-primary)/0.2)] text-[rgb(var(--color-primary))]">current</span>
+                )}
+                {alreadyTaken && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-muted))]">merge</span>
                 )}
               </div>
               <div className="flex gap-2 text-xs text-[rgb(var(--color-text-muted))]">
@@ -410,9 +468,10 @@ function StepAbilities({ onDone, onBack }: { onDone: () => void; onBack: () => v
 
   const adjust = (key: keyof AbilityScores, delta: number) => {
     setScores(prev => {
-      const next = Math.max(SCORE_MIN, Math.min(SCORE_MAX, prev[key] + delta));
+      const next = nextEditableScore(prev[key], delta);
       const newScores = { ...prev, [key]: next };
-      if (totalCost(newScores) > POINT_BUY_BUDGET) return prev;
+      if (next === prev[key]) return prev;
+      if (!canAcceptPointBuyTransition(prev, newScores)) return prev;
       return newScores;
     });
   };
@@ -424,7 +483,7 @@ function StepAbilities({ onDone, onBack }: { onDone: () => void; onBack: () => v
       await invoke('apply_point_buy', { newScores: scores });
       onDone();
     } catch (e) {
-      setError(String(e));
+      setError(formatInvokeError(e));
     } finally {
       setApplying(false);
     }
@@ -449,9 +508,12 @@ function StepAbilities({ onDone, onBack }: { onDone: () => void; onBack: () => v
           const base = scores[key];
           const racial = (racialMods as unknown as Record<string, number>)[key] ?? 0;
           const effective = base + racial;
-          const costIncrement = pointCost(base + 1) - pointCost(base);
-          const canIncrease = base < SCORE_MAX && remaining >= costIncrement;
-          const canDecrease = base > SCORE_MIN;
+          const increasedScores = { ...scores, [key]: nextEditableScore(base, 1) };
+          const decreasedScores = { ...scores, [key]: nextEditableScore(base, -1) };
+          const canIncrease =
+            increasedScores[key] !== base && canAcceptPointBuyTransition(scores, increasedScores);
+          const canDecrease =
+            decreasedScores[key] !== base && canAcceptPointBuyTransition(scores, decreasedScores);
 
           return (
             <div key={key} className="flex items-center gap-3 p-2 rounded-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-border))]">
@@ -534,7 +596,7 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       setChosenFeats(chosen);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(formatInvokeError(e));
     }
   }, []);
 
@@ -550,7 +612,7 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       setTotalAvailable(res.total);
       setTotalPages(res.pages);
     } catch (e) {
-      setError(String(e));
+      setError(formatInvokeError(e));
     }
   }, []);
 
@@ -571,7 +633,7 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       }
       await Promise.all([refresh(), loadFeats(page, search)]);
     } catch (e) {
-      setActionError(String(e));
+      setActionError(formatInvokeError(e));
     }
   };
 
@@ -584,7 +646,7 @@ function StepFeats({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       }
       await Promise.all([refresh(), loadFeats(page, search)]);
     } catch (e) {
-      setActionError(String(e));
+      setActionError(formatInvokeError(e));
     }
   };
 

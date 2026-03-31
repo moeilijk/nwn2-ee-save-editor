@@ -27,6 +27,8 @@ import Dashboard from '@/components/Dashboard';
 import EditorHeader from '@/components/EditorHeader';
 import { CharacterAPI } from '@/services/characterApi';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { pathService, type PathConfig } from '@/lib/api/paths';
 
 import LevelHelperModal from '@/components/ClassesLevel/LevelHelperModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -62,8 +64,11 @@ function AppContent() {
     progress: 0,
     message: 'Starting up...'
   });
-  const [backendReady, setBackendReady] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [startupPhase, setStartupPhase] = useState<'bootstrap' | 'choose-path-mode' | 'manual-setup' | 'initializing' | 'ready'>('bootstrap');
+  const [startupPaths, setStartupPaths] = useState<PathConfig | null>(null);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [startupBusy, setStartupBusy] = useState(false);
 
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [showLaunchDialog, setShowLaunchDialog] = useState(false);
@@ -72,10 +77,10 @@ function AppContent() {
 
   // Sync viewMode when character ID changes (new load)
   useEffect(() => {
-    console.log('[App] Character ID changed:', character?.id, 'Current viewMode:', viewMode);
+    console.log('[App] Character ID changed:', character?.id);
     if (character?.id) {
-       console.log('[App] Switching to editor view');
-       setViewMode('editor');
+      console.log('[App] Switching to editor view');
+      setViewMode('editor');
     }
   }, [character?.id]);
 
@@ -92,6 +97,18 @@ function AppContent() {
     customPortrait: character.customPortrait,
     isCompanion: false
   } : null);
+
+  const characterBuilderKey = character
+    ? [
+        characterId ?? 'no-id',
+        character.name,
+        character.race,
+        character.subrace ?? '',
+        character.background?.name ?? '',
+        character.level,
+        character.classes.map(cls => `${cls.name}:${cls.level}`).join('|'),
+      ].join('::')
+    : 'no-character';
 
   // Mock function to simulate loading a companion
   const handleLoadCompanion = (companionName: string) => {
@@ -124,6 +141,127 @@ function AppContent() {
   const handleCloseSettings = () => {
     setShowSettings(false);
   };
+
+  const beginBackendInitialization = useCallback(() => {
+    setStartupPhase('initializing');
+    setStartupError(null);
+
+    TauriAPI.initializeGameData().catch(err => {
+      console.error('Failed to initialize backend:', err);
+      setStartupError('Failed to initialize game data. Check your configured NWN2 paths.');
+      setStartupPhase('manual-setup');
+    });
+
+    const checkStatus = async () => {
+      try {
+        const status = await TauriAPI.getInitializationStatus();
+
+        setInitProgress({
+          step: status.step,
+          progress: status.progress,
+          message: status.message
+        });
+
+        if (status.step === 'ready') {
+          setAppReady(true);
+          setStartupPhase('ready');
+          return;
+        }
+
+        setTimeout(checkStatus, 500);
+      } catch (err) {
+        console.error('Failed to read initialization status:', err);
+        setStartupError('Failed to read initialization progress.');
+        setStartupPhase('manual-setup');
+      }
+    };
+
+    checkStatus();
+  }, []);
+
+  const refreshStartupPaths = useCallback(async () => {
+    const response = await pathService.getConfig();
+    setStartupPaths(response.paths);
+    return response.paths;
+  }, []);
+
+  const hasGameInstallPath = useCallback((paths: PathConfig) => {
+    return Boolean(paths.game_folder.path && paths.game_folder.exists);
+  }, []);
+
+  const hasSaveLocationPath = useCallback((paths: PathConfig) => {
+    return Boolean(paths.documents_folder.path && paths.documents_folder.exists);
+  }, []);
+
+  const autoDiscoverMissingStartupPaths = useCallback(async (paths: PathConfig) => {
+    if (paths.setup_mode !== 'auto') {
+      return paths;
+    }
+
+    if (hasGameInstallPath(paths) && hasSaveLocationPath(paths)) {
+      return paths;
+    }
+
+    const response = await pathService.autoDetect();
+    setStartupPaths(response.current_paths);
+    return response.current_paths;
+  }, [hasGameInstallPath, hasSaveLocationPath]);
+
+  const handleStartAutoSetup = useCallback(async () => {
+    try {
+      setStartupBusy(true);
+      setStartupError(null);
+      const response = await pathService.autoDetect();
+      setStartupPaths(response.current_paths);
+
+      if (response.current_paths.game_folder.path && response.current_paths.game_folder.exists) {
+        beginBackendInitialization();
+      } else {
+        setStartupError('Auto-discovery did not find a valid NWN2 installation. Set the game folder manually.');
+        setStartupPhase('manual-setup');
+      }
+    } catch (err) {
+      console.error('Failed to auto-discover NWN2 paths:', err);
+      setStartupError('Auto-discovery failed. Set the game folder manually.');
+      setStartupPhase('manual-setup');
+    } finally {
+      setStartupBusy(false);
+    }
+  }, [beginBackendInitialization]);
+
+  const handleStartManualSetup = useCallback(async () => {
+    try {
+      setStartupBusy(true);
+      setStartupError(null);
+      const response = await pathService.setSetupMode('manual');
+      setStartupPaths(response.paths);
+      setStartupPhase('manual-setup');
+    } catch (err) {
+      console.error('Failed to switch to manual path setup:', err);
+      setStartupError('Failed to switch to manual setup.');
+    } finally {
+      setStartupBusy(false);
+    }
+  }, []);
+
+  const handleContinueAfterManualSetup = useCallback(async () => {
+    try {
+      setStartupBusy(true);
+      const paths = await refreshStartupPaths();
+      const resolvedPaths = await autoDiscoverMissingStartupPaths(paths);
+      if (hasGameInstallPath(resolvedPaths)) {
+        beginBackendInitialization();
+        return;
+      }
+
+      setStartupError('Set a valid NWN2 game installation folder before continuing.');
+    } catch (err) {
+      console.error('Failed to refresh NWN2 paths:', err);
+      setStartupError('Failed to validate your configured paths.');
+    } finally {
+      setStartupBusy(false);
+    }
+  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, hasGameInstallPath, refreshStartupPaths]);
 
   const handleSaveCharacter = async () => {
     if (!characterId) return;
@@ -267,44 +405,120 @@ function AppContent() {
 
 
   useEffect(() => {
-    // Rust backend initialization
-    const init = async () => {
-       try {
-         // Trigger initialization
-         // Trigger initialization without awaiting
-         invoke('show_main_window').catch(() => {});
+    const bootstrap = async () => {
+      try {
+        invoke('show_main_window').catch(() => {});
 
-         TauriAPI.initializeGameData().catch(err => {
-             console.error("Failed to initialize backend:", err);
-         });
-         
-         
-         const checkStatus = async () => {
-            const status = await TauriAPI.getInitializationStatus();
-            
-            setInitProgress({
-               step: status.step,
-               progress: status.progress,
-               message: status.message
-            });
-            
-            if (status.step === 'ready') {
-                setBackendReady(true);
-                setAppReady(true);
-                return;
-            }
-            
-            setTimeout(checkStatus, 500);
-         };
-         
-         checkStatus();
-       } catch (err) {
-         console.error("Failed to initialize backend:", err);
-       }
+        const initialPaths = await refreshStartupPaths();
+        if (initialPaths.needs_initial_setup) {
+          setStartupPhase('choose-path-mode');
+          return;
+        }
+
+        const resolvedPaths = await autoDiscoverMissingStartupPaths(initialPaths);
+
+        if (hasGameInstallPath(resolvedPaths)) {
+          beginBackendInitialization();
+          return;
+        }
+
+        setStartupPhase('manual-setup');
+      } catch (err) {
+        console.error('Failed to bootstrap startup path setup:', err);
+        setStartupError('Failed to load the NWN2 path configuration.');
+        setStartupPhase('manual-setup');
+      }
     };
-    
-    init();
-  }, []);
+
+    bootstrap();
+  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, hasGameInstallPath, refreshStartupPaths]);
+
+  if (startupPhase === 'choose-path-mode') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-[rgb(var(--color-background))]">
+        <CustomTitleBar />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Card className="w-full max-w-3xl">
+            <CardHeader className="space-y-3">
+              <CardTitle className="text-3xl">Choose How To Configure NWN2 Folders</CardTitle>
+              <CardDescription>
+                On first start, decide whether the editor should keep auto-discovering missing NWN2 install and save folders or wait for you to set them manually.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <Card variant="container" className="flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-[rgb(var(--color-text-primary))]">Auto-Discover</h3>
+                  <p className="text-sm text-[rgb(var(--color-text-secondary))]">
+                    Use detected install and documents folders now, and retry discovery later if either one goes missing. You can still override individual paths in Settings.
+                  </p>
+                </div>
+                <Button onClick={handleStartAutoSetup} loading={startupBusy}>
+                  Start With Auto-Discover
+                </Button>
+              </Card>
+
+              <Card variant="container" className="flex flex-col justify-between gap-4">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-[rgb(var(--color-text-primary))]">Manual Setup</h3>
+                  <p className="text-sm text-[rgb(var(--color-text-secondary))]">
+                    Skip discovery and choose the NWN2 folders yourself before loading game data.
+                  </p>
+                </div>
+                <Button onClick={handleStartManualSetup} variant="outline" loading={startupBusy}>
+                  Configure Manually
+                </Button>
+              </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (startupPhase === 'manual-setup') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-[rgb(var(--color-background))]">
+        <CustomTitleBar />
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto w-full p-6 md:p-8 space-y-6">
+            <Card>
+              <CardHeader className="space-y-3">
+                <CardTitle className="text-3xl">Manual NWN2 Path Setup</CardTitle>
+                <CardDescription>
+                  Set the NWN2 game folder to continue. You can also switch back to auto-discover from the path settings below.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {startupError && (
+                  <div className="rounded-md border border-[rgb(var(--color-error)/0.3)] bg-[rgb(var(--color-error)/0.1)] px-4 py-3 text-sm text-[rgb(var(--color-error))]">
+                    {startupError}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={handleContinueAfterManualSetup}
+                    disabled={!startupPaths?.game_folder.path || !startupPaths.game_folder.exists}
+                    loading={startupBusy}
+                  >
+                    Continue To App
+                  </Button>
+                  <Button onClick={handleStartAutoSetup} variant="outline" disabled={startupBusy}>
+                    Try Auto-Discover Instead
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <SettingsPage
+              initialTab="paths"
+              onPathsUpdated={setStartupPaths}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!appReady || isLoading || !isAvailable || !api) {
     return (
@@ -383,7 +597,7 @@ function AppContent() {
                           {activeTab === 'character-builder' && (
                             <div className="space-y-6">
                               <h2 className="text-2xl font-semibold text-[rgb(var(--color-text-primary))]">{t('navigation.characterBuilder')}</h2>
-                              <CharacterBuilder />
+                              <CharacterBuilder key={characterBuilderKey} />
                             </div>
                           )}
                           
@@ -571,12 +785,6 @@ function AppContent() {
 }
 
 export default function ClientOnlyApp() {
-  const [, setBackendReady] = useState(false);
-
-  useEffect(() => {
-    // No backend polling needed for pure Rust app
-  }, []);
-
   return (
     <IconCacheProvider>
       <CharacterProvider>

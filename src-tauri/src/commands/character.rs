@@ -129,6 +129,22 @@ pub async fn set_character_age(state: State<'_, AppState>, age: i32) -> CommandR
 }
 
 #[tauri::command]
+pub async fn set_gender(state: State<'_, AppState>, gender: i32) -> CommandResult<i32> {
+    let mut session = state.session.write();
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    character
+        .set_gender(gender)
+        .map_err(|e| CommandError::ValidationError {
+            field: "gender".to_string(),
+            reason: e.to_string(),
+        })?;
+    Ok(character.gender())
+}
+
+#[tauri::command]
 pub async fn get_experience_points(state: State<'_, AppState>) -> CommandResult<i32> {
     let session = state.session.read();
     let character = session
@@ -247,6 +263,27 @@ pub async fn get_background(state: State<'_, AppState>) -> CommandResult<Option<
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.background(&game_data))
+}
+
+#[tauri::command]
+pub async fn set_background(
+    state: State<'_, AppState>,
+    background_id: Option<i32>,
+) -> CommandResult<Option<String>> {
+    let game_data = state.game_data.read();
+    let mut session = state.session.write();
+    let result = {
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.set_background(background_id, &game_data)
+    };
+    session.invalidate_feat_cache();
+    result.map_err(|e| CommandError::ValidationError {
+        field: "background".to_string(),
+        reason: e.to_string(),
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

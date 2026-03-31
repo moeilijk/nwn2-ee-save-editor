@@ -355,6 +355,26 @@ impl Character {
         }
     }
 
+    pub fn apply_point_buy_scores(
+        &mut self,
+        new_scores: AbilityScores,
+    ) -> Result<(), CharacterError> {
+        let old_con = self.base_ability(AbilityIndex::CON);
+
+        self.clear_ability_level_up_history()?;
+
+        self.set_ability(AbilityIndex::STR, new_scores.str_)?;
+        self.set_ability(AbilityIndex::DEX, new_scores.dex)?;
+        self.set_ability(AbilityIndex::CON, new_scores.con)?;
+        self.set_ability(AbilityIndex::INT, new_scores.int)?;
+        self.set_ability(AbilityIndex::WIS, new_scores.wis)?;
+        self.set_ability(AbilityIndex::CHA, new_scores.cha)?;
+
+        self.recalculate_hit_points(old_con, new_scores.con);
+
+        Ok(())
+    }
+
     pub fn calculate_encumbrance(&self, _game_data: &GameData) -> EncumbranceInfo {
         let strength = self.base_ability(AbilityIndex::STR);
 
@@ -776,6 +796,60 @@ mod tests {
         assert_eq!(character.base_ability(AbilityIndex::CON), 12);
         assert_eq!(character.max_hp(), 90);
         assert_eq!(character.current_hp(), 70);
+    }
+
+    #[test]
+    fn test_apply_point_buy_scores_clears_level_history_without_readding_increases() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(16));
+        fields.insert("Dex".to_string(), GffValue::Byte(14));
+        fields.insert("Con".to_string(), GffValue::Byte(12));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(8));
+        fields.insert("Cha".to_string(), GffValue::Byte(14));
+        fields.insert("MaxHitPoints".to_string(), GffValue::Int(40));
+        fields.insert("CurrentHitPoints".to_string(), GffValue::Int(40));
+        fields.insert("HitPoints".to_string(), GffValue::Int(40));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(8));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..8 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 {
+                0
+            } else if i == 7 {
+                1
+            } else {
+                255
+            };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut character = Character::from_gff(fields);
+        character
+            .apply_point_buy_scores(AbilityScores::new(14, 14, 14, 12, 10, 8))
+            .expect("Point buy should apply cleanly");
+
+        assert_eq!(character.base_ability(AbilityIndex::STR), 14);
+        assert_eq!(character.base_ability(AbilityIndex::CON), 14);
+        assert_eq!(character.max_hp(), 48);
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        assert!(history.iter().all(|entry| {
+            entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255)
+        }));
     }
 
     #[test]

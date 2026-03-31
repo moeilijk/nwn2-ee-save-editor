@@ -194,13 +194,14 @@ pub async fn get_skill_points_remaining(
     state: State<'_, AppState>,
 ) -> CommandResult<SkillPointsSummary> {
     let session = state.session.read();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
     let available_points = character.get_available_skill_points();
-    let total_spent = character.total_skill_points_spent();
+    let total_spent = character.calculate_total_spent_with_costs(&game_data);
 
     Ok(SkillPointsSummary {
         available_points,

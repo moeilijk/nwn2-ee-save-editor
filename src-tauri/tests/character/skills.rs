@@ -1,4 +1,6 @@
 use app_lib::character::{Character, SkillId};
+use app_lib::parsers::gff::GffValue;
+use indexmap::IndexMap;
 
 mod common {
     include!("../common/mod.rs");
@@ -139,6 +141,67 @@ async fn test_skill_summary_parity() {
             );
         }
     }
+}
+
+fn character_with_feat(feat_id: u16) -> Character {
+    let mut fields = IndexMap::new();
+    let mut feat = IndexMap::new();
+    feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+    fields.insert("FeatList".to_string(), GffValue::ListOwned(vec![feat]));
+    Character::from_gff(fields)
+}
+
+fn feat_bonus_for(summary: &[app_lib::character::SkillSummaryEntry], label: &str) -> i32 {
+    summary
+        .iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case(label))
+        .map(|entry| entry.feat_bonus)
+        .unwrap_or_default()
+}
+
+#[tokio::test]
+async fn test_background_feat_skill_bonus_parsing() {
+    let ctx = common::create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Failed to load game data");
+
+    let character = character_with_feat(1727); // Wild Child
+    let summary = character.get_skill_summary(game_data, None);
+
+    println!(
+        "Wild Child bonuses: Survival={}, Tumble={}, Hide={}, Move Silently={}, Lore={}, Appraise={}",
+        feat_bonus_for(&summary, "Survival"),
+        feat_bonus_for(&summary, "Tumble"),
+        feat_bonus_for(&summary, "Hide"),
+        feat_bonus_for(&summary, "Move Silently"),
+        feat_bonus_for(&summary, "Lore"),
+        feat_bonus_for(&summary, "Appraise")
+    );
+
+    assert_eq!(feat_bonus_for(&summary, "Survival"), 1);
+    assert_eq!(feat_bonus_for(&summary, "Tumble"), 1);
+    assert_eq!(feat_bonus_for(&summary, "Hide"), 1);
+    assert_eq!(feat_bonus_for(&summary, "Move Silently"), 1);
+    assert_eq!(feat_bonus_for(&summary, "Lore"), -2);
+    assert_eq!(feat_bonus_for(&summary, "Appraise"), -2);
+}
+
+#[tokio::test]
+async fn test_background_skill_bonus_parsing_ignores_flavor_text_conditionals() {
+    let ctx = common::create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Failed to load game data");
+    let bully = character_with_feat(1717).get_skill_summary(game_data, None);
+    let ladys_man = character_with_feat(1721).get_skill_summary(game_data, None);
+    let talent = character_with_feat(2246).get_skill_summary(game_data, None);
+
+    assert_eq!(feat_bonus_for(&bully, "Intimidate"), 1);
+    assert_eq!(feat_bonus_for(&bully, "Bluff"), -1);
+    assert_eq!(feat_bonus_for(&bully, "Diplomacy"), -2);
+
+    assert_eq!(feat_bonus_for(&ladys_man, "Listen"), 1);
+    assert_eq!(feat_bonus_for(&ladys_man, "Diplomacy"), 1);
+    assert_eq!(feat_bonus_for(&ladys_man, "Intimidate"), -2);
+
+    assert_eq!(feat_bonus_for(&talent, "Perform"), 1);
 }
 
 #[tokio::test]

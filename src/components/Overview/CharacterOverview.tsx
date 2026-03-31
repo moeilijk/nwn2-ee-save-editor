@@ -3,10 +3,13 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
-import { CharacterAPI } from '@/services/characterApi';
+import { CharacterAPI, type BackgroundOption } from '@/services/characterApi';
+import { inventoryAPI } from '@/services/inventoryApi';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { gameData } from '@/lib/api/gamedata';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import AlignmentGrid from '@/components/AbilityScores/AlignmentGrid';
 import CampaignOverview from './CampaignOverview';
 import DeitySelectionModal from './DeitySelectionModal';
 import RaceSelectionModal from './RaceSelectionModal';
@@ -20,6 +23,208 @@ interface CollapsibleSectionProps {
   children: React.ReactNode;
   defaultOpen?: boolean;
   badge?: string | number;
+}
+
+interface GenderOption {
+  id: number;
+  name: string;
+}
+
+interface AlignmentValues {
+  law_chaos: number;
+  good_evil: number;
+}
+
+interface ParsedBackgroundDescription {
+  flavor: string;
+  prerequisites: string[];
+  effects: string[];
+}
+
+const DEFAULT_GENDER_OPTIONS: GenderOption[] = [
+  { id: 0, name: 'Male' },
+  { id: 1, name: 'Female' },
+];
+
+function getGenderLabel(id: number, fallbackName?: string): string {
+  if (fallbackName && !/^gender\s+\d+$/i.test(fallbackName.trim())) {
+    return fallbackName;
+  }
+
+  return id === 1 ? 'Female' : 'Male';
+}
+
+function getCharacterGenderId(gender: string | undefined): number | null {
+  if (!gender) {
+    return null;
+  }
+
+  const normalized = gender.trim().toLowerCase();
+  if (normalized === 'male') {
+    return 0;
+  }
+  if (normalized === 'female') {
+    return 1;
+  }
+
+  return null;
+}
+
+function stripHtmlTags(text: string): string {
+  return text.replace(/<\/?[^>]+(>|$)/g, '');
+}
+
+function splitDescriptionItems(chunks: string[]): string[] {
+  return chunks
+    .flatMap(chunk => chunk.split(/\r?\n|;/))
+    .flatMap(chunk => chunk.split(/\s*,\s*/))
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function parseBackgroundDescription(rawDescription?: string): ParsedBackgroundDescription {
+  if (!rawDescription) {
+    return {
+      flavor: '',
+      prerequisites: [],
+      effects: [],
+    };
+  }
+
+  const lines = stripHtmlTags(rawDescription)
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const flavorLines: string[] = [];
+  const prerequisiteChunks: string[] = [];
+  const effectChunks: string[] = [];
+  let activeSection: 'flavor' | 'prerequisites' | 'effects' = 'flavor';
+
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+
+    if (lowerLine.startsWith('prerequisite:') || lowerLine.startsWith('prerequisites:')) {
+      activeSection = 'prerequisites';
+      const separatorIndex = line.indexOf(':');
+      const content = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : '';
+      if (content) {
+        prerequisiteChunks.push(content);
+      }
+      continue;
+    }
+
+    if (lowerLine.startsWith('effects:')) {
+      activeSection = 'effects';
+      const separatorIndex = line.indexOf(':');
+      const content = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : '';
+      if (content) {
+        effectChunks.push(content);
+      }
+      continue;
+    }
+
+    if (activeSection === 'prerequisites') {
+      prerequisiteChunks.push(line);
+      continue;
+    }
+
+    if (activeSection === 'effects') {
+      effectChunks.push(line);
+      continue;
+    }
+
+    flavorLines.push(line);
+  }
+
+  return {
+    flavor: flavorLines.join(' '),
+    prerequisites: splitDescriptionItems(prerequisiteChunks),
+    effects: splitDescriptionItems(effectChunks),
+  };
+}
+
+function BackgroundDescriptionSections({
+  description,
+  missingRequirements,
+}: {
+  description?: string;
+  missingRequirements?: string[];
+}) {
+  const sections = parseBackgroundDescription(description);
+  const hasContent =
+    sections.flavor.length > 0 ||
+    sections.prerequisites.length > 0 ||
+    sections.effects.length > 0 ||
+    (missingRequirements?.length ?? 0) > 0;
+
+  if (!hasContent) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      {sections.flavor && (
+        <div className="text-sm text-[rgb(var(--color-text-secondary))]">
+          {sections.flavor}
+        </div>
+      )}
+
+      {sections.prerequisites.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase font-semibold tracking-wide text-[rgb(var(--color-text-muted))]">
+            Requires
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {sections.prerequisites.map(requirement => (
+              <span
+                key={requirement}
+                className="inline-flex items-center rounded-md border border-[rgb(var(--color-surface-border)/0.65)] bg-[rgb(var(--color-surface-2)/0.8)] px-2 py-1 text-xs text-[rgb(var(--color-text-secondary))]"
+              >
+                {requirement}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sections.effects.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase font-semibold tracking-wide text-[rgb(var(--color-text-muted))]">
+            Effects
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {sections.effects.map(effect => (
+              <span
+                key={effect}
+                className="inline-flex items-center rounded-md border border-[rgb(var(--color-primary)/0.25)] bg-[rgb(var(--color-primary)/0.08)] px-2 py-1 text-xs text-[rgb(var(--color-text-primary))]"
+              >
+                {effect}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {missingRequirements && missingRequirements.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[10px] uppercase font-semibold tracking-wide text-[rgb(var(--color-danger))]">
+            Missing
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {missingRequirements.map(requirement => (
+              <span
+                key={requirement}
+                className="inline-flex items-center rounded-md border border-[rgb(var(--color-danger)/0.35)] bg-[rgb(var(--color-danger)/0.08)] px-2 py-1 text-xs text-[rgb(var(--color-danger))]"
+              >
+                {requirement}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CollapsibleSection({ title, children, defaultOpen = false, badge }: CollapsibleSectionProps) {
@@ -64,7 +269,7 @@ function CollapsibleSection({ title, children, defaultOpen = false, badge }: Col
 
 export default function CharacterOverview({ onNavigate: _onNavigate }: CharacterOverviewProps) {
   const t = useTranslations();
-  const { character, isLoading, error, refreshAll: _refreshAll, updateCharacterPartial } = useCharacterContext();
+  const { character, isLoading, error, refreshAll: _refreshAll, updateCharacterPartial, invalidateSubsystems } = useCharacterContext();
   const combat = useSubsystem('combat');
   const skills = useSubsystem('skills');
   const feats = useSubsystem('feats');
@@ -78,6 +283,15 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [activeOverviewEditor, setActiveOverviewEditor] = useState<null | 'identity' | 'alignment' | 'progress' | 'background'>(null);
+  const [availableGenders, setAvailableGenders] = useState<GenderOption[]>([]);
+  const [availableBackgrounds, setAvailableBackgrounds] = useState<BackgroundOption[]>([]);
+  const [selectedGenderId, setSelectedGenderId] = useState<number | null>(null);
+  const [selectedBackgroundId, setSelectedBackgroundId] = useState<number | null>(null);
+  const [ageInput, setAgeInput] = useState('');
+  const [alignmentDraft, setAlignmentDraft] = useState<AlignmentValues>({ law_chaos: 50, good_evil: 50 });
+  const [experienceInput, setExperienceInput] = useState('');
+  const [goldInput, setGoldInput] = useState('');
   
   // Deity editing state
   const [isDeityModalOpen, setIsDeityModalOpen] = useState(false);
@@ -90,6 +304,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   // Biography editing state
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [biography, setBiography] = useState('');
+
+  const BACKGROUND_DEPENDENT_SUBSYSTEMS = ['feats', 'skills', 'combat', 'abilityScores', 'saves'] as const;
   
 
   
@@ -115,6 +331,65 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       setBiography(character.biography || '');
     }
   }, [character]);
+
+  useEffect(() => {
+    gameData.genders()
+      .then(response => {
+        const normalizedOptions = response.results
+          .filter(option => option.id === 0 || option.id === 1)
+          .map(option => ({
+            id: option.id,
+            name: getGenderLabel(option.id, option.name),
+          }));
+
+        setAvailableGenders(
+          normalizedOptions.length > 0 ? normalizedOptions : DEFAULT_GENDER_OPTIONS
+        );
+      })
+      .catch(error => {
+        console.warn('Failed to load genders for overview editor:', error);
+        setAvailableGenders(DEFAULT_GENDER_OPTIONS);
+      });
+  }, []);
+
+  useEffect(() => {
+    gameData.backgrounds()
+      .then(response => setAvailableBackgrounds(response.results))
+      .catch(error => {
+        console.warn('Failed to load backgrounds for overview editor:', error);
+        setAvailableBackgrounds([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!character) {
+      return;
+    }
+
+    setAgeInput(String(character.age ?? 0));
+    setExperienceInput(String(character.experience ?? 0));
+    setGoldInput(String(character.gold ?? 0));
+    setAlignmentDraft(character.alignment_values ?? { law_chaos: 50, good_evil: 50 });
+  }, [character]);
+
+  useEffect(() => {
+    if (!character || availableGenders.length === 0) {
+      return;
+    }
+
+    setSelectedGenderId(getCharacterGenderId(character.gender));
+  }, [availableGenders, character]);
+
+  useEffect(() => {
+    if (!character) {
+      return;
+    }
+
+    const matchedBackground = availableBackgrounds.find(
+      option => option.name.toLowerCase() === character.background?.name?.toLowerCase()
+    );
+    setSelectedBackgroundId(matchedBackground?.id ?? null);
+  }, [availableBackgrounds, character]);
   
   // Handle name save
   const handleSaveName = async () => {
@@ -154,6 +429,184 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       setLastName(parts.slice(1).join(' ') || '');
     }
     setIsEditingName(false);
+  };
+
+  const openIdentityEditor = () => {
+    if (!character) {
+      return;
+    }
+
+    setAgeInput(String(character.age ?? 0));
+    setSelectedGenderId(getCharacterGenderId(character.gender));
+    setActiveOverviewEditor('identity');
+  };
+
+  const openAlignmentEditor = () => {
+    setAlignmentDraft(character?.alignment_values ?? { law_chaos: 50, good_evil: 50 });
+    setActiveOverviewEditor('alignment');
+  };
+
+  const openProgressEditor = () => {
+    if (!character) {
+      return;
+    }
+
+    setExperienceInput(String(character.experience ?? 0));
+    setGoldInput(String(character.gold ?? 0));
+    setActiveOverviewEditor('progress');
+  };
+
+  const openBackgroundEditor = () => {
+    if (!character) {
+      return;
+    }
+
+    const matchedBackground = availableBackgrounds.find(
+      option => option.name.toLowerCase() === character.background?.name?.toLowerCase()
+    );
+    setSelectedBackgroundId(matchedBackground?.id ?? null);
+    setActiveOverviewEditor('background');
+  };
+
+  const handleCloseOverviewEditor = () => {
+    if (character) {
+      setAgeInput(String(character.age ?? 0));
+      setExperienceInput(String(character.experience ?? 0));
+      setGoldInput(String(character.gold ?? 0));
+      setAlignmentDraft(character.alignment_values ?? { law_chaos: 50, good_evil: 50 });
+      setSelectedGenderId(getCharacterGenderId(character.gender));
+      const matchedBackground = availableBackgrounds.find(
+        option => option.name.toLowerCase() === character.background?.name?.toLowerCase()
+      );
+      setSelectedBackgroundId(matchedBackground?.id ?? null);
+    }
+
+    setActiveOverviewEditor(null);
+  };
+
+  const handleSaveIdentity = async () => {
+    if (!character?.id || isSaving) return;
+
+    const parsedAge = Number.parseInt(ageInput, 10);
+    if (Number.isNaN(parsedAge) || parsedAge < 0) {
+      handleError(new Error('Age must be a non-negative whole number.'));
+      return;
+    }
+
+    const currentGenderId = getCharacterGenderId(character.gender);
+    const genderChanged = selectedGenderId !== null && selectedGenderId !== currentGenderId;
+    const ageChanged = parsedAge !== character.age;
+
+    if (!ageChanged && !genderChanged) {
+      setActiveOverviewEditor(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (ageChanged) {
+        await CharacterAPI.updateCharacter(character.id, { age: parsedAge });
+      }
+
+      if (genderChanged && selectedGenderId !== null) {
+        await CharacterAPI.setGender(character.id, selectedGenderId);
+      }
+
+      const refreshed = await CharacterAPI.getCharacterState(character.id);
+      updateCharacterPartial(refreshed);
+      setActiveOverviewEditor(null);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAlignment = async () => {
+    if (!character?.id || isSaving) return;
+
+    const currentAlignment = character.alignment_values ?? { law_chaos: 50, good_evil: 50 };
+    const alignmentChanged =
+      alignmentDraft.law_chaos !== currentAlignment.law_chaos ||
+      alignmentDraft.good_evil !== currentAlignment.good_evil;
+
+    if (!alignmentChanged) {
+      setActiveOverviewEditor(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const refreshed = await CharacterAPI.updateCharacter(character.id, {
+        alignment: [alignmentDraft.law_chaos, alignmentDraft.good_evil]
+      });
+      updateCharacterPartial(refreshed);
+      setActiveOverviewEditor(null);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveProgress = async () => {
+    if (!character?.id || isSaving) return;
+
+    const parsedExperience = Number.parseInt(experienceInput, 10);
+    const parsedGold = Number.parseInt(goldInput, 10);
+
+    if (Number.isNaN(parsedExperience) || parsedExperience < 0) {
+      handleError(new Error('Experience must be a non-negative whole number.'));
+      return;
+    }
+
+    if (Number.isNaN(parsedGold) || parsedGold < 0) {
+      handleError(new Error('Gold must be a non-negative whole number.'));
+      return;
+    }
+
+    const experienceChanged = parsedExperience !== character.experience;
+    const goldChanged = parsedGold !== character.gold;
+
+    if (!experienceChanged && !goldChanged) {
+      setActiveOverviewEditor(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (experienceChanged) {
+        await CharacterAPI.updateCharacter(character.id, { experience: parsedExperience });
+      }
+
+      if (goldChanged) {
+        await inventoryAPI.updateGold(character.id, parsedGold);
+      }
+
+      const refreshed = await CharacterAPI.getCharacterState(character.id);
+      updateCharacterPartial(refreshed);
+      setActiveOverviewEditor(null);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveBackground = async () => {
+    if (!character?.id || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const refreshed = await CharacterAPI.setBackground(character.id, selectedBackgroundId);
+      updateCharacterPartial(refreshed);
+      await invalidateSubsystems([...BACKGROUND_DEPENDENT_SUBSYSTEMS]);
+      setActiveOverviewEditor(null);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const handleSelectRace = async (raceId: number, raceName: string, subrace: string | null) => {
@@ -374,16 +827,46 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                               </Button>
                             </div>
                          </div>
-                         <div>
-                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Gender & Age</div>
-                            <div className="font-medium text-[rgb(var(--color-text-primary))]">
-                                {display(character.gender)} <span className="text-[rgb(var(--color-text-muted))] text-sm">/ {character.age || '?'} yrs</span>
-                            </div>
-                         </div>
-                         <div>
-                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Alignment</div>
-                             <div className="font-medium text-[rgb(var(--color-text-primary))]">{display(character.alignment)}</div>
-                         </div>
+	                         <div>
+	                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Gender & Age</div>
+	                            <div className="flex items-center gap-2">
+	                              <div className="font-medium text-[rgb(var(--color-text-primary))]">
+	                                  {display(character.gender)} <span className="text-[rgb(var(--color-text-muted))] text-sm">/ {character.age || '?'} yrs</span>
+	                              </div>
+	                              <Button
+	                                type="button"
+	                                onClick={openIdentityEditor}
+	                                variant="ghost"
+	                                size="sm"
+	                                className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+	                                disabled={isSaving}
+	                                title="Edit Gender & Age"
+	                              >
+	                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+	                                </svg>
+	                              </Button>
+	                            </div>
+	                         </div>
+	                         <div>
+	                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Alignment</div>
+	                             <div className="flex items-center gap-2">
+	                               <div className="font-medium text-[rgb(var(--color-text-primary))]">{display(character.alignment)}</div>
+	                               <Button
+	                                  type="button"
+	                                  onClick={openAlignmentEditor}
+	                                  variant="ghost"
+	                                  size="sm"
+	                                  className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+	                                  disabled={isSaving}
+	                                  title="Edit Alignment"
+	                               >
+	                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+	                                 </svg>
+	                               </Button>
+	                             </div>
+	                         </div>
                          <div>
                              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Deity</div>
                                <div className="flex items-center gap-2">
@@ -422,24 +905,239 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                                 {combat.isLoading ? <span className="text-xs">...</span> : display(combat.data?.armor_class?.total || character.armorClass)}
                             </div>
                          </div>
-                         <div>
-                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Experience</div>
-                            <div className="font-medium text-[rgb(var(--color-text-primary))]">{formatNumber(character.experience)}</div>
-                         </div>
-                         <div>
-                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Gold</div>
-                            <div className="font-medium text-[rgb(var(--color-warning))]">{formatNumber(character.gold || 0)}</div>
-                         </div>
-                    </div>
+	                         <div>
+	                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Experience</div>
+	                            <div className="flex items-center gap-2">
+	                              <div className="font-medium text-[rgb(var(--color-text-primary))]">{formatNumber(character.experience)}</div>
+	                              <Button
+	                                type="button"
+	                                onClick={openProgressEditor}
+	                                variant="ghost"
+	                                size="sm"
+	                                className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+	                                disabled={isSaving}
+	                                title="Edit Experience & Gold"
+	                              >
+	                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+	                                </svg>
+	                              </Button>
+	                            </div>
+	                         </div>
+	                         <div>
+	                            <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Gold</div>
+	                            <div className="flex items-center gap-2">
+	                              <div className="font-medium text-[rgb(var(--color-warning))]">{formatNumber(character.gold || 0)}</div>
+	                              <Button
+	                                type="button"
+	                                onClick={openProgressEditor}
+	                                variant="ghost"
+	                                size="sm"
+	                                className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+	                                disabled={isSaving}
+	                                title="Edit Experience & Gold"
+	                              >
+	                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+	                                </svg>
+	                              </Button>
+	                            </div>
+	                         </div>
+	                    </div>
+
+	                    {activeOverviewEditor === 'identity' && (
+	                      <div className="col-span-1 md:col-span-2 rounded-lg border border-[rgb(var(--color-surface-border)/0.6)] bg-[rgb(var(--color-surface-2)/0.65)] p-4 space-y-4">
+	                        <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold">Edit Gender & Age</div>
+	                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+	                          <div className="space-y-2">
+	                            <span className="text-sm text-[rgb(var(--color-text-secondary))]">Gender</span>
+	                            <div className="grid grid-cols-2 gap-2">
+	                              {availableGenders.map(option => {
+	                                const isSelected = selectedGenderId === option.id;
+	                                return (
+	                                  <Button
+	                                    key={option.id}
+	                                    type="button"
+	                                    variant={isSelected ? 'primary' : 'outline'}
+	                                    size="sm"
+	                                    onClick={() => setSelectedGenderId(option.id)}
+	                                    disabled={isSaving}
+	                                    aria-pressed={isSelected}
+	                                    className="justify-center"
+	                                  >
+	                                    {option.name}
+	                                  </Button>
+	                                );
+	                              })}
+	                            </div>
+	                          </div>
+	                          <label className="space-y-2">
+	                            <span className="text-sm text-[rgb(var(--color-text-secondary))]">Age</span>
+	                            <input
+	                              type="number"
+	                              min={0}
+	                              step={1}
+	                              value={ageInput}
+	                              onChange={(e) => setAgeInput(e.target.value)}
+	                              className="w-full rounded-lg border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary))]"
+	                              disabled={isSaving}
+	                            />
+	                          </label>
+	                        </div>
+	                        <div className="flex gap-2">
+	                          <Button type="button" onClick={handleSaveIdentity} disabled={isSaving} variant="primary" size="sm">
+	                            {isSaving ? 'Saving...' : 'Save'}
+	                          </Button>
+	                          <Button type="button" onClick={handleCloseOverviewEditor} disabled={isSaving} variant="outline" size="sm">
+	                            Cancel
+	                          </Button>
+	                        </div>
+	                      </div>
+	                    )}
+
+	                    {activeOverviewEditor === 'alignment' && (
+	                      <div className="col-span-1 md:col-span-2 rounded-lg border border-[rgb(var(--color-surface-border)/0.6)] bg-[rgb(var(--color-surface-2)/0.65)] p-4 space-y-4">
+	                        <div>
+	                          <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold mb-1">Edit Alignment</div>
+	                          <div className="text-sm text-[rgb(var(--color-text-secondary))]">{display(character.alignment)}</div>
+	                        </div>
+	                        <AlignmentGrid
+	                          currentAlignment={alignmentDraft}
+	                          onAlignmentSelect={(law_chaos, good_evil) => setAlignmentDraft({ law_chaos, good_evil })}
+	                        />
+	                        <div className="flex gap-2">
+	                          <Button type="button" onClick={handleSaveAlignment} disabled={isSaving} variant="primary" size="sm">
+	                            {isSaving ? 'Saving...' : 'Save'}
+	                          </Button>
+	                          <Button type="button" onClick={handleCloseOverviewEditor} disabled={isSaving} variant="outline" size="sm">
+	                            Cancel
+	                          </Button>
+	                        </div>
+	                      </div>
+	                    )}
+
+	                    {activeOverviewEditor === 'progress' && (
+	                      <div className="col-span-1 md:col-span-2 rounded-lg border border-[rgb(var(--color-surface-border)/0.6)] bg-[rgb(var(--color-surface-2)/0.65)] p-4 space-y-4">
+	                        <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold">Edit Experience & Gold</div>
+	                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+	                          <label className="space-y-2">
+	                            <span className="text-sm text-[rgb(var(--color-text-secondary))]">Experience</span>
+	                            <input
+	                              type="number"
+	                              min={0}
+	                              step={1}
+	                              value={experienceInput}
+	                              onChange={(e) => setExperienceInput(e.target.value)}
+	                              className="w-full rounded-lg border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary))]"
+	                              disabled={isSaving}
+	                            />
+	                          </label>
+	                          <label className="space-y-2">
+	                            <span className="text-sm text-[rgb(var(--color-text-secondary))]">Gold</span>
+	                            <input
+	                              type="number"
+	                              min={0}
+	                              step={1}
+	                              value={goldInput}
+	                              onChange={(e) => setGoldInput(e.target.value)}
+	                              className="w-full rounded-lg border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-3 py-2 text-sm text-[rgb(var(--color-text-primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--color-primary))]"
+	                              disabled={isSaving}
+	                            />
+	                          </label>
+	                        </div>
+	                        <div className="flex gap-2">
+	                          <Button type="button" onClick={handleSaveProgress} disabled={isSaving} variant="primary" size="sm">
+	                            {isSaving ? 'Saving...' : 'Save'}
+	                          </Button>
+	                          <Button type="button" onClick={handleCloseOverviewEditor} disabled={isSaving} variant="outline" size="sm">
+	                            Cancel
+	                          </Button>
+	                        </div>
+	                      </div>
+	                    )}
+
+	                    {activeOverviewEditor === 'background' && (
+	                      <div className="col-span-1 md:col-span-2 rounded-lg border border-[rgb(var(--color-surface-border)/0.6)] bg-[rgb(var(--color-surface-2)/0.65)] p-4 space-y-4">
+	                        <div>
+	                          <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold mb-1">Edit Background</div>
+	                          <div className="text-sm text-[rgb(var(--color-text-secondary))]">
+	                            {character.background?.name ?? 'None'}
+	                          </div>
+	                        </div>
+	                        <div className="grid gap-2 max-h-72 overflow-y-auto pr-1">
+	                          <button
+	                            type="button"
+	                            onClick={() => setSelectedBackgroundId(null)}
+	                            disabled={isSaving}
+	                            className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+	                              selectedBackgroundId === null
+	                                ? 'border-[rgb(var(--color-primary))] bg-[rgb(var(--color-primary)/0.12)]'
+	                                : 'border-[rgb(var(--color-surface-border)/0.7)] bg-[rgb(var(--color-surface-1))] hover:border-[rgb(var(--color-primary)/0.45)]'
+	                            }`}
+	                          >
+	                            <div className="font-medium text-[rgb(var(--color-text-primary))]">None</div>
+	                            <div className="mt-2 text-sm text-[rgb(var(--color-text-secondary))]">Remove the current background feat.</div>
+	                          </button>
+	                          {availableBackgrounds.map(option => {
+	                            const isSelected = selectedBackgroundId === option.id;
+	                            const isUnavailable = option.can_take === false && !isSelected;
+	                            return (
+	                              <button
+	                                key={option.id}
+	                                type="button"
+	                                onClick={() => setSelectedBackgroundId(option.id)}
+	                                disabled={isSaving || isUnavailable}
+	                                className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+	                                  isSelected
+	                                    ? 'border-[rgb(var(--color-primary))] bg-[rgb(var(--color-primary)/0.12)]'
+	                                    : isUnavailable
+	                                      ? 'border-[rgb(var(--color-surface-border)/0.45)] bg-[rgb(var(--color-surface-1)/0.6)] opacity-60 cursor-not-allowed'
+	                                      : 'border-[rgb(var(--color-surface-border)/0.7)] bg-[rgb(var(--color-surface-1))] hover:border-[rgb(var(--color-primary)/0.45)]'
+	                                }`}
+	                              >
+	                                <div className="font-medium text-[rgb(var(--color-text-primary))]">{option.name}</div>
+	                                <BackgroundDescriptionSections
+	                                  description={option.description}
+	                                  missingRequirements={option.can_take === false ? option.missing_requirements : undefined}
+	                                />
+	                              </button>
+	                            );
+	                          })}
+	                        </div>
+	                        <div className="flex gap-2">
+	                          <Button type="button" onClick={handleSaveBackground} disabled={isSaving} variant="primary" size="sm">
+	                            {isSaving ? 'Saving...' : 'Save'}
+	                          </Button>
+	                          <Button type="button" onClick={handleCloseOverviewEditor} disabled={isSaving} variant="outline" size="sm">
+	                            Cancel
+	                          </Button>
+	                        </div>
+	                      </div>
+	                    )}
 
 
-                    {/* Background */}
-                    <div className="flex flex-col gap-1">
-                        <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold mb-1">
-                             Background
-                        </div>
-                        <div className="flex items-center">
-                            {character.background ? (
+	                    {/* Background */}
+	                    <div className="flex flex-col gap-1">
+	                        <div className="flex items-center gap-2">
+	                          <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase font-semibold mb-1">
+	                               Background
+	                          </div>
+	                          <Button
+	                            type="button"
+	                            onClick={openBackgroundEditor}
+	                            variant="ghost"
+	                            size="sm"
+	                            className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-primary))] p-0 transition-colors"
+	                            disabled={isSaving}
+	                            title="Edit Background"
+	                          >
+	                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+	                            </svg>
+	                          </Button>
+	                        </div>
+	                        <div className="flex items-center">
+	                            {character.background ? (
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-md bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-border)/0.5)] text-[rgb(var(--color-text-primary))] text-sm font-medium">
                                     {character.background.name}
                                 </span>

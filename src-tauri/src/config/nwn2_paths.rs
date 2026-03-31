@@ -13,6 +13,13 @@ pub enum PathSource {
     Config,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathSetupMode {
+    Auto,
+    Manual,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NWN2Paths {
     game_folder: Option<PathBuf>,
@@ -29,6 +36,7 @@ pub struct NWN2Paths {
     custom_override_folders: Vec<PathBuf>,
     custom_module_folders: Vec<PathBuf>,
     custom_hak_folders: Vec<PathBuf>,
+    setup_mode: Option<PathSetupMode>,
 }
 
 impl Default for NWN2Paths {
@@ -51,6 +59,7 @@ impl NWN2Paths {
             custom_override_folders: Vec::new(),
             custom_module_folders: Vec::new(),
             custom_hak_folders: Vec::new(),
+            setup_mode: None,
         };
         paths.load_config();
         info!(
@@ -65,11 +74,15 @@ impl NWN2Paths {
     #[instrument(name = "NWN2Paths::load_config", skip(self))]
     fn load_config(&mut self) {
         debug!("Loading NWN2 path configuration");
+        let mut config_exists = false;
         if let Some(config_path) = Self::get_config_path()
             && config_path.exists()
             && let Ok(content) = std::fs::read_to_string(&config_path)
             && let Ok(config) = serde_json::from_str::<NWN2PathsConfig>(&content)
         {
+            config_exists = true;
+            self.setup_mode = config.setup_mode;
+
             if let Some(game) = config.game_folder {
                 let path = PathBuf::from(&game);
                 if path.exists() {
@@ -109,13 +122,30 @@ impl NWN2Paths {
                 .map(PathBuf::from)
                 .filter(|p| p.exists())
                 .collect();
+
+            if self.setup_mode.is_none()
+                && (self.game_folder.is_some()
+                    || self.documents_folder.is_some()
+                    || self.steam_workshop_folder.is_some()
+                    || !self.custom_override_folders.is_empty()
+                    || !self.custom_module_folders.is_empty()
+                    || !self.custom_hak_folders.is_empty())
+            {
+                self.setup_mode = Some(PathSetupMode::Manual);
+            }
         }
 
+        if config_exists && self.setup_mode.is_none() {
+            self.setup_mode = Some(PathSetupMode::Auto);
+        }
+
+        let mut has_environment_override = false;
         if let Ok(game_folder) = std::env::var("NWN2_GAME_FOLDER") {
             let path = PathBuf::from(&game_folder);
             if path.exists() {
                 self.game_folder = Some(path);
                 self.game_folder_source = PathSource::Environment;
+                has_environment_override = true;
             }
         }
         if let Ok(docs_folder) = std::env::var("NWN2_DOCUMENTS_FOLDER") {
@@ -123,6 +153,7 @@ impl NWN2Paths {
             if path.exists() {
                 self.documents_folder = Some(path);
                 self.documents_folder_source = PathSource::Environment;
+                has_environment_override = true;
             }
         }
         if let Ok(workshop) = std::env::var("NWN2_STEAM_WORKSHOP_FOLDER") {
@@ -130,35 +161,43 @@ impl NWN2Paths {
             if path.exists() {
                 self.steam_workshop_folder = Some(path);
                 self.steam_workshop_folder_source = PathSource::Environment;
+                has_environment_override = true;
             }
         }
 
-        if self.game_folder.is_none() {
-            self.auto_discover();
+        if has_environment_override && self.setup_mode.is_none() {
+            self.setup_mode = Some(PathSetupMode::Auto);
+        }
+
+        if matches!(self.setup_mode, Some(PathSetupMode::Auto)) {
+            self.auto_discover_missing();
         }
     }
 
-    #[instrument(name = "NWN2Paths::auto_discover", skip(self))]
-    fn auto_discover(&mut self) {
+    #[instrument(name = "NWN2Paths::auto_discover_missing", skip(self))]
+    fn auto_discover_missing(&mut self) {
         debug!("Auto-discovering NWN2 installation paths");
         if let Ok(result) = discover_nwn2_paths_rust(None) {
             debug!(
                 "Path discovery found {} candidates",
                 result.nwn2_paths.len()
             );
-            for path in &result.nwn2_paths {
-                let path = PathBuf::from(path);
-                if !path.to_string_lossy().contains("Documents")
-                    && !path.to_string_lossy().contains("My Documents")
-                {
-                    self.game_folder = Some(path);
-                    self.game_folder_source = PathSource::Discovery;
-                    break;
+            if self.game_folder.is_none() {
+                for path in &result.nwn2_paths {
+                    let path = PathBuf::from(path);
+                    if !path.to_string_lossy().contains("Documents")
+                        && !path.to_string_lossy().contains("My Documents")
+                    {
+                        self.game_folder = Some(path);
+                        self.game_folder_source = PathSource::Discovery;
+                        break;
+                    }
                 }
-            }
-            if self.game_folder.is_none() && !result.nwn2_paths.is_empty() {
-                self.game_folder = Some(PathBuf::from(&result.nwn2_paths[0]));
-                self.game_folder_source = PathSource::Discovery;
+
+                if self.game_folder.is_none() && !result.nwn2_paths.is_empty() {
+                    self.game_folder = Some(PathBuf::from(&result.nwn2_paths[0]));
+                    self.game_folder_source = PathSource::Discovery;
+                }
             }
 
             if self.documents_folder.is_none() {
@@ -178,6 +217,9 @@ impl NWN2Paths {
     }
 
     fn get_config_path() -> Option<PathBuf> {
+        if let Ok(override_path) = std::env::var("NWN2EE_SETTINGS_PATH") {
+            return Some(PathBuf::from(override_path));
+        }
         dirs::data_dir().map(|d| d.join("nwn2_save_editor").join("settings.json"))
     }
 
@@ -223,6 +265,7 @@ impl NWN2Paths {
                     .iter()
                     .map(|p| p.to_string_lossy().to_string())
                     .collect(),
+                setup_mode: self.setup_mode,
             };
             let json = serde_json::to_string_pretty(&config)?;
             std::fs::write(config_path, json)?;
@@ -310,14 +353,18 @@ impl NWN2Paths {
         }
         self.game_folder = Some(path);
         self.game_folder_source = PathSource::Config;
+        if self.setup_mode.is_none() {
+            self.setup_mode = Some(PathSetupMode::Manual);
+        }
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub fn reset_game_folder(&mut self) -> Result<(), String> {
         self.game_folder = None;
+        self.setup_mode = Some(PathSetupMode::Auto);
         self.game_folder_source = PathSource::Discovery;
-        self.auto_discover();
+        self.auto_discover_missing();
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -455,12 +502,16 @@ impl NWN2Paths {
         }
         self.documents_folder = Some(path);
         self.documents_folder_source = PathSource::Config;
+        if self.setup_mode.is_none() {
+            self.setup_mode = Some(PathSetupMode::Manual);
+        }
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub fn reset_documents_folder(&mut self) -> Result<(), String> {
         self.documents_folder = None;
+        self.setup_mode = Some(PathSetupMode::Auto);
         self.documents_folder_source = PathSource::Discovery;
         self.documents_folder = Self::find_documents_folder();
         if self.documents_folder.is_some() {
@@ -477,12 +528,16 @@ impl NWN2Paths {
         }
         self.steam_workshop_folder = Some(path);
         self.steam_workshop_folder_source = PathSource::Config;
+        if self.setup_mode.is_none() {
+            self.setup_mode = Some(PathSetupMode::Manual);
+        }
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub fn reset_steam_workshop_folder(&mut self) -> Result<(), String> {
         self.steam_workshop_folder = None;
+        self.setup_mode = Some(PathSetupMode::Auto);
         self.steam_workshop_folder_source = PathSource::Discovery;
         self.steam_workshop_folder = Self::find_steam_workshop();
         if self.steam_workshop_folder.is_some() {
@@ -522,6 +577,55 @@ impl NWN2Paths {
     pub fn steam_workshop_folder_source(&self) -> PathSource {
         self.steam_workshop_folder_source
     }
+
+    pub fn setup_mode(&self) -> Option<PathSetupMode> {
+        self.setup_mode
+    }
+
+    pub fn needs_initial_setup(&self) -> bool {
+        self.setup_mode.is_none()
+    }
+
+    pub fn enable_auto_discovery(&mut self) -> Result<(), String> {
+        self.setup_mode = Some(PathSetupMode::Auto);
+        self.auto_discover_missing();
+        self.save_settings().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn set_manual_setup_mode(&mut self) -> Result<(), String> {
+        self.setup_mode = Some(PathSetupMode::Manual);
+
+        if self.game_folder_source == PathSource::Discovery {
+            self.game_folder = None;
+            self.game_folder_source = PathSource::Config;
+        }
+        if self.documents_folder_source == PathSource::Discovery {
+            self.documents_folder = None;
+            self.documents_folder_source = PathSource::Config;
+        }
+        if self.steam_workshop_folder_source == PathSource::Discovery {
+            self.steam_workshop_folder = None;
+            self.steam_workshop_folder_source = PathSource::Config;
+        }
+
+        if self.game_folder.is_none() && self.game_folder_source != PathSource::Environment {
+            self.game_folder_source = PathSource::Config;
+        }
+        if self.documents_folder.is_none()
+            && self.documents_folder_source != PathSource::Environment
+        {
+            self.documents_folder_source = PathSource::Config;
+        }
+        if self.steam_workshop_folder.is_none()
+            && self.steam_workshop_folder_source != PathSource::Environment
+        {
+            self.steam_workshop_folder_source = PathSource::Config;
+        }
+
+        self.save_settings().map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -535,4 +639,145 @@ struct NWN2PathsConfig {
     custom_module_folders: Vec<String>,
     #[serde(default)]
     custom_hak_folders: Vec<String>,
+    #[serde(default)]
+    setup_mode: Option<PathSetupMode>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use once_cell::sync::Lazy;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    fn with_test_settings_path<T>(temp_dir: &TempDir, test: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env mutex poisoned");
+        let settings_path = temp_dir.path().join("settings.json");
+
+        let old_settings = std::env::var("NWN2EE_SETTINGS_PATH").ok();
+        let old_game = std::env::var("NWN2_GAME_FOLDER").ok();
+        let old_docs = std::env::var("NWN2_DOCUMENTS_FOLDER").ok();
+        let old_workshop = std::env::var("NWN2_STEAM_WORKSHOP_FOLDER").ok();
+
+        unsafe {
+            std::env::set_var("NWN2EE_SETTINGS_PATH", &settings_path);
+            std::env::remove_var("NWN2_GAME_FOLDER");
+            std::env::remove_var("NWN2_DOCUMENTS_FOLDER");
+            std::env::remove_var("NWN2_STEAM_WORKSHOP_FOLDER");
+        }
+
+        let result = test();
+
+        unsafe {
+            if let Some(value) = old_settings {
+                std::env::set_var("NWN2EE_SETTINGS_PATH", value);
+            } else {
+                std::env::remove_var("NWN2EE_SETTINGS_PATH");
+            }
+
+            if let Some(value) = old_game {
+                std::env::set_var("NWN2_GAME_FOLDER", value);
+            } else {
+                std::env::remove_var("NWN2_GAME_FOLDER");
+            }
+
+            if let Some(value) = old_docs {
+                std::env::set_var("NWN2_DOCUMENTS_FOLDER", value);
+            } else {
+                std::env::remove_var("NWN2_DOCUMENTS_FOLDER");
+            }
+
+            if let Some(value) = old_workshop {
+                std::env::set_var("NWN2_STEAM_WORKSHOP_FOLDER", value);
+            } else {
+                std::env::remove_var("NWN2_STEAM_WORKSHOP_FOLDER");
+            }
+        }
+
+        result
+    }
+
+    #[test]
+    fn test_first_run_requires_explicit_setup_choice() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+
+        with_test_settings_path(&temp_dir, || {
+            let paths = NWN2Paths::new();
+            assert!(paths.needs_initial_setup());
+            assert_eq!(paths.setup_mode(), None);
+            assert!(paths.game_folder().is_none());
+            assert!(paths.documents_folder().is_none());
+            assert!(paths.steam_workshop_folder().is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_legacy_config_with_saved_paths_defaults_to_manual_mode() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let game_dir = temp_dir.path().join("game");
+        std::fs::create_dir_all(&game_dir).expect("failed to create game dir");
+
+        let config_path = temp_dir.path().join("settings.json");
+        std::fs::write(
+            &config_path,
+            format!(
+                r#"{{
+  "game_folder": "{}",
+  "documents_folder": null,
+  "steam_workshop_folder": null,
+  "custom_override_folders": [],
+  "custom_module_folders": [],
+  "custom_hak_folders": []
+}}"#,
+                game_dir.to_string_lossy()
+            ),
+        )
+        .expect("failed to write legacy settings");
+
+        with_test_settings_path(&temp_dir, || {
+            let paths = NWN2Paths::new();
+            assert_eq!(paths.setup_mode(), Some(PathSetupMode::Manual));
+            assert_eq!(paths.game_folder(), Some(&game_dir));
+        });
+    }
+
+    #[test]
+    fn test_manual_setup_mode_clears_discovery_paths() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let game_dir = temp_dir.path().join("game");
+        let docs_dir = temp_dir.path().join("docs");
+        let workshop_dir = temp_dir.path().join("workshop");
+        std::fs::create_dir_all(&game_dir).expect("failed to create game dir");
+        std::fs::create_dir_all(&docs_dir).expect("failed to create docs dir");
+        std::fs::create_dir_all(&workshop_dir).expect("failed to create workshop dir");
+
+        with_test_settings_path(&temp_dir, || {
+            let mut paths = NWN2Paths {
+                game_folder: Some(game_dir.clone()),
+                documents_folder: Some(docs_dir.clone()),
+                steam_workshop_folder: Some(workshop_dir.clone()),
+                game_folder_source: PathSource::Discovery,
+                documents_folder_source: PathSource::Discovery,
+                steam_workshop_folder_source: PathSource::Discovery,
+                custom_override_folders: Vec::new(),
+                custom_module_folders: Vec::new(),
+                custom_hak_folders: Vec::new(),
+                setup_mode: Some(PathSetupMode::Auto),
+            };
+
+            paths
+                .set_manual_setup_mode()
+                .expect("failed to switch to manual mode");
+
+            assert_eq!(paths.setup_mode(), Some(PathSetupMode::Manual));
+            assert!(paths.game_folder().is_none());
+            assert!(paths.documents_folder().is_none());
+            assert!(paths.steam_workshop_folder().is_none());
+            assert_eq!(paths.game_folder_source(), PathSource::Config);
+            assert_eq!(paths.documents_folder_source(), PathSource::Config);
+            assert_eq!(paths.steam_workshop_folder_source(), PathSource::Config);
+        });
+    }
 }

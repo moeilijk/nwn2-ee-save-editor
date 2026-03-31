@@ -21,9 +21,12 @@ export interface PathConfig {
   game_folder: PathInfo;
   documents_folder: PathInfo;
   steam_workshop_folder: PathInfo;
+  localvault_folder: PathInfo;
   custom_override_folders: Array<{ path: string; exists: boolean }>;
   custom_module_folders: Array<{ path: string; exists: boolean }>;
   custom_hak_folders: Array<{ path: string; exists: boolean }>;
+  setup_mode: 'auto' | 'manual' | 'unset';
+  needs_initial_setup: boolean;
 }
 
 export class TauriAPI {
@@ -151,4 +154,3 @@ export class TauriAPI {
     return await invoke('close_settings_window');
   }
 }
-

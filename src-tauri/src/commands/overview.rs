@@ -146,7 +146,6 @@ pub async fn apply_point_buy(
     use crate::character::abilities::{
         POINT_BUY_BUDGET, POINT_BUY_MAX, POINT_BUY_MIN, calculate_point_buy_cost,
     };
-    use crate::character::types::AbilityIndex;
 
     super::inventory::ensure_decoder_initialized(&state).await;
 
@@ -183,14 +182,7 @@ pub async fn apply_point_buy(
             .as_mut()
             .ok_or(CommandError::NoCharacterLoaded)?;
 
-        character.clear_ability_level_up_history()?;
-
-        character.set_ability_with_cascades(AbilityIndex::STR, new_scores.str_, &game_data)?;
-        character.set_ability_with_cascades(AbilityIndex::DEX, new_scores.dex, &game_data)?;
-        character.set_ability_with_cascades(AbilityIndex::CON, new_scores.con, &game_data)?;
-        character.set_ability_with_cascades(AbilityIndex::INT, new_scores.int, &game_data)?;
-        character.set_ability_with_cascades(AbilityIndex::WIS, new_scores.wis, &game_data)?;
-        character.set_ability_with_cascades(AbilityIndex::CHA, new_scores.cha, &game_data)?;
+        character.apply_point_buy_scores(new_scores)?;
     }
 
     let session = state.session.read();

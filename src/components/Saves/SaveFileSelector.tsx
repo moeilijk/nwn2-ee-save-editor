@@ -7,17 +7,10 @@ import { SaveThumbnail } from './SaveThumbnail';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { GameLaunchDialog } from '../GameLaunchDialog';
-import { CharacterAPI } from '@/services/characterApi';
+import { CharacterAPI, type SaveCharacterOption } from '@/services/characterApi';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import FileBrowserModal from '@/components/FileBrowser/FileBrowserModal';
-
-interface BackupInfo {
-  path: string;
-  timestamp: string;
-  size_bytes: number;
-  created_at: number;
-}
 
 interface RestoreResult {
   success: boolean;
@@ -50,9 +43,16 @@ export function SaveFileSelector() {
   const [showLaunchDialog, setShowLaunchDialog] = useState(false);
   const [showFileBrowser, setShowFileBrowser] = useState(false);
   const [showBackupBrowser, setShowBackupBrowser] = useState(false);
+  const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [backupPath, setBackupPath] = useState<string>('');
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
+  const [pendingSaveFile, setPendingSaveFile] = useState<SaveFile | null>(null);
+  const [saveCharacters, setSaveCharacters] = useState<SaveCharacterOption[]>([]);
+  const [selectedPlayerIndex, setSelectedPlayerIndex] = useState<number | null>(null);
+  const [resolvingSaveCharacters, setResolvingSaveCharacters] = useState(false);
+
+  const isBusy = importing || characterLoading || resolvingSaveCharacters;
 
   const loadAvailableSaves = useCallback(async (mode: 'sp' | 'mp' = saveMode) => {
     // Rust-only implementation
@@ -80,12 +80,17 @@ export function SaveFileSelector() {
     }
   }, [api, saveMode]);
 
-  const importSaveFile = useCallback(async (saveFile: SaveFile) => {
+  const importSaveFile = useCallback(async (saveFile: SaveFile, playerIndex?: number) => {
     setImporting(true);
     setError(null);
 
     try {
-      await importCharacter(saveFile.path);
+      await importCharacter(saveFile.path, playerIndex);
+      setSelectedFile(saveFile);
+      setSelectedPlayerIndex(playerIndex ?? 0);
+      setPendingSaveFile(null);
+      setSaveCharacters([]);
+      setShowCharacterPicker(false);
       setError(null);
     } catch (err) {
       console.error('Failed to import save:', err);
@@ -98,6 +103,86 @@ export function SaveFileSelector() {
       setImporting(false);
     }
   }, [importCharacter]);
+
+  const confirmCharacterSwitch = useCallback(async (
+    saveFile: SaveFile,
+    nextPlayer?: SaveCharacterOption,
+  ) => {
+    if (!character || !api) {
+      return true;
+    }
+
+    const switchingSave = selectedFile?.path !== saveFile.path;
+    const nextPlayerIndex = nextPlayer?.player_index ?? 0;
+    const switchingPlayer = selectedPlayerIndex !== null && selectedPlayerIndex !== nextPlayerIndex;
+
+    if (!switchingSave && !switchingPlayer) {
+      return true;
+    }
+
+    return api.confirmSaveSwitch(
+      character.name || selectedFile?.name || 'Current Character',
+      nextPlayer?.name || saveFile.name,
+    );
+  }, [api, character, selectedFile, selectedPlayerIndex]);
+
+  const beginImportFlow = useCallback(async (saveFile: SaveFile) => {
+    setResolvingSaveCharacters(true);
+    setError(null);
+
+    try {
+      const players = await CharacterAPI.listSaveCharacters(saveFile.path);
+      if (players.length <= 1) {
+        const selectedPlayer = players[0];
+        const targetPlayerIndex = selectedPlayer?.player_index ?? 0;
+
+        if (selectedFile?.path === saveFile.path && selectedPlayerIndex === targetPlayerIndex && character) {
+          return;
+        }
+
+        const confirmed = await confirmCharacterSwitch(saveFile, selectedPlayer);
+        if (!confirmed) {
+          return;
+        }
+
+        await importSaveFile(saveFile, targetPlayerIndex);
+        return;
+      }
+
+      setPendingSaveFile(saveFile);
+      setSaveCharacters(players);
+      setShowCharacterPicker(true);
+    } catch (err) {
+      console.error('Failed to inspect save characters:', err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to inspect save characters.');
+      }
+    } finally {
+      setResolvingSaveCharacters(false);
+    }
+  }, [character, confirmCharacterSwitch, importSaveFile, selectedFile?.path, selectedPlayerIndex]);
+
+  const handleSelectSaveCharacter = useCallback(async (player: SaveCharacterOption) => {
+    if (!pendingSaveFile) {
+      return;
+    }
+
+    if (selectedFile?.path === pendingSaveFile.path && selectedPlayerIndex === player.player_index && character) {
+      setShowCharacterPicker(false);
+      setPendingSaveFile(null);
+      setSaveCharacters([]);
+      return;
+    }
+
+    const confirmed = await confirmCharacterSwitch(pendingSaveFile, player);
+    if (!confirmed) {
+      return;
+    }
+
+    await importSaveFile(pendingSaveFile, player.player_index);
+  }, [character, confirmCharacterSwitch, importSaveFile, pendingSaveFile, selectedFile?.path, selectedPlayerIndex]);
 
   const _saveCharacter = useCallback(async () => {
     if (!character?.id) {
@@ -167,7 +252,7 @@ export function SaveFileSelector() {
 
     setBackupPath(backupsPath);
     setShowBackupBrowser(true);
-  }, [selectedFile]);
+  }, [saveMode, selectedFile]);
 
   const handleBackupSelect = useCallback(async (file: { path: string; name: string }) => {
     try {
@@ -223,6 +308,13 @@ export function SaveFileSelector() {
     };
   }, [handleOpenBackupsFolder]);
 
+  useEffect(() => {
+    if (!character) {
+      setSelectedFile(null);
+      setSelectedPlayerIndex(null);
+    }
+  }, [character]);
+
   const handleSelectFile = async () => {
     if (!currentPath) {
       try {
@@ -242,24 +334,12 @@ export function SaveFileSelector() {
         path: file.path,
         name: file.name,
       };
-      await importSaveFile(saveFile);
+      await beginImportFlow(saveFile);
     }
   };
 
   const handleImportSelectedSave = async (save: SaveFile) => {
-    if (selectedFile?.path === save.path && character) {
-      return;
-    }
-    
-    if (selectedFile && selectedFile.path !== save.path && character && api) {
-      const confirmed = await api.confirmSaveSwitch(selectedFile.name, save.name);
-      if (!confirmed) {
-        return; 
-      }
-    }
-    
-    setSelectedFile(save);
-    await importSaveFile(save);
+    await beginImportFlow(save);
   };
 
   if (isLoading) {
@@ -288,14 +368,14 @@ export function SaveFileSelector() {
         <button
           className={`flex-1 py-1.5 text-sm font-medium transition-colors ${saveMode === 'sp' ? 'bg-[rgb(var(--color-primary))] text-white' : 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))]'}`}
           onClick={() => handleModeChange('sp')}
-          disabled={importing || characterLoading}
+          disabled={isBusy}
         >
           Single Player
         </button>
         <button
           className={`flex-1 py-1.5 text-sm font-medium transition-colors ${saveMode === 'mp' ? 'bg-[rgb(var(--color-primary))] text-white' : 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-2))]'}`}
           onClick={() => handleModeChange('mp')}
-          disabled={importing || characterLoading}
+          disabled={isBusy}
         >
           Multiplayer
         </button>
@@ -307,9 +387,9 @@ export function SaveFileSelector() {
           size="md"
           className="flex-1 text-sm h-10"
           onClick={handleSelectFile}
-          disabled={importing || characterLoading}
+          disabled={isBusy}
         >
-          {importing ? 'Loading...' : 'Browse...'}
+          {isBusy ? 'Loading...' : 'Browse...'}
         </Button>
       </div>
 
@@ -393,6 +473,80 @@ export function SaveFileSelector() {
         refreshKey={backupRefreshKey}
         onSelectFile={handleBackupSelect}
       />
+
+      {showCharacterPicker && pendingSaveFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-xl border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[rgb(var(--color-surface-border)/0.6)] px-5 py-4">
+              <div>
+                <div className="text-lg font-semibold text-[rgb(var(--color-text-primary))]">
+                  Choose Character
+                </div>
+                <div className="text-sm text-[rgb(var(--color-text-secondary))]">
+                  {pendingSaveFile.name} contains multiple player characters. Pick the one to edit.
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (!importing) {
+                    setShowCharacterPicker(false);
+                    setPendingSaveFile(null);
+                    setSaveCharacters([]);
+                  }
+                }}
+                disabled={importing}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4">
+              {saveCharacters.map(player => {
+                const classSummary = player.classes.length > 0
+                  ? player.classes.map(classEntry => `${classEntry.name} ${classEntry.level}`).join(' / ')
+                  : `Level ${player.total_level}`;
+                const isCurrentSelection =
+                  selectedFile?.path === pendingSaveFile.path &&
+                  selectedPlayerIndex === player.player_index;
+
+                return (
+                  <button
+                    key={`${pendingSaveFile.path}-${player.player_index}`}
+                    type="button"
+                    onClick={() => handleSelectSaveCharacter(player)}
+                    disabled={importing}
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
+                      isCurrentSelection
+                        ? 'border-[rgb(var(--color-primary))] bg-[rgb(var(--color-primary)/0.12)]'
+                        : 'border-[rgb(var(--color-surface-border)/0.7)] bg-[rgb(var(--color-surface-2)/0.6)] hover:border-[rgb(var(--color-primary)/0.45)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="font-medium text-[rgb(var(--color-text-primary))]">
+                          {player.name}
+                        </div>
+                        <div className="mt-1 text-sm text-[rgb(var(--color-text-secondary))]">
+                          {player.race}
+                        </div>
+                        <div className="mt-2 text-sm text-[rgb(var(--color-text-secondary))]">
+                          {classSummary}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-xs text-[rgb(var(--color-text-muted))]">
+                        Slot {player.player_index + 1}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
