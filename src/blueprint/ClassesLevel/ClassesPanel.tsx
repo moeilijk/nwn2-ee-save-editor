@@ -383,23 +383,23 @@ export function ClassesPanel() {
             </thead>
             <tbody>
               {levelHistoryReversed.map(lv => (
-                <tr key={lv.level}>
-                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{lv.level}</td>
+                <tr key={lv.character_level}>
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{lv.character_level}</td>
                   <td style={{ color: T.accent, fontWeight: 500 }}>{lv.class_name}</td>
                   <td style={{ textAlign: 'center', color: T.positive, fontWeight: 500 }}>+{lv.hp_gained}</td>
-                  <td style={{ textAlign: 'center' }}>{lv.skill_points_gained}</td>
+                  <td style={{ textAlign: 'center' }}>{lv.skill_points_remaining}</td>
                   <td style={{ textAlign: 'center', color: lv.ability_increase ? T.accent : T.textMuted, fontWeight: lv.ability_increase ? 600 : 400 }}>
                     {lv.ability_increase ?? '-'}
                   </td>
                   <td>
-                    {lv.skill_ranks && lv.skill_ranks.length > 0
-                      ? lv.skill_ranks.map(s => `Skill ${s.skill_id} +${s.ranks}`).join(', ')
+                    {lv.skills_gained && lv.skills_gained.length > 0
+                      ? lv.skills_gained.map(s => `${s.name} +${s.ranks}`).join(', ')
                       : <span style={{ color: T.textMuted }}>-</span>
                     }
                   </td>
                   <td>
                     {lv.feats_gained && lv.feats_gained.length > 0
-                      ? lv.feats_gained.join(', ')
+                      ? lv.feats_gained.map(f => f.name).join(', ')
                       : <span style={{ color: T.textMuted }}>-</span>
                     }
                   </td>

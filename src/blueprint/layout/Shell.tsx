@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Card, Elevation, Icon } from '@blueprintjs/core';
+import { Card, Elevation, Icon, ProgressBar } from '@blueprintjs/core';
 import { invoke } from '@tauri-apps/api/core';
+import { TauriAPI } from '@/lib/tauri-api';
 import { CharacterProvider, useCharacterContext } from '@/contexts/CharacterContext';
 import { T, PATTERN_BG } from '../theme';
 import '../blueprint.css';
@@ -66,9 +67,58 @@ function ShellContent() {
 }
 
 export default function Shell() {
+  const [initReady, setInitReady] = useState(false);
+  const [initProgress, setInitProgress] = useState({ step: 'initializing', progress: 0, message: 'Starting up...' });
+
   useEffect(() => {
     invoke('show_main_window').catch(() => {});
+    TauriAPI.initializeGameData().catch(err => {
+      console.error('Failed to initialize game data:', err);
+    });
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const status = await TauriAPI.getInitializationStatus();
+        if (cancelled) return;
+        setInitProgress(status);
+        if (status.step === 'ready') {
+          setInitReady(true);
+          return;
+        }
+      } catch {
+        // backend not ready yet
+      }
+      if (!cancelled) setTimeout(poll, 500);
+    };
+    poll();
+
+    return () => { cancelled = true; };
   }, []);
+
+  if (!initReady) {
+    return (
+      <div className="bp-app" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: T.bg,
+        backgroundImage: PATTERN_BG, backgroundSize: '200px 200px',
+      }}>
+        <div style={{ width: 320, textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 16 }}>
+            NWN2 Save Editor
+          </div>
+          <ProgressBar
+            value={initProgress.progress / 100}
+            intent="primary"
+            animate={initProgress.step !== 'ready'}
+            stripes={false}
+            style={{ marginBottom: 8 }}
+          />
+          <div style={{ fontSize: 12, color: T.textMuted }}>{initProgress.message}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <CharacterProvider>

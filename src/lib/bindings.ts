@@ -187,15 +187,27 @@ export interface SkillRankEntry {
   ranks: number;
 }
 
+export interface ResolvedFeatEntry {
+  feat_id: number;
+  name: string;
+}
+
+export interface ResolvedSkillEntry {
+  skill_id: number;
+  name: string;
+  ranks: number;
+}
+
 export interface LevelHistoryEntry {
-  level: number;
-  class_id: ClassId;
+  character_level: number;
+  class_id: number;
   class_name: string;
+  class_level: number;
   hp_gained: number;
-  skill_points_gained: number;
-  skill_ranks: SkillRankEntry[];
-  feats_gained: FeatId[];
-  ability_increase: AbilityIndex | null;
+  skill_points_remaining: number;
+  ability_increase: string | null;
+  feats_gained: ResolvedFeatEntry[];
+  skills_gained: ResolvedSkillEntry[];
 }
 
 export interface SkillPointsSummary {
