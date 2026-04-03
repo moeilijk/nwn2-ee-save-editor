@@ -231,18 +231,16 @@ impl Character {
     }
 
     fn background_row_name(row: &AHashMap<String, Option<String>>, game_data: &GameData) -> String {
-        row
-            .get("label")
+        row.get("label")
             .or_else(|| row.get("Label"))
             .and_then(std::clone::Clone::clone)
             .filter(|value| !value.trim().is_empty())
             .or_else(|| {
-                row
-            .get("name")
-            .or_else(|| row.get("Name"))
-            .and_then(std::clone::Clone::clone)
-            .and_then(|value| value.parse::<i32>().ok())
-            .and_then(|str_ref| game_data.get_string(str_ref))
+                row.get("name")
+                    .or_else(|| row.get("Name"))
+                    .and_then(std::clone::Clone::clone)
+                    .and_then(|value| value.parse::<i32>().ok())
+                    .and_then(|str_ref| game_data.get_string(str_ref))
                     .filter(|value| !value.trim().is_empty())
             })
             .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
@@ -257,7 +255,9 @@ impl Character {
             ["FeatGained", "feat_gained"].as_slice(),
             ["MasterFeatGained", "master_feat_gained"].as_slice(),
         ] {
-            if let Some(feat_id) = Self::background_row_i32(row, keys).filter(|feat_id| *feat_id >= 0) {
+            if let Some(feat_id) =
+                Self::background_row_i32(row, keys).filter(|feat_id| *feat_id >= 0)
+            {
                 let feat_id = FeatId(feat_id);
                 if !feat_ids.contains(&feat_id) {
                     feat_ids.push(feat_id);
@@ -276,23 +276,78 @@ impl Character {
         let mut missing = Vec::new();
 
         let ability_requirements = [
-            ("MINSTR", "Strength", self.get_i32("Str").unwrap_or(10), true),
-            ("MINDEX", "Dexterity", self.get_i32("Dex").unwrap_or(10), true),
-            ("MINCON", "Constitution", self.get_i32("Con").unwrap_or(10), true),
-            ("MININT", "Intelligence", self.get_i32("Int").unwrap_or(10), true),
+            (
+                "MINSTR",
+                "Strength",
+                self.get_i32("Str").unwrap_or(10),
+                true,
+            ),
+            (
+                "MINDEX",
+                "Dexterity",
+                self.get_i32("Dex").unwrap_or(10),
+                true,
+            ),
+            (
+                "MINCON",
+                "Constitution",
+                self.get_i32("Con").unwrap_or(10),
+                true,
+            ),
+            (
+                "MININT",
+                "Intelligence",
+                self.get_i32("Int").unwrap_or(10),
+                true,
+            ),
             ("MINWIS", "Wisdom", self.get_i32("Wis").unwrap_or(10), true),
-            ("MINCHA", "Charisma", self.get_i32("Cha").unwrap_or(10), true),
-            ("MAXSTR", "Strength", self.get_i32("Str").unwrap_or(10), false),
-            ("MAXDEX", "Dexterity", self.get_i32("Dex").unwrap_or(10), false),
-            ("MAXCON", "Constitution", self.get_i32("Con").unwrap_or(10), false),
-            ("MAXINT", "Intelligence", self.get_i32("Int").unwrap_or(10), false),
+            (
+                "MINCHA",
+                "Charisma",
+                self.get_i32("Cha").unwrap_or(10),
+                true,
+            ),
+            (
+                "MAXSTR",
+                "Strength",
+                self.get_i32("Str").unwrap_or(10),
+                false,
+            ),
+            (
+                "MAXDEX",
+                "Dexterity",
+                self.get_i32("Dex").unwrap_or(10),
+                false,
+            ),
+            (
+                "MAXCON",
+                "Constitution",
+                self.get_i32("Con").unwrap_or(10),
+                false,
+            ),
+            (
+                "MAXINT",
+                "Intelligence",
+                self.get_i32("Int").unwrap_or(10),
+                false,
+            ),
             ("MAXWIS", "Wisdom", self.get_i32("Wis").unwrap_or(10), false),
-            ("MAXCHA", "Charisma", self.get_i32("Cha").unwrap_or(10), false),
+            (
+                "MAXCHA",
+                "Charisma",
+                self.get_i32("Cha").unwrap_or(10),
+                false,
+            ),
         ];
 
         for (field, label, score, is_minimum) in ability_requirements {
-            if let Some(value) = Self::background_row_i32(row, &[field]).filter(|value| *value > 0) {
-                let invalid = if is_minimum { score < value } else { score > value };
+            if let Some(value) = Self::background_row_i32(row, &[field]).filter(|value| *value > 0)
+            {
+                let invalid = if is_minimum {
+                    score < value
+                } else {
+                    score > value
+                };
                 if invalid {
                     let requirement = if is_minimum {
                         format!("Requires {label} {value}")
@@ -304,17 +359,25 @@ impl Character {
             }
         }
 
-        if let Some(min_bab) = Self::background_row_i32(row, &["MINATTACKBONUS"]).filter(|value| *value > 0) {
+        if let Some(min_bab) =
+            Self::background_row_i32(row, &["MINATTACKBONUS"]).filter(|value| *value > 0)
+        {
             let bab = self.calculate_bab(game_data);
             if bab < min_bab {
                 missing.push(format!("Requires Base Attack Bonus +{min_bab}"));
             }
         }
 
-        if let Some(required_gender) = Self::background_row_i32(row, &["Gender"]).filter(|value| *value >= 0) {
+        if let Some(required_gender) =
+            Self::background_row_i32(row, &["Gender"]).filter(|value| *value >= 0)
+        {
             let current_gender = self.gender();
             if required_gender <= 1 && current_gender != required_gender {
-                let gender_label = if required_gender == 1 { "Female" } else { "Male" };
+                let gender_label = if required_gender == 1 {
+                    "Female"
+                } else {
+                    "Male"
+                };
                 missing.push(format!("Requires {gender_label}"));
             }
         }
@@ -483,10 +546,7 @@ impl Character {
 
     /// Get the character's background trait if present.
     /// In NWN2, backgrounds are handled via history feats or traits.
-    fn resolved_background_row(
-        &self,
-        game_data: &GameData,
-    ) -> Option<(i32, String)> {
+    fn resolved_background_row(&self, game_data: &GameData) -> Option<(i32, String)> {
         let current_background_feat_ids = self.current_background_feat_ids(game_data);
         if current_background_feat_ids.is_empty() {
             return None;
@@ -535,13 +595,16 @@ impl Character {
             }
         }
 
-        current_background_feat_ids.into_iter().next().map(|feat_id| {
-            (
-                -1,
-                self.background_name_for_feat(feat_id, game_data)
-                    .unwrap_or_else(|| self.get_feat_name(feat_id, game_data)),
-            )
-        })
+        current_background_feat_ids
+            .into_iter()
+            .next()
+            .map(|feat_id| {
+                (
+                    -1,
+                    self.background_name_for_feat(feat_id, game_data)
+                        .unwrap_or_else(|| self.get_feat_name(feat_id, game_data)),
+                )
+            })
     }
 
     pub fn background_id(&self, game_data: &GameData) -> Option<i32> {
@@ -670,23 +733,38 @@ mod tests {
 
         let feat_rows = vec![
             AHashMap::from([
-                ("label".to_string(), Some("OLD_BACKGROUND_DISPLAY".to_string())),
+                (
+                    "label".to_string(),
+                    Some("OLD_BACKGROUND_DISPLAY".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
             AHashMap::from([
-                ("label".to_string(), Some("NEW_BACKGROUND_DISPLAY".to_string())),
+                (
+                    "label".to_string(),
+                    Some("NEW_BACKGROUND_DISPLAY".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
             AHashMap::from([
-                ("label".to_string(), Some("OLD_BACKGROUND_BONUS".to_string())),
+                (
+                    "label".to_string(),
+                    Some("OLD_BACKGROUND_BONUS".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
             AHashMap::from([
-                ("label".to_string(), Some("NEW_BACKGROUND_BONUS".to_string())),
+                (
+                    "label".to_string(),
+                    Some("NEW_BACKGROUND_BONUS".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
             AHashMap::from([
-                ("label".to_string(), Some("NEW_BACKGROUND_MASTER".to_string())),
+                (
+                    "label".to_string(),
+                    Some("NEW_BACKGROUND_MASTER".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
         ];
@@ -823,7 +901,10 @@ mod tests {
         assert!(character.has_feat(FeatId(1)));
         assert!(character.has_feat(FeatId(3)));
         assert!(character.has_feat(FeatId(4)));
-        assert_eq!(character.background(&game_data).as_deref(), Some("New Background"));
+        assert_eq!(
+            character.background(&game_data).as_deref(),
+            Some("New Background")
+        );
     }
 
     #[test]
@@ -893,7 +974,10 @@ mod tests {
                 ("name".to_string(), Some("-1".to_string())),
             ]),
             AHashMap::from([
-                ("label".to_string(), Some("FEAT_BACKGROUND_NATURAL_LEADER".to_string())),
+                (
+                    "label".to_string(),
+                    Some("FEAT_BACKGROUND_NATURAL_LEADER".to_string()),
+                ),
                 ("name".to_string(), Some("-1".to_string())),
             ]),
         ];
@@ -967,7 +1051,11 @@ mod tests {
         );
         game_data.tables.insert(
             "backgrounds".to_string(),
-            create_loaded_table("backgrounds", &["name", "label", "DisplayFeat", "REMOVED"], background_rows),
+            create_loaded_table(
+                "backgrounds",
+                &["name", "label", "DisplayFeat", "REMOVED"],
+                background_rows,
+            ),
         );
 
         let result = character.set_background(Some(0), &game_data);

@@ -361,7 +361,7 @@ export interface AlignmentUpdateResponse {
 export interface RaceDataResponse {
   race_id: number;
   race_name: string;
-  subrace: string;
+  subrace?: string;
   size: number;
   size_name: string;
   base_speed: number;
@@ -1167,21 +1167,44 @@ export class CharacterAPI {
   }
 
   static async getRaceData(characterId: number): Promise<RaceDataResponse> {
-    // Construct race response from commands
-     const id = await invoke<number>('get_race_id');
-     const name = await invoke<string>('get_race_name');
-     const sub = await invoke<string | null>('get_subrace');
-     
-     return {
-         race_id: id,
-         race_name: name,
-         subrace: sub || '',
-         size: 0,
-         size_name: 'Medium',
-         base_speed: 30,
-         ability_modifiers: {},
-         racial_feats: []
-     };
+    void characterId;
+    const data = await invoke<{
+      race_id: number;
+      race_name: string;
+      subrace: string | null;
+      size: number;
+      size_name: string;
+      base_speed: number;
+      ability_modifiers: {
+        Str?: number;
+        Dex?: number;
+        Con?: number;
+        Int?: number;
+        Wis?: number;
+        Cha?: number;
+      };
+      racial_feats: number[];
+      favored_class?: number | null;
+    }>('get_racial_properties');
+
+    return {
+      race_id: data.race_id,
+      race_name: data.race_name,
+      subrace: data.subrace || undefined,
+      size: data.size,
+      size_name: data.size_name,
+      base_speed: data.base_speed,
+      ability_modifiers: {
+        Str: data.ability_modifiers.Str ?? 0,
+        Dex: data.ability_modifiers.Dex ?? 0,
+        Con: data.ability_modifiers.Con ?? 0,
+        Int: data.ability_modifiers.Int ?? 0,
+        Wis: data.ability_modifiers.Wis ?? 0,
+        Cha: data.ability_modifiers.Cha ?? 0,
+      },
+      racial_feats: data.racial_feats,
+      favored_class: data.favored_class ?? undefined,
+    };
   }
 
   static async getClassesState(characterId: number): Promise<any> {

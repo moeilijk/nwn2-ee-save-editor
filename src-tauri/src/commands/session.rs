@@ -1,5 +1,5 @@
-use crate::commands::{CommandError, CommandResult};
 use crate::character::Character;
+use crate::commands::{CommandError, CommandResult};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffParser;
 use crate::services::savegame_handler::SaveGameHandler;
@@ -26,6 +26,13 @@ pub async fn load_character(
                 let game_data = state.game_data.read();
                 let mut session = state.session.write();
                 session.normalize_loaded_skill_points(&game_data);
+                session.sync_primary_mirrors(&game_data).map_err(|e| {
+                    error!("Failed to synchronize save mirrors after load: {e}");
+                    CommandError::FileError {
+                        message: e,
+                        path: Some(file_path.clone()),
+                    }
+                })?;
             }
             tokio::spawn(async move {
                 let state = app.state::<AppState>();
@@ -120,13 +127,25 @@ pub async fn list_save_characters(
         context: Some(file_path.clone()),
     })?;
 
-    let player_entries =
+    let mut player_entries =
         crate::state::session_state::read_playerlist_entries(gff).map_err(|message| {
             CommandError::ParseError {
                 message,
                 context: Some(file_path.clone()),
             }
         })?;
+
+    if let Ok(Some(player_bic_data)) = handler.extract_player_bic()
+        && let Ok(primary_fields) =
+            crate::state::session_state::read_player_bic_entry(player_bic_data)
+        && let Some(primary_index) = crate::state::session_state::resolve_primary_player_index(
+            &player_entries,
+            Some(&primary_fields),
+        )
+        && let Some(primary_entry) = player_entries.get_mut(primary_index)
+    {
+        *primary_entry = primary_fields;
+    }
 
     let game_data = state.game_data.read();
     Ok(player_entries
@@ -194,7 +213,10 @@ pub async fn get_session_info(state: State<'_, AppState>) -> CommandResult<Sessi
             .as_ref()
             .map(|p| p.to_string_lossy().to_string()),
         dirty: session.has_unsaved_changes(),
-        player_index: session.character.as_ref().map(|_| session.selected_player_index),
+        player_index: session
+            .character
+            .as_ref()
+            .map(|_| session.selected_player_index),
     })
 }
 

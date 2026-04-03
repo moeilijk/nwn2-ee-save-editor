@@ -20,8 +20,7 @@ export default function SkillsEditor() {
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [updatingSkills, setUpdatingSkills] = useState<Set<number>>(new Set());
-  const [localSkillOverrides, setLocalSkillOverrides] = useState<Record<number, number>>({})
-  
+  const [localSkillOverrides, setLocalSkillOverrides] = useState<Record<number, number>>({});
 
   const [hoveredSkillId, setHoveredSkillId] = useState<number | null>(null);
   const [clickedButton, setClickedButton] = useState<string | null>(null);
@@ -46,10 +45,6 @@ export default function SkillsEditor() {
   }, [character?.id, skillsData, isLoading, loadSkills]);
 
   useEffect(() => {
-    setFixedTotalBudget(null);
-  }, [character?.id]);
-
-  useEffect(() => {
     setLocalSkillOverrides({});
   }, [skillsData]);
   const applyOverrides = (skillList: SkillSummaryEntry[]) => {
@@ -71,21 +66,9 @@ export default function SkillsEditor() {
   const classSkills = applyOverrides(skillsData?.class_skills?.filter(skill => isValidSkillName(skill.name)) || []);
   const crossClassSkills = applyOverrides(skillsData?.cross_class_skills?.filter(skill => isValidSkillName(skill.name)) || []);
   const skills = [...classSkills, ...crossClassSkills];
-
-  const [fixedTotalBudget, setFixedTotalBudget] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (skillsData) {
-      setFixedTotalBudget(skillsData.total_available);
-    }
-  }, [skillsData]);
-
-  const totalAvailable = fixedTotalBudget ?? skillsData?.total_available ?? 0;
-  const rawSpentPoints = skillsData?.spent_points || 0;
-  const pointsBalance = totalAvailable - rawSpentPoints;
-  const availableSkillPoints = Math.max(0, pointsBalance);
-  const overdrawnSkillPoints = pointsBalance < 0 ? Math.abs(pointsBalance) : 0;
-  const displayedSpentPoints = Math.min(rawSpentPoints, totalAvailable);
+  const availableSkillPoints = skillsData?.available_points ?? 0;
+  const overdrawnSkillPoints = skillsData?.overdrawn_points ?? 0;
+  const displayedSpentPoints = skillsData?.spent_points ?? 0;
 
   const handleUpdateSkillRank = async (skillId: number, newRank: number) => {
     if (!character?.id) return;
@@ -93,7 +76,7 @@ export default function SkillsEditor() {
     const skill = skills.find(s => s.skill_id === skillId);
     if (!skill) return;
 
-    if (newRank < 0) return;
+    if (newRank < 0 || newRank > skill.max_ranks || newRank === skill.ranks) return;
 
     setLocalSkillOverrides(prev => ({
       ...prev,
@@ -143,7 +126,6 @@ export default function SkillsEditor() {
 
     try {
       await hookResetSkills();
-      setFixedTotalBudget(null);
     } catch (err) {
       handleError(err);
     } finally {
@@ -446,7 +428,7 @@ export default function SkillsEditor() {
                         <span className="text-sm text-[rgb(var(--color-text-muted))]">({display(skill.ability)})</span>
                         {!skill.is_class_skill && (
                           <span className="text-xs px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-muted))]">
-                            2pt
+                            {skill.rank_cost}pt
                           </span>
                         )}
                         {skill.armor_check_penalty && (
@@ -482,6 +464,8 @@ export default function SkillsEditor() {
                           type="number"
                           value={skill.ranks}
                           onChange={(e) => handleUpdateSkillRank(skill.skill_id, parseInt(e.target.value) || 0)}
+                          min={0}
+                          max={skill.max_ranks}
                           className="w-12 text-center h-6 text-sm border rounded font-medium bg-[rgb(var(--color-surface-2))] border-[rgb(var(--color-surface-border)/0.6)]"
                           disabled={updatingSkills.has(skill.skill_id)}
                         />
@@ -489,10 +473,14 @@ export default function SkillsEditor() {
                           onClick={() => handleButtonClick('increase', skill.skill_id)}
                           variant="outline"
                           size="sm"
-                          disabled={updatingSkills.has(skill.skill_id) || (!skill.is_class_skill && availableSkillPoints === 1)}
+                          disabled={
+                            updatingSkills.has(skill.skill_id) ||
+                            skill.ranks >= skill.max_ranks ||
+                            availableSkillPoints < skill.rank_cost
+                          }
                           clicked={clickedButton === `increase-${skill.skill_id}`}
                           aria-label={`Increase ${skill.name}`}
-                          title={`Increase ${skill.name} (cost: ${skill.is_class_skill ? '1' : '2'} points)`}
+                          title={`Increase ${skill.name} (cost: ${skill.rank_cost} point${skill.rank_cost === 1 ? '' : 's'}, max: ${skill.max_ranks})`}
                           className="h-6 w-6 p-0 text-xs"
                         >
                           +

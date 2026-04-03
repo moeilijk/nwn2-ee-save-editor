@@ -182,7 +182,34 @@ pub async fn apply_point_buy(
             .as_mut()
             .ok_or(CommandError::NoCharacterLoaded)?;
 
-        character.apply_point_buy_scores(new_scores)?;
+        character.apply_point_buy_scores(new_scores, &game_data)?;
+    }
+
+    let session = state.session.read();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    let decoder = &session.item_property_decoder;
+    Ok(character.get_abilities_state(&game_data, decoder))
+}
+
+#[tauri::command]
+pub async fn update_starting_abilities(
+    state: State<'_, AppState>,
+    scores: crate::character::types::AbilityScores,
+) -> CommandResult<AbilitiesState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
+    let game_data = state.game_data.read();
+
+    {
+        let mut session = state.session.write();
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+
+        character.set_starting_ability_scores(scores, &game_data)?;
     }
 
     let session = state.session.read();

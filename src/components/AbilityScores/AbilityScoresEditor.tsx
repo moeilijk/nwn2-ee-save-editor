@@ -1,23 +1,17 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { useAbilityScores } from '@/hooks/useAbilityScores';
-import { useTranslations } from '@/hooks/useTranslations';
 import CoreAbilityScoresSection from './CoreAbilityScoresSection';
 import VitalStatisticsSection from './VitalStatisticsSection';
 import AlignmentSection from './AlignmentSection';
-import PointBuyModal from './PointBuyModal';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { CharacterStateAPI } from '@/lib/api/character-state';
-import type { AbilitiesState, CombatSummary, SaveSummary, AbilityScores } from '@/lib/bindings';
+import type { AbilitiesState, CombatSummary, SaveSummary } from '@/lib/bindings';
 
 export default function AbilityScoresEditor() {
   const { character } = useCharacterContext();
-  const t = useTranslations();
   const attributesData = useSubsystem('abilityScores');
   const combatData = useSubsystem('combat');
   const savesData = useSubsystem('saves');
-  const [showPointBuy, setShowPointBuy] = useState(false);
 
   useEffect(() => {
     if (character?.id) {
@@ -37,11 +31,12 @@ export default function AbilityScoresEditor() {
     abilityScores,
     stats,
     alignment,
-    updateAbilityScore,
+    updateStartingAbilityScore,
+    updateLevelUpScore,
     updateStats,
     updateAlignment,
     pointSummary,
-    resetAbilityOverrides
+    startingSummary,
   } = useAbilityScores(
     attributesData.data as AbilitiesState | null,
     {
@@ -50,17 +45,13 @@ export default function AbilityScoresEditor() {
     }
   );
   
-  const handleAbilityScoreUpdate = useCallback(async (index: number, newValue: number) => {
-    await updateAbilityScore(index, newValue);
-  }, [updateAbilityScore]);
+  const handleStartingScoreUpdate = useCallback(async (index: number, newValue: number) => {
+    await updateStartingAbilityScore(index, newValue);
+  }, [updateStartingAbilityScore]);
 
-  const handleApplyPointBuy = useCallback(async (scores: AbilityScores) => {
-    await CharacterStateAPI.applyPointBuy(scores);
-    resetAbilityOverrides();
-    await attributesData.load({ force: true });
-  }, [attributesData, resetAbilityOverrides]);
-
-  const abilitiesState = attributesData.data as AbilitiesState | null;
+  const handleLevelUpScoreUpdate = useCallback(async (index: number, newValue: number) => {
+    await updateLevelUpScore(index, newValue);
+  }, [updateLevelUpScore]);
 
   if (attributesData.isLoading) {
     return (
@@ -88,10 +79,26 @@ export default function AbilityScoresEditor() {
 
   return (
     <div className="space-y-6">
-       <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
          <Card variant="default" padding="sm" className="bg-[rgb(var(--color-surface-1))]">
            <div className="text-center">
-             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">{t('abilityScores.pointsSpent')}</div>
+             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">Point Buy Spent</div>
+             <div className="text-2xl font-bold text-[rgb(var(--color-text-primary))]">
+               {startingSummary?.total_spent ?? 0}
+             </div>
+           </div>
+         </Card>
+         <Card variant="default" padding="sm" className="bg-[rgb(var(--color-surface-1))]">
+           <div className="text-center">
+             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">Point Buy Remaining</div>
+             <div className="text-2xl font-bold text-[rgb(var(--color-primary))]">
+               {startingSummary?.available ?? 0}
+             </div>
+           </div>
+         </Card>
+         <Card variant="default" padding="sm" className="bg-[rgb(var(--color-surface-1))]">
+           <div className="text-center">
+             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">Level-Ups Used</div>
              <div className="text-2xl font-bold text-[rgb(var(--color-text-primary))]">
                {pointSummary?.total_spent ?? 0}
              </div>
@@ -99,23 +106,20 @@ export default function AbilityScoresEditor() {
          </Card>
          <Card variant="default" padding="sm" className="bg-[rgb(var(--color-surface-1))]">
            <div className="text-center">
-             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">{t('abilityScores.availablePoints')}</div>
+             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">Level-Ups Available</div>
              <div className="text-2xl font-bold text-[rgb(var(--color-primary))]">
                {pointSummary?.available ?? 0}
              </div>
            </div>
          </Card>
-         <Card variant="default" padding="sm" className="bg-[rgb(var(--color-surface-1))] flex items-center justify-center">
-           <Button variant="secondary" size="sm" onClick={() => setShowPointBuy(true)}>
-             {t('abilityScores.pointBuy.button')}
-           </Button>
-         </Card>
        </div>
 
       <CoreAbilityScoresSection
         abilityScores={abilityScores}
-        onAbilityScoreChange={handleAbilityScoreUpdate}
-        availablePoints={pointSummary?.available}
+        onStartingScoreChange={handleStartingScoreUpdate}
+        onLevelUpScoreChange={handleLevelUpScoreUpdate}
+        availableStartingPoints={startingSummary?.available}
+        availableLevelUpPoints={pointSummary?.available}
       />
 
       <VitalStatisticsSection
@@ -126,13 +130,6 @@ export default function AbilityScoresEditor() {
       <AlignmentSection
         alignment={alignment}
         onAlignmentChange={updateAlignment}
-      />
-
-      <PointBuyModal
-        isOpen={showPointBuy}
-        onClose={() => setShowPointBuy(false)}
-        pointBuyState={abilitiesState?.point_buy ?? null}
-        onApply={handleApplyPointBuy}
       />
     </div>
   );

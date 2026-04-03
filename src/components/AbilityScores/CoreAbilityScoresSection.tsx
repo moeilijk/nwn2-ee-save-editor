@@ -9,8 +9,10 @@ interface AbilityScore {
   shortName: string;
   value: number;
   modifier: number;
-  baseValue?: number;
+  startingValue?: number;
+  levelUpValue?: number;
   breakdown?: {
+    starting: number;
     levelUp: number;
     racial: number;
     equipment: number;
@@ -21,14 +23,18 @@ interface AbilityScore {
 
 interface CoreAbilityScoresSectionProps {
   abilityScores?: AbilityScore[];
-  onAbilityScoreChange?: (index: number, value: number) => void;
-  availablePoints?: number;
+  onStartingScoreChange?: (index: number, value: number) => void;
+  onLevelUpScoreChange?: (index: number, value: number) => void;
+  availableStartingPoints?: number;
+  availableLevelUpPoints?: number;
 }
 
 export default function CoreAbilityScoresSection({ 
   abilityScores: externalAbilityScores,
-  onAbilityScoreChange,
-  availablePoints
+  onStartingScoreChange,
+  onLevelUpScoreChange,
+  availableStartingPoints,
+  availableLevelUpPoints
 }: CoreAbilityScoresSectionProps) {
   const t = useTranslations();
   
@@ -47,11 +53,11 @@ export default function CoreAbilityScoresSection({
     return Math.floor((value - 10) / 2);
   };
 
-  const updateAbilityScore = (index: number, newValue: number) => {
-    const clampedValue = Math.max(3, Math.min(50, newValue));
+  const updateStartingScore = (index: number, newValue: number) => {
+    const clampedValue = Math.max(8, Math.min(18, newValue));
 
-    if (onAbilityScoreChange) {
-      onAbilityScoreChange(index, clampedValue);
+    if (onStartingScoreChange) {
+      onStartingScoreChange(index, clampedValue);
     } else {
       const newAbilityScores = [...internalAbilityScores];
       newAbilityScores[index].value = clampedValue;
@@ -60,19 +66,39 @@ export default function CoreAbilityScoresSection({
     }
   };
 
-  const increaseAbilityScore = (index: number) => {
-    const currentValue = abilityScores[index].baseValue ?? abilityScores[index].value;
-    const newValue = currentValue + 1;
-    if (newValue <= 50) {
-      updateAbilityScore(index, newValue);
+  const updateLevelUpScore = (index: number, newValue: number) => {
+    const clampedValue = Math.max(0, newValue);
+
+    if (onLevelUpScoreChange) {
+      onLevelUpScoreChange(index, clampedValue);
     }
   };
 
-  const decreaseAbilityScore = (index: number) => {
-    const currentValue = abilityScores[index].baseValue ?? abilityScores[index].value;
+  const increaseStartingScore = (index: number) => {
+    const currentValue = abilityScores[index].startingValue ?? abilityScores[index].breakdown?.starting ?? 8;
+    const newValue = currentValue + 1;
+    if (newValue <= 18) {
+      updateStartingScore(index, newValue);
+    }
+  };
+
+  const decreaseStartingScore = (index: number) => {
+    const currentValue = abilityScores[index].startingValue ?? abilityScores[index].breakdown?.starting ?? 8;
     const newValue = currentValue - 1;
-    if (newValue >= 3) {
-      updateAbilityScore(index, newValue);
+    if (newValue >= 8) {
+      updateStartingScore(index, newValue);
+    }
+  };
+
+  const increaseLevelUpScore = (index: number) => {
+    const currentValue = abilityScores[index].levelUpValue ?? abilityScores[index].breakdown?.levelUp ?? 0;
+    updateLevelUpScore(index, currentValue + 1);
+  };
+
+  const decreaseLevelUpScore = (index: number) => {
+    const currentValue = abilityScores[index].levelUpValue ?? abilityScores[index].breakdown?.levelUp ?? 0;
+    if (currentValue > 0) {
+      updateLevelUpScore(index, currentValue - 1);
     }
   };
 
@@ -88,14 +114,17 @@ export default function CoreAbilityScoresSection({
               shortName={attr.shortName}
               value={attr.value}
               modifier={attr.modifier}
-              baseValue={attr.baseValue}
+              startingValue={attr.startingValue}
+              levelUpValue={attr.levelUpValue}
               breakdown={attr.breakdown}
-              onIncrease={() => increaseAbilityScore(index)}
-              onDecrease={() => decreaseAbilityScore(index)}
-              onChange={(value) => updateAbilityScore(index, value)}
-              min={3}
-              max={50}
-              availablePoints={availablePoints}
+              onStartingIncrease={() => increaseStartingScore(index)}
+              onStartingDecrease={() => decreaseStartingScore(index)}
+              onStartingChange={(value) => updateStartingScore(index, value)}
+              onLevelUpIncrease={() => increaseLevelUpScore(index)}
+              onLevelUpDecrease={() => decreaseLevelUpScore(index)}
+              onLevelUpChange={(value) => updateLevelUpScore(index, value)}
+              availableStartingPoints={availableStartingPoints}
+              availableLevelUpPoints={availableLevelUpPoints}
             />
           ))}
         </div>

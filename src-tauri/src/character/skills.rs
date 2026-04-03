@@ -40,6 +40,7 @@ pub struct SkillSummaryEntry {
     pub name: String,
     pub ranks: i32,
     pub max_ranks: i32,
+    pub rank_cost: i32,
     pub modifier: i32,
     pub total: i32,
     pub ability: String,
@@ -51,13 +52,12 @@ pub struct SkillSummaryEntry {
 }
 
 impl Character {
-    /// Check if a skill is a class skill for this character.
-    ///
-    /// Checks all classes the character has and determines if any of them
-    /// has the specified skill as a class skill.
-    pub fn is_class_skill(&self, skill_id: SkillId, game_data: &GameData) -> bool {
-        let class_entries = self.class_entries();
-        if class_entries.is_empty() {
+    pub(crate) fn is_class_skill_for_class_ids(
+        class_ids: &[crate::character::types::ClassId],
+        skill_id: SkillId,
+        game_data: &GameData,
+    ) -> bool {
+        if class_ids.is_empty() {
             return false;
         }
 
@@ -65,8 +65,8 @@ impl Character {
             return false;
         };
 
-        for class_entry in class_entries {
-            let Some(class_data) = classes_table.get_by_id(class_entry.class_id.0) else {
+        for class_id in class_ids {
+            let Some(class_data) = classes_table.get_by_id(class_id.0) else {
                 continue;
             };
 
@@ -85,9 +85,6 @@ impl Character {
                 continue;
             };
 
-            // The table is NOT indexed by SkillId. It is a list of skills.
-            // We must iterate to find the row where SkillIndex == skill_id.
-            let mut found = false;
             for i in 0..class_skills_table.row_count() {
                 if let Some(row) = class_skills_table.get_by_id(i as i32) {
                     let row_skill_idx = row
@@ -104,19 +101,28 @@ impl Character {
                             .is_some_and(|v| v == "1");
 
                         if is_class_skill {
-                            found = true;
+                            return true;
                         }
-                        break; // Found the entry for this skill
+                        break;
                     }
                 }
-            }
-
-            if found {
-                return true;
             }
         }
 
         false
+    }
+
+    /// Check if a skill is a class skill for this character.
+    ///
+    /// Checks all classes the character has and determines if any of them
+    /// has the specified skill as a class skill.
+    pub fn is_class_skill(&self, skill_id: SkillId, game_data: &GameData) -> bool {
+        let class_ids = self
+            .class_entries()
+            .into_iter()
+            .map(|entry| entry.class_id)
+            .collect::<Vec<_>>();
+        Self::is_class_skill_for_class_ids(&class_ids, skill_id, game_data)
     }
 
     /// Get the maximum skill ranks allowed for a skill.
@@ -170,7 +176,7 @@ impl Character {
         let key_ability = self.get_skill_key_ability(skill_id, game_data);
 
         // Base ability modifier
-        let mut ability_mod = self.ability_modifier(key_ability);
+        let mut ability_mod = self.get_effective_ability_modifier(key_ability, game_data);
         let mut item_skill_bonus = 0;
 
         if let Some(decoder) = decoder {
@@ -248,6 +254,7 @@ impl Character {
         };
 
         let feat_skill_bonuses = self.get_feat_skill_bonuses(game_data);
+        let has_able_learner = self.has_feat(super::FeatId(ABLE_LEARNER_FEAT_ID));
 
         let row_count = skills_table.row_count();
         let mut entries = Vec::with_capacity(row_count);
@@ -302,7 +309,7 @@ impl Character {
                     let item_bonus = bonuses.skill_bonuses.get(&skill_key).copied().unwrap_or(0);
                     (ability_mod, item_bonus)
                 } else {
-                    (self.ability_modifier(key_ability), 0)
+                    (self.get_effective_ability_modifier(key_ability, game_data), 0)
                 };
 
             let untrained = skill_data
@@ -331,6 +338,11 @@ impl Character {
             };
 
             let is_class_skill = self.is_class_skill(skill_id, game_data);
+            let rank_cost = if is_class_skill || has_able_learner {
+                1
+            } else {
+                2
+            };
 
             let armor_check_penalty = skill_data
                 .get("ArmorCheckPenalty")
@@ -343,6 +355,7 @@ impl Character {
                 name,
                 ranks,
                 max_ranks,
+                rank_cost,
                 modifier: ability_mod,
                 total,
                 ability: ability_name,
@@ -674,6 +687,12 @@ impl Character {
 
         let current_available = self.get_available_skill_points();
         self.set_available_skill_points(current_available + total_refund);
+        if self
+            .get_list("LvlStatList")
+            .is_some_and(|history| !history.is_empty())
+        {
+            self.normalize_skill_points(game_data);
+        }
 
         total_refund
     }
@@ -919,6 +938,115 @@ mod tests {
     }
 
     #[test]
+    fn test_set_skill_rank_with_cost_deducts_class_skill_points() {
+        let mut character = create_test_character_with_skill_points(4);
+        let game_data = create_mock_game_data_with_skill_tables();
+
+        let net_cost = character
+            .set_skill_rank_with_cost(SkillId(0), 3, &game_data)
+            .expect("Setting class skill ranks should succeed");
+
+        assert_eq!(net_cost, 3);
+        assert_eq!(character.skill_rank(SkillId(0)), 3);
+        assert_eq!(character.get_available_skill_points(), 1);
+    }
+
+    #[test]
+    fn test_set_skill_rank_with_cost_rejects_insufficient_cross_class_points() {
+        let mut character = create_test_character_with_skill_points(1);
+        let game_data = create_mock_game_data_with_skill_tables();
+
+        let result = character.set_skill_rank_with_cost(SkillId(1), 1, &game_data);
+
+        assert!(matches!(
+            result,
+            Err(CharacterError::ValidationFailed { field, .. }) if field == "SkillPoints"
+        ));
+        assert_eq!(character.skill_rank(SkillId(1)), 0);
+        assert_eq!(character.get_available_skill_points(), 1);
+    }
+
+    #[test]
+    fn test_reset_all_skills_refunds_cost_based_points() {
+        let mut character = create_test_character_with_skill_points_and_ranks(0, &[(0, 3), (1, 2)]);
+        let game_data = create_mock_game_data_with_skill_tables();
+
+        let refunded = character.reset_all_skills(&game_data);
+
+        assert_eq!(refunded, 7);
+        assert_eq!(character.skill_rank(SkillId(0)), 0);
+        assert_eq!(character.skill_rank(SkillId(1)), 0);
+        assert_eq!(character.get_available_skill_points(), 7);
+    }
+
+    #[test]
+    fn test_reset_all_skills_normalizes_to_theoretical_budget_for_overdrawn_history() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("Con".to_string(), GffValue::Byte(10));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(0));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(1));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut history_entry = IndexMap::new();
+        history_entry.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        history_entry.insert("SkillPoints".to_string(), GffValue::Short(8));
+        history_entry.insert("SkillList".to_string(), GffValue::ListOwned(vec![]));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![history_entry]),
+        );
+
+        let mut skill_zero = IndexMap::new();
+        skill_zero.insert("Rank".to_string(), GffValue::Byte(4));
+        let mut skill_one = IndexMap::new();
+        skill_one.insert("Rank".to_string(), GffValue::Byte(3));
+        fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(vec![skill_zero, skill_one]),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = create_mock_game_data_with_skill_tables();
+
+        let refunded = character.reset_all_skills(&game_data);
+
+        assert_eq!(refunded, 10);
+        assert_eq!(character.skill_rank(SkillId(0)), 0);
+        assert_eq!(character.skill_rank(SkillId(1)), 0);
+        assert_eq!(character.get_available_skill_points(), 8);
+    }
+
+    #[test]
+    fn test_get_skill_summary_sets_rank_cost_for_cross_class_skills() {
+        let character = create_test_character_with_skill_points(0);
+        let game_data = create_mock_game_data_with_skill_tables();
+
+        let summary = character.get_skill_summary(&game_data, None);
+        let class_skill = summary
+            .iter()
+            .find(|entry| entry.skill_id == SkillId(0))
+            .expect("Class skill should be present");
+        let cross_class_skill = summary
+            .iter()
+            .find(|entry| entry.skill_id == SkillId(1))
+            .expect("Cross-class skill should be present");
+
+        assert_eq!(class_skill.rank_cost, 1);
+        assert_eq!(cross_class_skill.rank_cost, 2);
+    }
+
+    #[test]
     fn test_is_class_skill_no_classes() {
         let fields = IndexMap::new();
         let character = Character::from_gff(fields);
@@ -974,12 +1102,127 @@ mod tests {
         Character::from_gff(fields)
     }
 
+    fn create_test_character_with_skill_points(skill_points: i32) -> Character {
+        create_test_character_with_skill_points_and_ranks(skill_points, &[])
+    }
+
+    fn create_test_character_with_skill_points_and_ranks(
+        skill_points: i32,
+        skill_ranks: &[(usize, u8)],
+    ) -> Character {
+        let mut fields = IndexMap::new();
+
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("Con".to_string(), GffValue::Byte(10));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+        fields.insert(
+            "SkillPoints".to_string(),
+            GffValue::Word(skill_points as u16),
+        );
+
+        let mut class1 = IndexMap::new();
+        class1.insert("Class".to_string(), GffValue::Byte(0));
+        class1.insert("ClassLevel".to_string(), GffValue::Short(5));
+        fields.insert("ClassList".to_string(), GffValue::ListOwned(vec![class1]));
+
+        let highest_skill = skill_ranks
+            .iter()
+            .map(|(skill_id, _)| *skill_id)
+            .max()
+            .unwrap_or(1);
+        let mut skill_list = Vec::with_capacity(highest_skill + 1);
+        for _ in 0..=highest_skill {
+            let mut skill = IndexMap::new();
+            skill.insert("Rank".to_string(), GffValue::Byte(0));
+            skill_list.push(skill);
+        }
+
+        for (skill_id, rank) in skill_ranks {
+            skill_list[*skill_id].insert("Rank".to_string(), GffValue::Byte(*rank));
+        }
+
+        fields.insert("SkillList".to_string(), GffValue::ListOwned(skill_list));
+
+        Character::from_gff(fields)
+    }
+
     fn create_mock_game_data() -> crate::loaders::GameData {
         use crate::loaders::GameData;
         use crate::parsers::tlk::TLKParser;
         use std::sync::Arc;
 
         GameData::new(Arc::new(std::sync::RwLock::new(TLKParser::default())))
+    }
+
+    fn create_mock_game_data_with_skill_tables() -> crate::loaders::GameData {
+        use crate::loaders::{GameData, LoadedTable};
+        use crate::parsers::tda::TDAParser;
+        use crate::parsers::tlk::TLKParser;
+        use std::sync::Arc;
+
+        let mut game_data = GameData::new(Arc::new(std::sync::RwLock::new(TLKParser::default())));
+
+        let mut classes_parser = TDAParser::new();
+        classes_parser.add_column("SkillsTable");
+        let mut class_row = ahash::AHashMap::new();
+        class_row.insert(
+            "SkillsTable".to_string(),
+            Some("cls_testskills".to_string()),
+        );
+        classes_parser.add_row(class_row);
+        game_data.tables.insert(
+            "classes".to_string(),
+            LoadedTable::new("classes.2da".to_string(), Arc::new(classes_parser)),
+        );
+
+        let mut class_skills_parser = TDAParser::new();
+        class_skills_parser.add_column("SkillIndex");
+        class_skills_parser.add_column("ClassSkill");
+
+        let mut class_skill_row = ahash::AHashMap::new();
+        class_skill_row.insert("SkillIndex".to_string(), Some("0".to_string()));
+        class_skill_row.insert("ClassSkill".to_string(), Some("1".to_string()));
+        class_skills_parser.add_row(class_skill_row);
+
+        let mut cross_class_row = ahash::AHashMap::new();
+        cross_class_row.insert("SkillIndex".to_string(), Some("1".to_string()));
+        cross_class_row.insert("ClassSkill".to_string(), Some("0".to_string()));
+        class_skills_parser.add_row(cross_class_row);
+
+        game_data.tables.insert(
+            "cls_testskills".to_string(),
+            LoadedTable::new(
+                "cls_testskills.2da".to_string(),
+                Arc::new(class_skills_parser),
+            ),
+        );
+
+        let mut skills_parser = TDAParser::new();
+        skills_parser.add_column("Label");
+        skills_parser.add_column("KeyAbility");
+        skills_parser.add_column("Untrained");
+
+        let mut skill_row_0 = ahash::AHashMap::new();
+        skill_row_0.insert("Label".to_string(), Some("Appraise".to_string()));
+        skill_row_0.insert("KeyAbility".to_string(), Some("Int".to_string()));
+        skill_row_0.insert("Untrained".to_string(), Some("1".to_string()));
+        skills_parser.add_row(skill_row_0);
+
+        let mut skill_row_1 = ahash::AHashMap::new();
+        skill_row_1.insert("Label".to_string(), Some("Bluff".to_string()));
+        skill_row_1.insert("KeyAbility".to_string(), Some("Cha".to_string()));
+        skill_row_1.insert("Untrained".to_string(), Some("1".to_string()));
+        skills_parser.add_row(skill_row_1);
+
+        game_data.tables.insert(
+            "skills".to_string(),
+            LoadedTable::new("skills.2da".to_string(), Arc::new(skills_parser)),
+        );
+
+        game_data
     }
 
     #[test]

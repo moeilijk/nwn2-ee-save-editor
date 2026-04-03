@@ -1,5 +1,5 @@
 use crate::character::Character;
-use crate::character::types::{AbilityIndex, ClassId, calculate_modifier};
+use crate::character::types::{ClassId, calculate_modifier};
 use crate::loaders::GameData;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -113,7 +113,7 @@ impl Character {
     ) -> CombatSummary {
         let bab = self.calculate_bab(game_data);
         let attack_sequence = self.get_attack_sequence(game_data);
-        let damage_bonuses = self.get_damage_bonuses();
+        let damage_bonuses = self.get_damage_bonuses(game_data);
 
         let armor_class = self.get_armor_class(game_data, decoder);
         let attack_bonuses = self.get_attack_bonuses(game_data, decoder);
@@ -169,8 +169,8 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> ArmorClass {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
         let size_mod = self.size_modifier();
         let natural_ac = self.natural_ac();
         let feat_ac = self.get_feat_ac_bonuses(game_data);
@@ -230,10 +230,9 @@ impl Character {
     ) -> AttackBonuses {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let str_mod = calculate_modifier(effective_abilities.str_ + item_bonuses.str_bonus);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
         let size_mod = self.size_modifier();
 
         let melee_breakdown = AttackBreakdown {
@@ -279,8 +278,8 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> Initiative {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
         let feat_bonus = self.get_feat_initiative_bonus(game_data);
         let misc = self.get_i32("initbonus").unwrap_or(0);
 
@@ -299,8 +298,8 @@ impl Character {
     ) -> CombatManeuverBonus {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let str_mod = calculate_modifier(effective_abilities.str_ + item_bonuses.str_bonus);
         let size_mod = self.size_modifier();
 
         CombatManeuverBonus {

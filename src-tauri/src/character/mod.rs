@@ -49,7 +49,7 @@ pub use inventory::{
     WeightStatus,
 };
 pub use overview::OverviewState;
-pub use race::{SizeCategory, SubraceInfo};
+pub use race::{RacialProperties, SizeCategory, SubraceInfo};
 pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};
 pub use saves::SaveBonuses;
 pub use skills::{ABLE_LEARNER_FEAT_ID, SkillPointsSummary, SkillSummaryEntry};

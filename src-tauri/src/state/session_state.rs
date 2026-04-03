@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{debug, info, instrument, warn};
 
@@ -18,6 +18,7 @@ pub struct SessionState {
     pub savegame_handler: Option<SaveGameHandler>,
     pub character: Option<Character>,
     pub selected_player_index: usize,
+    pub primary_player_index: Option<usize>,
     pub item_property_decoder: ItemPropertyDecoder,
     pub feat_cache: Option<Vec<FeatInfo>>,
 }
@@ -38,16 +39,20 @@ impl SessionState {
             savegame_handler: None,
             character: None,
             selected_player_index: 0,
+            primary_player_index: None,
             item_property_decoder,
             feat_cache: None,
         }
     }
 
     #[instrument(name = "SessionState::load_character", skip(self), fields(file_path = %file_path))]
-    pub fn load_character(&mut self, file_path: &str, player_index: Option<usize>) -> Result<(), String> {
+    pub fn load_character(
+        &mut self,
+        file_path: &str,
+        player_index: Option<usize>,
+    ) -> Result<(), String> {
         info!("Loading character from save file");
         let path = PathBuf::from(file_path);
-        let selected_player_index = player_index.unwrap_or(0);
 
         crate::services::savegame_handler::backup::clear_backup_tracking();
 
@@ -65,14 +70,45 @@ impl SessionState {
         })?;
         info!("playerlist.ifo extracted ({} bytes)", playerlist_data.len());
 
-        debug!("Parsing GFF data");
+        debug!("Parsing playerlist.ifo GFF data");
         let gff = crate::parsers::gff::GffParser::from_bytes(playerlist_data).map_err(|e| {
             warn!("GFF parse error: {}", e);
             format!("GFF Parse error: {e}")
         })?;
-        debug!("GFF parsed successfully");
+        debug!("playerlist.ifo parsed successfully");
 
-        let fields = read_playerlist_entry(gff, selected_player_index)?;
+        let player_entries = read_playerlist_entries(gff)?;
+        let player_bic_fields = match handler.extract_player_bic() {
+            Ok(Some(player_bic_data)) => match read_player_bic_entry(player_bic_data) {
+                Ok(fields) => Some(fields),
+                Err(err) => {
+                    warn!("Failed to parse player.bic while loading save: {}", err);
+                    None
+                }
+            },
+            Ok(None) => None,
+            Err(err) => {
+                warn!("Failed to extract player.bic while loading save: {}", err);
+                None
+            }
+        };
+        let primary_player_index =
+            resolve_primary_player_index(&player_entries, player_bic_fields.as_ref());
+        let selected_player_index = player_index.unwrap_or(primary_player_index.unwrap_or(0));
+
+        let fields = if primary_player_index == Some(selected_player_index) {
+            if let Some(fields) = player_bic_fields {
+                debug!(
+                    "Using player.bic as authoritative source for playerlist slot {}",
+                    selected_player_index
+                );
+                fields
+            } else {
+                read_playerlist_entry_from_entries(&player_entries, selected_player_index)?
+            }
+        } else {
+            read_playerlist_entry_from_entries(&player_entries, selected_player_index)?
+        };
         info!("Character data extracted ({} fields)", fields.len());
 
         debug!("Creating Character from GFF fields");
@@ -87,6 +123,7 @@ impl SessionState {
         self.savegame_handler = Some(handler);
         self.current_file_path = Some(path);
         self.selected_player_index = selected_player_index;
+        self.primary_player_index = primary_player_index;
 
         info!("Character loaded successfully");
         Ok(())
@@ -108,6 +145,68 @@ impl SessionState {
         if !was_modified {
             character.mark_saved();
         }
+    }
+
+    pub fn sync_primary_mirrors(&mut self, game_data: &GameData) -> Result<bool, String> {
+        let Some(primary_player_index) = self.primary_player_index else {
+            return Ok(false);
+        };
+
+        let (playerlist_data, player_bic_data) = {
+            let handler = self
+                .savegame_handler
+                .as_ref()
+                .ok_or("No active save handler".to_string())?;
+            let playerlist_data = handler
+                .extract_player_data()
+                .map_err(|e| format!("Failed to read playerlist.ifo: {e}"))?;
+            let player_bic_data = handler
+                .extract_player_bic()
+                .map_err(|e| format!("Failed to read player.bic: {e}"))?;
+            (playerlist_data, player_bic_data)
+        };
+
+        let authoritative_fields = if self.selected_player_index == primary_player_index {
+            self.character
+                .as_ref()
+                .ok_or("No character loaded".to_string())?
+                .clone_gff()
+        } else if let Some(player_bic_data) = player_bic_data.as_ref() {
+            read_player_bic_entry(player_bic_data.clone())?
+        } else {
+            return Ok(false);
+        };
+
+        let playerlist_bytes = serialize_playerlist_bytes(
+            playerlist_data,
+            &authoritative_fields,
+            primary_player_index,
+        )?;
+        let player_bic_bytes = serialize_player_bic_bytes(player_bic_data, &authoritative_fields)?;
+
+        self.savegame_handler
+            .as_mut()
+            .ok_or("No active save handler".to_string())?
+            .update_player_complete(&playerlist_bytes, Some(&player_bic_bytes), None, None)
+            .map_err(|e| format!("Failed to write synchronized save mirrors: {e}"))?;
+
+        let primary_character = Character::from_gff(authoritative_fields);
+        let save_dir = self.current_save_dir()?;
+        write_playerinfo_for_character(&save_dir, &primary_character, game_data)?;
+        sync_primary_localvault_mirror(&primary_character.clone_gff(), Some(player_bic_bytes))?;
+
+        if self.selected_player_index == primary_player_index
+            && let Some(character) = self.character.as_mut()
+        {
+            character.mark_saved();
+        }
+
+        info!(
+            "Primary save mirrors synchronized for playerlist slot {}",
+            primary_player_index
+        );
+
+        Ok(true)
     }
 
     pub fn save_character(&mut self, game_data: &GameData) -> Result<(), String> {
@@ -139,23 +238,32 @@ impl SessionState {
 
         let playerlist_bytes =
             serialize_playerlist_bytes(playerlist_data, &char_fields, self.selected_player_index)?;
-        let player_bic_bytes = serialize_player_bic_bytes(player_bic_data, &char_fields)?;
+        let update_primary_player_files =
+            self.primary_player_index == Some(self.selected_player_index);
+        let player_bic_bytes = if update_primary_player_files {
+            Some(serialize_player_bic_bytes(player_bic_data, &char_fields)?)
+        } else {
+            None
+        };
 
         self.savegame_handler
             .as_mut()
             .unwrap()
-            .update_player_complete(&playerlist_bytes, &player_bic_bytes, None, None)
+            .update_player_complete(&playerlist_bytes, player_bic_bytes.as_deref(), None, None)
             .map_err(|e| format!("Failed to write save file: {e}"))?;
 
-        self.write_playerinfo(game_data)?;
+        if update_primary_player_files {
+            self.write_playerinfo(game_data)?;
+            sync_primary_localvault_mirror(&char_fields, player_bic_bytes)?;
+        }
 
         // Clear modified flag
         self.character.as_mut().unwrap().mark_saved();
 
         info!(
-            "Character saved successfully (playerlist={} bytes, player.bic={} bytes)",
+            "Character saved successfully (playerlist={} bytes, player.bic_updated={})",
             playerlist_bytes.len(),
-            player_bic_bytes.len()
+            update_primary_player_files
         );
         Ok(())
     }
@@ -165,6 +273,7 @@ impl SessionState {
         self.savegame_handler = None;
         self.current_file_path = None;
         self.selected_player_index = 0;
+        self.primary_player_index = None;
         self.feat_cache = None;
         crate::services::savegame_handler::backup::clear_backup_tracking();
     }
@@ -206,33 +315,7 @@ impl SessionState {
     fn write_playerinfo(&self, game_data: &GameData) -> Result<(), String> {
         let character = self.character.as_ref().ok_or("No character loaded")?;
         let save_dir = self.current_save_dir()?;
-        let playerinfo_path = save_dir.join("playerinfo.bin");
-
-        let mut player_info = if playerinfo_path.exists() {
-            PlayerInfo::load(&playerinfo_path)
-                .map_err(|e| format!("Failed to read playerinfo.bin: {e}"))?
-        } else {
-            PlayerInfo::new()
-        };
-
-        let race_label = character.race_name(game_data);
-        let alignment_name = character.alignment().alignment_string();
-        let classes = character
-            .class_entries()
-            .into_iter()
-            .map(|entry| {
-                let level = entry.level.clamp(0, i32::from(u8::MAX)) as u8;
-                (character.get_class_name(entry.class_id, game_data), level)
-            })
-            .collect::<Vec<_>>();
-
-        player_info.update_from_gff_data(character.gff(), &race_label, &alignment_name, &classes);
-        player_info.data.unknown4 = character.background_id(game_data).unwrap_or(0) as u32;
-        player_info
-            .save(&playerinfo_path)
-            .map_err(|e| format!("Failed to write playerinfo.bin: {e}"))?;
-
-        Ok(())
+        write_playerinfo_for_character(&save_dir, character, game_data)
     }
 
     #[instrument(name = "SessionState::export_to_localvault", skip(self))]
@@ -243,44 +326,140 @@ impl SessionState {
             .ok_or("No active save handler")?;
         let character = self.character.as_ref().ok_or("No character loaded")?;
 
-        let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-        let vault_path = nwn2_paths
-            .localvault()
-            .ok_or("Could not determine NWN2 localvault path")?;
-
-        if !vault_path.exists() {
-            std::fs::create_dir_all(&vault_path)
-                .map_err(|e| format!("Failed to create localvault directory: {e}"))?;
-        }
-
         let player_bic_data = handler
             .extract_player_bic()
             .map_err(|e| format!("Failed to extract player.bic: {e}"))?;
         let current_character_fields = character.clone_gff();
-        let player_bic_data =
-            serialize_player_bic_bytes(player_bic_data, &current_character_fields)?;
-
-        let first_name = character.first_name();
-        let last_name = character.last_name();
-        let filename = if last_name.is_empty() {
-            format!("{first_name}.bic")
-        } else {
-            format!("{first_name} {last_name}.bic")
-        };
-
-        let sanitized_filename = filename
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '.' || *c == '-' || *c == '_')
-            .collect::<String>();
-
-        let dest_path = vault_path.join(&sanitized_filename);
-
-        std::fs::write(&dest_path, &player_bic_data)
-            .map_err(|e| format!("Failed to write character to vault: {e}"))?;
+        let dest_path = sync_primary_localvault_mirror(&current_character_fields, player_bic_data)?;
 
         info!("Exported character to vault: {}", dest_path.display());
 
         Ok(dest_path.to_string_lossy().to_string())
+    }
+}
+
+fn sync_primary_localvault_mirror(
+    character_fields: &IndexMap<String, GffValue<'static>>,
+    source_player_bic: Option<Vec<u8>>,
+) -> Result<PathBuf, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    let vault_path = nwn2_paths
+        .localvault()
+        .ok_or("Could not determine NWN2 localvault path")?;
+    write_localvault_character(&vault_path, character_fields, source_player_bic)
+}
+
+fn write_localvault_character(
+    vault_path: &Path,
+    character_fields: &IndexMap<String, GffValue<'static>>,
+    source_player_bic: Option<Vec<u8>>,
+) -> Result<PathBuf, String> {
+    if !vault_path.exists() {
+        std::fs::create_dir_all(vault_path)
+            .map_err(|e| format!("Failed to create localvault directory: {e}"))?;
+    }
+
+    let standalone_fields = sanitize_localvault_character_fields(character_fields);
+    let player_bic_data = serialize_player_bic_bytes(source_player_bic, &standalone_fields)?;
+
+    let canonical_filename = canonical_localvault_filename(&standalone_fields);
+    let dest_path = vault_path.join(&canonical_filename);
+
+    std::fs::write(&dest_path, &player_bic_data)
+        .map_err(|e| format!("Failed to write character to vault: {e}"))?;
+
+    let legacy_filename = legacy_localvault_filename(&standalone_fields);
+    if legacy_filename != canonical_filename {
+        let legacy_path = vault_path.join(legacy_filename);
+        if legacy_path.exists() {
+            std::fs::remove_file(&legacy_path)
+                .map_err(|e| format!("Failed to remove stale legacy localvault character: {e}"))?;
+        }
+    }
+
+    Ok(dest_path)
+}
+
+fn sanitize_localvault_character_fields(
+    character_fields: &IndexMap<String, GffValue<'static>>,
+) -> IndexMap<String, GffValue<'static>> {
+    let mut standalone_fields = character_fields.clone();
+    standalone_fields.retain(|key, _| !key.starts_with("Mod_") && key != "ObjectId");
+    standalone_fields
+}
+
+fn canonical_localvault_filename(character_fields: &IndexMap<String, GffValue<'static>>) -> String {
+    let first_name = extract_locstring(character_fields, "FirstName").unwrap_or_default();
+    let last_name = extract_locstring(character_fields, "LastName").unwrap_or_default();
+    let mut stem = String::new();
+
+    for ch in first_name.chars().chain(last_name.chars()) {
+        if ch.is_alphanumeric() {
+            stem.extend(ch.to_lowercase());
+        }
+    }
+
+    if stem.is_empty() {
+        "character".to_string()
+    } else {
+        format!("{stem}.bic")
+    }
+}
+
+fn legacy_localvault_filename(character_fields: &IndexMap<String, GffValue<'static>>) -> String {
+    let first_name = extract_locstring(character_fields, "FirstName").unwrap_or_default();
+    let last_name = extract_locstring(character_fields, "LastName").unwrap_or_default();
+    let filename = if last_name.is_empty() {
+        format!("{first_name}.bic")
+    } else {
+        format!("{first_name} {last_name}.bic")
+    };
+
+    filename
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '.' || *c == '-' || *c == '_')
+        .collect::<String>()
+}
+
+fn write_playerinfo_for_character(
+    save_dir: &std::path::Path,
+    character: &Character,
+    game_data: &GameData,
+) -> Result<(), String> {
+    let playerinfo_path = save_dir.join("playerinfo.bin");
+
+    let mut player_info = if playerinfo_path.exists() {
+        PlayerInfo::load(&playerinfo_path)
+            .map_err(|e| format!("Failed to read playerinfo.bin: {e}"))?
+    } else {
+        PlayerInfo::new()
+    };
+
+    let race_label = character.race_name(game_data);
+    let alignment_name = character.alignment().alignment_string();
+    let classes = character
+        .class_entries()
+        .into_iter()
+        .map(|entry| {
+            let level = entry.level.clamp(0, i32::from(u8::MAX)) as u8;
+            (character.get_class_name(entry.class_id, game_data), level)
+        })
+        .collect::<Vec<_>>();
+
+    player_info.update_from_gff_data(character.gff(), &race_label, &alignment_name, &classes);
+    player_info.data.unknown4 = character.background_id(game_data).unwrap_or(0) as u32;
+    player_info
+        .save(&playerinfo_path)
+        .map_err(|e| format!("Failed to write playerinfo.bin: {e}"))?;
+
+    Ok(())
+}
+
+fn extract_locstring(fields: &IndexMap<String, GffValue<'_>>, key: &str) -> Option<String> {
+    match fields.get(key)? {
+        GffValue::LocString(loc) => loc.substrings.first().map(|s| s.string.to_string()),
+        GffValue::String(value) | GffValue::ResRef(value) => Some(value.to_string()),
+        _ => None,
     }
 }
 
@@ -367,24 +546,90 @@ pub(crate) fn read_playerlist_entries(
             return Err("Mod_PlayerList is empty".to_string());
         }
 
-        Ok(lazy_structs.iter().map(|entry| entry.force_load()).collect())
+        Ok(lazy_structs
+            .iter()
+            .map(|entry| entry.force_load())
+            .collect())
     } else {
         warn!("Mod_PlayerList is not a list");
         Err("Mod_PlayerList is not a list".to_string())
     }
 }
 
-pub(crate) fn read_playerlist_entry(
-    gff: Arc<GffParser>,
+fn read_playerlist_entry_from_entries(
+    entries: &[IndexMap<String, GffValue<'static>>],
     player_index: usize,
 ) -> Result<IndexMap<String, GffValue<'static>>, String> {
-    let entries = read_playerlist_entries(gff)?;
     entries.get(player_index).cloned().ok_or_else(|| {
         format!(
             "Selected player index {player_index} is out of range for Mod_PlayerList with {} entries",
             entries.len()
         )
     })
+}
+
+pub(crate) fn read_player_bic_entry(
+    player_bic_data: Vec<u8>,
+) -> Result<IndexMap<String, GffValue<'static>>, String> {
+    let gff = GffParser::from_bytes(player_bic_data).map_err(|e| {
+        warn!("Failed to parse player.bic: {}", e);
+        format!("Failed to parse player.bic: {e}")
+    })?;
+
+    let root_fields = gff.read_struct_fields(0).map_err(|e| {
+        warn!("Failed to read player.bic root struct: {}", e);
+        format!("Failed to read player.bic root struct: {e}")
+    })?;
+
+    Ok(root_fields
+        .into_iter()
+        .map(|(key, value)| (key, value.force_owned()))
+        .collect())
+}
+
+pub(crate) fn resolve_primary_player_index(
+    player_entries: &[IndexMap<String, GffValue<'static>>],
+    player_bic_fields: Option<&IndexMap<String, GffValue<'static>>>,
+) -> Option<usize> {
+    if player_entries.len() == 1 {
+        return Some(0);
+    }
+
+    let Some(player_bic_fields) = player_bic_fields else {
+        return None;
+    };
+
+    let player_bic_name = Character::from_gff(player_bic_fields.clone()).full_name();
+    if player_bic_name.trim().is_empty() {
+        warn!("player.bic has no character name; refusing to infer a primary multiplayer slot");
+        return None;
+    }
+
+    let matching_indices = player_entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, fields)| {
+            (Character::from_gff(fields.clone()).full_name() == player_bic_name).then_some(index)
+        })
+        .collect::<Vec<_>>();
+
+    match matching_indices.as_slice() {
+        [index] => Some(*index),
+        [] => {
+            warn!(
+                "player.bic name '{}' did not match any Mod_PlayerList entry; refusing to infer a primary multiplayer slot",
+                player_bic_name
+            );
+            None
+        }
+        _ => {
+            warn!(
+                "player.bic name '{}' matched multiple Mod_PlayerList entries; refusing to infer a primary multiplayer slot",
+                player_bic_name
+            );
+            None
+        }
+    }
 }
 
 fn serialize_player_bic_bytes(
@@ -409,8 +654,10 @@ fn serialize_player_bic_bytes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use once_cell::sync::Lazy;
     use std::fs::File;
     use std::path::Path;
+    use std::sync::Mutex;
     use std::sync::Arc as StdArc;
     use tempfile::TempDir;
     use zip::CompressionMethod;
@@ -419,17 +666,63 @@ mod tests {
 
     use crate::config::NWN2Paths;
     use crate::loaders::{GameData, LoadedTable};
-    use crate::parsers::gff::GffValue;
+    use crate::parsers::gff::{GffValue, LocalizedString, LocalizedSubstring};
     use crate::parsers::tda::TDAParser;
     use crate::parsers::tlk::TLKParser;
     use crate::services::resource_manager::ResourceManager;
     use crate::services::{PlayerClassEntry, PlayerInfoData};
+
+    static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
     fn create_test_character_fields(age: i32, xp: u32) -> IndexMap<String, GffValue<'static>> {
         let mut fields = IndexMap::new();
         fields.insert("Age".to_string(), GffValue::Int(age));
         fields.insert("Experience".to_string(), GffValue::Dword(xp));
         fields.insert("ClassList".to_string(), GffValue::ListOwned(vec![]));
+        fields
+    }
+
+    fn create_test_locstring(value: &str) -> GffValue<'static> {
+        GffValue::LocString(LocalizedString {
+            string_ref: -1,
+            substrings: vec![LocalizedSubstring {
+                string: value.to_string().into(),
+                language: 0,
+                gender: 0,
+            }],
+        })
+    }
+
+    fn create_named_test_character_fields(
+        first_name: &str,
+        last_name: &str,
+        age: i32,
+        xp: u32,
+    ) -> IndexMap<String, GffValue<'static>> {
+        let mut fields = create_test_character_fields(age, xp);
+        fields.insert("FirstName".to_string(), create_test_locstring(first_name));
+        fields.insert("LastName".to_string(), create_test_locstring(last_name));
+        fields
+    }
+
+    fn create_named_test_character_fields_with_classes(
+        first_name: &str,
+        last_name: &str,
+        age: i32,
+        xp: u32,
+        classes: &[(u8, i16)],
+    ) -> IndexMap<String, GffValue<'static>> {
+        let mut fields = create_named_test_character_fields(first_name, last_name, age, xp);
+        let class_list = classes
+            .iter()
+            .map(|(class_id, class_level)| {
+                let mut class_entry = IndexMap::new();
+                class_entry.insert("Class".to_string(), GffValue::Byte(*class_id));
+                class_entry.insert("ClassLevel".to_string(), GffValue::Short(*class_level));
+                class_entry
+            })
+            .collect();
+        fields.insert("ClassList".to_string(), GffValue::ListOwned(class_list));
         fields
     }
 
@@ -669,13 +962,58 @@ mod tests {
             .unknown4
     }
 
+    fn read_playerinfo_name(save_dir: &Path) -> String {
+        PlayerInfo::load(save_dir.join("playerinfo.bin"))
+            .expect("Failed to load playerinfo.bin")
+            .data
+            .display_name()
+    }
+
+    fn read_gff_root_fields(path: &Path) -> IndexMap<String, GffValue<'static>> {
+        let data = std::fs::read(path).expect("Failed to read GFF file");
+        let parser = GffParser::from_bytes(data).expect("Failed to parse GFF file");
+        parser
+            .read_struct_fields(0)
+            .expect("Failed to read GFF root")
+            .into_iter()
+            .map(|(k, v)| (k, v.force_owned()))
+            .collect()
+    }
+
+    fn with_temp_documents_folder<T>(f: impl FnOnce(&Path) -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("Failed to lock env mutex");
+        let temp_dir = TempDir::new().expect("Failed to create temp docs dir");
+        let docs_dir = temp_dir.path().join("Neverwinter Nights 2");
+        std::fs::create_dir_all(docs_dir.join("localvault")).expect("Failed to create localvault");
+
+        let old_documents = std::env::var_os("NWN2_DOCUMENTS_FOLDER");
+        let old_settings = std::env::var_os("NWN2EE_SETTINGS_PATH");
+        unsafe {
+            std::env::set_var("NWN2_DOCUMENTS_FOLDER", &docs_dir);
+            std::env::remove_var("NWN2EE_SETTINGS_PATH");
+        }
+
+        let result = f(&docs_dir);
+
+        match old_documents {
+            Some(value) => unsafe { std::env::set_var("NWN2_DOCUMENTS_FOLDER", value) },
+            None => unsafe { std::env::remove_var("NWN2_DOCUMENTS_FOLDER") },
+        }
+        match old_settings {
+            Some(value) => unsafe { std::env::set_var("NWN2EE_SETTINGS_PATH", value) },
+            None => unsafe { std::env::remove_var("NWN2EE_SETTINGS_PATH") },
+        }
+
+        result
+    }
+
     #[test]
     fn test_save_character_updates_playerlist_and_player_bic() {
-        let player_one = create_test_character_fields(20, 1000);
-        let player_two = create_test_character_fields(33, 2000);
+        let player_one = create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
+        let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
         let (_temp_dir, save_dir) = create_test_save(
             vec![player_one, player_two],
-            create_test_character_fields(20, 1000),
+            create_named_test_character_fields("Garrick", "Ironheart", 20, 1000),
             None,
         );
         let game_data = create_empty_game_data();
@@ -721,12 +1059,257 @@ mod tests {
     }
 
     #[test]
-    fn test_load_and_save_character_can_target_second_playerlist_entry() {
-        let player_one = create_test_character_fields(20, 1000);
-        let player_two = create_test_character_fields(33, 2000);
+    fn test_save_character_syncs_primary_localvault_with_canonical_filename() {
+        with_temp_documents_folder(|docs_dir| {
+            let player_one = create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
+            let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
+            let (_temp_dir, save_dir) = create_test_save(
+                vec![player_one, player_two],
+                create_named_test_character_fields("Garrick", "Ironheart", 20, 1000),
+                None,
+            );
+            let game_data = create_empty_game_data();
+
+            let legacy_path = docs_dir.join("localvault").join("Garrick Ironheart.bic");
+            std::fs::write(&legacy_path, b"legacy").expect("Failed to seed legacy localvault file");
+
+            let mut session = create_session_state();
+            session
+                .load_character(
+                    save_dir
+                        .to_str()
+                        .expect("Test save path should be valid UTF-8"),
+                    None,
+                )
+                .expect("Failed to load test save");
+
+            session
+                .character_mut()
+                .expect("Character should be loaded")
+                .set_age(42)
+                .expect("Failed to update age");
+            session
+                .save_character(&game_data)
+                .expect("Failed to save test character");
+
+            let canonical_path = docs_dir.join("localvault").join("garrickironheart.bic");
+            assert!(canonical_path.exists(), "canonical localvault BIC should be written");
+            assert!(
+                !legacy_path.exists(),
+                "legacy spaced localvault filename should be removed"
+            );
+
+            let localvault_fields = read_gff_root_fields(&canonical_path);
+            match localvault_fields.get("Age") {
+                Some(GffValue::Int(age)) => assert_eq!(*age, 42),
+                other => panic!("Unexpected localvault Age value: {other:?}"),
+            }
+            assert!(!localvault_fields.contains_key("Mod_IsPrimaryPlr"));
+            assert!(!localvault_fields.contains_key("ObjectId"));
+            assert!(!localvault_fields.contains_key("Mod_LastModId"));
+        });
+    }
+
+    #[test]
+    fn test_export_to_localvault_strips_save_only_fields() {
+        with_temp_documents_folder(|docs_dir| {
+            let mut player_fields =
+                create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
+            player_fields.insert("Mod_IsPrimaryPlr".to_string(), GffValue::Byte(1));
+            player_fields.insert("ObjectId".to_string(), GffValue::Dword(2147483647));
+            player_fields.insert(
+                "Mod_LastModId".to_string(),
+                GffValue::Void(vec![1, 2, 3, 4].into()),
+            );
+            player_fields.insert("AreaId".to_string(), GffValue::Dword(1250));
+
+            let (_temp_dir, save_dir) =
+                create_test_save(vec![player_fields.clone()], player_fields.clone(), None);
+
+            let mut session = create_session_state();
+            session
+                .load_character(
+                    save_dir
+                        .to_str()
+                        .expect("Test save path should be valid UTF-8"),
+                    None,
+                )
+                .expect("Failed to load test save");
+
+            let exported_path = session
+                .export_to_localvault()
+                .expect("Failed to export to localvault");
+            let exported_path = PathBuf::from(exported_path);
+
+            assert_eq!(
+                exported_path,
+                docs_dir.join("localvault").join("garrickironheart.bic")
+            );
+
+            let localvault_fields = read_gff_root_fields(&exported_path);
+            assert!(!localvault_fields.contains_key("Mod_IsPrimaryPlr"));
+            assert!(!localvault_fields.contains_key("ObjectId"));
+            assert!(!localvault_fields.contains_key("Mod_LastModId"));
+            match localvault_fields.get("AreaId") {
+                Some(GffValue::Dword(area_id)) => assert_eq!(*area_id, 1250),
+                other => panic!("Unexpected AreaId value: {other:?}"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_load_character_prefers_player_bic_for_primary_player() {
+        let playerlist_entry = create_test_character_fields(20, 1000);
+        let player_bic_fields = create_test_character_fields(42, 1000);
+        let (_temp_dir, save_dir) =
+            create_test_save(vec![playerlist_entry], player_bic_fields, None);
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                None,
+            )
+            .expect("Failed to load test save");
+
+        assert_eq!(
+            session
+                .character()
+                .expect("Character should be loaded")
+                .age(),
+            42
+        );
+    }
+
+    #[test]
+    fn test_load_character_prefers_player_bic_background_for_primary_player() {
+        let mut playerlist_entry = create_test_character_fields_with_classes(20, 1000, &[(3, 1)]);
+        playerlist_entry.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![{
+                let mut feat = IndexMap::new();
+                feat.insert("Feat".to_string(), GffValue::Word(1724));
+                feat
+            }]),
+        );
+
+        let mut player_bic_fields = create_test_character_fields_with_classes(20, 1000, &[(3, 1)]);
+        player_bic_fields.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![{
+                let mut feat = IndexMap::new();
+                feat.insert("Feat".to_string(), GffValue::Word(1717));
+                feat
+            }]),
+        );
+
+        let (_temp_dir, save_dir) =
+            create_test_save(vec![playerlist_entry], player_bic_fields, None);
+        let game_data = create_game_data_with_classes_and_backgrounds();
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                None,
+            )
+            .expect("Failed to load test save");
+
+        let character = session.character().expect("Character should be loaded");
+        assert_eq!(character.background(&game_data).as_deref(), Some("Bully"));
+        assert!(character.has_feat(crate::character::FeatId(1717)));
+        assert!(!character.has_feat(crate::character::FeatId(1724)));
+    }
+
+    #[test]
+    fn test_load_character_prefers_player_bic_skills_for_primary_player() {
+        let mut playerlist_entry = create_test_character_fields_with_classes(20, 1000, &[(3, 1)]);
+        playerlist_entry.insert("SkillPoints".to_string(), GffValue::Word(9));
+        let mut playerlist_skills = zero_rank_skill_list(5);
+        playerlist_skills[0].insert("Rank".to_string(), GffValue::Byte(1));
+        playerlist_entry.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(playerlist_skills),
+        );
+
+        let mut player_bic_fields = create_test_character_fields_with_classes(20, 1000, &[(3, 1)]);
+        player_bic_fields.insert("SkillPoints".to_string(), GffValue::Word(2));
+        let mut player_bic_skills = zero_rank_skill_list(5);
+        player_bic_skills[0].insert("Rank".to_string(), GffValue::Byte(4));
+        player_bic_skills[3].insert("Rank".to_string(), GffValue::Byte(2));
+        player_bic_fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(player_bic_skills),
+        );
+
+        let (_temp_dir, save_dir) =
+            create_test_save(vec![playerlist_entry], player_bic_fields, None);
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                None,
+            )
+            .expect("Failed to load test save");
+
+        let character = session.character().expect("Character should be loaded");
+        assert_eq!(character.skill_rank(crate::character::SkillId(0)), 4);
+        assert_eq!(character.skill_rank(crate::character::SkillId(3)), 2);
+        assert_eq!(character.get_available_skill_points(), 2);
+    }
+
+    #[test]
+    fn test_load_character_defaults_to_matched_primary_multiplayer_slot() {
+        let player_one = create_named_test_character_fields("Craven", "Tyrell", 20, 1000);
+        let player_two = create_named_test_character_fields("Garrick", "Ironheart", 33, 2000);
         let (_temp_dir, save_dir) = create_test_save(
             vec![player_one, player_two],
-            create_test_character_fields(20, 1000),
+            create_named_test_character_fields("Garrick", "Ironheart", 42, 2000),
+            None,
+        );
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                None,
+            )
+            .expect("Failed to load matched primary player");
+
+        assert_eq!(session.selected_player_index, 1);
+        assert_eq!(session.primary_player_index, Some(1));
+        assert_eq!(
+            session
+                .character()
+                .expect("Character should be loaded")
+                .full_name(),
+            "Garrick Ironheart"
+        );
+        assert_eq!(
+            session
+                .character()
+                .expect("Character should be loaded")
+                .age(),
+            42
+        );
+    }
+
+    #[test]
+    fn test_load_and_save_character_can_target_second_playerlist_entry() {
+        let player_one = create_named_test_character_fields("Craven", "Tyrell", 20, 1000);
+        let player_two = create_named_test_character_fields("Garrick", "Ironheart", 33, 2000);
+        let (_temp_dir, save_dir) = create_test_save(
+            vec![player_one, player_two],
+            create_named_test_character_fields("Garrick", "Ironheart", 42, 2000),
             None,
         );
         let game_data = create_empty_game_data();
@@ -746,7 +1329,7 @@ mod tests {
                 .character()
                 .expect("Character should be loaded")
                 .age(),
-            33
+            42
         );
 
         session
@@ -760,6 +1343,126 @@ mod tests {
 
         assert_eq!(read_playerlist_entry_ages(&save_dir), vec![20, 55]);
         assert_eq!(read_player_bic_age(&save_dir), 55);
+    }
+
+    #[test]
+    fn test_save_character_does_not_update_player_bic_for_other_multiplayer_player() {
+        let player_one = create_named_test_character_fields("Craven", "Tyrell", 20, 1000);
+        let player_two = create_named_test_character_fields("Garrick", "Ironheart", 33, 2000);
+
+        let mut playerinfo = PlayerInfoData::new();
+        playerinfo.first_name = "Garrick".to_string();
+        playerinfo.name = "Garrick Ironheart".to_string();
+
+        let (_temp_dir, save_dir) = create_test_save(
+            vec![player_one, player_two],
+            create_named_test_character_fields("Garrick", "Ironheart", 33, 2000),
+            Some(playerinfo),
+        );
+        let game_data = create_empty_game_data();
+        let original_playerinfo =
+            std::fs::read(save_dir.join("playerinfo.bin")).expect("Failed to read playerinfo.bin");
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                Some(0),
+            )
+            .expect("Failed to load first player from test save");
+
+        assert_eq!(
+            session
+                .character()
+                .expect("Character should be loaded")
+                .full_name(),
+            "Craven Tyrell"
+        );
+
+        session
+            .character_mut()
+            .expect("Character should be loaded")
+            .set_age(55)
+            .expect("Failed to update age");
+        session
+            .save_character(&game_data)
+            .expect("Failed to save selected player");
+
+        assert_eq!(read_playerlist_entry_ages(&save_dir), vec![55, 33]);
+        assert_eq!(read_player_bic_age(&save_dir), 33);
+        assert_eq!(
+            std::fs::read(save_dir.join("playerinfo.bin")).expect("Failed to read playerinfo.bin"),
+            original_playerinfo
+        );
+    }
+
+    #[test]
+    fn test_sync_primary_mirrors_repairs_playerlist_and_playerinfo_from_player_bic() {
+        let player_one = create_named_test_character_fields("Craven", "Tyrell", 20, 1000);
+        let player_two = create_named_test_character_fields_with_classes(
+            "Garrick",
+            "Ironheart",
+            33,
+            2000,
+            &[(0, 4)],
+        );
+        let mut player_bic = create_named_test_character_fields_with_classes(
+            "Garrick",
+            "Ironheart",
+            42,
+            2400,
+            &[(0, 5), (3, 1)],
+        );
+        player_bic.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![{
+                let mut feat = IndexMap::new();
+                feat.insert("Feat".to_string(), GffValue::Word(1717));
+                feat
+            }]),
+        );
+
+        let mut playerinfo = PlayerInfoData::new();
+        playerinfo.first_name = "Stale".to_string();
+        playerinfo.last_name = "Mirror".to_string();
+        playerinfo.name = "Stale Mirror".to_string();
+        playerinfo.subrace = "Wrong".to_string();
+        playerinfo.alignment = "Wrong".to_string();
+        playerinfo.classes = vec![PlayerClassEntry::new("Fighter", 1)];
+        playerinfo.deity = "Wrong".to_string();
+        playerinfo.unknown4 = 99;
+
+        let (_temp_dir, save_dir) =
+            create_test_save(vec![player_one, player_two], player_bic, Some(playerinfo));
+        let game_data = create_game_data_with_classes_and_backgrounds();
+
+        let mut session = create_session_state();
+        session
+            .load_character(
+                save_dir
+                    .to_str()
+                    .expect("Test save path should be valid UTF-8"),
+                Some(0),
+            )
+            .expect("Failed to load first player from test save");
+
+        session
+            .sync_primary_mirrors(&game_data)
+            .expect("Failed to synchronize primary mirrors");
+
+        assert_eq!(read_playerlist_entry_ages(&save_dir), vec![20, 42]);
+        assert_eq!(read_player_bic_age(&save_dir), 42);
+        assert_eq!(read_playerinfo_name(&save_dir), "Garrick Ironheart");
+        assert_eq!(
+            read_playerinfo_classes(&save_dir),
+            vec![
+                PlayerClassEntry::new("Barbarian", 5),
+                PlayerClassEntry::new("Fighter", 1),
+            ]
+        );
+        assert_eq!(read_playerinfo_background_row(&save_dir), 1);
     }
 
     #[test]
@@ -911,10 +1614,7 @@ mod tests {
             Some(other) => panic!("Unexpected ClassList value: {other:?}"),
             None => panic!("ClassList missing from player.bic"),
         };
-        assert!(matches!(
-            class_list[0].get("Class"),
-            Some(GffValue::Int(3))
-        ));
+        assert!(matches!(class_list[0].get("Class"), Some(GffValue::Int(3))));
         assert!(matches!(
             class_list[0].get("ClassLevel"),
             Some(GffValue::Short(2))

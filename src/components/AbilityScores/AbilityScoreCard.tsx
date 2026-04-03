@@ -9,20 +9,24 @@ interface AbilityScoreCardProps {
   shortName: string;
   value: number;
   modifier: number;
-  baseValue?: number;
+  startingValue?: number;
+  levelUpValue?: number;
   breakdown?: {
+    starting: number;
     levelUp: number;
     racial: number;
     equipment: number;
     enhancement: number;
     temporary: number;
   };
-  onIncrease: () => void;
-  onDecrease: () => void;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  availablePoints?: number;
+  onStartingIncrease: () => void;
+  onStartingDecrease: () => void;
+  onStartingChange: (value: number) => void;
+  onLevelUpIncrease: () => void;
+  onLevelUpDecrease: () => void;
+  onLevelUpChange: (value: number) => void;
+  availableStartingPoints?: number;
+  availableLevelUpPoints?: number;
 }
 
 export default function AbilityScoreCard({
@@ -30,17 +34,32 @@ export default function AbilityScoreCard({
   shortName,
   value,
   modifier,
-  baseValue,
+  startingValue,
+  levelUpValue,
   breakdown,
-  onIncrease,
-  onDecrease,
-  onChange,
-  min = 3,
-  max = 40,
-  availablePoints
+  onStartingIncrease,
+  onStartingDecrease,
+  onStartingChange,
+  onLevelUpIncrease,
+  onLevelUpDecrease,
+  onLevelUpChange,
+  availableStartingPoints,
+  availableLevelUpPoints
 }: AbilityScoreCardProps) {
-  const [clickedButton, setClickedButton] = useState<'increase' | 'decrease' | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [clickedButton, setClickedButton] = useState<'startingIncrease' | 'startingDecrease' | 'levelIncrease' | 'levelDecrease' | null>(null);
+  const startingInputRef = useRef<HTMLInputElement>(null);
+  const levelUpInputRef = useRef<HTMLInputElement>(null);
+  const currentStartingValue = startingValue !== undefined ? startingValue : (breakdown?.starting ?? 8);
+  const currentLevelUpValue = levelUpValue !== undefined ? levelUpValue : (breakdown?.levelUp ?? 0);
+  const startingMin = 8;
+  const startingMax = 18;
+  const canIncreaseStarting = availableStartingPoints === undefined || availableStartingPoints > 0;
+  const currentStartingMax = canIncreaseStarting ? startingMax : currentStartingValue;
+  const levelUpMin = 0;
+  const canIncreaseLevelUps = availableLevelUpPoints === undefined || availableLevelUpPoints > 0;
+  const levelUpMax = canIncreaseLevelUps
+    ? currentLevelUpValue + 1
+    : currentLevelUpValue;
 
   const getModifierClass = useCallback(() => {
     if (modifier > 0) return 'positive';
@@ -54,53 +73,95 @@ export default function AbilityScoreCard({
     return 'zero';
   }, []);
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseInt(e.target.value) || min;
-    const clampedValue = Math.max(min, Math.min(max, newValue));
-    
-    onChange(clampedValue);
-  }, [min, max, onChange]);
+  const handleStartingInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = parseInt(e.target.value) || startingMin;
+    const clampedValue = Math.max(startingMin, Math.min(currentStartingMax, newValue));
 
-  const handleIncrease = useCallback(() => {
-    setClickedButton('increase');
-    onIncrease();
-    
+    onStartingChange(clampedValue);
+  }, [startingMin, currentStartingMax, onStartingChange]);
+
+  const handleLevelUpInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = parseInt(e.target.value) || levelUpMin;
+    const clampedValue = Math.max(levelUpMin, Math.min(levelUpMax, newValue));
+
+    onLevelUpChange(clampedValue);
+  }, [levelUpMin, levelUpMax, onLevelUpChange]);
+
+  const handleStartingIncrease = useCallback(() => {
+    setClickedButton('startingIncrease');
+    onStartingIncrease();
     setTimeout(() => {
       setClickedButton(null);
     }, 200);
-  }, [onIncrease]);
+  }, [onStartingIncrease]);
 
-  const handleDecrease = useCallback(() => {
-    setClickedButton('decrease');
-    onDecrease();
-    
+  const handleStartingDecrease = useCallback(() => {
+    setClickedButton('startingDecrease');
+    onStartingDecrease();
     setTimeout(() => {
       setClickedButton(null);
     }, 200);
-  }, [onDecrease]);
+  }, [onStartingDecrease]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const currentValue = baseValue !== undefined ? baseValue : value;
+  const handleLevelUpIncrease = useCallback(() => {
+    setClickedButton('levelIncrease');
+    onLevelUpIncrease();
+    setTimeout(() => {
+      setClickedButton(null);
+    }, 200);
+  }, [onLevelUpIncrease]);
+
+  const handleLevelUpDecrease = useCallback(() => {
+    setClickedButton('levelDecrease');
+    onLevelUpDecrease();
+    setTimeout(() => {
+      setClickedButton(null);
+    }, 200);
+  }, [onLevelUpDecrease]);
+
+  const handleStartingKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowUp':
         e.preventDefault();
-        if (currentValue < max) handleIncrease();
+        if (currentStartingValue < currentStartingMax) handleStartingIncrease();
         break;
       case 'ArrowDown':
         e.preventDefault();
-        if (currentValue > min) handleDecrease();
+        if (currentStartingValue > startingMin) handleStartingDecrease();
         break;
       case '+':
       case '=':
         e.preventDefault();
-        if (currentValue < max) handleIncrease();
+        if (currentStartingValue < currentStartingMax) handleStartingIncrease();
         break;
       case '-':
         e.preventDefault();
-        if (currentValue > min) handleDecrease();
+        if (currentStartingValue > startingMin) handleStartingDecrease();
         break;
     }
-  }, [value, baseValue, min, max, handleIncrease, handleDecrease, availablePoints]);
+  }, [currentStartingValue, currentStartingMax, startingMin, handleStartingIncrease, handleStartingDecrease]);
+
+  const handleLevelUpKeyDown = useCallback((e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        if (currentLevelUpValue < levelUpMax) handleLevelUpIncrease();
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        if (currentLevelUpValue > levelUpMin) handleLevelUpDecrease();
+        break;
+      case '+':
+      case '=':
+        e.preventDefault();
+        if (currentLevelUpValue < levelUpMax) handleLevelUpIncrease();
+        break;
+      case '-':
+        e.preventDefault();
+        if (currentLevelUpValue > levelUpMin) handleLevelUpDecrease();
+        break;
+    }
+  }, [currentLevelUpValue, levelUpMax, levelUpMin, handleLevelUpIncrease, handleLevelUpDecrease]);
 
   return (
     <Card 
@@ -126,48 +187,48 @@ export default function AbilityScoreCard({
       >
         <div 
           id={`${shortName}-breakdown-label`}
-          className="sr-only"
+            className="sr-only"
         >
           {name} breakdown details
         </div>
         <div className="breakdown-row breakdown-base">
-          <span className="breakdown-label">Raw Base:</span>
+          <span className="breakdown-label">Starting:</span>
           <div className="breakdown-controls">
             <Button
-              onClick={handleDecrease}
+              onClick={handleStartingDecrease}
               variant="outline"
               size="xs"
-              disabled={(baseValue !== undefined ? baseValue : value) <= min}
-              clicked={clickedButton === 'decrease'}
-              aria-label={`Decrease ${name}`}
-              title={`Decrease ${name} (min: ${min})`}
+              disabled={currentStartingValue <= startingMin}
+              clicked={clickedButton === 'startingDecrease'}
+              aria-label={`Decrease ${name} starting score`}
+              title={`Decrease ${name} starting score (min: ${startingMin})`}
               className="breakdown-button"
             >
               −
             </Button>
             
             <input
-              ref={inputRef}
+              ref={startingInputRef}
               type="number"
-              value={baseValue !== undefined ? baseValue : value}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
+              value={currentStartingValue}
+              onChange={handleStartingInputChange}
+              onKeyDown={handleStartingKeyDown}
               className="breakdown-input"
-              min={min}
-              max={max}
-              aria-label={`${name} base value`}
-              title={`${name} base: ${baseValue !== undefined ? baseValue : value}, effective: ${value} (${formatModifier(modifier)})`}
+              min={startingMin}
+              max={currentStartingMax}
+              aria-label={`${name} starting value`}
+              title={`${name} starting: ${currentStartingValue}, total: ${value} (${formatModifier(modifier)})`}
               aria-describedby={`${shortName}-help`}
             />
             
             <Button
-              onClick={handleIncrease}
+              onClick={handleStartingIncrease}
               variant="outline"
               size="xs"
-              disabled={(baseValue !== undefined ? baseValue : value) >= max}
-              clicked={clickedButton === 'increase'}
-              aria-label={`Increase ${name}`}
-              title={`Increase ${name} (max: ${max})`}
+              disabled={!canIncreaseStarting || currentStartingValue >= currentStartingMax}
+              clicked={clickedButton === 'startingIncrease'}
+              aria-label={`Increase ${name} starting score`}
+              title={`Increase ${name} starting score (max: ${currentStartingMax})`}
               className="breakdown-button"
             >
               +
@@ -179,10 +240,46 @@ export default function AbilityScoreCard({
           <>
             <div className="breakdown-row">
               <span className="breakdown-label">Level-ups:</span>
-              <div className="breakdown-value-container">
-                <span className={`breakdown-value ${getValueClass(breakdown.levelUp)}`}>
-                  {formatModifier(breakdown.levelUp)}
-                </span>
+              <div className="breakdown-controls">
+                <Button
+                  onClick={handleLevelUpDecrease}
+                  variant="outline"
+                  size="xs"
+                  disabled={currentLevelUpValue <= levelUpMin}
+                  clicked={clickedButton === 'levelDecrease'}
+                  aria-label={`Decrease ${name} level-up allocations`}
+                  title={`Decrease ${name} level-up allocations (min: ${levelUpMin})`}
+                  className="breakdown-button"
+                >
+                  −
+                </Button>
+
+                <input
+                  ref={levelUpInputRef}
+                  type="number"
+                  value={currentLevelUpValue}
+                  onChange={handleLevelUpInputChange}
+                  onKeyDown={handleLevelUpKeyDown}
+                  className="breakdown-input"
+                  min={levelUpMin}
+                  max={levelUpMax}
+                  aria-label={`${name} level-up value`}
+                  title={`${name} level-up allocations: ${currentLevelUpValue}`}
+                  aria-describedby={`${shortName}-help`}
+                />
+
+                <Button
+                  onClick={handleLevelUpIncrease}
+                  variant="outline"
+                  size="xs"
+                  disabled={!canIncreaseLevelUps || currentLevelUpValue >= levelUpMax}
+                  clicked={clickedButton === 'levelIncrease'}
+                  aria-label={`Increase ${name} level-up allocations`}
+                  title={`Increase ${name} level-up allocations (max: ${levelUpMax})`}
+                  className="breakdown-button"
+                >
+                  +
+                </Button>
               </div>
             </div>
             <div className="breakdown-row">
@@ -223,7 +320,7 @@ export default function AbilityScoreCard({
             )}
             <hr className="breakdown-divider" />
             <div className="breakdown-row breakdown-effective-row">
-              <span className="breakdown-label">Effective:</span>
+              <span className="breakdown-label">Total:</span>
               <div className="breakdown-value-container">
                 <span className="breakdown-value breakdown-effective">{value}</span>
               </div>
@@ -245,7 +342,7 @@ export default function AbilityScoreCard({
         className="sr-only"
         aria-hidden="true"
       >
-        Use arrow keys or +/- to adjust value. Range: {min} to {max}
+        Use arrow keys or +/- to adjust starting and level-up values.
       </div>
     </Card>
   );

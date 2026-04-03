@@ -1,5 +1,6 @@
 use crate::character::{
     AbilityIndex, AbilityPointsSummary, AbilityScores, Alignment, HitPoints, RaceId,
+    RacialProperties,
 };
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
@@ -535,6 +536,19 @@ pub async fn get_subrace(state: State<'_, AppState>) -> CommandResult<Option<Str
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.subrace_name(&game_data))
+}
+
+#[tauri::command]
+pub async fn get_racial_properties(
+    state: State<'_, AppState>,
+) -> CommandResult<RacialProperties> {
+    let session = state.session.read();
+    let game_data = state.game_data.read();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    Ok(character.get_racial_properties(&game_data))
 }
 
 #[tauri::command]

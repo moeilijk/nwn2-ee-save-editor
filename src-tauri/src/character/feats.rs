@@ -1345,7 +1345,9 @@ impl Character {
             return false;
         };
         let is_domain = self.is_domain_feat(feat_id, game_data);
-        let raw_feat_type = self.get_feat_type(feat_id, game_data).unwrap_or(feat_info.feat_type);
+        let raw_feat_type = self
+            .get_feat_type(feat_id, game_data)
+            .unwrap_or(feat_info.feat_type);
         let raw_category = FeatCategory::from_feat_type(raw_feat_type, is_domain);
 
         if feat_info.is_protected {
@@ -1354,7 +1356,9 @@ impl Character {
 
         if matches!(
             self.feat_source(feat_id),
-            Some(FeatSource::Race | FeatSource::Background | FeatSource::Domain | FeatSource::Class)
+            Some(
+                FeatSource::Race | FeatSource::Background | FeatSource::Domain | FeatSource::Class
+            )
         ) {
             return false;
         }
@@ -3348,9 +3352,6 @@ mod tests {
 
         assert_eq!(sections.flavor, "Flavor text here.");
         assert_eq!(sections.prerequisites, Some("Prerequisite: Dexterity 10+"));
-        assert_eq!(
-            sections.effects,
-            Some("Effects: +1 Listen, -1 Intimidate")
-        );
+        assert_eq!(sections.effects, Some("Effects: +1 Listen, -1 Intimidate"));
     }
 }

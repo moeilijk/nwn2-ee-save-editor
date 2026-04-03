@@ -355,6 +355,8 @@ export interface SkillSummaryEntry {
   skill_id: SkillId;
   name: string;
   ranks: number;
+  max_ranks: number;
+  rank_cost: number;
   modifier: number;
   total: number;
   is_class_skill: boolean;
@@ -369,6 +371,8 @@ export interface SkillsState {
   class_skills: SkillSummaryEntry[];
   cross_class_skills: SkillSummaryEntry[];
   total_available: number;
+  available_points: number;
+  overdrawn_points: number;
   spent_points: number;
 }
 
@@ -422,6 +426,12 @@ export interface Initiative {
   misc: number;
 }
 
+export interface MovementSpeed {
+  base: number;
+  current: number;
+  armor_penalty: boolean;
+}
+
 export interface DamageReduction {
   amount: number;
   bypass: string;
@@ -433,6 +443,7 @@ export interface CombatSummary {
   base_attack_bonus: number;
   attacks_per_round: number;
   initiative: Initiative;
+  movement: MovementSpeed;
   damage_reduction: DamageReduction[];
   hit_points: HitPoints;
   fortitude: number;

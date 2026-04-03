@@ -667,7 +667,7 @@ impl Character {
             // Get casting ability
             let casting_ability = self.get_casting_ability_for_class(class_id, game_data);
             let ability_mod = casting_ability
-                .map(|ability| self.ability_modifier(ability))
+                .map(|ability| self.get_effective_ability_modifier(ability, game_data))
                 .unwrap_or(0);
 
             // Check if has domains (for divine casters)

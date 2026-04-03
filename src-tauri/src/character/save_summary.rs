@@ -1,5 +1,5 @@
 use crate::character::Character;
-use crate::character::types::{AbilityIndex, FeatId, SaveBonuses, calculate_modifier};
+use crate::character::types::{FeatId, SaveBonuses, calculate_modifier};
 use crate::loaders::GameData;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -250,15 +250,13 @@ impl Character {
         game_data: &GameData,
         item_bonuses: &crate::services::item_property_decoder::ItemBonuses,
     ) -> SaveBonuses {
-        let _ = game_data;
         let mut bonuses = SaveBonuses::default();
 
         const DIVINE_GRACE_FEAT_ID: FeatId = FeatId(214);
         const DARK_ONES_LUCK_FEAT_ID: FeatId = FeatId(400);
 
-        let cha_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::CHA) + item_bonuses.cha_bonus)
-                .max(0);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let cha_mod = calculate_modifier(effective_abilities.cha + item_bonuses.cha_bonus).max(0);
 
         if self.has_feat(DIVINE_GRACE_FEAT_ID) {
             bonuses.fortitude += cha_mod;

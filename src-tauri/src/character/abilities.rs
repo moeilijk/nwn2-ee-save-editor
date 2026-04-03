@@ -115,9 +115,20 @@ impl Character {
         &mut self,
         ability: AbilityIndex,
         value: i32,
-        _game_data: &GameData,
+        game_data: &GameData,
     ) -> Result<(), CharacterError> {
         let old_value = self.base_ability(ability);
+
+        if !(ABILITY_MIN..=ABILITY_MAX).contains(&value) {
+            return Err(CharacterError::OutOfRange {
+                field: ability.gff_field(),
+                value,
+                min: ABILITY_MIN,
+                max: ABILITY_MAX,
+            });
+        }
+
+        self.sync_ability_level_up_history(ability, old_value, value)?;
 
         // 1. Set the raw value first
         self.set_ability(ability, value)?;
@@ -127,13 +138,125 @@ impl Character {
         if ability == AbilityIndex::CON {
             self.recalculate_hit_points(old_value, value);
         }
-
-        // 3. Record in history if this was an increase
-        if value > old_value {
-            self.record_ability_change(ability);
+        if ability == AbilityIndex::INT {
+            self.normalize_skill_points(game_data);
         }
 
         Ok(())
+    }
+
+    fn sync_ability_level_up_history(
+        &mut self,
+        ability: AbilityIndex,
+        old_value: i32,
+        new_value: i32,
+    ) -> Result<(), CharacterError> {
+        let delta = new_value - old_value;
+        if delta > 0 {
+            self.reserve_ability_increase_slots(ability, delta as usize)?;
+        } else if delta < 0 {
+            self.release_ability_increase_slots(ability, (-delta) as usize)?;
+        }
+        Ok(())
+    }
+
+    fn reserve_ability_increase_slots(
+        &mut self,
+        ability: AbilityIndex,
+        count: usize,
+    ) -> Result<(), CharacterError> {
+        use crate::character::types::ABILITY_INCREASE_INTERVAL;
+        use crate::parsers::gff::GffValue;
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
+        let mut remaining = count;
+
+        for (idx, entry) in lvl_stat_list.iter_mut().enumerate() {
+            let char_level = (idx + 1) as i32;
+            let current_value = entry.get("LvlStatAbility").and_then(gff_value_to_i32);
+            let is_available_slot = char_level % ABILITY_INCREASE_INTERVAL == 0
+                && matches!(current_value, None | Some(255));
+
+            if is_available_slot {
+                entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability.0));
+                remaining -= 1;
+                if remaining == 0 {
+                    self.set_list("LvlStatList", lvl_stat_list);
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(CharacterError::ValidationFailed {
+            field: "LvlStatAbility",
+            message: format!(
+                "Not enough ability increase slots to raise {} by {}",
+                ability.short_name(),
+                count
+            ),
+        })
+    }
+
+    fn release_ability_increase_slots(
+        &mut self,
+        ability: AbilityIndex,
+        count: usize,
+    ) -> Result<(), CharacterError> {
+        use crate::character::types::ABILITY_INCREASE_INTERVAL;
+        use crate::parsers::gff::GffValue;
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
+        let mut matching_indices: Vec<usize> = lvl_stat_list
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, entry)| {
+                let char_level = (idx + 1) as i32;
+                (char_level % ABILITY_INCREASE_INTERVAL == 0
+                    && entry.get("LvlStatAbility").and_then(gff_value_to_i32)
+                        == Some(i32::from(ability.0)))
+                .then_some(idx)
+            })
+            .collect();
+
+        if matching_indices.len() < count {
+            return Err(CharacterError::ValidationFailed {
+                field: "LvlStatAbility",
+                message: format!(
+                    "Cannot lower {} below allocated level-up increases",
+                    ability.short_name()
+                ),
+            });
+        }
+
+        matching_indices.reverse();
+        for idx in matching_indices.into_iter().take(count) {
+            lvl_stat_list[idx].insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        }
+
+        self.set_list("LvlStatList", lvl_stat_list);
+        Ok(())
+    }
+
+    pub(crate) fn apply_ability_batch_side_effects(
+        &mut self,
+        old_scores: AbilityScores,
+        game_data: &GameData,
+    ) {
+        let new_scores = self.get_effective_abilities(game_data);
+
+        if old_scores.con != new_scores.con {
+            self.recalculate_hit_points(old_scores.con, new_scores.con);
+        }
+
+        self.normalize_skill_points(game_data);
     }
 
     fn recalculate_hit_points(&mut self, old_con: i32, new_con: i32) {
@@ -324,7 +447,8 @@ impl Character {
         }
     }
 
-    pub fn get_starting_ability_scores(&self) -> AbilityScores {
+    pub fn get_starting_ability_scores(&self, game_data: &GameData) -> AbilityScores {
+        let _ = game_data;
         let base = self.base_scores();
         let history = self.get_level_up_ability_history();
 
@@ -343,8 +467,8 @@ impl Character {
         }
     }
 
-    pub fn get_point_buy_state(&self) -> PointBuyState {
-        let starting_scores = self.get_starting_ability_scores();
+    pub fn get_point_buy_state(&self, game_data: &GameData) -> PointBuyState {
+        let starting_scores = self.get_starting_ability_scores(game_data);
         let point_buy_cost = calculate_point_buy_cost(&starting_scores);
 
         PointBuyState {
@@ -358,8 +482,9 @@ impl Character {
     pub fn apply_point_buy_scores(
         &mut self,
         new_scores: AbilityScores,
+        game_data: &GameData,
     ) -> Result<(), CharacterError> {
-        let old_con = self.base_ability(AbilityIndex::CON);
+        let old_scores = self.get_effective_abilities(game_data);
 
         self.clear_ability_level_up_history()?;
 
@@ -370,13 +495,61 @@ impl Character {
         self.set_ability(AbilityIndex::WIS, new_scores.wis)?;
         self.set_ability(AbilityIndex::CHA, new_scores.cha)?;
 
-        self.recalculate_hit_points(old_con, new_scores.con);
+        self.apply_ability_batch_side_effects(old_scores, game_data);
 
         Ok(())
     }
 
-    pub fn calculate_encumbrance(&self, _game_data: &GameData) -> EncumbranceInfo {
-        let strength = self.base_ability(AbilityIndex::STR);
+    pub fn set_starting_ability_scores(
+        &mut self,
+        new_scores: AbilityScores,
+        game_data: &GameData,
+    ) -> Result<(), CharacterError> {
+        let cost = calculate_point_buy_cost(&new_scores);
+        if cost > POINT_BUY_BUDGET {
+            return Err(CharacterError::ValidationFailed {
+                field: "point_buy_cost",
+                message: format!("Point buy cost {cost} exceeds budget {POINT_BUY_BUDGET}"),
+            });
+        }
+
+        for (field, score) in [
+            ("Str", new_scores.str_),
+            ("Dex", new_scores.dex),
+            ("Con", new_scores.con),
+            ("Int", new_scores.int),
+            ("Wis", new_scores.wis),
+            ("Cha", new_scores.cha),
+        ] {
+            if !(POINT_BUY_MIN..=POINT_BUY_MAX).contains(&score) {
+                return Err(CharacterError::ValidationFailed {
+                    field,
+                    message: format!("Scores must be between {POINT_BUY_MIN} and {POINT_BUY_MAX}"),
+                });
+            }
+        }
+
+        let old_scores = self.get_effective_abilities(game_data);
+        let history = self.get_level_up_ability_history();
+        let mut increases = [0i32; 6];
+        for inc in history {
+            increases[inc.ability.0 as usize] += 1;
+        }
+
+        self.set_ability(AbilityIndex::STR, new_scores.str_ + increases[0])?;
+        self.set_ability(AbilityIndex::DEX, new_scores.dex + increases[1])?;
+        self.set_ability(AbilityIndex::CON, new_scores.con + increases[2])?;
+        self.set_ability(AbilityIndex::INT, new_scores.int + increases[3])?;
+        self.set_ability(AbilityIndex::WIS, new_scores.wis + increases[4])?;
+        self.set_ability(AbilityIndex::CHA, new_scores.cha + increases[5])?;
+
+        self.apply_ability_batch_side_effects(old_scores, game_data);
+
+        Ok(())
+    }
+
+    pub fn calculate_encumbrance(&self, game_data: &GameData) -> EncumbranceInfo {
+        let strength = self.get_effective_abilities(game_data).str_;
 
         let heavy = calculate_heavy_load(strength);
         let light = (heavy as f32 * 0.33).round();
@@ -429,7 +602,7 @@ impl Character {
             hit_points: self.hit_points(),
             encumbrance: self.calculate_encumbrance(game_data),
             point_summary: self.get_ability_points_summary(),
-            point_buy: self.get_point_buy_state(),
+            point_buy: self.get_point_buy_state(game_data),
         }
     }
 
@@ -501,8 +674,12 @@ fn calculate_heavy_load(strength: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::loaders::{GameData, LoadedTable};
     use crate::parsers::gff::GffValue;
+    use crate::parsers::tda::TDAParser;
+    use crate::parsers::tlk::TLKParser;
     use indexmap::IndexMap;
+    use std::sync::Arc;
 
     fn create_test_character() -> Character {
         let mut fields = IndexMap::new();
@@ -517,6 +694,33 @@ mod tests {
         fields.insert("HitPoints".to_string(), GffValue::Int(80));
         fields.insert("TempHitPoints".to_string(), GffValue::Int(5));
         Character::from_gff(fields)
+    }
+
+    fn create_game_data_with_racial_modifiers(
+        racial_rows: &[(&str, i32, i32, i32, i32, i32, i32)],
+    ) -> GameData {
+        let mut game_data = GameData::new(Arc::new(std::sync::RwLock::new(TLKParser::default())));
+        let mut parser = TDAParser::new();
+        let mut data = String::from(
+            "2DA V2.0\n\nLabel StrAdjust DexAdjust ConAdjust IntAdjust WisAdjust ChaAdjust\n",
+        );
+
+        for (row_id, (label, str_mod, dex_mod, con_mod, int_mod, wis_mod, cha_mod)) in
+            racial_rows.iter().enumerate()
+        {
+            data.push_str(&format!(
+                "{row_id} {label} {str_mod} {dex_mod} {con_mod} {int_mod} {wis_mod} {cha_mod}\n"
+            ));
+        }
+
+        parser
+            .parse_from_string(&data)
+            .expect("Failed to parse test racialtypes 2DA");
+        game_data.tables.insert(
+            "racialtypes".to_string(),
+            LoadedTable::new("racialtypes".to_string(), Arc::new(parser)),
+        );
+        game_data
     }
 
     #[test]
@@ -761,6 +965,152 @@ mod tests {
     }
 
     #[test]
+    fn test_effective_abilities_apply_racial_modifiers() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(1));
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+        fields.insert("Con".to_string(), GffValue::Byte(8));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+
+        let character = Character::from_gff(fields);
+        let game_data = create_game_data_with_racial_modifiers(&[
+            ("Human", 0, 0, 0, 0, 0, 0),
+            ("Elf", 0, 2, -2, 0, 0, 0),
+        ]);
+
+        let effective = character.get_effective_abilities(&game_data);
+        assert_eq!(effective.dex, 14);
+        assert_eq!(effective.con, 6);
+    }
+
+    #[test]
+    fn test_get_starting_ability_scores_subtracts_level_ups_only() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(1));
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+        fields.insert("Dex".to_string(), GffValue::Byte(13));
+        fields.insert("Con".to_string(), GffValue::Byte(8));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..4 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 { 1 } else { 255 };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(4));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let character = Character::from_gff(fields);
+        let game_data = create_game_data_with_racial_modifiers(&[
+            ("Human", 0, 0, 0, 0, 0, 0),
+            ("Elf", 0, 2, -2, 0, 0, 0),
+        ]);
+
+        let starting = character.get_starting_ability_scores(&game_data);
+        assert_eq!(starting.dex, 12);
+        assert_eq!(starting.con, 8);
+    }
+
+    #[test]
+    fn test_get_starting_ability_scores_reconstructs_valid_higher_level_point_buy() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(31));
+        fields.insert(
+            "Subrace".to_string(),
+            GffValue::String("Yuan-ti Pureblood ".to_string().into()),
+        );
+        fields.insert("Str".to_string(), GffValue::Byte(19));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+        fields.insert("Con".to_string(), GffValue::Byte(14));
+        fields.insert("Int".to_string(), GffValue::Byte(8));
+        fields.insert("Wis".to_string(), GffValue::Byte(14));
+        fields.insert("Cha".to_string(), GffValue::Byte(8));
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..7 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 { 0 } else { 255 };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(7));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let character = Character::from_gff(fields);
+        let mut game_data = create_game_data_with_racial_modifiers(&[
+            ("padding", 0, 0, 0, 0, 0, 0),
+            ("padding", 0, 0, 0, 0, 0, 0),
+        ]);
+
+        let mut subrace_parser = TDAParser::new();
+        for column in [
+            "Label",
+            "BaseRace",
+            "PlayerRace",
+            "StrAdjust",
+            "DexAdjust",
+            "ConAdjust",
+            "IntAdjust",
+            "WisAdjust",
+            "ChaAdjust",
+        ] {
+            subrace_parser.add_column(column);
+        }
+        let mut yuan_ti_row = ahash::AHashMap::new();
+        yuan_ti_row.insert(
+            "Label".to_string(),
+            Some("Yuan-ti Pureblood ".to_string()),
+        );
+        yuan_ti_row.insert("BaseRace".to_string(), Some("31".to_string()));
+        yuan_ti_row.insert("PlayerRace".to_string(), Some("1".to_string()));
+        yuan_ti_row.insert("StrAdjust".to_string(), Some("0".to_string()));
+        yuan_ti_row.insert("DexAdjust".to_string(), Some("2".to_string()));
+        yuan_ti_row.insert("ConAdjust".to_string(), Some("0".to_string()));
+        yuan_ti_row.insert("IntAdjust".to_string(), Some("2".to_string()));
+        yuan_ti_row.insert("WisAdjust".to_string(), Some("0".to_string()));
+        yuan_ti_row.insert("ChaAdjust".to_string(), Some("2".to_string()));
+        for _ in 0..31 {
+            subrace_parser.add_row(ahash::AHashMap::new());
+        }
+        subrace_parser.add_row(yuan_ti_row);
+        game_data.tables.insert(
+            "racialsubtypes".to_string(),
+            LoadedTable::new("racialsubtypes.2da".to_string(), Arc::new(subrace_parser)),
+        );
+
+        let starting = character.get_starting_ability_scores(&game_data);
+        assert_eq!(starting, AbilityScores::new(18, 12, 14, 8, 14, 8));
+        assert_eq!(calculate_point_buy_cost(&starting), 32);
+    }
+
+    #[test]
     fn test_con_change_updates_hp() {
         let mut fields = IndexMap::new();
         fields.insert("Con".to_string(), GffValue::Byte(14));
@@ -796,6 +1146,144 @@ mod tests {
         assert_eq!(character.base_ability(AbilityIndex::CON), 12);
         assert_eq!(character.max_hp(), 90);
         assert_eq!(character.current_hp(), 70);
+    }
+
+    #[test]
+    fn test_set_ability_with_cascades_syncs_level_up_history() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(8));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..8 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 || i == 7 { 255 } else { 254 };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
+
+        character
+            .set_ability_with_cascades(AbilityIndex::STR, 12, &game_data)
+            .expect("Two available level-up slots should allow +2 STR");
+
+        assert_eq!(character.base_ability(AbilityIndex::STR), 12);
+        let summary = character.get_ability_points_summary();
+        assert_eq!(summary.actual_increases, 2);
+        assert_eq!(summary.available, 0);
+
+        character
+            .set_ability_with_cascades(AbilityIndex::STR, 10, &game_data)
+            .expect("Lowering back down should free both level-up slots");
+
+        assert_eq!(character.base_ability(AbilityIndex::STR), 10);
+        let summary = character.get_ability_points_summary();
+        assert_eq!(summary.actual_increases, 0);
+        assert_eq!(summary.available, 2);
+    }
+
+    #[test]
+    fn test_set_ability_with_cascades_rejects_changes_without_matching_level_up_slots() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(10));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(8));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..8 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 || i == 7 { 1 } else { 254 };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
+
+        let increase_result =
+            character.set_ability_with_cascades(AbilityIndex::STR, 11, &game_data);
+        assert!(matches!(
+            increase_result,
+            Err(CharacterError::ValidationFailed { field, .. }) if field == "LvlStatAbility"
+        ));
+        assert_eq!(character.base_ability(AbilityIndex::STR), 10);
+
+        let decrease_result = character.set_ability_with_cascades(AbilityIndex::STR, 9, &game_data);
+        assert!(matches!(
+            decrease_result,
+            Err(CharacterError::ValidationFailed { field, .. }) if field == "LvlStatAbility"
+        ));
+        assert_eq!(character.base_ability(AbilityIndex::STR), 10);
+    }
+
+    #[test]
+    fn test_set_ability_with_cascades_records_single_level_up_per_point() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(18));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(10));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut lvl_stat_list = Vec::new();
+        for _ in 0..10 {
+            let mut entry = IndexMap::new();
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
+
+        character
+            .set_ability_with_cascades(AbilityIndex::STR, 19, &game_data)
+            .expect("Single level-up increase should succeed");
+
+        let summary = character.get_ability_points_summary();
+        assert_eq!(summary.expected_increases, 2);
+        assert_eq!(summary.actual_increases, 1);
+        assert_eq!(summary.available, 1);
+
+        let starting = character.get_starting_ability_scores(&game_data);
+        assert_eq!(starting.str_, 18);
     }
 
     #[test]
@@ -838,8 +1326,11 @@ mod tests {
         );
 
         let mut character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
         character
-            .apply_point_buy_scores(AbilityScores::new(14, 14, 14, 12, 10, 8))
+            .apply_point_buy_scores(AbilityScores::new(14, 14, 14, 12, 10, 8), &game_data)
             .expect("Point buy should apply cleanly");
 
         assert_eq!(character.base_ability(AbilityIndex::STR), 14);
@@ -847,9 +1338,135 @@ mod tests {
         assert_eq!(character.max_hp(), 48);
 
         let history = character.get_list_owned("LvlStatList").unwrap();
-        assert!(history.iter().all(|entry| {
-            entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255)
-        }));
+        assert!(
+            history.iter().all(|entry| {
+                entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255)
+            })
+        );
+    }
+
+    #[test]
+    fn test_apply_point_buy_scores_preserve_base_scores_and_normalize_skill_points() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(1));
+        fields.insert("Str".to_string(), GffValue::Byte(12));
+        fields.insert("Dex".to_string(), GffValue::Byte(14));
+        fields.insert("Con".to_string(), GffValue::Byte(10));
+        fields.insert("Int".to_string(), GffValue::Byte(14));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+        fields.insert("MaxHitPoints".to_string(), GffValue::Int(12));
+        fields.insert("CurrentHitPoints".to_string(), GffValue::Int(12));
+        fields.insert("HitPoints".to_string(), GffValue::Int(12));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(16));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(1));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut history_entry = IndexMap::new();
+        history_entry.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        history_entry.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        history_entry.insert("SkillPoints".to_string(), GffValue::Short(16));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![history_entry]),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let mut game_data = create_game_data_with_racial_modifiers(&[
+            ("Human", 0, 0, 0, 0, 0, 0),
+            ("TestRace", 0, 2, -2, 2, 0, 0),
+        ]);
+        let mut classes_parser = TDAParser::new();
+        classes_parser.add_column("Label");
+        classes_parser.add_column("HitDie");
+        classes_parser.add_column("SkillPointBase");
+        let mut fighter_row = ahash::AHashMap::new();
+        fighter_row.insert("Label".to_string(), Some("Fighter".to_string()));
+        fighter_row.insert("HitDie".to_string(), Some("10".to_string()));
+        fighter_row.insert("SkillPointBase".to_string(), Some("2".to_string()));
+        classes_parser.add_row(fighter_row);
+        game_data.tables.insert(
+            "classes".to_string(),
+            LoadedTable::new("classes.2da".to_string(), Arc::new(classes_parser)),
+        );
+
+        character
+            .apply_point_buy_scores(AbilityScores::new(12, 12, 12, 8, 10, 10), &game_data)
+            .expect("Point buy should apply cleanly");
+
+        assert_eq!(character.base_ability(AbilityIndex::STR), 12);
+        assert_eq!(character.base_ability(AbilityIndex::DEX), 12);
+        assert_eq!(character.base_ability(AbilityIndex::CON), 12);
+        assert_eq!(character.base_ability(AbilityIndex::INT), 8);
+        assert_eq!(character.base_ability(AbilityIndex::WIS), 10);
+        assert_eq!(character.base_ability(AbilityIndex::CHA), 10);
+        assert_eq!(character.get_available_skill_points(), 8);
+
+        let starting_scores = character.get_starting_ability_scores(&game_data);
+        assert_eq!(starting_scores, AbilityScores::new(12, 12, 12, 8, 10, 10));
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        assert!(
+            history.iter().all(|entry| {
+                entry.get("LvlStatAbility").and_then(gff_value_to_i32) == Some(255)
+            })
+        );
+    }
+
+    #[test]
+    fn test_set_starting_ability_scores_preserves_level_up_history() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(19));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+        fields.insert("Con".to_string(), GffValue::Byte(14));
+        fields.insert("Int".to_string(), GffValue::Byte(8));
+        fields.insert("Wis".to_string(), GffValue::Byte(14));
+        fields.insert("Cha".to_string(), GffValue::Byte(8));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(7));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..7 {
+            let mut entry = IndexMap::new();
+            let ability = if i == 3 { 0 } else { 255 };
+            entry.insert("LvlStatAbility".to_string(), GffValue::Byte(ability));
+            lvl_stat_list.push(entry);
+        }
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(lvl_stat_list),
+        );
+
+        let mut character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
+
+        character
+            .set_starting_ability_scores(AbilityScores::new(16, 14, 14, 8, 14, 8), &game_data)
+            .expect("Starting scores should update without clearing history");
+
+        assert_eq!(character.base_ability(AbilityIndex::STR), 17);
+        assert_eq!(character.base_ability(AbilityIndex::DEX), 14);
+
+        let summary = character.get_ability_points_summary();
+        assert_eq!(summary.actual_increases, 1);
+        assert_eq!(summary.available, 0);
+
+        let starting = character.get_starting_ability_scores(&game_data);
+        assert_eq!(starting, AbilityScores::new(16, 14, 14, 8, 14, 8));
     }
 
     #[test]

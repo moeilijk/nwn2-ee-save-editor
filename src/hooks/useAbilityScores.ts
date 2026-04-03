@@ -2,15 +2,25 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
-import type { Alignment, AbilitiesState, CombatSummary, SaveSummary, AbilityScores as RustAbilityScores } from '@/lib/bindings';
+import { CharacterStateAPI } from '@/lib/api/character-state';
+import type {
+  Alignment,
+  AbilitiesState,
+  CombatSummary,
+  SaveSummary,
+  AbilityScores as RustAbilityScores,
+  AbilitiesUpdates,
+} from '@/lib/bindings';
 
 export interface AbilityScore {
   name: string;
   shortName: string;
   value: number;
   modifier: number;
-  baseValue?: number;
+  startingValue?: number;
+  levelUpValue?: number;
   breakdown?: {
+    starting: number;
     levelUp: number;
     racial: number;
     equipment: number;
@@ -89,7 +99,8 @@ export function useAbilityScores(
   const t = useTranslations();
   const { characterId, invalidateSubsystems } = useCharacterContext();
 
-  const [localAbilityScoreOverrides, setLocalAbilityScoreOverrides] = useState<Record<string, number>>({});
+  const [localStartingOverrides, setLocalStartingOverrides] = useState<Record<string, number>>({});
+  const [localLevelUpOverrides, setLocalLevelUpOverrides] = useState<Record<string, number>>({});
   const [localStatsOverrides, setLocalStatsOverrides] = useState<Partial<CharacterStats>>({});
 
   // Keep track of the last seen base scores to avoid wiping local overrides on unrelated refreshes (e.g. from skills)
@@ -99,7 +110,8 @@ export function useAbilityScores(
     if (abilityScoreData?.base_scores) {
       const newBaseScoresRaw = JSON.stringify(abilityScoreData.base_scores);
       if (prevBaseScoresRef.current !== newBaseScoresRaw) {
-        setLocalAbilityScoreOverrides({});
+        setLocalStartingOverrides({});
+        setLocalLevelUpOverrides({});
         setLocalStatsOverrides({});
         prevBaseScoresRef.current = newBaseScoresRaw;
       }
@@ -113,27 +125,36 @@ export function useAbilityScores(
   const abilityScores = useMemo((): AbilityScore[] => {
     if (!abilityScoreData) return [];
 
-    const getEditValue = (attrKey: AbilityKey) => {
-      return localAbilityScoreOverrides[attrKey] ?? abilityScoreData.base_scores?.[attrKey] ?? 10;
-    };
-
-    const getDisplayValue = (attrKey: AbilityKey) => {
-      const equipBonus = abilityScoreData.equipment_modifiers?.[attrKey] ?? 0;
-      const override = localAbilityScoreOverrides[attrKey];
-      if (override !== undefined) {
-          const originalBase = abilityScoreData.base_scores?.[attrKey] ?? 10;
-          const originalEffective = abilityScoreData.effective_scores?.[attrKey] ?? originalBase;
-          const bonus = originalEffective - originalBase;
-          return override + bonus + equipBonus;
-      }
-      return (abilityScoreData.effective_scores?.[attrKey] ?? abilityScoreData.base_scores?.[attrKey] ?? 10) + equipBonus;
-    };
-
-    const getLevelUpMod = (attrKey: AbilityKey): number => {
+    const getBackendLevelUpValue = (attrKey: AbilityKey): number => {
       if (!abilityScoreData.point_summary?.level_increases) return 0;
       const abilityIndexMap: Record<AbilityKey, number> = { Str: 0, Dex: 1, Con: 2, Int: 3, Wis: 4, Cha: 5 };
       const targetIndex = abilityIndexMap[attrKey];
       return abilityScoreData.point_summary.level_increases.filter(inc => inc.ability === targetIndex).length;
+    };
+
+    const getStartingValue = (attrKey: AbilityKey) => {
+      const localValue = localStartingOverrides[attrKey];
+      if (localValue !== undefined) {
+        return localValue;
+      }
+
+      const pointBuyStarting = abilityScoreData.point_buy?.starting_scores?.[attrKey];
+      if (pointBuyStarting !== undefined) {
+        return pointBuyStarting;
+      }
+
+      const currentBase = abilityScoreData.base_scores?.[attrKey] ?? 10;
+      return currentBase - getBackendLevelUpValue(attrKey);
+    };
+
+    const getLevelUpValue = (attrKey: AbilityKey) => {
+      return localLevelUpOverrides[attrKey] ?? getBackendLevelUpValue(attrKey);
+    };
+
+    const getDisplayValue = (attrKey: AbilityKey) => {
+      const racialBonus = abilityScoreData.racial_modifiers?.[attrKey] ?? 0;
+      const equipBonus = abilityScoreData.equipment_modifiers?.[attrKey] ?? 0;
+      return getStartingValue(attrKey) + getLevelUpValue(attrKey) + racialBonus + equipBonus;
     };
 
     return [
@@ -142,9 +163,11 @@ export function useAbilityScores(
         shortName: 'STR',
         value: getDisplayValue('Str'),
         modifier: calculateModifier(getDisplayValue('Str')),
-        baseValue: getEditValue('Str'),
+        startingValue: getStartingValue('Str'),
+        levelUpValue: getLevelUpValue('Str'),
         breakdown: {
-          levelUp: getLevelUpMod('Str'),
+          starting: getStartingValue('Str'),
+          levelUp: getLevelUpValue('Str'),
           racial: abilityScoreData.racial_modifiers?.Str ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Str ?? 0,
           enhancement: 0,
@@ -156,9 +179,11 @@ export function useAbilityScores(
         shortName: 'DEX',
         value: getDisplayValue('Dex'),
         modifier: calculateModifier(getDisplayValue('Dex')),
-        baseValue: getEditValue('Dex'),
+        startingValue: getStartingValue('Dex'),
+        levelUpValue: getLevelUpValue('Dex'),
         breakdown: {
-          levelUp: getLevelUpMod('Dex'),
+          starting: getStartingValue('Dex'),
+          levelUp: getLevelUpValue('Dex'),
           racial: abilityScoreData.racial_modifiers?.Dex ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Dex ?? 0,
           enhancement: 0,
@@ -170,9 +195,11 @@ export function useAbilityScores(
         shortName: 'CON',
         value: getDisplayValue('Con'),
         modifier: calculateModifier(getDisplayValue('Con')),
-        baseValue: getEditValue('Con'),
+        startingValue: getStartingValue('Con'),
+        levelUpValue: getLevelUpValue('Con'),
         breakdown: {
-          levelUp: getLevelUpMod('Con'),
+          starting: getStartingValue('Con'),
+          levelUp: getLevelUpValue('Con'),
           racial: abilityScoreData.racial_modifiers?.Con ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Con ?? 0,
           enhancement: 0,
@@ -184,9 +211,11 @@ export function useAbilityScores(
         shortName: 'INT',
         value: getDisplayValue('Int'),
         modifier: calculateModifier(getDisplayValue('Int')),
-        baseValue: getEditValue('Int'),
+        startingValue: getStartingValue('Int'),
+        levelUpValue: getLevelUpValue('Int'),
         breakdown: {
-          levelUp: getLevelUpMod('Int'),
+          starting: getStartingValue('Int'),
+          levelUp: getLevelUpValue('Int'),
           racial: abilityScoreData.racial_modifiers?.Int ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Int ?? 0,
           enhancement: 0,
@@ -198,9 +227,11 @@ export function useAbilityScores(
         shortName: 'WIS',
         value: getDisplayValue('Wis'),
         modifier: calculateModifier(getDisplayValue('Wis')),
-        baseValue: getEditValue('Wis'),
+        startingValue: getStartingValue('Wis'),
+        levelUpValue: getLevelUpValue('Wis'),
         breakdown: {
-          levelUp: getLevelUpMod('Wis'),
+          starting: getStartingValue('Wis'),
+          levelUp: getLevelUpValue('Wis'),
           racial: abilityScoreData.racial_modifiers?.Wis ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Wis ?? 0,
           enhancement: 0,
@@ -212,9 +243,11 @@ export function useAbilityScores(
         shortName: 'CHA',
         value: getDisplayValue('Cha'),
         modifier: calculateModifier(getDisplayValue('Cha')),
-        baseValue: getEditValue('Cha'),
+        startingValue: getStartingValue('Cha'),
+        levelUpValue: getLevelUpValue('Cha'),
         breakdown: {
-          levelUp: getLevelUpMod('Cha'),
+          starting: getStartingValue('Cha'),
+          levelUp: getLevelUpValue('Cha'),
           racial: abilityScoreData.racial_modifiers?.Cha ?? 0,
           equipment: abilityScoreData.equipment_modifiers?.Cha ?? 0,
           enhancement: 0,
@@ -222,7 +255,7 @@ export function useAbilityScores(
         }
       },
     ];
-  }, [abilityScoreData, localAbilityScoreOverrides, t, calculateModifier]);
+  }, [abilityScoreData, localStartingOverrides, localLevelUpOverrides, t, calculateModifier]);
 
   const stats = useMemo((): CharacterStats => {
     const defaultStats: CharacterStats = {
@@ -315,10 +348,21 @@ export function useAbilityScores(
     fetchAlignment();
   }, [characterId]);
 
-  const updateAbilityScore = useCallback(async (index: number, newValue: number) => {
+  const calculatePointBuyCost = useCallback((scores: RustAbilityScores): number => {
+    const getCost = (score: number) => {
+      if (score <= 8) return 0;
+      if (score >= 18) return 16;
+      return [0, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16][score - 8];
+    };
+
+    return getCost(scores.Str) + getCost(scores.Dex) + getCost(scores.Con)
+      + getCost(scores.Int) + getCost(scores.Wis) + getCost(scores.Cha);
+  }, []);
+
+  const updateStartingAbilityScore = useCallback(async (index: number, newValue: number) => {
     if (!characterId || !abilityScores[index]) return;
 
-    const clampedValue = Math.max(3, Math.min(50, newValue));
+    const clampedValue = Math.max(8, Math.min(18, newValue));
     const attr = abilityScores[index];
     const attributeMapping = {
       'STR': 'Str',
@@ -332,33 +376,96 @@ export function useAbilityScores(
     const backendAttrName = attributeMapping[attr.shortName as keyof typeof attributeMapping];
     if (!backendAttrName) return;
 
-    setLocalAbilityScoreOverrides(prev => ({
+    const currentStartingScores: RustAbilityScores = {
+      Str: localStartingOverrides.Str ?? abilityScoreData?.point_buy?.starting_scores?.Str ?? 10,
+      Dex: localStartingOverrides.Dex ?? abilityScoreData?.point_buy?.starting_scores?.Dex ?? 10,
+      Con: localStartingOverrides.Con ?? abilityScoreData?.point_buy?.starting_scores?.Con ?? 10,
+      Int: localStartingOverrides.Int ?? abilityScoreData?.point_buy?.starting_scores?.Int ?? 10,
+      Wis: localStartingOverrides.Wis ?? abilityScoreData?.point_buy?.starting_scores?.Wis ?? 10,
+      Cha: localStartingOverrides.Cha ?? abilityScoreData?.point_buy?.starting_scores?.Cha ?? 10,
+    };
+    const nextScores = { ...currentStartingScores, [backendAttrName]: clampedValue };
+    const budget = abilityScoreData?.point_buy?.budget ?? 32;
+    if (calculatePointBuyCost(nextScores) > budget) {
+      return;
+    }
+
+    setLocalStartingOverrides(prev => ({
       ...prev,
       [backendAttrName]: clampedValue
     }));
     
     try {
-      await CharacterAPI.updateAttributes(characterId, {
-        [backendAttrName]: clampedValue
-      });
-      await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
+      await CharacterStateAPI.updateStartingAbilities(nextScores);
+      await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
 
     } catch (err) {
-      setLocalAbilityScoreOverrides(prev => {
+      setLocalStartingOverrides(prev => {
         const updated = { ...prev };
         delete updated[backendAttrName];
         return updated;
       });
       throw err;
     }
-  }, [characterId, abilityScores, invalidateSubsystems]);
+  }, [characterId, abilityScores, abilityScoreData, localStartingOverrides, invalidateSubsystems, calculatePointBuyCost]);
+
+  const updateLevelUpScore = useCallback(async (index: number, newValue: number) => {
+    if (!characterId || !abilityScores[index]) return;
+
+    const attr = abilityScores[index];
+    const attributeMapping = {
+      'STR': 'Str',
+      'DEX': 'Dex',
+      'CON': 'Con',
+      'INT': 'Int',
+      'WIS': 'Wis',
+      'CHA': 'Cha'
+    };
+
+    const backendAttrName = attributeMapping[attr.shortName as keyof typeof attributeMapping];
+    if (!backendAttrName) return;
+
+    const currentStartingValue = localStartingOverrides[backendAttrName]
+      ?? abilityScoreData?.point_buy?.starting_scores?.[backendAttrName as AbilityKey]
+      ?? 10;
+    const currentLevelUpValue = localLevelUpOverrides[backendAttrName]
+      ?? attr.breakdown?.levelUp
+      ?? 0;
+    const totalAvailable = abilityScoreData?.point_summary?.expected_increases ?? 0;
+    const totalSpent = abilityScores.reduce((sum, score) => {
+      const key = attributeMapping[score.shortName as keyof typeof attributeMapping];
+      return sum + (localLevelUpOverrides[key] ?? score.breakdown?.levelUp ?? 0);
+    }, 0);
+    const maxForThisAbility = currentLevelUpValue + Math.max(0, totalAvailable - totalSpent);
+    const clampedValue = Math.max(0, Math.min(maxForThisAbility, newValue));
+    const targetBaseScore = currentStartingValue + clampedValue;
+
+    setLocalLevelUpOverrides(prev => ({
+      ...prev,
+      [backendAttrName]: clampedValue
+    }));
+
+    try {
+      await CharacterStateAPI.updateAbilities({
+        [backendAttrName]: targetBaseScore
+      } as AbilitiesUpdates);
+      await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells']);
+    } catch (err) {
+      setLocalLevelUpOverrides(prev => {
+        const updated = { ...prev };
+        delete updated[backendAttrName];
+        return updated;
+      });
+      throw err;
+    }
+  }, [characterId, abilityScores, abilityScoreData, localStartingOverrides, localLevelUpOverrides, invalidateSubsystems]);
 
   const updateAbilityScoreByShortName = useCallback(async (shortName: string, newValue: number) => {
     const index = abilityScores.findIndex(attr => attr.shortName === shortName);
     if (index !== -1) {
-      await updateAbilityScore(index, newValue);
+      await updateLevelUpScore(index, newValue);
     }
-  }, [abilityScores, updateAbilityScore]);
+  }, [abilityScores, updateLevelUpScore]);
 
   const updateStats = useCallback(async (updates: Partial<CharacterStats>) => {
     if (!characterId) return;
@@ -427,36 +534,52 @@ export function useAbilityScores(
   const pointSummary = useMemo((): PointSummary | undefined => {
     if (!abilityScoreData?.point_summary) return undefined;
     const ps = abilityScoreData.point_summary;
-    
-    // Base spent points from backend
-    let totalSpent = ps.actual_increases ?? 0;
-
-    // Add exactly one spent point for every point an ability is increased locally
     const attributeMapping: Record<string, string> = {
-      'Str': 'str_', 'Dex': 'dex', 'Con': 'con', 
-      'Int': 'int', 'Wis': 'wis', 'Cha': 'cha'
+      'STR': 'Str', 'DEX': 'Dex', 'CON': 'Con',
+      'INT': 'Int', 'WIS': 'Wis', 'CHA': 'Cha'
     };
-    
-    for (const [key, localVal] of Object.entries(localAbilityScoreOverrides)) {
-      const originalVal = abilityScoreData.base_scores?.[key as AbilityKey];
-      if (originalVal !== undefined && localVal !== originalVal) {
-        totalSpent += (localVal - originalVal);
-      }
-    }
-    
+    const totalSpent = abilityScores.reduce((sum, score) => {
+      const key = attributeMapping[score.shortName];
+      return sum + (localLevelUpOverrides[key] ?? score.breakdown?.levelUp ?? 0);
+    }, 0);
+
     return {
       total_available: ps.expected_increases ?? 0,
-      total_spent: Math.min(ps.expected_increases ?? 0, totalSpent),
+      total_spent: totalSpent,
       available: Math.max(0, (ps.expected_increases ?? 0) - totalSpent)
     };
-  }, [abilityScoreData, localAbilityScoreOverrides]);
+  }, [abilityScoreData, abilityScores, localLevelUpOverrides]);
+
+  const startingSummary = useMemo((): PointSummary | undefined => {
+    if (!abilityScoreData?.point_buy?.starting_scores) return undefined;
+
+    const scores: RustAbilityScores = {
+      Str: localStartingOverrides.Str ?? abilityScoreData.point_buy.starting_scores.Str,
+      Dex: localStartingOverrides.Dex ?? abilityScoreData.point_buy.starting_scores.Dex,
+      Con: localStartingOverrides.Con ?? abilityScoreData.point_buy.starting_scores.Con,
+      Int: localStartingOverrides.Int ?? abilityScoreData.point_buy.starting_scores.Int,
+      Wis: localStartingOverrides.Wis ?? abilityScoreData.point_buy.starting_scores.Wis,
+      Cha: localStartingOverrides.Cha ?? abilityScoreData.point_buy.starting_scores.Cha,
+    };
+
+    const totalSpent = calculatePointBuyCost(scores);
+    const totalAvailable = abilityScoreData.point_buy.budget ?? 32;
+
+    return {
+      total_available: totalAvailable,
+      total_spent: totalSpent,
+      available: totalAvailable - totalSpent,
+    };
+  }, [abilityScoreData, localStartingOverrides, calculatePointBuyCost]);
 
   return {
     abilityScores,
     stats,
     alignment,
 
-    updateAbilityScore,
+    updateAbilityScore: updateLevelUpScore,
+    updateStartingAbilityScore,
+    updateLevelUpScore,
     updateAbilityScoreByShortName,
     getAbilityScore,
     getAbilityScoreModifier,
@@ -464,6 +587,10 @@ export function useAbilityScores(
     updateAlignment,
 
     pointSummary,
-    resetAbilityOverrides: () => setLocalAbilityScoreOverrides({}),
+    startingSummary,
+    resetAbilityOverrides: () => {
+      setLocalStartingOverrides({});
+      setLocalLevelUpOverrides({});
+    },
   };
 }

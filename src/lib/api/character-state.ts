@@ -110,6 +110,13 @@ export const CharacterStateAPI = {
     invoke<AbilitiesState>('update_abilities', { updates }),
 
   /**
+   * Update reconstructed starting scores while preserving level-up history.
+   * Returns the updated AbilitiesState.
+   */
+  updateStartingAbilities: (scores: import('../bindings').AbilityScores) =>
+    invoke<AbilitiesState>('update_starting_abilities', { scores }),
+
+  /**
    * Apply point buy scores - resets level-up ability history and sets new base scores.
    * Returns the updated AbilitiesState.
    */

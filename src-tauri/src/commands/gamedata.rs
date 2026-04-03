@@ -806,23 +806,87 @@ fn background_missing_requirements(
     let mut missing = Vec::new();
 
     let ability_requirements = [
-        ("MINSTR", "Strength", character.get_i32("Str").unwrap_or(10), true),
-        ("MINDEX", "Dexterity", character.get_i32("Dex").unwrap_or(10), true),
-        ("MINCON", "Constitution", character.get_i32("Con").unwrap_or(10), true),
-        ("MININT", "Intelligence", character.get_i32("Int").unwrap_or(10), true),
-        ("MINWIS", "Wisdom", character.get_i32("Wis").unwrap_or(10), true),
-        ("MINCHA", "Charisma", character.get_i32("Cha").unwrap_or(10), true),
-        ("MAXSTR", "Strength", character.get_i32("Str").unwrap_or(10), false),
-        ("MAXDEX", "Dexterity", character.get_i32("Dex").unwrap_or(10), false),
-        ("MAXCON", "Constitution", character.get_i32("Con").unwrap_or(10), false),
-        ("MAXINT", "Intelligence", character.get_i32("Int").unwrap_or(10), false),
-        ("MAXWIS", "Wisdom", character.get_i32("Wis").unwrap_or(10), false),
-        ("MAXCHA", "Charisma", character.get_i32("Cha").unwrap_or(10), false),
+        (
+            "MINSTR",
+            "Strength",
+            character.get_i32("Str").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINDEX",
+            "Dexterity",
+            character.get_i32("Dex").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINCON",
+            "Constitution",
+            character.get_i32("Con").unwrap_or(10),
+            true,
+        ),
+        (
+            "MININT",
+            "Intelligence",
+            character.get_i32("Int").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINWIS",
+            "Wisdom",
+            character.get_i32("Wis").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINCHA",
+            "Charisma",
+            character.get_i32("Cha").unwrap_or(10),
+            true,
+        ),
+        (
+            "MAXSTR",
+            "Strength",
+            character.get_i32("Str").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXDEX",
+            "Dexterity",
+            character.get_i32("Dex").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXCON",
+            "Constitution",
+            character.get_i32("Con").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXINT",
+            "Intelligence",
+            character.get_i32("Int").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXWIS",
+            "Wisdom",
+            character.get_i32("Wis").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXCHA",
+            "Charisma",
+            character.get_i32("Cha").unwrap_or(10),
+            false,
+        ),
     ];
 
     for (field, label, score, is_minimum) in ability_requirements {
         if let Some(value) = background_row_i32(row, &[field]).filter(|value| *value > 0) {
-            let invalid = if is_minimum { score < value } else { score > value };
+            let invalid = if is_minimum {
+                score < value
+            } else {
+                score > value
+            };
             if invalid {
                 let requirement = if is_minimum {
                     format!("Requires {label} {value}")
@@ -841,20 +905,26 @@ fn background_missing_requirements(
         }
     }
 
-    if let Some(required_gender) = background_row_i32(row, &["Gender"]).filter(|value| *value >= 0) {
+    if let Some(required_gender) = background_row_i32(row, &["Gender"]).filter(|value| *value >= 0)
+    {
         let current_gender = character.gender();
         if required_gender <= 1 && current_gender != required_gender {
-            let gender_label = if required_gender == 1 { "Female" } else { "Male" };
+            let gender_label = if required_gender == 1 {
+                "Female"
+            } else {
+                "Male"
+            };
             missing.push(format!("Requires {gender_label}"));
         }
     }
 
-    let required_classes: Vec<crate::character::ClassId> = ["OrReqClass0", "OrReqClass1", "OrReqClass2"]
-        .iter()
-        .filter_map(|field| background_row_i32(row, &[*field]))
-        .filter(|class_id| *class_id >= 0)
-        .map(crate::character::ClassId)
-        .collect();
+    let required_classes: Vec<crate::character::ClassId> =
+        ["OrReqClass0", "OrReqClass1", "OrReqClass2"]
+            .iter()
+            .filter_map(|field| background_row_i32(row, &[*field]))
+            .filter(|class_id| *class_id >= 0)
+            .map(crate::character::ClassId)
+            .collect();
 
     if !required_classes.is_empty()
         && !required_classes

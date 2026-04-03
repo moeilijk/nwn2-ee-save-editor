@@ -73,7 +73,7 @@ impl Character {
         };
 
         let bab = self.calculate_bab(game_data);
-        let dex_mod = self.ability_modifier(super::types::AbilityIndex::DEX);
+        let dex_mod = self.get_effective_ability_modifier(super::types::AbilityIndex::DEX, game_data);
         let tumble_rank = self.skill_rank(crate::character::types::SkillId(21));
         let base_ac = 10 + dex_mod + self.natural_ac() + (tumble_rank / 10);
 

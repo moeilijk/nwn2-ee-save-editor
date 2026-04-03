@@ -19,6 +19,8 @@ pub struct SkillsStateResponse {
     pub class_skills: Vec<SkillSummaryEntry>,
     pub cross_class_skills: Vec<SkillSummaryEntry>,
     pub total_available: i32,
+    pub available_points: i32,
+    pub overdrawn_points: i32,
     pub spent_points: i32,
 }
 
@@ -103,14 +105,15 @@ pub async fn get_skills_state(state: State<'_, AppState>) -> CommandResult<Skill
     let (class_skills, cross_class_skills): (Vec<_>, Vec<_>) =
         all_skills.into_iter().partition(|s| s.is_class_skill);
 
-    let available_points = character.get_available_skill_points();
-    let total_spent = character.calculate_total_spent_with_costs(&game_data);
+    let summary = character.get_skill_points_summary(&game_data);
 
     Ok(SkillsStateResponse {
         class_skills,
         cross_class_skills,
-        total_available: available_points + total_spent,
-        spent_points: total_spent,
+        total_available: summary.theoretical_total,
+        available_points: summary.current_unspent.max(0),
+        overdrawn_points: (-summary.mismatch).max(0),
+        spent_points: summary.actual_spent,
     })
 }
 
@@ -123,22 +126,23 @@ pub async fn set_skill_rank(
     let game_data = state.game_data.read();
     let mut session = state.session.write();
 
-    let (old_ranks, old_cost, new_cost) = {
+    let (old_ranks, max_ranks) = {
         let character = session
             .character
             .as_ref()
             .ok_or(CommandError::NoCharacterLoaded)?;
         let old_ranks = character.skill_rank(SkillId(skill_id));
-        let has_able_learner = character.has_feat(FeatId(ABLE_LEARNER_FEAT_ID));
-        let old_cost = character.calculate_skill_cost(
-            SkillId(skill_id),
-            old_ranks,
-            has_able_learner,
-            &game_data,
-        );
-        let new_cost =
-            character.calculate_skill_cost(SkillId(skill_id), ranks, has_able_learner, &game_data);
-        (old_ranks, old_cost, new_cost)
+        let max_ranks = character.get_max_skill_ranks(SkillId(skill_id), &game_data);
+        (old_ranks, max_ranks)
+    };
+
+    if ranks > max_ranks {
+        return Err(CommandError::ValidationError {
+            field: "SkillRank".to_string(),
+            reason: format!(
+                "Cannot set skill {skill_id} to {ranks}; maximum allowed rank is {max_ranks}"
+            ),
+        });
     };
 
     let character = session
@@ -146,47 +150,28 @@ pub async fn set_skill_rank(
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    // Instead of raw set_skill_rank, calculate point difference and deduct
-    let points_spent = new_cost - old_cost;
-    let mut current_unspent = character.get_available_skill_points();
-
-    current_unspent -= points_spent;
-    if current_unspent < 0 {
-        current_unspent = 0; // Prevent going negative in the backend storage
-    }
-
-    // Set the rank
-    character.set_skill_rank(SkillId(skill_id), ranks)?;
-    character.set_available_skill_points(current_unspent);
-
-    let points_spent = new_cost - old_cost;
+    let points_spent = character.set_skill_rank_with_cost(SkillId(skill_id), ranks, &game_data)?;
+    let points_remaining = character.get_available_skill_points().max(0);
 
     Ok(SkillChangeResult {
         skill_id: SkillId(skill_id),
         old_ranks,
         new_ranks: ranks,
         points_spent,
-        points_remaining: 0,
+        points_remaining,
     })
 }
 
 #[tauri::command]
 pub async fn reset_all_skills(state: State<'_, AppState>) -> CommandResult<i32> {
+    let game_data = state.game_data.read();
     let mut session = state.session.write();
     let character = session
         .character
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    let skill_ranks = character.skill_ranks();
-    let mut total_refunded = 0;
-
-    for entry in skill_ranks {
-        character.set_skill_rank(entry.skill_id, 0)?;
-        total_refunded += entry.ranks;
-    }
-
-    Ok(total_refunded)
+    Ok(character.reset_all_skills(&game_data))
 }
 
 #[tauri::command]

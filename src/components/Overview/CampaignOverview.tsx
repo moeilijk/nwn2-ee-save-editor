@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CharacterData } from '@/services/characterApi';
+import {
+  gameStateAPI,
+  type CampaignSummaryResponse,
+  type ModuleInfo,
+} from '@/services/gameStateApi';
 import { display, formatNumber } from '@/utils/dataHelpers';
 import { Button } from '@/components/ui/Button';
 
@@ -55,24 +60,104 @@ interface CampaignOverviewProps {
 }
 
 const CampaignOverview: React.FC<CampaignOverviewProps> = ({ character }) => {
-  // Helper function to format timestamp
-  const formatTimestamp = (timestamp?: number): string => {
+  const [summary, setSummary] = useState<CampaignSummaryResponse | null>(null);
+  const [moduleInfo, setModuleInfo] = useState<ModuleInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCampaignData = async () => {
+      if (!character.id) {
+        if (!cancelled) {
+          setSummary(null);
+          setModuleInfo(null);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const [nextSummary, nextModuleInfo] = await Promise.all([
+          gameStateAPI.getCampaignSummary(character.id),
+          gameStateAPI.getModuleInfo(character.id),
+        ]);
+
+        if (!cancelled) {
+          setSummary(nextSummary);
+          setModuleInfo(nextModuleInfo);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load campaign overview');
+          setSummary(null);
+          setModuleInfo(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadCampaignData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [character.id]);
+
+  const formatTimestamp = (timestamp?: string | null): string => {
     if (!timestamp) return 'Unknown';
     try {
-      return new Date(timestamp * 1000).toLocaleString();
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
     } catch {
       return 'Invalid Date';
     }
   };
 
+  const formatRecruitmentLabel = (value: string): string => {
+    if (!value) {
+      return 'Unknown';
+    }
+
+    return value.replace(/_/g, ' ');
+  };
+
+  const companions = Object.entries(summary?.companion_status ?? {}).sort(([, left], [, right]) =>
+    left.name.localeCompare(right.name)
+  );
+  const recruitedCompanions = companions.filter(([, companion]) => companion.recruitment === 'recruited');
+  const metCompanions = companions.filter(([, companion]) => companion.recruitment === 'met');
+  const questOverview = summary?.quest_overview;
+  const gameAct = summary?.general_info?.game_act;
+  const lastSaved = summary?.general_info?.last_saved;
+  const playerName = summary?.general_info?.player_name;
+
   return (
     <CollapsibleSection 
       title="Campaign Overview" 
       defaultOpen={true}
-      badge={character.gameAct ? `Act ${character.gameAct}` : "Campaign"}
+      badge={gameAct ? `Act ${gameAct}` : "Campaign"}
     >
       <div className="space-y-6">
-        
+        {isLoading ? (
+          <div className="text-sm text-[rgb(var(--color-text-muted))]">
+            Loading campaign data...
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-lg border border-[rgb(var(--color-danger)/0.35)] bg-[rgb(var(--color-danger)/0.08)] px-4 py-3 text-sm text-[rgb(var(--color-danger))]">
+            {error}
+          </div>
+        ) : null}
+
         {/* General Information */}
         <div>
           <h4 className="font-semibold text-[rgb(var(--color-text-primary))] mb-3 border-b border-[rgb(var(--color-surface-border)/0.6)] pb-1">
@@ -82,20 +167,20 @@ const CampaignOverview: React.FC<CampaignOverviewProps> = ({ character }) => {
             <div>
               <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Game Act</div>
               <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                {character.gameAct ? `Act ${character.gameAct}` : 'Unknown'}
+                {gameAct ? `Act ${gameAct}` : 'Unknown'}
               </div>
             </div>
             <div>
-              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Difficulty</div>
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Player</div>
               <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                {character.difficultyLabel || 'Normal'}
+                {display(playerName || character.name)}
               </div>
             </div>
-            {character.lastSavedTimestamp ? (
+            {lastSaved ? (
               <div className="col-span-2">
                 <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Last Saved</div>
                 <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {formatTimestamp(character.lastSavedTimestamp)}
+                  {formatTimestamp(lastSaved)}
                 </div>
               </div>
             ) : null}
@@ -108,125 +193,138 @@ const CampaignOverview: React.FC<CampaignOverviewProps> = ({ character }) => {
             Session Information
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
-            {character.campaignName ? (
+            {moduleInfo?.campaign ? (
               <div>
                 <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Campaign</div>
                 <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {display(character.campaignName)}
+                  {display(moduleInfo.campaign)}
                 </div>
               </div>
             ) : null}
-            {character.moduleName ? (
+            {moduleInfo?.module_name ? (
               <div>
                 <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Module</div>
                 <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {display(character.moduleName)}
+                  {display(moduleInfo.module_name)}
                 </div>
               </div>
             ) : null}
-            {character.location ? (
+            {moduleInfo?.area_name ? (
               <div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Location</div>
+                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Current Area</div>
                 <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {display(character.location)}
+                  {display(moduleInfo.area_name)}
                 </div>
               </div>
             ) : null}
-            {character.playTime ? (
+            {moduleInfo?.entry_area ? (
               <div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Play Time</div>
+                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Entry Area</div>
                 <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {display(character.playTime)}
+                  {display(moduleInfo.entry_area)}
                 </div>
               </div>
             ) : null}
           </div>
+          {moduleInfo?.module_description ? (
+            <div className="mt-4 text-sm text-[rgb(var(--color-text-secondary))]">
+              {display(moduleInfo.module_description)}
+            </div>
+          ) : null}
         </div>
 
-        {/* Locale & Language */}
+        {/* Companion Status */}
         <div>
           <h4 className="font-semibold text-[rgb(var(--color-text-primary))] mb-3 border-b border-[rgb(var(--color-surface-border)/0.6)] pb-1">
-            Locale & Language
+            Companion Status
           </h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
+          <div className="grid grid-cols-3 gap-y-6 gap-x-4">
             <div>
-              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Language</div>
-              <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                {character.languageLabel || character.detectedLanguage || 'English'}
-              </div>
-            </div>
-            {character.lastSavedTimestamp ? (
-              <div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Timezone</div>
-                <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                </div>
-              </div>
-            ) : null}
-            <div>
-              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Localization</div>
-              <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                {character.localizationStatus || (character.name ? 'Active' : 'Default')}
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Recruited</div>
+              <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
+                {formatNumber(recruitedCompanions.length)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Region Format</div>
-              <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                {Intl.DateTimeFormat().resolvedOptions().locale || 'en-US'}
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Met</div>
+              <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
+                {formatNumber(metCompanions.length)}
               </div>
             </div>
-            {character.createdAt ? (
-              <div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Imported</div>
-                <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {new Date(character.createdAt).toLocaleDateString()}
-                </div>
+            <div>
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Tracked</div>
+              <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
+                {formatNumber(companions.length)}
               </div>
-            ) : null}
-            {character.updatedAt ? (
-              <div>
-                <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Last Modified</div>
-                <div className="text-lg font-medium text-[rgb(var(--color-text-primary))]">
-                  {new Date(character.updatedAt).toLocaleDateString()}
-                </div>
-              </div>
-            ) : null}
+            </div>
           </div>
+          {companions.length > 0 ? (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {companions.map(([id, companion]) => (
+                <div
+                  key={id}
+                  className="rounded-lg border border-[rgb(var(--color-surface-border)/0.5)] bg-[rgb(var(--color-surface-2)/0.45)] px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium text-[rgb(var(--color-text-primary))]">
+                      {display(companion.name || id)}
+                    </div>
+                    <div className="text-xs uppercase text-[rgb(var(--color-text-muted))]">
+                      {display(formatRecruitmentLabel(companion.recruitment))}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm text-[rgb(var(--color-text-secondary))]">
+                    Influence: {companion.influence ?? 'Unknown'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : !isLoading && !error ? (
+            <div className="mt-4 text-sm text-[rgb(var(--color-text-muted))]">
+              No tracked companions found in this save.
+            </div>
+          ) : null}
         </div>
-
 
         {/* Quest Progress */}
         <div>
           <h4 className="font-semibold text-[rgb(var(--color-text-primary))] mb-3 border-b border-[rgb(var(--color-surface-border)/0.6)] pb-1">
             Quest Progress
           </h4>
-          
-          {/* Quest Summary Stats */}
-          {/* Quest Summary Stats */}
+
           <div className="grid grid-cols-3 gap-y-6 gap-x-4">
             <div>
               <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Completed</div>
               <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
-                {formatNumber(character.questDetails?.summary?.completed_quests || 0)}
+                {formatNumber(questOverview?.completed_count || 0)}
               </div>
             </div>
             <div>
               <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Active</div>
               <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
-                {formatNumber(character.questDetails?.summary?.active_quests || 0)}
+                {formatNumber(questOverview?.active_count || 0)}
               </div>
             </div>
             <div>
               <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Complete</div>
               <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
-                {character.questDetails?.progress_stats?.total_completion_rate || 0}%
+                {Math.round(questOverview?.completion_percentage || 0)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Quest Vars</div>
+              <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
+                {formatNumber(questOverview?.total_quest_vars || 0)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Groups</div>
+              <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">
+                {formatNumber(Object.keys(questOverview?.quest_groups || {}).length)}
               </div>
             </div>
           </div>
-
         </div>
-
-
       </div>
     </CollapsibleSection>
   );

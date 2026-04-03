@@ -224,6 +224,9 @@ async fn test_ranged_attack_bonus() {
 
 #[tokio::test]
 async fn test_damage_bonuses() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
     println!("\n=== Damage Bonuses ===");
 
     let fixtures = [
@@ -234,8 +237,9 @@ async fn test_damage_bonuses() {
 
     for (path, name) in fixtures {
         let character = load_character(path);
-        let damage = character.get_damage_bonuses();
-        let str_mod = character.ability_modifier(app_lib::character::types::AbilityIndex::STR);
+        let damage = character.get_damage_bonuses(game_data);
+        let str_mod =
+            character.get_effective_ability_modifier(app_lib::character::types::AbilityIndex::STR, game_data);
 
         println!(
             "{:<15}: STR mod={:>2}, Melee={:>2}, 2H={:>2}, Off-hand={:>2}, Ranged={:>2}",

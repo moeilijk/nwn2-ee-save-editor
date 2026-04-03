@@ -28,9 +28,7 @@ export default function LevelHelperModal({ isOpen, onClose, className, onNavigat
   const skillPoints = (() => {
     const data = skillsSubsystem.data;
     if (!data) return 0;
-    const totalAvailable = data.total_available ?? 0;
-    const totalSpent = data.spent_points ?? 0;
-    return Math.max(0, totalAvailable - totalSpent);
+    return Math.max(0, data.available_points ?? 0);
   })();
 
   const abilityPoints = (() => {

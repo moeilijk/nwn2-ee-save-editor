@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
-import { CharacterAPI, type BackgroundOption } from '@/services/characterApi';
+import { CharacterAPI, type BackgroundOption, type RaceDataResponse } from '@/services/characterApi';
 import { inventoryAPI } from '@/services/inventoryApi';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { gameData } from '@/lib/api/gamedata';
@@ -273,6 +273,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const combat = useSubsystem('combat');
   const skills = useSubsystem('skills');
   const feats = useSubsystem('feats');
+  const spells = useSubsystem('spells');
   const saves = useSubsystem('saves');
   const abilities = useSubsystem('abilityScores');
   const classes = useSubsystem('classes');
@@ -288,6 +289,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const [availableBackgrounds, setAvailableBackgrounds] = useState<BackgroundOption[]>([]);
   const [selectedGenderId, setSelectedGenderId] = useState<number | null>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<number | null>(null);
+  const [raceData, setRaceData] = useState<RaceDataResponse | null>(null);
   const [ageInput, setAgeInput] = useState('');
   const [alignmentDraft, setAlignmentDraft] = useState<AlignmentValues>({ law_chaos: 50, good_evil: 50 });
   const [experienceInput, setExperienceInput] = useState('');
@@ -306,6 +308,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
   const [biography, setBiography] = useState('');
 
   const BACKGROUND_DEPENDENT_SUBSYSTEMS = ['feats', 'skills', 'combat', 'abilityScores', 'saves'] as const;
+  const RACE_DEPENDENT_SUBSYSTEMS = ['abilityScores', 'combat', 'saves', 'skills', 'feats', 'spells'] as const;
   
 
   
@@ -614,6 +617,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
     try {
       await CharacterAPI.changeRace(character.id, raceId, subrace);
       updateCharacterPartial({ race: raceName, subrace: subrace ?? undefined });
+      await invalidateSubsystems([...RACE_DEPENDENT_SUBSYSTEMS]);
+      setIsRaceModalOpen(false);
     } catch (e) {
       console.error('Failed to change race:', e);
     }
@@ -670,6 +675,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
       combat.load({ silent: true, force: true }).catch(console.warn);
       skills.load({ silent: true, force: true }).catch(console.warn);
       feats.load({ silent: true, force: true }).catch(console.warn);
+      spells.load({ silent: true, force: true }).catch(console.warn);
       saves.load({ silent: true, force: true }).catch(console.warn);
       classes.load({ silent: true, force: true }).catch(console.warn);
 
@@ -685,6 +691,31 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
     return () => { mounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (character?.id) {
+      CharacterAPI.getRaceData(character.id)
+        .then(data => {
+          if (mounted) {
+            setRaceData(data);
+          }
+        })
+        .catch(error => {
+          console.warn('Failed to load race data for overview:', error);
+          if (mounted) {
+            setRaceData(null);
+          }
+        });
+    } else {
+      setRaceData(null);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [character?.id, character?.race, character?.subrace]);
 
   if (isLoading) {
     return (
@@ -710,6 +741,55 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
     );
   }
 
+  const availableSkillPoints =
+    skills.data?.available_points ??
+    classes.data?.skill_points_summary?.available_points ??
+    character.availableSkillPoints ??
+    0;
+  const totalSkillPoints =
+    classes.data?.skill_points_summary?.total_points ??
+    character.totalSkillPoints ??
+    skills.data?.spent_points ??
+    0;
+  const totalFeats =
+    feats.data?.summary?.total_count ??
+    character.totalFeats ??
+    0;
+  const hasSpellcasting =
+    (spells.data?.spellcasting_classes?.length ?? 0) > 0 ||
+    character.knownSpells !== undefined;
+  const knownSpellsCount =
+    spells.data?.known_spells?.length ??
+    character.knownSpells ??
+    0;
+  const baseAttackBonus =
+    combat.data?.base_attack_bonus ??
+    character.baseAttackBonus ??
+    classes.data?.entries?.reduce((sum, entry) => sum + entry.base_attack_bonus, 0) ??
+    0;
+  const armorClassTotal = combat.data?.armor_class?.total;
+  const movementSpeed =
+    combat.data?.movement?.current ??
+    raceData?.base_speed ??
+    character.movementSpeed;
+  const initiativeTotal =
+    combat.data?.initiative?.total ??
+    character.initiative;
+  const sizeLabel =
+    raceData?.size_name ??
+    character.size;
+  const abilityOverviewEntries = abilities.data?.effective_scores
+    ? ([
+        ['Str', abilities.data.effective_scores.Str, abilities.data.modifiers?.Str ?? 0],
+        ['Dex', abilities.data.effective_scores.Dex, abilities.data.modifiers?.Dex ?? 0],
+        ['Con', abilities.data.effective_scores.Con, abilities.data.modifiers?.Con ?? 0],
+        ['Int', abilities.data.effective_scores.Int, abilities.data.modifiers?.Int ?? 0],
+        ['Wis', abilities.data.effective_scores.Wis, abilities.data.modifiers?.Wis ?? 0],
+        ['Cha', abilities.data.effective_scores.Cha, abilities.data.modifiers?.Cha ?? 0],
+      ] as [string, number, number][])
+    : null;
+  const formatDerivedModifier = (value: number | null | undefined): string =>
+    value == null ? '-' : formatModifier(value);
 
   return (
     <div className="space-y-6">
@@ -893,8 +973,8 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                             <div className="font-medium text-[rgb(var(--color-text-primary))]">
                                 {abilities.isLoading ? <span className="text-xs">...</span> : (
                                     <>
-                                        {display(abilities.data?.hit_points?.current || character.hitPoints || 0)}
-                                        <span className="text-[rgb(var(--color-text-muted))]">/{display(abilities.data?.hit_points?.max || character.maxHitPoints || 0)}</span>
+                                        {display(abilities.data?.hit_points?.current ?? character.hitPoints ?? 0)}
+                                        <span className="text-[rgb(var(--color-text-muted))]">/{display(abilities.data?.hit_points?.max ?? character.maxHitPoints ?? 0)}</span>
                                     </>
                                 )}
                             </div>
@@ -902,7 +982,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                          <div>
                             <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Armor Class</div>
                             <div className="font-medium text-[rgb(var(--color-text-primary))]">
-                                {combat.isLoading ? <span className="text-xs">...</span> : display(combat.data?.armor_class?.total || character.armorClass)}
+                                {combat.isLoading ? <span className="text-xs">...</span> : display(combat.data?.armor_class?.total)}
                             </div>
                          </div>
 	                         <div>
@@ -1227,35 +1307,34 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
           defaultOpen={true}
           badge={abilities.data?.modifiers ? formatModifier(abilities.data.modifiers.Str + abilities.data.modifiers.Dex + abilities.data.modifiers.Con + abilities.data.modifiers.Int + abilities.data.modifiers.Wis + abilities.data.modifiers.Cha) : '-'}
         >
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-y-6 gap-x-4">
-            {(abilities.data?.effective_scores ? [
-              ['Str', abilities.data.effective_scores.Str, abilities.data.modifiers?.Str ?? 0],
-              ['Dex', abilities.data.effective_scores.Dex, abilities.data.modifiers?.Dex ?? 0],
-              ['Con', abilities.data.effective_scores.Con, abilities.data.modifiers?.Con ?? 0],
-              ['Int', abilities.data.effective_scores.Int, abilities.data.modifiers?.Int ?? 0],
-              ['Wis', abilities.data.effective_scores.Wis, abilities.data.modifiers?.Wis ?? 0],
-              ['Cha', abilities.data.effective_scores.Cha, abilities.data.modifiers?.Cha ?? 0],
-            ] as [string, number, number][] : character.abilities ? Object.entries(character.abilities).map(([key, value]) => [key, value, Math.floor((value - 10) / 2)] as [string, number, number]) : []).map(([key, value, modifier]) => {
-              const modifierColor = modifier > 0 ? 'var(--color-success)' : modifier < 0 ? 'var(--color-error)' : 'var(--color-text-muted)';
-              return (
-                <div key={key} className="">
-                  <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">{
-                    key === 'Str' ? t('abilityScores.strength') :
-                    key === 'Dex' ? t('abilityScores.dexterity') :
-                    key === 'Con' ? t('abilityScores.constitution') :
-                    key === 'Int' ? t('abilityScores.intelligence') :
-                    key === 'Wis' ? t('abilityScores.wisdom') :
-                    key === 'Cha' ? t('abilityScores.charisma') :
-                    key
-                  }</div>
-                  <div className="text-2xl font-bold text-[rgb(var(--color-text-primary))] leading-none mb-1">{value}</div>
-                  <div className={`text-sm font-medium text-[rgb(${modifierColor})]`}>
-                    {modifier >= 0 ? '+' : ''}{modifier}
+          {abilities.isLoading && !abilityOverviewEntries ? (
+            <div className="text-sm text-[rgb(var(--color-text-muted))]">Loading ability scores...</div>
+          ) : abilityOverviewEntries ? (
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-y-6 gap-x-4">
+              {abilityOverviewEntries.map(([key, value, modifier]) => {
+                const modifierColor = modifier > 0 ? 'var(--color-success)' : modifier < 0 ? 'var(--color-error)' : 'var(--color-text-muted)';
+                return (
+                  <div key={key} className="">
+                    <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase tracking-wider mb-1">{
+                      key === 'Str' ? t('abilityScores.strength') :
+                      key === 'Dex' ? t('abilityScores.dexterity') :
+                      key === 'Con' ? t('abilityScores.constitution') :
+                      key === 'Int' ? t('abilityScores.intelligence') :
+                      key === 'Wis' ? t('abilityScores.wisdom') :
+                      key === 'Cha' ? t('abilityScores.charisma') :
+                      key
+                    }</div>
+                    <div className="text-2xl font-bold text-[rgb(var(--color-text-primary))] leading-none mb-1">{value}</div>
+                    <div className={`text-sm font-medium text-[rgb(${modifierColor})]`}>
+                      {modifier >= 0 ? '+' : ''}{modifier}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm text-[rgb(var(--color-text-muted))]">Ability data unavailable.</div>
+          )}
         </CollapsibleSection>
 
 
@@ -1263,7 +1342,15 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
         <CollapsibleSection
           title="Combat & Progression"
           defaultOpen={false}
-          badge={(skills.data?.total_available ?? character.availableSkillPoints ?? 0) > 0 ? `${skills.data?.total_available || character.availableSkillPoints} skill points` : `AC ${combat.data?.armor_class?.total || character.armorClass}`}
+          badge={
+            (skills.data?.overdrawn_points ?? 0) > 0
+              ? `${skills.data?.overdrawn_points} overdrawn`
+              : availableSkillPoints > 0
+                ? `${availableSkillPoints} skill points`
+                : armorClassTotal != null
+                  ? `AC ${armorClassTotal}`
+                  : 'Combat'
+          }
         >
           <div className="space-y-6">
             {/* Combat Stats */}
@@ -1275,21 +1362,17 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     {combat.isLoading ? (
                       <span className="text-sm">...</span>
                     ) : (
-                      formatModifier(
-                        combat.data?.base_attack_bonus ??
-                        character.baseAttackBonus ??
-                        0
-                      )
+                      formatModifier(baseAttackBonus)
                     )}
                   </div>
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.meleeAttack')}</div>
-                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.melee ?? character.meleeAttackBonus ?? 0)}</div>
+                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatDerivedModifier(combat.data?.attack_bonuses?.melee)}</div>
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.rangedAttack')}</div>
-                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatModifier(combat.data?.attack_bonuses?.ranged ?? character.rangedAttackBonus ?? 0)}</div>
+                  <div className="text-xl font-bold text-[rgb(var(--color-text-primary))]">{formatDerivedModifier(combat.data?.attack_bonuses?.ranged)}</div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -1299,10 +1382,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     {saves.isLoading ? (
                       <span className="text-sm">...</span>
                     ) : (
-                      formatModifier(
-                        saves.data?.saves?.fortitude?.total ??
-                        (typeof character.saves?.fortitude === 'number' ? character.saves.fortitude : 0)
-                      )
+                      formatDerivedModifier(saves.data?.saves?.fortitude?.total)
                     )}
                   </div>
                 </div>
@@ -1312,10 +1392,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     {saves.isLoading ? (
                       <span className="text-sm">...</span>
                     ) : (
-                      formatModifier(
-                        saves.data?.saves?.reflex?.total ??
-                        (typeof character.saves?.reflex === 'number' ? character.saves.reflex : 0)
-                      )
+                      formatDerivedModifier(saves.data?.saves?.reflex?.total)
                     )}
                   </div>
                 </div>
@@ -1325,10 +1402,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                     {saves.isLoading ? (
                       <span className="text-sm">...</span>
                     ) : (
-                      formatModifier(
-                        saves.data?.saves?.will?.total ??
-                        (typeof character.saves?.will === 'number' ? character.saves.will : 0)
-                      )
+                      formatDerivedModifier(saves.data?.saves?.will?.total)
                     )}
                   </div>
                 </div>
@@ -1340,16 +1414,16 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">Total Skill Points</div>
-                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(skills.data?.spent_points || character.totalSkillPoints || 0)}</div>
+                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(totalSkillPoints)}</div>
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.totalFeats')}</div>
-                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(feats.data?.summary?.total_count || character.totalFeats || 0)}</div>
+                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(totalFeats)}</div>
                 </div>
-                {character.knownSpells !== undefined && (
+                {hasSpellcasting && (
                   <div className="">
                     <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.knownSpells')}</div>
-                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(character.knownSpells || 0)}</div>
+                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(knownSpellsCount)}</div>
                   </div>
                 )}
               </div>
@@ -1359,21 +1433,19 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                 <div className="grid grid-cols-3 gap-4">
                   <div className="">
                     <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.speed')}</div>
-                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(character.movementSpeed)} ft</div>
+                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">
+                      {movementSpeed !== undefined ? `${display(movementSpeed)} ft` : display(undefined)}
+                    </div>
                   </div>
                   <div className="">
                     <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.initiative')}</div>
                     <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">
-                      {formatModifier(
-                        combat.data?.initiative?.total ??
-                        character.initiative ?? 
-                        0
-                      )}
+                      {formatModifier(initiativeTotal)}
                     </div>
                   </div>
                   <div className="">
                     <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.size')}</div>
-                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(character.size)}</div>
+                    <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(sizeLabel)}</div>
                   </div>
                 </div>
               </div>

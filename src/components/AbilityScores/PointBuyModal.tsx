@@ -46,6 +46,7 @@ export default function PointBuyModal({ isOpen, onClose, pointBuyState, onApply 
     Str: 10, Dex: 10, Con: 10, Int: 10, Wis: 10, Cha: 10
   });
   const [isApplying, setIsApplying] = useState(false);
+  const budget = pointBuyState?.budget ?? BUDGET;
 
   useEffect(() => {
     if (isOpen && pointBuyState?.starting_scores) {
@@ -64,7 +65,7 @@ export default function PointBuyModal({ isOpen, onClose, pointBuyState, onApply 
     return ABILITIES.reduce((sum, key) => sum + getCost(scores[key]), 0);
   }, [scores]);
 
-  const remaining = BUDGET - totalCost;
+  const remaining = budget - totalCost;
 
   const handleChange = (key: AbilityKey, delta: number) => {
     const newValue = scores[key] + delta;
@@ -117,7 +118,7 @@ export default function PointBuyModal({ isOpen, onClose, pointBuyState, onApply 
           </p>
 
           <div className={`text-center text-lg font-bold mb-4 p-2 rounded ${remaining < 0 ? 'bg-red-500/20 text-red-400' : remaining === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[rgb(var(--color-surface-2))]'}`}>
-            {t('abilityScores.pointBuy.pointsUsed')}: {totalCost} / {BUDGET}
+            {t('abilityScores.pointBuy.pointsUsed')}: {totalCost} / {budget}
             <span className="ml-2">
               ({remaining} {t('abilityScores.pointBuy.remaining')})
             </span>

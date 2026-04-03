@@ -349,7 +349,10 @@ impl Character {
                 entry.insert("Class".to_string(), GffValue::Int(class_id));
             }
             if let Some(class_level) = entry.get("ClassLevel").and_then(gff_value_to_i32) {
-                entry.insert("ClassLevel".to_string(), GffValue::Short(class_level as i16));
+                entry.insert(
+                    "ClassLevel".to_string(),
+                    GffValue::Short(class_level as i16),
+                );
             }
         }
         self.set_list("ClassList", class_list.clone());
@@ -980,7 +983,6 @@ impl Character {
         let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
         let mut class_list = self.get_list_owned("ClassList").unwrap_or_default();
         let mut char_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
-        let mut char_skill_list = self.get_list_owned("SkillList").unwrap_or_default();
 
         // Find all level history entries for this class
         let mut indices_to_remove: Vec<usize> = Vec::new();
@@ -989,7 +991,6 @@ impl Character {
         let mut feats_to_remove: HashSet<i32> = HashSet::new();
         let mut feats_to_keep: HashSet<i32> = HashSet::new();
         let mut ability_reductions: Vec<u8> = Vec::new();
-        let mut skill_ranks_to_remove: HashMap<usize, i32> = HashMap::new();
 
         // Collect info from all entries for this class
         for (idx, entry) in lvl_stat_list.iter().enumerate() {
@@ -1002,7 +1003,7 @@ impl Character {
                     .get("LvlStatHitDie")
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
-                let con_mod = self.ability_modifier(AbilityIndex::CON);
+                let con_mod = self.get_effective_ability_modifier(AbilityIndex::CON, game_data);
                 total_hp_reduction += (hp + con_mod).max(1);
 
                 // Skill points to remove
@@ -1026,20 +1027,6 @@ impl Character {
                     for feat_entry in feat_list {
                         if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
                             feats_to_remove.insert(feat_id);
-                        }
-                    }
-                }
-
-                // Skill ranks to remove
-                if let Some(skills) = super::gff_helpers::extract_list_from_map(entry, "SkillList")
-                {
-                    for (skill_idx, skill_entry) in skills.iter().enumerate() {
-                        let ranks = skill_entry
-                            .get("Rank")
-                            .and_then(gff_value_to_i32)
-                            .unwrap_or(0);
-                        if ranks > 0 {
-                            *skill_ranks_to_remove.entry(skill_idx).or_insert(0) += ranks;
                         }
                     }
                 }
@@ -1146,20 +1133,6 @@ impl Character {
             }
         }
 
-        // Remove skill ranks
-        for (skill_idx, ranks_to_remove) in skill_ranks_to_remove {
-            if let Some(skill_entry) = char_skill_list.get_mut(skill_idx) {
-                let current = skill_entry
-                    .get("Rank")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
-                skill_entry.insert(
-                    "Rank".to_string(),
-                    GffValue::Byte((current - ranks_to_remove).max(0) as u8),
-                );
-            }
-        }
-
         // Remove class from ClassList
         class_list.retain(|c| c.get("Class").and_then(gff_value_to_i32) != Some(class_id.0));
 
@@ -1192,10 +1165,10 @@ impl Character {
         self.set_list("LvlStatList", lvl_stat_list);
         self.set_list("ClassList", class_list);
         self.set_list("FeatList", char_feat_list);
-        self.set_list("SkillList", char_skill_list);
 
         // Recalculate stats once at the end
         self.recalculate_stats(game_data)?;
+        self.normalize_skill_points(game_data);
 
         self.reconcile_class_feats(&[class_id], game_data);
 
@@ -1942,7 +1915,7 @@ impl Character {
         let hit_die = Self::get_field_value(&class_data, "hit_die")
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(6);
-        let con_mod = self.ability_modifier(AbilityIndex::CON);
+        let con_mod = self.get_effective_ability_modifier(AbilityIndex::CON, game_data);
 
         let hp_gained = std::cmp::max(1, hit_die + con_mod);
 
@@ -1955,7 +1928,7 @@ impl Character {
         self.set_current_hp(current_hp + hp_gained);
 
         // 5. Skill Points
-        let int_mod = self.ability_modifier(AbilityIndex::INT);
+        let int_mod = self.get_effective_ability_modifier(AbilityIndex::INT, game_data);
         let race_id = self.race_id();
         let race_bonus = game_data
             .get_table("racialtypes")
@@ -2148,6 +2121,7 @@ impl Character {
     ) -> Result<(), CharacterError> {
         self.level_down_internal(class_id, game_data)?;
         self.recalculate_stats(game_data)?;
+        self.normalize_skill_points(game_data);
         self.reconcile_class_feats(&[class_id], game_data);
         Ok(())
     }
@@ -2200,7 +2174,7 @@ impl Character {
             .get("LvlStatHitDie")
             .and_then(gff_value_to_i32)
             .unwrap_or(0);
-        let con_mod = self.ability_modifier(AbilityIndex::CON);
+        let con_mod = self.get_effective_ability_modifier(AbilityIndex::CON, game_data);
         let hp_reduction = (hp_roll + con_mod).max(1);
 
         let current_max_hp = self.get_i32("MaxHitPoints").unwrap_or(0);
@@ -2224,35 +2198,11 @@ impl Character {
         let current_sp = self.get_available_skill_points();
         self.set_available_skill_points((current_sp - sp_gained).max(0));
 
-        // 4. Refund Skill Ranks (Direct edit to avoid history side-effect)
-        if let Some(skills) = super::gff_helpers::extract_list_from_map(&entry, "SkillList") {
-            let mut char_skill_list = self.get_list_owned("SkillList").unwrap_or_default();
-            for (skill_idx, skill_entry) in skills.iter().enumerate() {
-                let ranks = skill_entry
-                    .get("Rank")
-                    .and_then(gff_value_to_i32)
-                    .unwrap_or(0);
-                if ranks > 0
-                    && let Some(char_skill) = char_skill_list.get_mut(skill_idx)
-                {
-                    let current_ranks = char_skill
-                        .get("Rank")
-                        .and_then(gff_value_to_i32)
-                        .unwrap_or(0);
-                    char_skill.insert(
-                        "Rank".to_string(),
-                        GffValue::Byte((current_ranks - ranks).max(0) as u8),
-                    );
-                }
-            }
-            self.set_list("SkillList", char_skill_list);
-        }
-
-        // 5. Remove Feats (Direct edit to avoid history side-effect)
+        // 4. Remove Feats (Direct edit to avoid history side-effect)
         let mut feats_to_remove: HashSet<i32> = HashSet::new();
         let mut feats_to_keep: HashSet<i32> = HashSet::new();
 
-        // 5a. Collect chosen feats from the removed level
+        // 4a. Collect chosen feats from the removed level
         if let Some(feats) = super::gff_helpers::extract_list_from_map(&entry, "FeatList") {
             for feat_entry in feats {
                 if let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) {
@@ -2261,7 +2211,7 @@ impl Character {
             }
         }
 
-        // 5b. Add auto feats granted at THIS specific level
+        // 4b. Add auto feats granted at THIS specific level
         let auto_feats = self.get_class_feats_for_level(class_id, current_level, game_data);
         for feat_info in auto_feats {
             if feat_info.list_type == 0 || feat_info.list_type == 3 {
@@ -2269,7 +2219,7 @@ impl Character {
             }
         }
 
-        // 5c. Collect chosen feats to KEEP from surviving LvlStatList entries
+        // 4c. Collect chosen feats to KEEP from surviving LvlStatList entries
         for stat_entry in &lvl_stat_list {
             if let Some(feat_list) =
                 super::gff_helpers::extract_list_from_map(stat_entry, "FeatList")
@@ -2282,7 +2232,7 @@ impl Character {
             }
         }
 
-        // 5d. Add auto feats to keep from remaining levels of THIS class and ALL levels of OTHER classes
+        // 4d. Add auto feats to keep from remaining levels of THIS class and ALL levels of OTHER classes
         let class_list_for_feats = self.get_list_owned("ClassList").unwrap_or_default();
         for class_entry in &class_list_for_feats {
             let other_class_id = class_entry
@@ -2333,7 +2283,7 @@ impl Character {
             }
         }
 
-        // 6. Undo Spell Selections (Direct edit to avoid history side-effect)
+        // 5. Undo Spell Selections (Direct edit to avoid history side-effect)
         if let Some(mut class_list) = self.get_list_owned("ClassList") {
             for i in 0..10 {
                 let list_key = format!("KnownList{i}");
@@ -2364,7 +2314,7 @@ impl Character {
             self.set_list("ClassList", class_list);
         }
 
-        // 7. Update ClassList
+        // 6. Update ClassList
         let mut class_list = self.get_list_owned("ClassList").unwrap_or_default();
         let mut entries_to_remove = Vec::new();
         for (i, entry) in class_list.iter_mut().enumerate() {
@@ -2558,7 +2508,7 @@ impl Character {
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
 
-        let int_mod = self.ability_modifier(AbilityIndex::INT);
+        let int_mod = self.get_effective_ability_modifier(AbilityIndex::INT, game_data);
 
         let Some(lvl_stat_list) = self.get_list("LvlStatList") else {
             return class_points;
@@ -2599,10 +2549,98 @@ impl Character {
         class_points
     }
 
+    fn history_aligned_skill_point_floor(&self, game_data: &GameData) -> Option<i32> {
+        if self.is_modified() {
+            return None;
+        }
+
+        let history = self.get_list("LvlStatList")?;
+        let top_skill_list = self.get_list("SkillList")?;
+        let has_able_learner =
+            self.has_feat(FeatId(crate::character::skills::ABLE_LEARNER_FEAT_ID));
+
+        let mut aggregated_ranks = vec![0; top_skill_list.len()];
+        let mut acquired_classes = Vec::new();
+        let mut history_spent = 0;
+        let mut saw_history_skills = false;
+        let mut trailing_history_points = None;
+
+        for entry in history {
+            if let Some(class_id) = entry.get("LvlStatClass").and_then(gff_value_to_i32)
+                && class_id >= 0
+            {
+                acquired_classes.push(ClassId(class_id));
+            }
+
+            if let Some(points) = entry.get("SkillPoints").and_then(gff_value_to_i32) {
+                trailing_history_points = Some(points.max(0));
+            }
+
+            let Some(GffValue::ListOwned(skill_list)) = entry.get("SkillList") else {
+                continue;
+            };
+
+            if skill_list.len() > aggregated_ranks.len() {
+                aggregated_ranks.resize(skill_list.len(), 0);
+            }
+
+            for (skill_idx, skill) in skill_list.iter().enumerate() {
+                let ranks = skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+                if ranks <= 0 {
+                    continue;
+                }
+
+                saw_history_skills = true;
+                aggregated_ranks[skill_idx] += ranks;
+
+                let is_class_skill = Self::is_class_skill_for_class_ids(
+                    &acquired_classes,
+                    SkillId(skill_idx as i32),
+                    game_data,
+                );
+                history_spent += if is_class_skill || has_able_learner {
+                    ranks
+                } else {
+                    ranks * 2
+                };
+            }
+        }
+
+        if !saw_history_skills {
+            return None;
+        }
+
+        if aggregated_ranks.len() < top_skill_list.len() {
+            aggregated_ranks.resize(top_skill_list.len(), 0);
+        }
+
+        let history_matches_top_level =
+            top_skill_list.iter().enumerate().all(|(skill_idx, skill)| {
+                let top_rank = skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+                aggregated_ranks.get(skill_idx).copied().unwrap_or(0) == top_rank
+            });
+
+        if !history_matches_top_level {
+            return None;
+        }
+
+        Some(
+            history_spent
+                + trailing_history_points
+                    .unwrap_or(0)
+                    .max(self.get_available_skill_points()),
+        )
+    }
+
     /// Get a summary of skill points (theoretical vs actual).
     pub fn get_skill_points_summary(&self, game_data: &GameData) -> SkillPointsSummary {
         let theoretical_map = self.get_theoretical_skill_points(game_data);
-        let theoretical_total: i32 = theoretical_map.values().sum();
+        let formula_total: i32 = theoretical_map.values().sum();
+        let theoretical_total = self
+            .history_aligned_skill_point_floor(game_data)
+            .map_or(formula_total, |history_total| {
+                history_total.max(formula_total)
+            });
         let actual_spent = self.calculate_total_spent_with_costs(game_data);
         let current_unspent = self.get_available_skill_points();
 
@@ -2883,6 +2921,7 @@ impl Character {
         }
 
         self.level_up(new_class_id, game_data)?;
+        self.normalize_skill_points(game_data);
 
         self.reconcile_class_feats(&[old_class_id], game_data);
 
@@ -2970,7 +3009,10 @@ impl Character {
                 let merged_level = self.class_level(new_class_id) + old_class_level;
                 let mut merged_entry = class_list[new_class_index].clone();
                 merged_entry.insert("Class".to_string(), GffValue::Byte(new_class_id.0 as u8));
-                merged_entry.insert("ClassLevel".to_string(), GffValue::Short(merged_level as i16));
+                merged_entry.insert(
+                    "ClassLevel".to_string(),
+                    GffValue::Short(merged_level as i16),
+                );
 
                 let mut indices_to_remove = [class_index, new_class_index];
                 indices_to_remove.sort_unstable_by(|a, b| b.cmp(a));
@@ -3012,6 +3054,7 @@ impl Character {
         self.grant_auto_class_feats_without_history(new_class_id, old_class_level, game_data);
         self.recalculate_hp(game_data)?;
         self.recalculate_stats(game_data)?;
+        self.normalize_skill_points(game_data);
 
         Ok(())
     }
@@ -3026,7 +3069,7 @@ impl Character {
     pub fn recalculate_hp(&mut self, game_data: &GameData) -> Result<(), CharacterError> {
         let mut lvl_stat_list = self.get_list_owned("LvlStatList").unwrap_or_default();
         let mut total_hp = 0;
-        let con_mod = self.ability_modifier(AbilityIndex::CON);
+        let con_mod = self.get_effective_ability_modifier(AbilityIndex::CON, game_data);
 
         let classes_table = game_data
             .get_table("classes")
@@ -3175,12 +3218,80 @@ mod tests {
         game_data
     }
 
+    fn create_game_data_with_history_skill_tables() -> GameData {
+        let mut game_data = create_mock_game_data();
+
+        let mut classes_parser = TDAParser::new();
+        classes_parser
+            .parse_from_string(
+                "2DA V2.0\n\nLabel HitDie SkillPointBase SkillsTable\n\
+                 0 Barbarian 12 4 barbskills\n\
+                 1 Unused 6 2 ****\n\
+                 2 Unused 6 2 ****\n\
+                 3 Unused 6 2 ****\n\
+                 4 Fighter 10 2 fighterskills\n",
+            )
+            .expect("Failed to parse history test classes 2DA");
+        game_data.tables.insert(
+            "classes".to_string(),
+            LoadedTable::new("classes".to_string(), std::sync::Arc::new(classes_parser)),
+        );
+
+        let mut barbskills = TDAParser::new();
+        barbskills
+            .parse_from_string(
+                "2DA V2.0\n\nSkillIndex ClassSkill\n\
+                 0 21 0\n\
+                 1 24 1\n\
+                 2 25 1\n\
+                 3 26 1\n",
+            )
+            .expect("Failed to parse barbskills 2DA");
+        game_data.tables.insert(
+            "barbskills".to_string(),
+            LoadedTable::new("barbskills".to_string(), std::sync::Arc::new(barbskills)),
+        );
+
+        let mut fighterskills = TDAParser::new();
+        fighterskills
+            .parse_from_string(
+                "2DA V2.0\n\nSkillIndex ClassSkill\n\
+                 0 21 0\n\
+                 1 24 1\n\
+                 2 25 1\n\
+                 3 26 1\n",
+            )
+            .expect("Failed to parse fighterskills 2DA");
+        game_data.tables.insert(
+            "fighterskills".to_string(),
+            LoadedTable::new(
+                "fighterskills".to_string(),
+                std::sync::Arc::new(fighterskills),
+            ),
+        );
+
+        game_data
+    }
+
     fn zero_rank_skill_list(skill_count: usize) -> Vec<IndexMap<String, GffValue<'static>>> {
         let mut skill_list = Vec::with_capacity(skill_count);
         for _ in 0..skill_count {
             let mut skill = IndexMap::new();
             skill.insert("Rank".to_string(), GffValue::Byte(0));
             skill_list.push(skill);
+        }
+        skill_list
+    }
+
+    fn skill_list_with_ranks(
+        skill_count: usize,
+        ranks: &[(usize, u8)],
+    ) -> Vec<IndexMap<String, GffValue<'static>>> {
+        let mut skill_list = zero_rank_skill_list(skill_count);
+        for (skill_idx, rank) in ranks {
+            if let Some(skill) = skill_list.get_mut(*skill_idx) {
+                skill.insert("Rank".to_string(), GffValue::Byte(*rank));
+            }
         }
         skill_list
     }
@@ -3202,6 +3313,90 @@ mod tests {
         );
         entry.insert("FeatList".to_string(), GffValue::ListOwned(vec![]));
         entry
+    }
+
+    fn create_history_entry_with_skill_ranks(
+        class_id: u8,
+        hit_die: u8,
+        skill_points: i16,
+        skill_count: usize,
+        ranks: &[(usize, u8)],
+    ) -> IndexMap<String, GffValue<'static>> {
+        let mut entry = create_history_entry(class_id, hit_die, skill_points, skill_count);
+        entry.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(skill_list_with_ranks(skill_count, ranks)),
+        );
+        entry
+    }
+
+    fn build_history_aligned_test_character() -> Character {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(31));
+        fields.insert("Str".to_string(), GffValue::Byte(12));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+        fields.insert("Con".to_string(), GffValue::Byte(12));
+        fields.insert("Int".to_string(), GffValue::Byte(8));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(0));
+
+        let mut barbarian = IndexMap::new();
+        barbarian.insert("Class".to_string(), GffValue::Byte(0));
+        barbarian.insert("ClassLevel".to_string(), GffValue::Short(5));
+        let mut fighter = IndexMap::new();
+        fighter.insert("Class".to_string(), GffValue::Byte(4));
+        fighter.insert("ClassLevel".to_string(), GffValue::Short(2));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![barbarian, fighter]),
+        );
+
+        let skill_count = 30;
+        fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(skill_list_with_ranks(
+                skill_count,
+                &[(21, 4), (24, 10), (25, 9), (26, 8)],
+            )),
+        );
+
+        let history = vec![
+            create_history_entry_with_skill_ranks(
+                0,
+                12,
+                0,
+                skill_count,
+                &[(21, 2), (24, 4), (25, 4), (26, 4)],
+            ),
+            create_history_entry_with_skill_ranks(
+                0,
+                12,
+                1,
+                skill_count,
+                &[(24, 1), (25, 1), (26, 1)],
+            ),
+            create_history_entry_with_skill_ranks(
+                0,
+                12,
+                0,
+                skill_count,
+                &[(21, 1), (24, 1), (25, 1), (26, 1)],
+            ),
+            create_history_entry_with_skill_ranks(0, 12, 2, skill_count, &[(25, 1), (26, 1)]),
+            create_history_entry_with_skill_ranks(
+                0,
+                12,
+                0,
+                skill_count,
+                &[(21, 1), (24, 2), (25, 1), (26, 1)],
+            ),
+            create_history_entry_with_skill_ranks(4, 10, 1, skill_count, &[(24, 1)]),
+            create_history_entry_with_skill_ranks(4, 10, 1, skill_count, &[(24, 1), (25, 1)]),
+        ];
+        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(history));
+
+        Character::from_gff(fields)
     }
 
     fn create_multiclass_character_for_preserve_change() -> Character {
@@ -3270,6 +3465,51 @@ mod tests {
             "LvlStatList".to_string(),
             GffValue::ListOwned(vec![create_history_entry(4, 10, 0, 30)]),
         );
+
+        Character::from_gff(fields)
+    }
+
+    fn create_multiclass_character_with_allocated_skills() -> Character {
+        let mut fields = IndexMap::new();
+
+        let mut barbarian = IndexMap::new();
+        barbarian.insert("Class".to_string(), GffValue::Byte(0));
+        barbarian.insert("ClassLevel".to_string(), GffValue::Short(5));
+
+        let mut fighter = IndexMap::new();
+        fighter.insert("Class".to_string(), GffValue::Byte(4));
+        fighter.insert("ClassLevel".to_string(), GffValue::Short(2));
+
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![barbarian, fighter]),
+        );
+        fields.insert("Class".to_string(), GffValue::Byte(0));
+        fields.insert("Str".to_string(), GffValue::Byte(14));
+        fields.insert("Dex".to_string(), GffValue::Byte(12));
+        fields.insert("Con".to_string(), GffValue::Byte(14));
+        fields.insert("Int".to_string(), GffValue::Byte(10));
+        fields.insert("Wis".to_string(), GffValue::Byte(10));
+        fields.insert("Cha".to_string(), GffValue::Byte(10));
+        fields.insert("HitPoints".to_string(), GffValue::Int(70));
+        fields.insert("MaxHitPoints".to_string(), GffValue::Int(70));
+        fields.insert("CurrentHitPoints".to_string(), GffValue::Int(70));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(22));
+        fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(skill_list_with_ranks(30, &[(0, 4), (1, 3)])),
+        );
+
+        let history = vec![
+            create_history_entry_with_skill_ranks(0, 12, 16, 30, &[(0, 2), (1, 1)]),
+            create_history_entry_with_skill_ranks(0, 6, 4, 30, &[(0, 1)]),
+            create_history_entry_with_skill_ranks(0, 6, 4, 30, &[(1, 1)]),
+            create_history_entry_with_skill_ranks(0, 6, 4, 30, &[(1, 1)]),
+            create_history_entry_with_skill_ranks(0, 6, 4, 30, &[(0, 1)]),
+            create_history_entry_with_skill_ranks(4, 5, 2, 30, &[]),
+            create_history_entry_with_skill_ranks(4, 5, 2, 30, &[]),
+        ];
+        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(history));
 
         Character::from_gff(fields)
     }
@@ -3697,10 +3937,8 @@ mod tests {
     #[test]
     fn test_change_class_preserving_levels_merges_into_existing_class() {
         let mut character = create_multiclass_character_for_preserve_change();
-        let game_data = create_game_data_with_class_rows(&[
-            (0, "Barbarian", 12, 4),
-            (1, "Bard", 6, 6),
-        ]);
+        let game_data =
+            create_game_data_with_class_rows(&[(0, "Barbarian", 12, 4), (1, "Bard", 6, 6)]);
 
         character
             .change_class_preserving_levels(ClassId(0), ClassId(1), &game_data)
@@ -3715,9 +3953,124 @@ mod tests {
 
         let history = character.get_list_owned("LvlStatList").unwrap();
         assert_eq!(history.len(), 6);
-        assert!(history
+        assert!(
+            history
+                .iter()
+                .all(|entry| entry.get("LvlStatClass").and_then(gff_value_to_i32) == Some(1))
+        );
+    }
+
+    #[test]
+    fn test_change_class_and_level_down_preserve_top_level_skill_ranks() {
+        let mut character = create_multiclass_character_with_allocated_skills();
+        let game_data =
+            create_game_data_with_class_rows(&[(0, "Barbarian", 12, 4), (4, "Fighter", 10, 2)]);
+
+        let before = character.get_skill_points_summary(&game_data);
+        assert_eq!(before.theoretical_total, 36);
+        assert_eq!(before.actual_spent, 14);
+        assert_eq!(before.current_unspent, 22);
+        assert_eq!(character.skill_rank(SkillId(0)), 4);
+        assert_eq!(character.skill_rank(SkillId(1)), 3);
+
+        character
+            .change_class_preserving_levels(ClassId(0), ClassId(4), &game_data)
+            .expect("Expected preserve-level class change to succeed");
+
+        let after_change = character.get_skill_points_summary(&game_data);
+        assert_eq!(character.class_level(ClassId(4)), 7);
+        assert_eq!(character.skill_rank(SkillId(0)), 4);
+        assert_eq!(character.skill_rank(SkillId(1)), 3);
+        assert_eq!(after_change.theoretical_total, 20);
+        assert_eq!(after_change.actual_spent, 14);
+        assert_eq!(after_change.current_unspent, 6);
+        assert_eq!(after_change.mismatch, 0);
+
+        while character.class_level(ClassId(4)) > 1 {
+            character
+                .level_down(ClassId(4), &game_data)
+                .expect("Expected level down to succeed");
+        }
+
+        let after_level_down = character.get_skill_points_summary(&game_data);
+        assert_eq!(character.class_level(ClassId(4)), 1);
+        assert_eq!(character.skill_rank(SkillId(0)), 4);
+        assert_eq!(character.skill_rank(SkillId(1)), 3);
+        assert_eq!(after_level_down.theoretical_total, 8);
+        assert_eq!(after_level_down.actual_spent, 14);
+        assert_eq!(after_level_down.current_unspent, 0);
+        assert_eq!(after_level_down.mismatch, -6);
+    }
+
+    #[test]
+    fn test_remove_class_preserves_top_level_skill_ranks() {
+        let mut character = create_multiclass_character_with_allocated_skills();
+        let game_data =
+            create_game_data_with_class_rows(&[(0, "Barbarian", 12, 4), (4, "Fighter", 10, 2)]);
+
+        character
+            .remove_class(ClassId(0), &game_data)
+            .expect("Expected class removal to succeed");
+
+        let summary = character.get_skill_points_summary(&game_data);
+        let entries = character.class_entries();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].class_id.0, 4);
+        assert_eq!(entries[0].level, 2);
+        assert_eq!(character.skill_rank(SkillId(0)), 4);
+        assert_eq!(character.skill_rank(SkillId(1)), 3);
+        assert_eq!(summary.theoretical_total, 10);
+        assert_eq!(summary.actual_spent, 14);
+        assert_eq!(summary.current_unspent, 0);
+        assert_eq!(summary.mismatch, -4);
+    }
+
+    #[test]
+    fn test_get_skill_points_summary_uses_history_floor_for_unmodified_characters() {
+        let character = build_history_aligned_test_character();
+        let game_data = create_game_data_with_history_skill_tables();
+        let history = character.get_list("LvlStatList").unwrap();
+        let mut aggregated = vec![0; 30];
+        for entry in history {
+            if let Some(GffValue::ListOwned(skill_list)) = entry.get("SkillList") {
+                for (idx, skill) in skill_list.iter().enumerate() {
+                    aggregated[idx] += skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+                }
+            }
+        }
+        let top = character
+            .get_list("SkillList")
+            .unwrap()
             .iter()
-            .all(|entry| entry.get("LvlStatClass").and_then(gff_value_to_i32) == Some(1)));
+            .map(|skill| skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0))
+            .collect::<Vec<_>>();
+        assert_eq!(aggregated, top);
+        assert_eq!(
+            character.history_aligned_skill_point_floor(&game_data),
+            Some(36)
+        );
+
+        let summary = character.get_skill_points_summary(&game_data);
+
+        assert_eq!(summary.theoretical_total, 36);
+        assert_eq!(summary.actual_spent, 35);
+        assert_eq!(summary.current_unspent, 0);
+        assert_eq!(summary.mismatch, 1);
+    }
+
+    #[test]
+    fn test_get_skill_points_summary_ignores_history_floor_after_modification() {
+        let mut character = build_history_aligned_test_character();
+        let game_data = create_game_data_with_history_skill_tables();
+
+        character.mark_modified();
+        let summary = character.get_skill_points_summary(&game_data);
+
+        assert_eq!(summary.theoretical_total, 26);
+        assert_eq!(summary.actual_spent, 35);
+        assert_eq!(summary.current_unspent, 0);
+        assert_eq!(summary.mismatch, -9);
     }
 
     #[test]
@@ -3794,10 +4147,7 @@ mod tests {
         let class_list = character
             .get_list_owned("ClassList")
             .expect("Expected normalized class list");
-        assert!(matches!(
-            class_list[0].get("Class"),
-            Some(GffValue::Int(4))
-        ));
+        assert!(matches!(class_list[0].get("Class"), Some(GffValue::Int(4))));
         assert!(matches!(
             class_list[0].get("ClassLevel"),
             Some(GffValue::Short(2))
