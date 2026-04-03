@@ -1,6 +1,9 @@
-import { useState } from 'react';
-import { Button } from '@blueprintjs/core';
+import { useState, useEffect } from 'react';
+import { Button, Spinner } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
+import { useCharacterContext } from '@/contexts/CharacterContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { TauriAPI, type SaveFile } from '@/lib/tauri-api';
 import { T, PATTERN_BG } from '../theme';
 import '../blueprint.css';
 import { SaveList } from './SaveList';
@@ -9,67 +12,111 @@ import { FileBrowserDialog } from './FileBrowserDialog';
 import type { FileInfo } from './FileBrowserDialog';
 import { SettingsDialog } from '../Settings/SettingsPanel';
 
-const now = Date.now() / 1000;
-
-const DEMO_SAVES: FileInfo[] = [
-  { name: '000000 - Chapter Act I', path: 'C:/NWN2/saves/000000', size: 4_812_000, modified: String(now - 3600), is_directory: true, save_name: 'Chapter Act I', character_name: 'Khelgar Ironfist' },
-  { name: '000001 - Crossroad Keep', path: 'C:/NWN2/saves/000001', size: 5_230_000, modified: String(now - 86400), is_directory: true, save_name: 'Crossroad Keep', character_name: 'Ammon Jerro' },
-  { name: '000002 - Highcliff', path: 'C:/NWN2/saves/000002', size: 3_145_000, modified: String(now - 172800), is_directory: true, save_name: 'Highcliff', character_name: 'Neeshka' },
-  { name: '000003 - Old Owl Well', path: 'C:/NWN2/saves/000003', size: 6_780_000, modified: String(now - 259200), is_directory: true, save_name: 'Old Owl Well', character_name: 'Khelgar Ironfist' },
-  { name: '000004 - Neverwinter Docks', path: 'C:/NWN2/saves/000004', size: 4_100_000, modified: String(now - 345600), is_directory: true, save_name: 'Neverwinter Docks', character_name: 'Elanee' },
-  { name: '000005 - West Harbor', path: 'C:/NWN2/saves/000005', size: 2_890_000, modified: String(now - 432000), is_directory: true, save_name: 'West Harbor', character_name: 'Casavir' },
-  { name: '000006 - Githyanki Caves', path: 'C:/NWN2/saves/000006', size: 7_200_000, modified: String(now - 518400), is_directory: true, save_name: 'Githyanki Caves', character_name: 'Ammon Jerro' },
-  { name: '000007 - Merdelain', path: 'C:/NWN2/saves/000007', size: 8_410_000, modified: String(now - 604800), is_directory: true, save_name: 'Merdelain', character_name: 'Zhjaeve' },
-];
-
-const DEMO_BACKUPS: FileInfo[] = [
-  { name: 'backup_2026-03-27_18-45', path: 'C:/NWN2/saves/backups/backup_001', size: 4_812_000, modified: String(now - 7200), is_directory: true, save_name: 'Backup of Chapter Act I', character_name: 'Khelgar Ironfist' },
-  { name: 'backup_2026-03-26_14-20', path: 'C:/NWN2/saves/backups/backup_002', size: 5_230_000, modified: String(now - 93600), is_directory: true, save_name: 'Backup of Crossroad Keep', character_name: 'Ammon Jerro' },
-  { name: 'pre_restore_2026-03-25', path: 'C:/NWN2/saves/backups/backup_003', size: 3_145_000, modified: String(now - 180000), is_directory: true, save_name: 'Pre-restore backup', character_name: 'Neeshka' },
-  { name: 'backup_2026-03-24_09-10', path: 'C:/NWN2/saves/backups/backup_004', size: 6_100_000, modified: String(now - 266400), is_directory: true, save_name: 'Backup of Old Owl Well', character_name: 'Khelgar Ironfist' },
-];
-
-const DEMO_VAULT: FileInfo[] = [
-  { name: 'Khelgar Ironfist', path: 'C:/NWN2/localvault/khelgar.bic', size: 128_000, modified: String(now - 3600), is_directory: false, display_name: 'Khelgar Ironfist' },
-  { name: 'Ammon Jerro', path: 'C:/NWN2/localvault/ammon.bic', size: 156_000, modified: String(now - 86400), is_directory: false, display_name: 'Ammon Jerro' },
-  { name: 'Neeshka', path: 'C:/NWN2/localvault/neeshka.bic', size: 142_000, modified: String(now - 172800), is_directory: false, display_name: 'Neeshka' },
-  { name: 'Elanee', path: 'C:/NWN2/localvault/elanee.bic', size: 134_000, modified: String(now - 259200), is_directory: false, display_name: 'Elanee' },
-  { name: 'Casavir', path: 'C:/NWN2/localvault/casavir.bic', size: 118_000, modified: String(now - 345600), is_directory: false, display_name: 'Casavir' },
-];
-
-const DUMMY_SAVES: SaveEntryData[] = [
-  {
-    characterName: 'Khelgar Ironfist',
-    folderName: '000000 - Chapter Act I',
-    date: '2026-03-24 18:45',
-    thumbnail: null,
-    isActive: false,
-  },
-  {
-    characterName: 'Ammon Jerro',
-    folderName: '000001 - Crossroad Keep',
-    date: '2026-03-23 14:20',
-    thumbnail: null,
-    isActive: true,
-  },
-  {
-    characterName: 'Neeshka',
-    folderName: '000002 - Highcliff',
-    date: '2026-03-20 09:10',
-    thumbnail: null,
-    isActive: false,
-  },
-];
-
 export default function DashboardPanel() {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const t = useTranslations();
+  const { importCharacter } = useCharacterContext();
+  const { handleError } = useErrorHandler();
+
+  const [saves, setSaves] = useState<SaveEntryData[]>([]);
+  const [savePaths, setSavePaths] = useState<string[]>([]);
+  const [isLoadingSaves, setIsLoadingSaves] = useState(true);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const [showVaultBrowser, setShowVaultBrowser] = useState(false);
   const [showBackupBrowser, setShowBackupBrowser] = useState(false);
   const [backupPath, setBackupPath] = useState('');
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSaves() {
+      setIsLoadingSaves(true);
+      try {
+        const result: SaveFile[] = await TauriAPI.findNWN2Saves();
+        if (cancelled) return;
+
+        const paths: string[] = [];
+        const entries: SaveEntryData[] = result.map(save => {
+          paths.push(save.path);
+          return {
+            characterName: save.character_name || save.name,
+            folderName: save.name,
+            date: save.modified
+              ? new Date(save.modified * 1000).toLocaleString()
+              : '',
+            thumbnail: save.thumbnail || null,
+            isActive: false,
+          };
+        });
+
+        setSaves(entries);
+        setSavePaths(paths);
+      } catch (err) {
+        if (!cancelled) handleError(err);
+      } finally {
+        if (!cancelled) setIsLoadingSaves(false);
+      }
+    }
+
+    loadSaves();
+    return () => { cancelled = true; };
+  }, [handleError]);
+
+  const handleOpenSave = async () => {
+    if (selectedIndex === null || isImporting) return;
+    const path = savePaths[selectedIndex];
+    if (!path) return;
+
+    setIsImporting(true);
+    try {
+      await importCharacter(path);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleSelectAndOpen = async (index: number) => {
+    setSelectedIndex(index);
+    const path = savePaths[index];
+    if (!path) return;
+
+    setIsImporting(true);
+    try {
+      await importCharacter(path);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleImportVaultFile = async (file: FileInfo) => {
+    setShowVaultBrowser(false);
+    setIsImporting(true);
+    try {
+      await importCharacter(file.path);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleBrowseFile = async (file: FileInfo) => {
+    setIsImporting(true);
+    try {
+      await importCharacter(file.path);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   return (
     <div
@@ -103,20 +150,46 @@ export default function DashboardPanel() {
             {t('dashboard.title')}
           </span>
           <div style={{ display: 'flex', gap: 4 }}>
-            <Button minimal small icon="import" onClick={() => setShowVaultBrowser(true)}>{t('actions.importCharacter')}</Button>
-            <Button minimal small icon="folder-open">{t('actions.openDocumentsFolder')}</Button>
-            <Button minimal small icon="history" onClick={() => setShowBackupBrowser(true)}>{t('actions.manageBackups')}</Button>
-            <Button minimal small icon="cog" onClick={() => setShowSettings(true)}>{t('navigation.settings')}</Button>
+            {selectedIndex !== null && (
+              <Button
+                small
+                intent="primary"
+                icon="folder-open"
+                loading={isImporting}
+                onClick={handleOpenSave}
+              >
+                {t('dashboard.openSave')}
+              </Button>
+            )}
+            <Button minimal small icon="import" onClick={() => setShowVaultBrowser(true)}>
+              {t('actions.importCharacter')}
+            </Button>
+            <Button minimal small icon="folder-open" onClick={() => TauriAPI.openFolderInExplorer('').catch(() => {})}>
+              {t('actions.openDocumentsFolder')}
+            </Button>
+            <Button minimal small icon="history" onClick={() => setShowBackupBrowser(true)}>
+              {t('actions.manageBackups')}
+            </Button>
+            <Button minimal small icon="cog" onClick={() => setShowSettings(true)}>
+              {t('navigation.settings')}
+            </Button>
           </div>
         </div>
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <SaveList
-            saves={DUMMY_SAVES}
-            selectedIndex={selectedIndex}
-            onSelect={setSelectedIndex}
-            demoFiles={DEMO_SAVES}
-          />
+          {isLoadingSaves ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Spinner size={30} />
+            </div>
+          ) : (
+            <SaveList
+              saves={saves}
+              selectedIndex={selectedIndex}
+              onSelect={setSelectedIndex}
+              onDoubleClick={handleSelectAndOpen}
+              onBrowseFile={handleBrowseFile}
+            />
+          )}
         </div>
       </div>
 
@@ -124,23 +197,17 @@ export default function DashboardPanel() {
         isOpen={showVaultBrowser}
         onClose={() => setShowVaultBrowser(false)}
         mode="load-vault"
-        currentPath="C:/Users/Player/Documents/Neverwinter Nights 2/localvault"
-        demoFiles={DEMO_VAULT}
-        onSelectFile={(file) => {
-          console.log('Import vault character:', file.path);
-          setShowVaultBrowser(false);
-        }}
+        onSelectFile={handleImportVaultFile}
       />
 
       <FileBrowserDialog
         isOpen={showBackupBrowser}
         onClose={() => setShowBackupBrowser(false)}
         mode="manage-backups"
-        currentPath={backupPath || 'C:/Users/Player/Documents/Neverwinter Nights 2/saves/backups'}
+        currentPath={backupPath}
         onPathChange={setBackupPath}
         refreshKey={backupRefreshKey}
         canRestore
-        demoFiles={DEMO_BACKUPS}
         onSelectFile={(file) => {
           console.log('Restore backup:', file.path);
           setShowBackupBrowser(false);

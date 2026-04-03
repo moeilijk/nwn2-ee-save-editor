@@ -14,14 +14,16 @@ interface SaveEntryProps {
   save: SaveEntryData;
   isSelected: boolean;
   onClick: () => void;
+  onDoubleClick?: () => void;
 }
 
-export function SaveEntry({ save, isSelected, onClick }: SaveEntryProps) {
+export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntryProps) {
   const t = useTranslations();
 
   return (
     <div
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       style={{
         display: 'flex',
         alignItems: 'center',

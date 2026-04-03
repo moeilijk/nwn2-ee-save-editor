@@ -12,13 +12,13 @@ interface SaveListProps {
   saves: SaveEntryData[];
   selectedIndex: number | null;
   onSelect: (index: number) => void;
-  demoFiles?: FileInfo[];
+  onDoubleClick?: (index: number) => void;
+  onBrowseFile?: (file: FileInfo) => void;
 }
 
-export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveListProps) {
+export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrowseFile }: SaveListProps) {
   const t = useTranslations();
   const [showBrowser, setShowBrowser] = useState(false);
-  const [browserPath, setBrowserPath] = useState('');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -32,6 +32,7 @@ export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveList
               save={save}
               isSelected={selectedIndex === i}
               onClick={() => onSelect(i)}
+              onDoubleClick={() => onDoubleClick?.(i)}
             />
           ))
         ) : (
@@ -57,7 +58,6 @@ export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveList
             justifyContent: 'center',
             padding: '14px 16px',
             borderBottom: `1px solid ${T.borderLight}`,
-            cursor: 'pointer',
           }}
         >
           <Button minimal icon="folder-open" intent="primary" onClick={() => setShowBrowser(true)}>
@@ -70,12 +70,9 @@ export function SaveList({ saves, selectedIndex, onSelect, demoFiles }: SaveList
         isOpen={showBrowser}
         onClose={() => setShowBrowser(false)}
         mode="load-saves"
-        currentPath={browserPath || 'C:/Users/Player/Documents/Neverwinter Nights 2/saves'}
-        onPathChange={setBrowserPath}
-        demoFiles={demoFiles}
         onSelectFile={(file) => {
-          console.log('Selected save:', file.path);
           setShowBrowser(false);
+          onBrowseFile?.(file);
         }}
       />
     </div>

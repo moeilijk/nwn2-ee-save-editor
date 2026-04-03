@@ -5,7 +5,6 @@ import { ThemeProvider } from '@/providers/ThemeProvider';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import Shell from '@/blueprint/layout/Shell';
-import DashboardPanel from '@/blueprint/Dashboard/DashboardPanel';
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -28,7 +27,6 @@ export default function App() {
     <AppProviders>
       <Routes>
         <Route path="/" element={<Shell />} />
-        <Route path="/dashboard" element={<DashboardPanel />} />
       </Routes>
     </AppProviders>
   );
