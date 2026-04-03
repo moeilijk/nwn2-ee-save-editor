@@ -7,6 +7,7 @@ use super::{Character, CharacterError};
 use crate::character::feats::FeatSource;
 use crate::character::types::{AbilityIndex, AbilityModifiers, ClassId, FeatId, RaceId};
 use crate::loaders::GameData;
+use crate::utils::parsing::{row_int, row_str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[repr(i32)]
@@ -207,14 +208,14 @@ impl Character {
         let subrace_table = game_data.get_table("racialsubtypes")?;
         let row = subrace_table.get_by_id(index)?;
 
-        if let Some(Some(strref_str)) = row.get("Name")
+        if let Some(Some(strref_str)) = row.get("name")
             && let Ok(strref) = strref_str.parse::<i32>()
             && let Some(name) = game_data.get_string(strref)
         {
             return Some(name);
         }
 
-        row.get("Label").and_then(|v| v.clone())
+        row.get("label").and_then(|v| v.clone())
     }
 
     pub fn set_subrace(&mut self, subrace: Option<String>) {
@@ -256,14 +257,14 @@ impl Character {
             return format!("Race {race_id}");
         };
 
-        if let Some(Some(strref_str)) = row.get("Name")
+        if let Some(Some(strref_str)) = row.get("name")
             && let Ok(strref) = strref_str.parse::<i32>()
             && let Some(name) = game_data.get_string(strref)
         {
             return name;
         }
 
-        if let Some(label) = row.get("Label").and_then(std::clone::Clone::clone) {
+        if let Some(label) = row.get("label").and_then(std::clone::Clone::clone) {
             return label;
         }
 
@@ -290,39 +291,20 @@ impl Character {
                 continue;
             };
 
-            let base_race_id = row_data
-                .get("BaseRace")
-                .or_else(|| row_data.get("base_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let base_race_id = row_int(&row_data, "baserace", -1);
 
             if base_race_id != race_id {
                 continue;
             }
 
-            let player_race = row_data
-                .get("PlayerRace")
-                .or_else(|| row_data.get("player_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1);
+            let player_race = row_int(&row_data, "playerrace", 1);
 
             if player_race == 0 {
                 continue;
             }
 
-            let name = row_data
-                .get("Name")
-                .or_else(|| row_data.get("name"))
-                .and_then(std::clone::Clone::clone)
-                .unwrap_or_default();
-
-            let label = row_data
-                .get("Label")
-                .or_else(|| row_data.get("label"))
-                .and_then(std::clone::Clone::clone)
-                .unwrap_or_else(|| name.clone());
+            let name = row_str(&row_data, "name").unwrap_or_default();
+            let label = row_str(&row_data, "label").unwrap_or_else(|| name.clone());
 
             subraces.push(SubraceInfo {
                 id: row_idx as i32,
@@ -352,65 +334,32 @@ impl Character {
                 continue;
             };
 
-            let name = row_data
-                .get("Name")
-                .or_else(|| row_data.get("name"))
-                .and_then(std::clone::Clone::clone)
-                .unwrap_or_default();
-
-            let label = row_data
-                .get("Label")
-                .or_else(|| row_data.get("label"))
-                .and_then(std::clone::Clone::clone)
-                .unwrap_or_else(|| name.clone());
+            let name = row_str(&row_data, "name").unwrap_or_default();
+            let label = row_str(&row_data, "label").unwrap_or_else(|| name.clone());
 
             if name.to_lowercase() != subrace_lower && label.to_lowercase() != subrace_lower {
                 continue;
             }
 
-            let base_race = row_data
-                .get("BaseRace")
-                .or_else(|| row_data.get("base_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(-1);
-
-            let player_race = row_data
-                .get("PlayerRace")
-                .or_else(|| row_data.get("player_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1)
-                == 1;
+            let base_race = row_int(&row_data, "baserace", -1);
+            let player_race = row_int(&row_data, "playerrace", 1) == 1;
 
             let favored_class = row_data
-                .get("FavoredClass")
-                .or_else(|| row_data.get("favored_class"))
+                .get("favoredclass")
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .filter(|&v| v >= 0);
 
-            let feats_table = row_data
-                .get("FeatsTable")
-                .or_else(|| row_data.get("feats_table"))
-                .and_then(std::clone::Clone::clone)
-                .filter(|s| !s.is_empty() && s != "****");
-
-            let get_mod = |field: &str| -> i32 {
-                row_data
-                    .get(field)
-                    .and_then(|v| v.as_ref())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0)
-            };
+            let feats_table = row_str(&row_data, "featstable")
+                .filter(|s| s != "****");
 
             let ability_modifiers = AbilityModifiers::new(
-                get_mod("StrAdjust"),
-                get_mod("DexAdjust"),
-                get_mod("ConAdjust"),
-                get_mod("IntAdjust"),
-                get_mod("WisAdjust"),
-                get_mod("ChaAdjust"),
+                row_int(&row_data, "stradjust", 0),
+                row_int(&row_data, "dexadjust", 0),
+                row_int(&row_data, "conadjust", 0),
+                row_int(&row_data, "intadjust", 0),
+                row_int(&row_data, "wisadjust", 0),
+                row_int(&row_data, "chaadjust", 0),
             );
 
             return Some(SubraceData {
@@ -446,21 +395,13 @@ impl Character {
             return AbilityModifiers::default();
         };
 
-        let get_modifier = |field_name: &str| -> i32 {
-            row_data
-                .get(field_name)
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
-        };
-
         AbilityModifiers::new(
-            get_modifier("StrAdjust"),
-            get_modifier("DexAdjust"),
-            get_modifier("ConAdjust"),
-            get_modifier("IntAdjust"),
-            get_modifier("WisAdjust"),
-            get_modifier("ChaAdjust"),
+            row_int(&row_data, "stradjust", 0),
+            row_int(&row_data, "dexadjust", 0),
+            row_int(&row_data, "conadjust", 0),
+            row_int(&row_data, "intadjust", 0),
+            row_int(&row_data, "wisadjust", 0),
+            row_int(&row_data, "chaadjust", 0),
         )
     }
 
@@ -468,8 +409,7 @@ impl Character {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
 
-        row.get("Size")
-            .or_else(|| row.get("size"))
+        row.get("size")
             .and_then(std::clone::Clone::clone)
             .and_then(|s| s.parse::<i32>().ok())
     }
@@ -487,11 +427,7 @@ impl Character {
             return 30;
         };
 
-        row.get("MovementRate")
-            .or_else(|| row.get("movement_rate"))
-            .and_then(std::clone::Clone::clone)
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(30)
+        row_int(&row, "movementrate", 30)
     }
 
     pub fn get_favored_class(&self, game_data: &GameData) -> Option<ClassId> {
@@ -506,8 +442,7 @@ impl Character {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
 
-        row.get("FavoredClass")
-            .or_else(|| row.get("favored_class"))
+        row.get("favoredclass")
             .and_then(std::clone::Clone::clone)
             .and_then(|s| s.parse::<i32>().ok())
             .filter(|&v| v >= 0)
@@ -526,8 +461,7 @@ impl Character {
         };
 
         if let Some(feats_table_name) = row
-            .get("FeatsTable")
-            .or_else(|| row.get("feats_table"))
+            .get("featstable")
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "****")
             && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
@@ -535,8 +469,7 @@ impl Character {
             for row_idx in 0..feats_table.row_count() {
                 if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
                     && let Some(feat_id) = feat_row
-                        .get("FeatIndex")
-                        .or_else(|| feat_row.get("feat_index"))
+                        .get("featindex")
                         .and_then(|v| v.as_ref())
                         .and_then(|s| s.parse::<i32>().ok())
                         .filter(|&v| v >= 0)
@@ -576,8 +509,7 @@ impl Character {
             for row_idx in 0..feats_table.row_count() {
                 if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
                     && let Some(feat_id) = feat_row
-                        .get("FeatIndex")
-                        .or_else(|| feat_row.get("feat_index"))
+                        .get("featindex")
                         .and_then(|v| v.as_ref())
                         .and_then(|s| s.parse::<i32>().ok())
                         .filter(|&v| v >= 0)
@@ -774,8 +706,7 @@ impl Character {
             for row_idx in 0..feats_table.row_count() {
                 if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
                     && let Some(feat_id) = feat_row
-                        .get("FeatIndex")
-                        .or_else(|| feat_row.get("feat_index"))
+                        .get("featindex")
                         .and_then(|v| v.as_ref())
                         .and_then(|s| s.parse::<i32>().ok())
                         .filter(|&v| v >= 0)
@@ -886,11 +817,7 @@ impl Character {
             return SizeCategory::from_id(size_id).ac_modifier_default();
         };
 
-        row.get("ACAttackMod")
-            .or_else(|| row.get("ac_attack_mod"))
-            .and_then(std::clone::Clone::clone)
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or_else(|| SizeCategory::from_id(size_id).ac_modifier_default())
+        row_int(&row, "acattackmod", SizeCategory::from_id(size_id).ac_modifier_default())
     }
 
     pub fn get_size_name_from_2da(&self, size_id: i32, game_data: &GameData) -> String {
@@ -903,8 +830,7 @@ impl Character {
         };
 
         if let Some(label) = row
-            .get("Label")
-            .or_else(|| row.get("label"))
+            .get("label")
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "INVALID")
         {
@@ -950,61 +876,28 @@ impl Character {
         let subrace_table = game_data.get_table("racialsubtypes")?;
         let row_data = subrace_table.parser.get_row_dict(index as usize).ok()?;
 
-        let name = row_data
-            .get("Name")
-            .or_else(|| row_data.get("name"))
-            .and_then(std::clone::Clone::clone)
-            .unwrap_or_default();
+        let name = row_str(&row_data, "name").unwrap_or_default();
+        let label = row_str(&row_data, "label").unwrap_or_else(|| name.clone());
 
-        let label = row_data
-            .get("Label")
-            .or_else(|| row_data.get("label"))
-            .and_then(std::clone::Clone::clone)
-            .unwrap_or_else(|| name.clone());
-
-        let base_race = row_data
-            .get("BaseRace")
-            .or_else(|| row_data.get("base_race"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(-1);
-
-        let player_race = row_data
-            .get("PlayerRace")
-            .or_else(|| row_data.get("player_race"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(1)
-            == 1;
+        let base_race = row_int(&row_data, "baserace", -1);
+        let player_race = row_int(&row_data, "playerrace", 1) == 1;
 
         let favored_class = row_data
-            .get("FavoredClass")
-            .or_else(|| row_data.get("favored_class"))
+            .get("favoredclass")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .filter(|&v| v >= 0);
 
-        let feats_table = row_data
-            .get("FeatsTable")
-            .or_else(|| row_data.get("feats_table"))
-            .and_then(std::clone::Clone::clone)
-            .filter(|s| !s.is_empty() && s != "****");
-
-        let get_mod = |field: &str| -> i32 {
-            row_data
-                .get(field)
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0)
-        };
+        let feats_table = row_str(&row_data, "featstable")
+            .filter(|s| s != "****");
 
         let ability_modifiers = AbilityModifiers::new(
-            get_mod("StrAdjust"),
-            get_mod("DexAdjust"),
-            get_mod("ConAdjust"),
-            get_mod("IntAdjust"),
-            get_mod("WisAdjust"),
-            get_mod("ChaAdjust"),
+            row_int(&row_data, "stradjust", 0),
+            row_int(&row_data, "dexadjust", 0),
+            row_int(&row_data, "conadjust", 0),
+            row_int(&row_data, "intadjust", 0),
+            row_int(&row_data, "wisadjust", 0),
+            row_int(&row_data, "chaadjust", 0),
         );
 
         Some(SubraceData {

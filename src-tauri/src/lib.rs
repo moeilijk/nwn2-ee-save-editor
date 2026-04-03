@@ -44,11 +44,11 @@ pub fn run() {
             info!("Initializing AppState");
             let app_state = crate::state::AppState::new();
 
-            // Start MCP IPC Bridge
-            let mcp_state = crate::mcp_server::McpState {
-                game_data: Arc::clone(&app_state.game_data),
-                session: Arc::clone(&app_state.session),
-            };
+            // Start MCP SSE Bridge
+            let mcp_state = crate::mcp_server::McpState::new(
+                Arc::clone(&app_state.game_data),
+                Arc::clone(&app_state.session),
+            );
 
             tauri::async_runtime::spawn(async move {
                 crate::mcp_server::start(mcp_state, 14207).await;

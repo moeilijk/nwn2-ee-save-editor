@@ -5,6 +5,7 @@ use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
 use crate::services::ItemCostCalculator;
 use crate::services::item_property_decoder::{DecodedProperty, ItemBonuses, ItemPropertyDecoder};
+use crate::utils::parsing::{row_int, row_str};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Number;
@@ -561,81 +562,35 @@ impl super::Character {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
-        let name = row
-            .get("Name")
-            .or_else(|| row.get("name"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .and_then(|strref| game_data.get_string(strref))
+        let name = game_data
+            .get_string(row_int(&row, "name", -1))
             .unwrap_or_else(|| format!("Item {base_item_id}"));
 
         let weight = row
-            .get("Weight")
-            .or_else(|| row.get("weight"))
+            .get("weight")
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<f32>().ok())
             .map_or(0.0, |w| w / 10.0);
 
-        let base_ac = row
-            .get("BaseAC")
-            .or_else(|| row.get("baseac"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+        let base_ac = row_int(&row, "baseac", 0);
 
-        let max_stack = row
-            .get("Stacking")
-            .or_else(|| row.get("stacking"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(1);
+        let max_stack = row_int(&row, "stacking", 1);
 
-        let num_dice = row
-            .get("NumDice")
-            .or_else(|| row.get("numdice"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+        let num_dice = row_int(&row, "numdice", 0);
 
-        let die_to_roll = row
-            .get("DieToRoll")
-            .or_else(|| row.get("dietoroll"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+        let die_to_roll = row_int(&row, "dietoroll", 0);
 
-        let crit_threat = row
-            .get("CritThreat")
-            .or_else(|| row.get("critthreat"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(1);
+        let crit_threat = row_int(&row, "critthreat", 1);
 
-        let crit_multiplier = row
-            .get("CritHitMult")
-            .or_else(|| row.get("crithitmult"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(2);
+        let crit_multiplier = row_int(&row, "crithitmult", 2);
 
-        let weapon_size = row
-            .get("WeaponSize")
-            .or_else(|| row.get("weaponsize"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+        let weapon_size = row_int(&row, "weaponsize", 0);
 
-        let weapon_type = row
-            .get("WeaponType")
-            .or_else(|| row.get("weapontype"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+        let weapon_type = row_int(&row, "weapontype", 0);
 
         let armor_check_penalty = row
-            .get("ArmourCheckPen")
-            .or_else(|| row.get("ArmorCheckPen"))
-            .or_else(|| row.get("armourcheckpen"))
+            .get("armourcheckpen")
+            .or_else(|| row.get("armorcheckpen"))
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
@@ -993,10 +948,7 @@ impl super::Character {
             return (vec![], None);
         };
 
-        let equip_slots = row
-            .get("EquipableSlots")
-            .or_else(|| row.get("equipableslots"))
-            .and_then(|s| s.as_ref())
+        let equip_slots = row_str(&row, "equipableslots")
             .and_then(|s| {
                 if let Some(stripped) = s.strip_prefix("0x") {
                     u32::from_str_radix(stripped, 16).ok()
@@ -1110,8 +1062,7 @@ impl super::Character {
                         .get_table("armorrulestats")
                         .and_then(|t| t.get_by_id(armor_rules_type))
                     && let Some(ac_bonus) = stats
-                        .get("ACBONUS")
-                        .or_else(|| stats.get("acbonus"))
+                        .get("acbonus")
                         .and_then(|s| s.as_ref())
                         .and_then(|s| s.parse::<f32>().ok()) // Python uses float parse then int cast if likely
                         .map(|f| f as i32)
@@ -1133,8 +1084,7 @@ impl super::Character {
                     .get_table("armorrulestats")
                     .and_then(|t| t.get_by_id(armor_rules_type))
                 && let Some(ac_bonus) = stats
-                    .get("ACBONUS")
-                    .or_else(|| stats.get("acbonus"))
+                    .get("acbonus")
                     .and_then(|s| s.as_ref())
                     .and_then(|s| s.parse::<f32>().ok())
                     .map(|f| f as i32)
@@ -1198,8 +1148,7 @@ impl super::Character {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
-        row.get("Weight")
-            .or_else(|| row.get("weight"))
+        row.get("weight")
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<f32>().ok())
             .map(|w| w / 10.0)
@@ -1217,10 +1166,7 @@ impl super::Character {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
-        row.get("BaseAC")
-            .or_else(|| row.get("baseac"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
+        row_str(&row, "baseac").and_then(|s| s.parse::<i32>().ok())
     }
 
     fn get_encumbrance_thresholds(
@@ -1234,27 +1180,21 @@ impl super::Character {
             && let Some(row) = encumbrance.get_by_id(clamped_str)
         {
             let light = row
-                .get("Light")
-                .or_else(|| row.get("light"))
-                .or_else(|| row.get("LightLoad"))
+                .get("light")
                 .or_else(|| row.get("lightload"))
                 .and_then(|s| s.as_ref())
                 .and_then(|s| s.parse::<f32>().ok())
                 .unwrap_or(0.0);
 
             let medium = row
-                .get("Medium")
-                .or_else(|| row.get("medium"))
-                .or_else(|| row.get("MediumLoad"))
+                .get("medium")
                 .or_else(|| row.get("mediumload"))
                 .and_then(|s| s.as_ref())
                 .and_then(|s| s.parse::<f32>().ok())
                 .unwrap_or(0.0);
 
             let heavy = row
-                .get("Heavy")
-                .or_else(|| row.get("heavy"))
-                .or_else(|| row.get("HeavyLoad"))
+                .get("heavy")
                 .or_else(|| row.get("heavyload"))
                 .and_then(|s| s.as_ref())
                 .and_then(|s| s.parse::<f32>().ok())
@@ -1563,10 +1503,7 @@ impl super::Character {
             return false;
         };
 
-        let equip_slots = row
-            .get("EquipableSlots")
-            .or_else(|| row.get("equipableslots"))
-            .and_then(|s| s.as_ref())
+        let equip_slots = row_str(&row, "equipableslots")
             .and_then(|s| {
                 if let Some(stripped) = s.strip_prefix("0x") {
                     u32::from_str_radix(stripped, 16).ok()
@@ -1617,46 +1554,34 @@ impl super::Character {
             game_data
                 .get_table("feat")
                 .and_then(|t| t.get_by_id(i32::from(feat_id)))
-                .and_then(|row| {
-                    row.get("FeatName")
-                        .and_then(|s| s.as_ref())
-                        .and_then(|s| s.parse::<i32>().ok())
-                })
+                .and_then(|row| row_str(&row, "featname").and_then(|s| s.parse::<i32>().ok()))
                 .and_then(|str_ref| game_data.get_string(str_ref))
                 .unwrap_or_else(|| format!("Feat {feat_id}"))
         };
 
         // 1. Check ReqFeat0-4
         for i in 0..5 {
-            let col = format!("ReqFeat{i}");
-            if let Some(feat_id_val) = row
-                .get(&col)
-                .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-            {
-                // -1 means no requirement
-                if feat_id_val >= 0 {
-                    let feat_id = feat_id_val as u16;
-                    let met = has_feat(feat_id);
-                    if !met {
-                        is_proficient = false;
-                    }
-
-                    requirements.push(ProficiencyRequirement {
-                        feat_id: Some(feat_id),
-                        feat_name: get_feat_name(feat_id),
-                        met,
-                    });
+            let col = format!("reqfeat{i}");
+            let feat_id_val = row_int(&row, &col, -1);
+            // -1 means no requirement
+            if feat_id_val >= 0 {
+                let feat_id = feat_id_val as u16;
+                let met = has_feat(feat_id);
+                if !met {
+                    is_proficient = false;
                 }
+
+                requirements.push(ProficiencyRequirement {
+                    feat_id: Some(feat_id),
+                    feat_name: get_feat_name(feat_id),
+                    met,
+                });
             }
         }
 
         // 2. Check WeaponType
-        if let Some(weapon_type) = row
-            .get("WeaponType")
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-        {
+        let weapon_type = row_int(&row, "weapontype", 0);
+        if weapon_type > 0 {
             let mut required_feat = None;
             match weapon_type {
                 1 => required_feat = Some(FEAT_WEAPON_PROFICIENCY_SIMPLE),
@@ -1709,10 +1634,7 @@ impl super::Character {
                     && let Some(stats) = game_data
                         .get_table("armorrulestats")
                         .and_then(|t| t.get_by_id(armor_rules_type))
-                    && let Some(max_dex) = stats
-                        .get("MAXDEXBONUS")
-                        .or_else(|| stats.get("maxdexbonus"))
-                        .and_then(|s| s.as_ref())
+                    && let Some(max_dex) = row_str(&stats, "maxdexbonus")
                         .and_then(|s| s.parse::<i32>().ok())
                 {
                     return max_dex;
@@ -1741,12 +1663,9 @@ impl super::Character {
                     && let Some(stats) = game_data
                         .get_table("armorrulestats")
                         .and_then(|t| t.get_by_id(armor_rules_type))
-                    && let Some(rank) = stats
-                        .get("RANK")
-                        .or_else(|| stats.get("rank"))
-                        .and_then(|s| s.as_ref())
+                    && let Some(rank) = row_str(&stats, "rank")
                 {
-                    return rank.clone();
+                    return rank;
                 }
                 break;
             }
@@ -1906,20 +1825,10 @@ impl super::Character {
                 continue;
             };
 
-            let weapon_type = row
-                .get("WeaponType")
-                .or_else(|| row.get("weapontype"))
-                .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
+            let weapon_type = row_int(&row, "weapontype", 0);
 
             if weapon_type > 0 {
-                let label = row
-                    .get("Label")
-                    .or_else(|| row.get("label"))
-                    .and_then(|s| s.as_ref())
-                    .cloned()
-                    .unwrap_or_else(|| format!("Weapon {row_id}"));
+                let label = row_str(&row, "label").unwrap_or_else(|| format!("Weapon {row_id}"));
 
                 if is_invalid_base_item_label(&label) {
                     continue;
@@ -1960,12 +1869,7 @@ impl super::Character {
                 || row_id == BASE_ITEM_LARGE_SHIELD
                 || row_id == BASE_ITEM_TOWER_SHIELD
             {
-                let label = row
-                    .get("Label")
-                    .or_else(|| row.get("label"))
-                    .and_then(|s| s.as_ref())
-                    .cloned()
-                    .unwrap_or_else(|| format!("Armor {row_id}"));
+                let label = row_str(&row, "label").unwrap_or_else(|| format!("Armor {row_id}"));
 
                 if is_invalid_base_item_label(&label) {
                     continue;
@@ -1973,11 +1877,7 @@ impl super::Character {
 
                 let name = resolve_base_item_name(&row, row_id, game_data);
 
-                let ac_type = row
-                    .get("ACType")
-                    .or_else(|| row.get("actype"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| s.parse::<i32>().ok());
+                let ac_type = row_str(&row, "actype").and_then(|s| s.parse::<i32>().ok());
 
                 armor.push(BaseItemInfo {
                     id: row_id,
@@ -2016,12 +1916,7 @@ impl super::Character {
                 continue;
             }
 
-            let label = row
-                .get("Label")
-                .or_else(|| row.get("label"))
-                .and_then(|s| s.as_ref())
-                .cloned()
-                .unwrap_or_else(|| format!("Item {row_id}"));
+            let label = row_str(&row, "label").unwrap_or_else(|| format!("Item {row_id}"));
 
             if is_invalid_base_item_label(&label) {
                 continue;
@@ -2321,12 +2216,7 @@ impl super::Character {
                 continue;
             };
 
-            let label = row
-                .get("Label")
-                .or_else(|| row.get("label"))
-                .and_then(|s| s.as_ref())
-                .cloned()
-                .unwrap_or_else(|| format!("Item {row_id}"));
+            let label = row_str(&row, "label").unwrap_or_else(|| format!("Item {row_id}"));
 
             if is_invalid_base_item_label(&label) {
                 continue;
@@ -2338,17 +2228,9 @@ impl super::Character {
                 continue;
             }
 
-            let weapon_type = row
-                .get("WeaponType")
-                .or_else(|| row.get("weapontype"))
-                .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let weapon_type = row_str(&row, "weapontype").and_then(|s| s.parse::<i32>().ok());
 
-            let ac_type = row
-                .get("ACType")
-                .or_else(|| row.get("actype"))
-                .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let ac_type = row_str(&row, "actype").and_then(|s| s.parse::<i32>().ok());
 
             items.push(BaseItemInfo {
                 id: row_id,
@@ -2519,12 +2401,7 @@ fn is_invalid_base_item_label(label: &str) -> bool {
 }
 
 fn get_item_category(row: &ahash::AHashMap<String, Option<String>>) -> String {
-    let store_panel = row
-        .get("StorePanel")
-        .or_else(|| row.get("storepanel"))
-        .and_then(|s| s.as_ref())
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(4);
+    let store_panel = row_int(row, "storepanel", 4);
 
     match store_panel {
         0 => "Armor & Clothing",
@@ -2541,11 +2418,7 @@ fn resolve_base_item_name(
     row_id: i32,
     game_data: &GameData,
 ) -> String {
-    let name_ref = row
-        .get("Name")
-        .or_else(|| row.get("name"))
-        .and_then(|s| s.as_ref())
-        .and_then(|s| s.parse::<i32>().ok());
+    let name_ref = row_str(row, "name").and_then(|s| s.parse::<i32>().ok());
 
     if let Some(str_ref) = name_ref
         && let Some(resolved) = game_data.get_string(str_ref)
@@ -2554,11 +2427,7 @@ fn resolve_base_item_name(
         return resolved;
     }
 
-    row.get("Label")
-        .or_else(|| row.get("label"))
-        .and_then(|s| s.as_ref())
-        .cloned()
-        .unwrap_or_else(|| format!("Item {row_id}"))
+    row_str(row, "label").unwrap_or_else(|| format!("Item {row_id}"))
 }
 
 fn gff_to_json_primitive(val: &GffValue) -> Option<JsonValue> {

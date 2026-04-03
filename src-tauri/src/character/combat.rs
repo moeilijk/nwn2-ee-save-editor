@@ -1,6 +1,7 @@
 use crate::character::types::{AbilityIndex, ClassId};
 use crate::character::{Character, CharacterError};
 use crate::loaders::GameData;
+use crate::utils::parsing::row_int;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -91,9 +92,7 @@ impl Character {
         };
 
         let bab_table_name = class_data
-            .get("AttackBonusTable")
-            .or_else(|| class_data.get("attackbonustable"))
-            .or_else(|| class_data.get("attack_bonus_table"))
+            .get("attackbonustable")
             .and_then(|s| s.as_ref());
 
         let Some(bab_table_name) = bab_table_name else {
@@ -305,14 +304,12 @@ impl Character {
             return 0;
         };
 
-        race_data
-            .get("SR")
-            .or_else(|| race_data.get("sr"))
-            .or_else(|| race_data.get("SpellResistance"))
-            .or_else(|| race_data.get("spellresistance"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0)
+        let sr = row_int(&race_data, "sr", -1);
+        if sr >= 0 {
+            sr
+        } else {
+            row_int(&race_data, "spellresistance", 0)
+        }
     }
 
     pub fn get_total_spell_resistance(&self, game_data: &GameData) -> i32 {

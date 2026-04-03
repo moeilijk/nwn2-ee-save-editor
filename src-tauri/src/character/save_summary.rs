@@ -1,6 +1,7 @@
 use crate::character::Character;
 use crate::character::types::{AbilityIndex, FeatId, SaveBonuses, calculate_modifier};
 use crate::loaders::GameData;
+use crate::utils::parsing::row_int;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -226,21 +227,9 @@ impl Character {
             return SaveBonuses::default();
         };
 
-        let fort = race_data
-            .get("FortSaveBonus")
-            .or_else(|| race_data.get("fortsavebonus"))
-            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            .unwrap_or(0);
-        let reflex = race_data
-            .get("RefSaveBonus")
-            .or_else(|| race_data.get("refsavebonus"))
-            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            .unwrap_or(0);
-        let will = race_data
-            .get("WillSaveBonus")
-            .or_else(|| race_data.get("willsavebonus"))
-            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            .unwrap_or(0);
+        let fort = row_int(&race_data, "fortsavebonus", 0);
+        let reflex = row_int(&race_data, "refsavebonus", 0);
+        let will = row_int(&race_data, "willsavebonus", 0);
 
         SaveBonuses::new(fort, reflex, will)
     }

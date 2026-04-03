@@ -24,7 +24,7 @@ use crate::character::identity::Alignment;
 use crate::character::types::{AbilityIndex, ClassId, FeatId, RaceId, SkillId};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
-use crate::services::field_mapper::FieldMapper;
+use crate::utils::parsing::{row_bool, row_int, row_str};
 
 const MAX_CLASSES: usize = 3;
 
@@ -203,7 +203,7 @@ pub struct ClassesState {
     pub total_level: i32,
     pub entries: Vec<ClassSummaryEntry>,
     pub xp_progress: XpProgress,
-    pub level_history: Vec<LevelHistoryEntry>,
+    pub level_history: Vec<ResolvedLevelHistoryEntry>,
     pub skill_points_summary: SkillPointsSummary,
 }
 
@@ -515,12 +515,7 @@ impl Character {
             return feats_for_level;
         };
 
-        let feats_table_name = class_row
-            .get("FeatsTable")
-            .or_else(|| class_row.get("feats_table"))
-            .or_else(|| class_row.get("FEATSTABLE"))
-            .and_then(std::clone::Clone::clone)
-            .filter(|s| !s.is_empty() && s != "****");
+        let feats_table_name = row_str(&class_row, "featstable");
 
         let Some(table_name) = feats_table_name else {
             return feats_for_level;
@@ -535,34 +530,19 @@ impl Character {
                 continue;
             };
 
-            let granted_level = row
-                .get("GrantedOnLevel")
-                .or_else(|| row.get("granted_on_level"))
-                .or_else(|| row.get("GRANTEDONLEVEL"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let granted_level = row_int(&row, "grantedonlevel", -1);
 
             if granted_level != level {
                 continue;
             }
 
-            let feat_id = row
-                .get("FeatIndex")
-                .or_else(|| row.get("feat_index"))
-                .or_else(|| row.get("FEATINDEX"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let feat_id = row_int(&row, "featindex", -1);
 
             if feat_id < 0 {
                 continue;
             }
 
-            let list_type = row
-                .get("List")
-                .or_else(|| row.get("list"))
-                .or_else(|| row.get("LIST"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(3);
+            let list_type = row_int(&row, "list", 3);
 
             feats_for_level.push(ClassFeatInfo {
                 feat_id: FeatId(feat_id),
@@ -585,12 +565,7 @@ impl Character {
             return feat_ids;
         };
 
-        let feats_table_name = class_row
-            .get("FeatsTable")
-            .or_else(|| class_row.get("feats_table"))
-            .or_else(|| class_row.get("FEATSTABLE"))
-            .and_then(std::clone::Clone::clone)
-            .filter(|s| !s.is_empty() && s != "****");
+        let feats_table_name = row_str(&class_row, "featstable");
 
         let Some(table_name) = feats_table_name else {
             return feat_ids;
@@ -605,23 +580,13 @@ impl Character {
                 continue;
             };
 
-            let list_type = row
-                .get("List")
-                .or_else(|| row.get("list"))
-                .or_else(|| row.get("LIST"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let list_type = row_int(&row, "list", -1);
 
             if list_type != 0 && list_type != 3 {
                 continue;
             }
 
-            let feat_id = row
-                .get("FeatIndex")
-                .or_else(|| row.get("feat_index"))
-                .or_else(|| row.get("FEATINDEX"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let feat_id = row_int(&row, "featindex", -1);
 
             if feat_id >= 0 {
                 feat_ids.insert(feat_id);
@@ -688,23 +653,14 @@ impl Character {
         if let Some(subrace_idx) = self.subrace_index()
             && let Some(subtypes_table) = game_data.get_table("racialsubtypes")
             && let Some(subtype_row) = subtypes_table.get_by_id(subrace_idx)
+            && let Some(table_name) = row_str(&subtype_row, "featstable")
+            && let Some(feat_table) = game_data.get_table(&table_name.to_lowercase())
         {
-            let feat_table_name = Self::get_field_value(&subtype_row, "FeatsTable")
-                .filter(|s| !s.is_empty() && s != "****");
-            if let Some(table_name) = feat_table_name
-                && let Some(feat_table) = game_data.get_table(&table_name.to_lowercase())
-            {
-                for row_idx in 0..feat_table.row_count() {
-                    if let Ok(row) = feat_table.get_row(row_idx) {
-                        let feat_id = row
-                            .get("FeatIndex")
-                            .or_else(|| row.get("feat_index"))
-                            .or_else(|| row.get("FEATINDEX"))
-                            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                            .unwrap_or(-1);
-                        if feat_id >= 0 {
-                            preserved.insert(feat_id);
-                        }
+            for row_idx in 0..feat_table.row_count() {
+                if let Ok(row) = feat_table.get_row(row_idx) {
+                    let feat_id = row_int(&row, "featindex", -1);
+                    if feat_id >= 0 {
+                        preserved.insert(feat_id);
                     }
                 }
             }
@@ -726,8 +682,10 @@ impl Character {
         if let Some(feat_table) = game_data.get_table("feat") {
             for entry in &feat_entries {
                 if let Some(feat_row) = feat_table.get_by_id(entry.feat_id.0) {
-                    let cat = Self::get_field_value(&feat_row, "TOOLSCATEGORIES")
-                        .and_then(|s| s.parse::<i32>().ok());
+                    let cat = feat_row
+                        .get("toolscategories")
+                        .and_then(|v| v.as_deref())
+                        .and_then(|s| s.trim().parse::<i32>().ok());
                     if let Some(cat) = cat {
                         if matches!(cat, 10 | 11 | 12 | 14) {
                             preserved.insert(entry.feat_id.0);
@@ -735,8 +693,11 @@ impl Character {
                         continue;
                     }
 
-                    let feat_cat =
-                        Self::get_field_value(&feat_row, "FeatCategory").unwrap_or_default();
+                    let feat_cat = feat_row
+                        .get("featcategory")
+                        .and_then(|v| v.as_deref())
+                        .map(str::trim)
+                        .unwrap_or_default();
                     if feat_cat.contains("BACKGROUND")
                         || feat_cat.contains("HISTORY")
                         || feat_cat.contains("HERITAGE")
@@ -755,20 +716,18 @@ impl Character {
         let racialtypes = game_data.get_table("racialtypes")?;
         let race_data = racialtypes.get_by_id(race_id.0)?;
 
-        let feat_table_name = Self::get_field_value(&race_data, "FeatTable")
-            .or_else(|| Self::get_field_value(&race_data, "feattable"))?;
-
-        if feat_table_name.is_empty() || feat_table_name == "****" {
-            return None;
-        }
+        let feat_table_name = row_str(&race_data, "feattable")?;
 
         let feat_table = game_data.get_table(&feat_table_name.to_lowercase())?;
         let mut feat_ids = Vec::new();
 
         for row_id in 0..feat_table.row_count() {
             if let Some(row) = feat_table.get_by_id(row_id as i32)
-                && let Some(feat_index_str) = Self::get_field_value(&row, "FeatIndex")
-                    .or_else(|| Self::get_field_value(&row, "featindex"))
+                && let Some(feat_index_str) = row
+                    .get("featindex")
+                    .and_then(|v| v.as_deref())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty() && *s != "****")
                 && let Ok(feat_id) = feat_index_str.parse::<i32>()
                 && feat_id >= 0
             {
@@ -1153,21 +1112,16 @@ impl Character {
 
         let name = Self::resolve_class_name(&class_data, game_data);
 
-        let hit_die = Self::get_field_value(&class_data, "hit_die")
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(6);
+        let hit_die = row_int(&class_data, "hitdie", 6);
 
-        let primary_ability_str = Self::get_field_value(&class_data, "primary_ability");
-        let primary_ability = primary_ability_str
+        let primary_ability = class_data
+            .get("primaryabil")
+            .and_then(|v| v.as_deref())
             .and_then(|s| AbilityIndex::from_index(s.trim().parse::<u8>().ok()?));
 
-        let is_spellcaster = Self::get_field_value(&class_data, "spell_caster").is_some_and(|s| {
-            let trimmed = s.trim().to_lowercase();
-            matches!(trimmed.as_str(), "1" | "true" | "yes")
-        });
+        let is_spellcaster = row_bool(&class_data, "spellcaster", false);
 
-        let bab_table_name =
-            Self::get_field_value(&class_data, "attack_bonus_table").unwrap_or_default();
+        let bab_table_name = row_str(&class_data, "attackbonustable").unwrap_or_default();
         let bab_type = Self::determine_bab_type(&bab_table_name);
 
         Some(ClassInfo {
@@ -1189,9 +1143,7 @@ impl Character {
             return 6;
         };
 
-        Self::get_field_value(&class_data, "hit_die")
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(6)
+        row_int(&class_data, "hitdie", 6)
     }
 
     pub fn calculate_xp_for_level(&self, level: i32, game_data: &GameData) -> i32 {
@@ -1288,24 +1240,11 @@ impl Character {
             None => return (0, 0, 0, 0, 2),
         };
 
-        let skill_points = class_data
-            .get("SkillPointBase")
-            .or_else(|| class_data.get("skillpointbase"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(2);
+        let skill_points = row_int(&class_data, "skillpointbase", 2);
 
-        let bab_table_name = class_data
-            .get("AttackBonusTable")
-            .or_else(|| class_data.get("attackbonustable"))
-            .and_then(std::clone::Clone::clone)
-            .unwrap_or_default();
+        let bab_table_name = row_str(&class_data, "attackbonustable").unwrap_or_default();
 
-        let save_table_name = class_data
-            .get("SavingThrowTable")
-            .or_else(|| class_data.get("savingthrowtable"))
-            .and_then(std::clone::Clone::clone)
-            .unwrap_or_default();
+        let save_table_name = row_str(&class_data, "savingthrowtable").unwrap_or_default();
 
         let bab_table = game_data.get_table(&bab_table_name.to_lowercase());
         let save_table = game_data.get_table(&save_table_name.to_lowercase());
@@ -1367,7 +1306,7 @@ impl Character {
             total_level: self.total_level(),
             entries: self.get_class_summary(game_data),
             xp_progress: self.get_xp_progress(game_data),
-            level_history: self.level_history(),
+            level_history: self.level_history_resolved(game_data),
             skill_points_summary: self.get_skill_points_summary(game_data),
         }
     }
@@ -1376,42 +1315,14 @@ impl Character {
         class_data: &AHashMap<String, Option<String>>,
         game_data: &GameData,
     ) -> String {
-        Self::get_field_value(class_data, "name")
-            .and_then(|s| s.parse::<i32>().ok())
+        class_data
+            .get("name")
+            .and_then(|v| v.as_deref())
+            .and_then(|s| s.trim().parse::<i32>().ok())
             .and_then(|strref| game_data.get_string(strref))
             .filter(|name| !name.is_empty())
-            .or_else(|| Self::get_field_value(class_data, "label"))
+            .or_else(|| row_str(class_data, "label"))
             .unwrap_or_else(|| "Unknown".to_string())
-    }
-
-    fn get_field_value(data: &AHashMap<String, Option<String>>, pattern: &str) -> Option<String> {
-        let patterns = match pattern {
-            "hit_die" => vec!["HitDie", "hit_die", "HD", "HitDice"],
-            "primary_ability" => vec!["PrimaryAbil", "primary_ability", "primary_abil", "PrimAbil"],
-            "spell_caster" => vec!["SpellCaster", "spell_caster", "IsCaster", "Caster"],
-            "is_prestige" => vec!["IsPrestige", "is_prestige", "Prestige", "prestige"],
-            "attack_bonus_table" => vec![
-                "AttackBonusTable",
-                "attack_bonus_table",
-                "AttackTable",
-                "BABTable",
-                "attackbonustable",
-            ],
-            "MaxLevel" => vec!["MaxLevel", "max_level", "MAXLEVEL"],
-            "name" => vec!["NAME", "name", "Name", "label", "Label", "NameRef"],
-            "label" => vec!["LABEL", "label", "Label"],
-            _ => vec![pattern],
-        };
-
-        for alias in patterns {
-            if let Some(Some(value)) = data.get(alias) {
-                let trimmed = value.trim();
-                if !trimmed.is_empty() && trimmed != "****" {
-                    return Some(trimmed.to_string());
-                }
-            }
-        }
-        None
     }
 
     fn determine_bab_type(bab_table_name: &str) -> BabType {
@@ -1468,10 +1379,7 @@ impl Character {
             return false;
         };
 
-        Self::get_field_value(&class_data, "is_prestige").is_some_and(|s| {
-            let trimmed = s.trim().to_lowercase();
-            matches!(trimmed.as_str(), "1" | "true" | "yes")
-        })
+        row_bool(&class_data, "isprestige", false)
     }
 
     pub fn get_prestige_requirements(
@@ -1480,37 +1388,31 @@ impl Character {
     ) -> PrestigeRequirements {
         let mut requirements = PrestigeRequirements::default();
 
-        if let Some(bab) = Self::get_field_value(class_data, "min_attack_bonus")
-            .and_then(|s| s.parse::<i32>().ok())
-            && bab > 0
-        {
+        let bab = row_int(class_data, "minattackbonus", 0);
+        if bab > 0 {
             requirements.base_attack_bonus = Some(bab);
         }
 
-        if let Some(skill_str) = Self::get_field_value(class_data, "required_skill")
-            && let Some(skill_rank) = Self::get_field_value(class_data, "required_skill_rank")
-                .and_then(|s| s.parse::<i32>().ok())
-            && skill_rank > 0
-        {
-            let skill_name = skill_str
-                .parse::<i32>()
-                .ok()
-                .and_then(|id| {
-                    game_data
-                        .get_table("skills")
-                        .and_then(|t| t.get_by_id(id))
-                        .and_then(|row| Self::get_field_value(&row, "Name"))
-                        .and_then(|strref| strref.parse::<i32>().ok())
-                        .and_then(|strref| game_data.get_string(strref))
-                })
-                .unwrap_or_else(|| skill_str.clone());
-            requirements.skills.push((skill_name, skill_rank));
+        if let Some(skill_str) = row_str(class_data, "reqskill") {
+            let skill_rank = row_int(class_data, "reqskillminranks", 0);
+            if skill_rank > 0 {
+                let skill_name = skill_str
+                    .parse::<i32>()
+                    .ok()
+                    .and_then(|id| {
+                        game_data
+                            .get_table("skills")
+                            .and_then(|t| t.get_by_id(id))
+                            .and_then(|row| row.get("name").and_then(|v| v.clone()))
+                            .and_then(|strref| strref.trim().parse::<i32>().ok())
+                            .and_then(|strref| game_data.get_string(strref))
+                    })
+                    .unwrap_or_else(|| skill_str.clone());
+                requirements.skills.push((skill_name, skill_rank));
+            }
         }
 
-        if let Some(feat_str) = Self::get_field_value(class_data, "required_feat")
-            && !feat_str.is_empty()
-            && feat_str != "****"
-        {
+        if let Some(feat_str) = row_str(class_data, "prereqfeat1") {
             let feat_name = feat_str
                 .parse::<i32>()
                 .ok()
@@ -1518,19 +1420,17 @@ impl Character {
                     game_data
                         .get_table("feat")
                         .and_then(|t| t.get_by_id(id))
-                        .and_then(|row| Self::get_field_value(&row, "FEAT"))
-                        .and_then(|strref| strref.parse::<i32>().ok())
+                        .and_then(|row| row.get("feat").and_then(|v| v.clone()))
+                        .and_then(|strref| strref.trim().parse::<i32>().ok())
                         .and_then(|strref| game_data.get_string(strref))
                 })
                 .unwrap_or_else(|| feat_str.clone());
             requirements.feats.push(feat_name);
         }
 
-        if let Some(align_str) = Self::get_field_value(class_data, "align_restrict") {
-            let align_restrict = FieldMapper::safe_hex_int(Some(&align_str));
-            if align_restrict > 0 {
-                requirements.alignment = AlignmentRestriction(align_restrict).decode_to_string();
-            }
+        let align_restrict = row_int(class_data, "alignrestrict", 0);
+        if align_restrict > 0 {
+            requirements.alignment = AlignmentRestriction(align_restrict).decode_to_string();
         }
 
         requirements
@@ -1565,8 +1465,10 @@ impl Character {
             let skill_id = game_data.get_table("skills").and_then(|t| {
                 for row_idx in 0..t.row_count() {
                     if let Ok(row) = t.get_row(row_idx)
-                        && let Some(name) = Self::get_field_value(&row, "Name")
-                            .and_then(|strref| strref.parse::<i32>().ok())
+                        && let Some(name) = row
+                            .get("name")
+                            .and_then(|v| v.as_deref())
+                            .and_then(|s| s.trim().parse::<i32>().ok())
                             .and_then(|strref| game_data.get_string(strref))
                         && name == *skill_name
                     {
@@ -1590,8 +1492,10 @@ impl Character {
             let feat_id = game_data.get_table("feat").and_then(|t| {
                 for row_idx in 0..t.row_count() {
                     if let Ok(row) = t.get_row(row_idx)
-                        && let Some(name) = Self::get_field_value(&row, "FEAT")
-                            .and_then(|strref| strref.parse::<i32>().ok())
+                        && let Some(name) = row
+                            .get("feat")
+                            .and_then(|v| v.as_deref())
+                            .and_then(|s| s.trim().parse::<i32>().ok())
                             .and_then(|strref| game_data.get_string(strref))
                         && name == *feat_name
                     {
@@ -1608,16 +1512,14 @@ impl Character {
             }
         }
 
-        if let Some(align_str) = Self::get_field_value(&class_data, "align_restrict") {
-            let align_restrict = FieldMapper::safe_hex_int(Some(&align_str));
-            if align_restrict > 0 {
-                let restriction = AlignmentRestriction(align_restrict);
-                let alignment = self.alignment();
-                if !restriction.check_alignment(&alignment)
-                    && let Some(text) = restriction.decode_to_string()
-                {
-                    missing.push(format!("Alignment: must be {text}"));
-                }
+        let align_restrict = row_int(&class_data, "alignrestrict", 0);
+        if align_restrict > 0 {
+            let restriction = AlignmentRestriction(align_restrict);
+            let alignment = self.alignment();
+            if !restriction.check_alignment(&alignment)
+                && let Some(text) = restriction.decode_to_string()
+            {
+                missing.push(format!("Alignment: must be {text}"));
             }
         }
 
@@ -1640,29 +1542,26 @@ impl Character {
                 continue;
             };
 
-            let is_prestige = Self::get_field_value(&row, "is_prestige").is_some_and(|s| {
-                let trimmed = s.trim().to_lowercase();
-                matches!(trimmed.as_str(), "1" | "true" | "yes")
-            });
+            let is_prestige = row_bool(&row, "isprestige", false);
 
-            let max_level = Self::get_field_value(&row, "MaxLevel")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
+            let max_level = row_int(&row, "maxlevel", 0);
 
             if !is_prestige && max_level <= 0 {
                 continue;
             }
 
-            let label = Self::get_field_value(&row, "Label").unwrap_or_default();
-            if label.is_empty() || label == "****" || label.to_lowercase().contains("padding") {
+            let label = row_str(&row, "label").unwrap_or_default();
+            if label.is_empty() || label.to_lowercase().contains("padding") {
                 continue;
             }
 
             let class_id = ClassId(row_idx as i32);
             let validation = self.validate_prestige_class_requirements(class_id, game_data);
 
-            let name = Self::get_field_value(&row, "Name")
-                .and_then(|s| s.parse::<i32>().ok())
+            let name = row
+                .get("name")
+                .and_then(|v| v.as_deref())
+                .and_then(|s| s.trim().parse::<i32>().ok())
                 .and_then(|strref| game_data.get_string(strref))
                 .filter(|n| !n.is_empty())
                 .unwrap_or_else(|| label.clone());
@@ -1712,10 +1611,8 @@ impl Character {
             });
         }
 
-        let max_class_level_str = Self::get_field_value(&class_data, "MaxLevel");
-        if let Some(max_lvl) = max_class_level_str.and_then(|s| s.parse::<i32>().ok())
-            && max_lvl > 0
-        {
+        let max_lvl = row_int(&class_data, "maxlevel", 0);
+        if max_lvl > 0 {
             let current_class_level = self.class_level(class_id);
             if current_class_level >= max_lvl {
                 return Err(CharacterError::ValidationFailed {
@@ -1772,9 +1669,7 @@ impl Character {
             self.set_byte("Class", class_id.0 as u8);
         }
 
-        let hit_die = Self::get_field_value(&class_data, "hit_die")
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(6);
+        let hit_die = row_int(&class_data, "hitdie", 6);
         let con_mod = self.ability_modifier(AbilityIndex::CON);
 
         let hp_gained = std::cmp::max(1, hit_die + con_mod);
@@ -1793,14 +1688,9 @@ impl Character {
         let race_bonus = game_data
             .get_table("racialtypes")
             .and_then(|t| t.get_by_id(race_id.0))
-            .and_then(|row| Self::get_field_value(&row, "SkillPointModifier"))
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+            .map_or(0, |row| row_int(&row, "skillpointmodifier", 0));
 
-        let skill_base = Self::get_field_value(&class_data, "SkillPointBase")
-            .or_else(|| Self::get_field_value(&class_data, "skillpointbase"))
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(2);
+        let skill_base = row_int(&class_data, "skillpointbase", 2);
 
         let mut sp_gained = std::cmp::max(1, skill_base + int_mod + race_bonus);
         if new_total_level == 1 {
@@ -1834,15 +1724,10 @@ impl Character {
         let ability_increase_gained = (new_total_level % 4) == 0;
 
         // 8. Spellcasting
-        let is_spellcaster = Self::get_field_value(&class_data, "spell_caster")
-            .or_else(|| Self::get_field_value(&class_data, "spellcaster"))
-            .is_some_and(|s| matches!(s.trim().to_lowercase().as_str(), "1" | "true" | "yes"));
+        let is_spellcaster = row_bool(&class_data, "spellcaster", false);
 
-        let spell_gain_table = Self::get_field_value(&class_data, "spell_gain_table");
-        let is_prestige_caster = is_spellcaster
-            && spell_gain_table
-                .as_ref()
-                .map_or(true, |s| s == "****" || s.is_empty());
+        let spell_gain_table = row_str(&class_data, "spellgaintable");
+        let is_prestige_caster = is_spellcaster && spell_gain_table.is_none();
 
         if is_prestige_caster {
             let mut best_class_entry_idx = None;
@@ -1856,11 +1741,8 @@ impl Character {
                     }
 
                     if let Some(c_data) = classes_table.get_by_id(c_id) {
-                        let c_table = Self::get_field_value(&c_data, "spell_gain_table");
-                        if let Some(t) = c_table
-                            && !t.is_empty()
-                            && t != "****"
-                        {
+                        let c_table = row_str(&c_data, "spellgaintable");
+                        if c_table.is_some() {
                             let lvl = entry
                                 .get("ClassLevel")
                                 .and_then(gff_value_to_i32)
@@ -2356,9 +2238,7 @@ impl Character {
         let race_bonus = game_data
             .get_table("racialtypes")
             .and_then(|t| t.get_by_id(race_id.0))
-            .and_then(|row| Self::get_field_value(&row, "SkillPointModifier"))
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
+            .map_or(0, |row| row_int(&row, "skillpointmodifier", 0));
 
         let int_mod = self.ability_modifier(AbilityIndex::INT);
 
@@ -2377,18 +2257,10 @@ impl Character {
                 continue;
             }
 
-            let class_base = if let Some(table) = &classes_table {
-                if let Some(c_data) = table.get_by_id(class_id) {
-                    Self::get_field_value(&c_data, "SkillPointBase")
-                        .or_else(|| Self::get_field_value(&c_data, "skillpointbase"))
-                        .and_then(|s| s.parse::<i32>().ok())
-                        .unwrap_or(2)
-                } else {
-                    2
-                }
-            } else {
-                2
-            };
+            let class_base = classes_table
+                .as_ref()
+                .and_then(|t| t.get_by_id(class_id))
+                .map_or(2, |c_data| row_int(&c_data, "skillpointbase", 2));
 
             let mut points = std::cmp::max(1, class_base + int_mod + race_bonus);
             if idx == 0 {
@@ -2438,37 +2310,17 @@ pub fn get_class_progression(
 
     let class_name = class_data
         .get("name")
-        .or_else(|| class_data.get("Name"))
-        .and_then(std::clone::Clone::clone)
+        .and_then(|v| v.clone())
         .and_then(|s| s.parse::<i32>().ok())
         .and_then(|strref| game_data.get_string(strref))
-        .or_else(|| {
-            class_data
-                .get("label")
-                .or_else(|| class_data.get("Label"))
-                .and_then(std::clone::Clone::clone)
-        })
+        .or_else(|| row_str(&class_data, "label"))
         .unwrap_or_else(|| format!("Class {class_id}"));
 
-    let hit_die = class_data
-        .get("HitDie")
-        .or_else(|| class_data.get("hit_die"))
-        .and_then(|v| v.as_ref())
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(6);
+    let hit_die = row_int(&class_data, "hitdie", 6);
 
-    let skill_points = class_data
-        .get("SkillPointBase")
-        .or_else(|| class_data.get("skillpointbase"))
-        .and_then(|v| v.as_ref())
-        .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(2);
+    let skill_points = row_int(&class_data, "skillpointbase", 2);
 
-    let bab_table_name = class_data
-        .get("AttackBonusTable")
-        .or_else(|| class_data.get("attackbonustable"))
-        .and_then(std::clone::Clone::clone)
-        .unwrap_or_default();
+    let bab_table_name = row_str(&class_data, "attackbonustable").unwrap_or_default();
 
     let bab_progression = if bab_table_name.to_lowercase().contains("low")
         || bab_table_name.to_lowercase().contains("half")
@@ -2480,23 +2332,11 @@ pub fn get_class_progression(
         "full".to_string()
     };
 
-    let save_table_name = class_data
-        .get("SavingThrowTable")
-        .or_else(|| class_data.get("savingthrowtable"))
-        .and_then(std::clone::Clone::clone)
-        .unwrap_or_default();
+    let save_table_name = row_str(&class_data, "savingthrowtable").unwrap_or_default();
 
-    let is_spellcaster = class_data
-        .get("SpellCaster")
-        .or_else(|| class_data.get("spellcaster"))
-        .and_then(|v| v.as_ref())
-        .is_some_and(|s| s == "1");
+    let is_spellcaster = row_bool(&class_data, "spellcaster", false);
 
-    let arcane_flag = class_data
-        .get("Arcane")
-        .or_else(|| class_data.get("arcane"))
-        .and_then(|v| v.as_ref())
-        .is_some_and(|s| s == "1");
+    let arcane_flag = row_bool(&class_data, "arcane", false);
 
     let spell_type = if !is_spellcaster {
         "none".to_string()
@@ -2506,10 +2346,7 @@ pub fn get_class_progression(
         "divine".to_string()
     };
 
-    let spell_table_name = class_data
-        .get("SpellKnownTable")
-        .or_else(|| class_data.get("spellknowntable"))
-        .and_then(std::clone::Clone::clone);
+    let spell_table_name = row_str(&class_data, "spellknowntable");
 
     let mut level_progression = Vec::with_capacity(max_level as usize);
 
@@ -2790,13 +2627,9 @@ impl Character {
                 .unwrap_or(0);
 
             // Get Hit Die for this class level
-            let hit_die = if let Some(class_data) = classes_table.get_by_id(class_id) {
-                Self::get_field_value(&class_data, "hit_die")
-                    .and_then(|s| s.parse::<i32>().ok())
-                    .unwrap_or(6)
-            } else {
-                6
-            };
+            let hit_die = classes_table
+                .get_by_id(class_id)
+                .map_or(6, |class_data| row_int(&class_data, "hitdie", 6));
 
             // Calculate Base HP (Roll equivalent)
             let base_hp = if idx == 0 {

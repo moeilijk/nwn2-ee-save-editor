@@ -11,8 +11,8 @@ use super::types::{ClassId, DomainId, FeatId, SaveBonuses};
 use super::{Character, CharacterError};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
+use crate::utils::parsing::{row_bool, row_int, row_str};
 
-use crate::services::field_mapper::FieldMapper;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Type)]
 #[repr(transparent)]
@@ -557,12 +557,7 @@ pub fn build_domain_feat_sets(game_data: &GameData) -> (HashSet<i32>, HashSet<i3
             continue;
         };
 
-        for field in [
-            "granted_feat",
-            "castable_feat",
-            "GrantedFeat",
-            "CastableFeat",
-        ] {
+        for field in ["grantedfeat", "castablefeat"] {
             if let Some(feat_id) = domain_data
                 .get(field)
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
@@ -572,15 +567,13 @@ pub fn build_domain_feat_sets(game_data: &GameData) -> (HashSet<i32>, HashSet<i3
             }
         }
 
-        for field in ["epithet_feat", "EpithetFeat"] {
-            if let Some(feat_id) = domain_data
-                .get(field)
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .filter(|&id| id >= 0)
-            {
-                all_domain_feats.insert(feat_id);
-                epithet_feats.insert(feat_id);
-            }
+        if let Some(feat_id) = domain_data
+            .get("epithetfeat")
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            .filter(|&id| id >= 0)
+        {
+            all_domain_feats.insert(feat_id);
+            epithet_feats.insert(feat_id);
         }
     }
 
@@ -707,18 +700,17 @@ impl Character {
             })?;
 
         let ability_fields = [
-            ("Str", "MINSTR"),
-            ("Dex", "MINDEX"),
-            ("Con", "MINCON"),
-            ("Int", "MININT"),
-            ("Wis", "MINWIS"),
-            ("Cha", "MINCHA"),
+            ("Str", "minstr"),
+            ("Dex", "mindex"),
+            ("Con", "mincon"),
+            ("Int", "minint"),
+            ("Wis", "minwis"),
+            ("Cha", "mincha"),
         ];
 
         for (ability_field, min_field) in ability_fields {
             let min_val = feat_data
                 .get(min_field)
-                .or_else(|| feat_data.get(&min_field.to_lowercase()))
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&v| v > 0);
 
@@ -735,10 +727,9 @@ impl Character {
             }
         }
 
-        for prereq_field in ["PREREQFEAT1", "PREREQFEAT2"] {
+        for prereq_field in ["prereqfeat1", "prereqfeat2"] {
             let prereq_id = feat_data
                 .get(prereq_field)
-                .or_else(|| feat_data.get(&prereq_field.to_lowercase()))
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&id| id >= 0);
 
@@ -958,13 +949,13 @@ impl Character {
 
             let feats = [
                 domain_data
-                    .get("granted_feat")
+                    .get("grantedfeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
                 domain_data
-                    .get("castable_feat")
+                    .get("castablefeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
                 domain_data
-                    .get("epithet_feat")
+                    .get("epithetfeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
             ];
 
@@ -989,7 +980,7 @@ impl Character {
             };
 
             let epithet = domain_data
-                .get("epithet_feat")
+                .get("epithetfeat")
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok());
 
             if epithet == Some(feat_id.0) {
@@ -1019,19 +1010,19 @@ impl Character {
         let mut added_feats = Vec::new();
 
         let granted_feat = domain_data
-            .get("granted_feat")
+            .get("grantedfeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
 
         let castable_feat = domain_data
-            .get("castable_feat")
+            .get("castablefeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
 
         let epithet_feat = domain_data
-            .get("epithet_feat")
+            .get("epithetfeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
@@ -1071,19 +1062,19 @@ impl Character {
         let mut removed_feats = Vec::new();
 
         let granted_feat = domain_data
-            .get("granted_feat")
+            .get("grantedfeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
 
         let castable_feat = domain_data
-            .get("castable_feat")
+            .get("castablefeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
 
         let epithet_feat = domain_data
-            .get("epithet_feat")
+            .get("epithetfeat")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&id| id >= 0)
             .map(FeatId);
@@ -1116,13 +1107,13 @@ impl Character {
 
             let feats = [
                 domain_data
-                    .get("granted_feat")
+                    .get("grantedfeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
                 domain_data
-                    .get("castable_feat")
+                    .get("castablefeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
                 domain_data
-                    .get("epithet_feat")
+                    .get("epithetfeat")
                     .and_then(|s| s.as_ref()?.parse::<i32>().ok()),
             ];
 
@@ -1287,8 +1278,7 @@ impl Character {
         };
 
         let feats_table_name_opt = class_data
-            .get("FeatsTable")
-            .or_else(|| class_data.get("feats_table"))
+            .get("featstable")
             .and_then(|s| s.as_ref());
 
         let Some(feats_table_name) = feats_table_name_opt else {
@@ -1308,17 +1298,8 @@ impl Character {
                 continue;
             };
 
-            let feat_id = row
-                .get("featindex")
-                .or_else(|| row.get("FeatIndex"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(-1);
-
-            let list_type = row
-                .get("list")
-                .or_else(|| row.get("List"))
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                .unwrap_or(0);
+            let feat_id = row_int(&row, "featindex", -1);
+            let list_type = row_int(&row, "list", 0);
 
             if feat_id >= 0 {
                 feat_table.insert(feat_id, list_type);
@@ -1343,8 +1324,7 @@ impl Character {
         };
 
         let bonus_table_name_opt = class_data
-            .get("BonusFeatsTable")
-            .or_else(|| class_data.get("bonus_feats_table"))
+            .get("bonusfeatstable")
             .and_then(|s| s.as_ref());
 
         let Some(bonus_table_name) = bonus_table_name_opt else {
@@ -1368,13 +1348,7 @@ impl Character {
             return false;
         };
 
-        let bonus = level_data
-            .get("bonus")
-            .or_else(|| level_data.get("Bonus"))
-            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            .unwrap_or(0);
-
-        bonus > 0
+        row_int(&level_data, "bonus", 0) > 0
     }
 
     fn get_racial_bonus_feats(&self) -> i32 {
@@ -1387,7 +1361,6 @@ impl Character {
 
         let feat_type_str = feat_data
             .get("feat")
-            .or_else(|| feat_data.get("FEAT"))
             .and_then(|s| s.as_ref())
             .map_or("0", std::string::String::as_str);
 
@@ -1455,12 +1428,10 @@ impl Character {
         let mut missing = Vec::new();
 
         let prereq_feat1 = feat_data
-            .get("PREREQFEAT1")
-            .or_else(|| feat_data.get("prereq_feat1"))
+            .get("prereqfeat1")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok());
         let prereq_feat2 = feat_data
-            .get("PREREQFEAT2")
-            .or_else(|| feat_data.get("prereq_feat2"))
+            .get("prereqfeat2")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok());
 
         if let Some(prereq_id) = prereq_feat1
@@ -1487,8 +1458,7 @@ impl Character {
         let cha_score = self.get_i32("Cha").unwrap_or(10);
 
         if let Some(min_str) = feat_data
-            .get("MINSTR")
-            .or_else(|| feat_data.get("prereq_str"))
+            .get("minstr")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_str > 0
             && str_score < min_str
@@ -1497,8 +1467,7 @@ impl Character {
         }
 
         if let Some(min_dex) = feat_data
-            .get("MINDEX")
-            .or_else(|| feat_data.get("prereq_dex"))
+            .get("mindex")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_dex > 0
             && dex_score < min_dex
@@ -1507,8 +1476,7 @@ impl Character {
         }
 
         if let Some(min_con) = feat_data
-            .get("MINCON")
-            .or_else(|| feat_data.get("prereq_con"))
+            .get("mincon")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_con > 0
             && con_score < min_con
@@ -1517,8 +1485,7 @@ impl Character {
         }
 
         if let Some(min_int) = feat_data
-            .get("MININT")
-            .or_else(|| feat_data.get("prereq_int"))
+            .get("minint")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_int > 0
             && int_score < min_int
@@ -1527,8 +1494,7 @@ impl Character {
         }
 
         if let Some(min_wis) = feat_data
-            .get("MINWIS")
-            .or_else(|| feat_data.get("prereq_wis"))
+            .get("minwis")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_wis > 0
             && wis_score < min_wis
@@ -1537,8 +1503,7 @@ impl Character {
         }
 
         if let Some(min_cha) = feat_data
-            .get("MINCHA")
-            .or_else(|| feat_data.get("prereq_cha"))
+            .get("mincha")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_cha > 0
             && cha_score < min_cha
@@ -1547,8 +1512,7 @@ impl Character {
         }
 
         if let Some(min_bab) = feat_data
-            .get("MINATTACKBONUS")
-            .or_else(|| feat_data.get("prereq_bab"))
+            .get("minattackbonus")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_bab > 0
         {
@@ -1559,9 +1523,7 @@ impl Character {
         }
 
         if let Some(min_level) = feat_data
-            .get("MinLevel")
-            .or_else(|| feat_data.get("MINLEVEL"))
-            .or_else(|| feat_data.get("min_level"))
+            .get("minlevel")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             && min_level > 0
         {
@@ -1587,13 +1549,10 @@ impl Character {
             return format!("Feat {}", feat_id.0);
         };
 
-        let field_mapper = FieldMapper::new();
-
-        // Use FieldMapper to find "name" field (handles case and aliases like NameRef)
-        // Priority: Check "feat_name_strref" (FEAT/Feat) first as per Python implementation
-        let name_strref = field_mapper
-            .get_field_value(&feat_data, "feat_name_strref")
-            .or_else(|| field_mapper.get_field_value(&feat_data, "name"))
+        let name_strref = feat_data
+            .get("feat")
+            .and_then(|v| v.clone())
+            .or_else(|| feat_data.get("name").and_then(|v| v.clone()))
             .and_then(|s| s.parse::<i32>().ok());
 
         if let Some(strref) = name_strref
@@ -1603,9 +1562,7 @@ impl Character {
             return name;
         }
 
-        // Use FieldMapper to find "label" field (handles case "Label", "LABEL", etc.)
-        field_mapper
-            .get_field_value(&feat_data, "label")
+        row_str(&feat_data, "label")
             .unwrap_or_else(|| format!("Feat {}", feat_id.0))
     }
 
@@ -1912,7 +1869,6 @@ impl Character {
 
             let label = skill_data
                 .get("label")
-                .or_else(|| skill_data.get("Label"))
                 .and_then(|opt| opt.as_deref())
                 .unwrap_or("");
 
@@ -1938,9 +1894,7 @@ impl Character {
         feat_data: &ahash::AHashMap<String, Option<String>>,
         game_data: &GameData,
     ) -> String {
-        let field_mapper = FieldMapper::new();
-        let desc_strref = field_mapper
-            .get_field_value(feat_data, "description")
+        let desc_strref = row_str(feat_data, "description")
             .and_then(|s| s.parse::<i32>().ok());
 
         if let Some(strref) = desc_strref
@@ -2010,12 +1964,7 @@ impl Character {
             return result;
         };
 
-        let all_classes = feat_data
-            .get("ALLCLASSESCANUSE")
-            .or_else(|| feat_data.get("AllClassesCanUse"))
-            .or_else(|| feat_data.get("allclassescanuse"))
-            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-            .unwrap_or(1);
+        let all_classes = row_int(&feat_data, "allclassescanuse", 1);
 
         if all_classes == 0 {
             let class_entries = self.class_entries();
@@ -2195,10 +2144,7 @@ impl Character {
         let category = FeatCategory::from_feat_type(feat_type, is_domain);
 
         let is_protected = self.is_feat_protected(feat_id, game_data);
-        let is_custom = feat_data
-            .get("custom")
-            .and_then(|s| s.as_ref())
-            .is_some_and(|s| s == "1" || s.to_lowercase() == "true");
+        let is_custom = row_bool(&feat_data, "custom", false);
         let has_feat = self.has_feat(feat_id);
 
         let prerequisites = self.build_feat_prerequisites(&feat_data, game_data);
@@ -2263,10 +2209,7 @@ impl Character {
             .is_some_and(|s| matches!(s, FeatSource::Race | FeatSource::Background))
             || epithet_feats.contains(&feat_id.0);
 
-        let is_custom = feat_data
-            .get("custom")
-            .and_then(|s| s.as_ref())
-            .is_some_and(|s| s == "1" || s.to_lowercase() == "true");
+        let is_custom = row_bool(&feat_data, "custom", false);
         let has_feat = owned_feats.contains(&feat_id);
 
         Some(FeatInfo {
@@ -2295,18 +2238,14 @@ impl Character {
         description: &str,
     ) -> FeatType {
         if let Some(type_str) = feat_data
-            .get("TOOLCATEGORIES")
-            .or_else(|| feat_data.get("ToolsCategories"))
-            .or_else(|| feat_data.get("toolscategories"))
+            .get("toolscategories")
             .and_then(|s| s.as_ref())
         {
             return FeatType::from_string(type_str);
         }
 
         if let Some(type_str) = feat_data
-            .get("FeatCategory")
-            .or_else(|| feat_data.get("FEATCATEGORY"))
-            .or_else(|| feat_data.get("featcategory"))
+            .get("featcategory")
             .and_then(|s| s.as_ref())
         {
             return FeatType::from_string(type_str);
@@ -2332,12 +2271,12 @@ impl Character {
         let mut prereqs = FeatPrerequisites::default();
 
         let ability_fields = [
-            ("MINSTR", "minstr", "Strength"),
-            ("MINDEX", "mindex", "Dexterity"),
-            ("MINCON", "mincon", "Constitution"),
-            ("MININT", "minint", "Intelligence"),
-            ("MINWIS", "minwis", "Wisdom"),
-            ("MINCHA", "mincha", "Charisma"),
+            ("minstr", "Strength"),
+            ("mindex", "Dexterity"),
+            ("mincon", "Constitution"),
+            ("minint", "Intelligence"),
+            ("minwis", "Wisdom"),
+            ("mincha", "Charisma"),
         ];
 
         let ability_scores = [
@@ -2349,10 +2288,9 @@ impl Character {
             self.get_i32("Cha").unwrap_or(10),
         ];
 
-        for (i, (upper_field, lower_field, ability_name)) in ability_fields.iter().enumerate() {
+        for (i, (field, ability_name)) in ability_fields.iter().enumerate() {
             let min_val = feat_data
-                .get(*upper_field)
-                .or_else(|| feat_data.get(*lower_field))
+                .get(*field)
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&v| v > 0);
 
@@ -2367,7 +2305,7 @@ impl Character {
             }
         }
 
-        for prereq_field in ["PREREQFEAT1", "PREREQFEAT2", "prereq_feat1", "prereq_feat2"] {
+        for prereq_field in ["prereqfeat1", "prereqfeat2"] {
             let prereq_id = feat_data
                 .get(prereq_field)
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
@@ -2386,9 +2324,7 @@ impl Character {
         }
 
         let bab_val = feat_data
-            .get("MINATTACKBONUS")
-            .or_else(|| feat_data.get("prereq_bab"))
-            .or_else(|| feat_data.get("minattackbonus"))
+            .get("minattackbonus")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&v| v > 0);
 
@@ -2402,9 +2338,7 @@ impl Character {
         }
 
         let min_level = feat_data
-            .get("MinLevel")
-            .or_else(|| feat_data.get("MINLEVEL"))
-            .or_else(|| feat_data.get("min_level"))
+            .get("minlevel")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&v| v > 0);
 
@@ -2418,9 +2352,7 @@ impl Character {
         }
 
         let min_caster_level = feat_data
-            .get("MinCasterLevel")
-            .or_else(|| feat_data.get("MINCASTERLEVEL"))
-            .or_else(|| feat_data.get("min_caster_level"))
+            .get("mincasterlevel")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&v| v > 0);
 
@@ -2434,9 +2366,7 @@ impl Character {
         }
 
         let min_spell_level = feat_data
-            .get("MinSpellLevel")
-            .or_else(|| feat_data.get("MINSPELLLVL"))
-            .or_else(|| feat_data.get("min_spell_level"))
+            .get("minspelllvl")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok())
             .filter(|&v| v > 0);
 
@@ -2545,7 +2475,7 @@ impl Character {
             };
 
             let label = domain_data
-                .get("Label")
+                .get("label")
                 .and_then(|s| s.as_ref())
                 .map_or("", std::string::String::as_str);
 
@@ -2558,19 +2488,19 @@ impl Character {
             let description = Self::resolve_domain_description(&domain_data, game_data);
 
             let granted_feat = domain_data
-                .get("GrantedFeat")
+                .get("grantedfeat")
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&id| id >= 0)
                 .map(FeatId);
 
             let castable_feat = domain_data
-                .get("CastableFeat")
+                .get("castablefeat")
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&id| id >= 0)
                 .map(FeatId);
 
             let epithet_feat = domain_data
-                .get("EpithetFeat")
+                .get("epithetfeat")
                 .and_then(|s| s.as_ref()?.parse::<i32>().ok())
                 .filter(|&id| id >= 0)
                 .map(FeatId);
@@ -2619,12 +2549,10 @@ impl Character {
         feat_data: &ahash::AHashMap<String, Option<String>>,
         game_data: &GameData,
     ) -> String {
-        let field_mapper = FieldMapper::new();
-
-        // Try feat_name_strref first (handles FEAT column), then name
-        let name_strref = field_mapper
-            .get_field_value(feat_data, "feat_name_strref")
-            .or_else(|| field_mapper.get_field_value(feat_data, "name"))
+        let name_strref = feat_data
+            .get("feat")
+            .and_then(|v| v.clone())
+            .or_else(|| feat_data.get("name").and_then(|v| v.clone()))
             .and_then(|s| s.parse::<i32>().ok());
 
         if let Some(strref) = name_strref
@@ -2634,9 +2562,7 @@ impl Character {
             return Self::strip_html_tags(&name);
         }
 
-        // Fallback to label
-        field_mapper
-            .get_field_value(feat_data, "label")
+        row_str(feat_data, "label")
             .unwrap_or_else(|| "Unknown".to_string())
     }
 
@@ -2645,7 +2571,7 @@ impl Character {
         game_data: &GameData,
     ) -> String {
         let name_strref = domain_data
-            .get("Name")
+            .get("name")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok());
 
         if let Some(strref) = name_strref
@@ -2656,7 +2582,7 @@ impl Character {
         }
 
         domain_data
-            .get("Label")
+            .get("label")
             .and_then(|s| s.as_ref())
             .map_or("Unknown", std::string::String::as_str)
             .to_string()
@@ -2667,7 +2593,7 @@ impl Character {
         game_data: &GameData,
     ) -> String {
         let desc_strref = domain_data
-            .get("Description")
+            .get("description")
             .and_then(|s| s.as_ref()?.parse::<i32>().ok());
 
         if let Some(strref) = desc_strref

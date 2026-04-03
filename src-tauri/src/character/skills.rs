@@ -19,6 +19,7 @@ use super::{Character, CharacterError};
 use crate::character::gff_helpers::gff_value_to_i32;
 use crate::character::types::{AbilityIndex, AbilityModifiers, SkillId};
 use crate::loaders::GameData;
+use crate::utils::parsing::{row_bool, row_int};
 use crate::parsers::gff::GffValue;
 use crate::services::item_property_decoder::ItemPropertyDecoder;
 use indexmap::IndexMap;
@@ -72,7 +73,6 @@ impl Character {
 
             let skills_table_name = class_data
                 .get("skillstable")
-                .or_else(|| class_data.get("SkillsTable"))
                 .and_then(|opt| opt.as_deref())
                 .unwrap_or("");
 
@@ -91,17 +91,12 @@ impl Character {
             for i in 0..class_skills_table.row_count() {
                 if let Some(row) = class_skills_table.get_by_id(i as i32) {
                     let row_skill_idx = row
-                        .get("SkillIndex")
-                        .or_else(|| row.get("skillindex"))
+                        .get("skillindex")
                         .and_then(|v| v.as_deref())
                         .and_then(|v| v.parse::<i32>().ok());
 
                     if row_skill_idx == Some(skill_id.0) {
-                        let is_class_skill = row
-                            .get("ClassSkill")
-                            .or_else(|| row.get("classskill"))
-                            .and_then(|v| v.as_deref())
-                            .is_some_and(|v| v == "1");
+                        let is_class_skill = row_bool(&row, "classskill", false);
 
                         if is_class_skill {
                             found = true;
@@ -214,7 +209,6 @@ impl Character {
 
         let key_ability_str = skill_data
             .get("keyability")
-            .or_else(|| skill_data.get("KeyAbility"))
             .and_then(|opt| opt.as_deref())
             .unwrap_or("");
 
@@ -259,7 +253,6 @@ impl Character {
 
             let label = skill_data
                 .get("label")
-                .or_else(|| skill_data.get("Label"))
                 .and_then(|opt| opt.as_deref())
                 .unwrap_or("");
 
@@ -267,13 +260,7 @@ impl Character {
                 continue;
             }
 
-            let removed = skill_data
-                .get("REMOVED")
-                .or_else(|| skill_data.get("Removed"))
-                .or_else(|| skill_data.get("removed"))
-                .and_then(|opt| opt.as_deref())
-                .is_some_and(|v| v == "1");
-            if removed {
+            if row_bool(&skill_data, "removed", false) {
                 continue;
             }
 
@@ -305,12 +292,7 @@ impl Character {
                     (self.ability_modifier(key_ability), 0)
                 };
 
-            let untrained = skill_data
-                .get("untrained")
-                .or_else(|| skill_data.get("Untrained"))
-                .and_then(|opt| opt.as_deref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .map_or(true, |v| v > 0);
+            let untrained = row_int(&skill_data, "untrained", 1) > 0;
 
             let mut synergy_bonus = 0;
             if skill_id.0 == 29 && self.skill_rank(SkillId(14)) >= 5 {
@@ -332,11 +314,7 @@ impl Character {
 
             let is_class_skill = self.is_class_skill(skill_id, game_data);
 
-            let armor_check_penalty = skill_data
-                .get("ArmorCheckPenalty")
-                .or_else(|| skill_data.get("armorcheckpenalty"))
-                .and_then(|opt| opt.as_deref())
-                .is_some_and(|v| v == "1");
+            let armor_check_penalty = row_bool(&skill_data, "armorcheckpenalty", false);
 
             entries.push(SkillSummaryEntry {
                 skill_id,
@@ -403,8 +381,7 @@ impl Character {
             })?;
 
         let base_points = class_data
-            .get("SkillPointBase")
-            .or_else(|| class_data.get("skillpointbase"))
+            .get("skillpointbase")
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .ok_or_else(|| CharacterError::ValidationFailed {
@@ -417,12 +394,7 @@ impl Character {
         let racial_bonus = if let Some(racial_table) = game_data.get_table("racialtypes")
             && let Some(race_data) = racial_table.get_by_id(race_id.0)
         {
-            race_data
-                .get("SkillPointModifier")
-                .or_else(|| race_data.get("skillpointmodifier"))
-                .and_then(|s| s.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
+            row_int(&race_data, "skillpointmodifier", 0)
         } else {
             0
         };
@@ -480,7 +452,6 @@ impl Character {
     ) -> String {
         let name_strref = skill_data
             .get("name")
-            .or_else(|| skill_data.get("Name"))
             .and_then(|opt| opt.as_deref())
             .and_then(|s| s.parse::<i32>().ok());
 
@@ -493,7 +464,6 @@ impl Character {
 
         skill_data
             .get("label")
-            .or_else(|| skill_data.get("Label"))
             .and_then(|opt| opt.as_deref())
             .map(std::string::ToString::to_string)
             .unwrap_or_else(|| format!("Skill_{skill_id}"))
@@ -1025,13 +995,13 @@ mod tests {
         // Mock skills.2da
         // Row 0: Label=MoveSilently, KeyAbility=Dex
         let mut tda_parser = TDAParser::new();
-        tda_parser.add_column("Label");
-        tda_parser.add_column("KeyAbility");
+        tda_parser.add_column("label");
+        tda_parser.add_column("keyability");
 
         use ahash::AHashMap;
         let mut row0 = AHashMap::new();
-        row0.insert("Label".to_string(), Some("MoveSilently".to_string()));
-        row0.insert("KeyAbility".to_string(), Some("Dex".to_string()));
+        row0.insert("label".to_string(), Some("MoveSilently".to_string()));
+        row0.insert("keyability".to_string(), Some("Dex".to_string()));
         tda_parser.add_row(row0);
 
         game_data.tables.insert(

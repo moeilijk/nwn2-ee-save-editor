@@ -128,9 +128,7 @@ impl Character {
         };
 
         let save_table_name = class_data
-            .get("SavingThrowTable")
-            .or_else(|| class_data.get("savingthrowtable"))
-            .or_else(|| class_data.get("saving_throw_table"))
+            .get("savingthrowtable")
             .and_then(|s| s.as_ref());
 
         let Some(save_table_name) = save_table_name else {
@@ -144,19 +142,19 @@ impl Character {
 
         let row_index = (level - 1).clamp(0, 19) as usize;
         let fort = save_table
-            .get_cell(row_index, "FortSave")
+            .get_cell(row_index, "fortsave")
             .ok()
             .flatten()
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
         let reflex = save_table
-            .get_cell(row_index, "RefSave")
+            .get_cell(row_index, "refsave")
             .ok()
             .flatten()
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
         let will = save_table
-            .get_cell(row_index, "WillSave")
+            .get_cell(row_index, "willsave")
             .ok()
             .flatten()
             .and_then(|s| s.parse::<i32>().ok())

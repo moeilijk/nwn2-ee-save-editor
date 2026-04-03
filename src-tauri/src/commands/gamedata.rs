@@ -1,6 +1,7 @@
 use crate::commands::{CommandError, CommandResult};
 use crate::loaders::data_model_loader::DataModelLoader;
 use crate::state::AppState;
+use crate::utils::parsing::{row_int, row_str};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
@@ -115,8 +116,8 @@ pub async fn get_available_classes(
     let mut classes = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("name").and_then(std::clone::Clone::clone);
-            let is_prestige = row.get("PreReqTable").and_then(|v| v.as_ref()).is_some();
+            let name = row_str(&row, "name");
+            let is_prestige = row_str(&row, "prereqtable").is_some();
             classes.push(AvailableClass {
                 id: i as i32,
                 name,
@@ -146,11 +147,9 @@ pub async fn get_available_feats(state: State<'_, AppState>) -> CommandResult<Ve
     let mut feats = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("label").and_then(std::clone::Clone::clone);
-            let description = row
-                .get("description")
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let name = row_str(&row, "label");
+            let description = row_int(&row, "description", -1);
+            let description = if description >= 0 { Some(description) } else { None };
             feats.push(AvailableFeat {
                 id: i as i32,
                 name,
@@ -290,8 +289,8 @@ pub async fn get_available_skills(
     let mut skills = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("name").and_then(std::clone::Clone::clone);
-            let key_ability = row.get("KeyAbility").and_then(std::clone::Clone::clone);
+            let name = row_str(&row, "name");
+            let key_ability = row_str(&row, "keyability");
             skills.push(AvailableSkill {
                 id: i as i32,
                 name,
@@ -323,8 +322,8 @@ pub async fn get_available_spells(
     let mut spells = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("label").and_then(std::clone::Clone::clone);
-            let school = row.get("School").and_then(std::clone::Clone::clone);
+            let name = row_str(&row, "label");
+            let school = row_str(&row, "school");
             spells.push(AvailableSpell {
                 id: i as i32,
                 name,
@@ -354,11 +353,8 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
     let mut races = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row.get("name").and_then(std::clone::Clone::clone);
-            let is_playable = row
-                .get("PlayerRace")
-                .and_then(|v| v.as_ref())
-                .is_some_and(|s| s == "1");
+            let name = row_str(&row, "name");
+            let is_playable = row_int(&row, "playerrace", 0) == 1;
             races.push(AvailableRace {
                 id: i as i32,
                 name,
@@ -389,13 +385,13 @@ pub async fn get_available_genders(
     let mut genders = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("name")
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .unwrap_or_else(|| format!("Gender {i}"));
+            let name_ref = row_int(&row, "name", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| format!("Gender {i}"));
             genders.push(AvailableGender { id: i as i32, name });
         }
     }
@@ -688,21 +684,16 @@ pub async fn get_all_domains(state: State<'_, AppState>) -> CommandResult<Vec<Av
     let mut domains = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("name")
-                .or_else(|| row.get("Name"))
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .or_else(|| row.get("label").and_then(std::clone::Clone::clone))
-                .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
-                .unwrap_or_else(|| format!("Domain {i}"));
-            let granted_feat = row
-                .get("GrantedFeat")
-                .or_else(|| row.get("grantedfeat"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let name_ref = row_int(&row, "name", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .or_else(|| row_str(&row, "label"))
+            .unwrap_or_else(|| format!("Domain {i}"));
+            let granted_feat = row_int(&row, "grantedfeat", -1);
+            let granted_feat = if granted_feat >= 0 { Some(granted_feat) } else { None };
             domains.push(AvailableDomain {
                 id: i as i32,
                 name,
@@ -733,21 +724,16 @@ pub async fn get_available_backgrounds(
     let mut backgrounds = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("name")
-                .or_else(|| row.get("Name"))
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .or_else(|| row.get("label").and_then(std::clone::Clone::clone))
-                .unwrap_or_else(|| format!("Background {i}"));
-            let desc_ref = row
-                .get("description")
-                .or_else(|| row.get("Description"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
-            let description = desc_ref.and_then(|r| game_data.get_string(r));
+            let name_ref = row_int(&row, "name", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .or_else(|| row_str(&row, "label"))
+            .unwrap_or_else(|| format!("Background {i}"));
+            let desc_ref = row_int(&row, "description", -1);
+            let description = if desc_ref >= 0 { game_data.get_string(desc_ref) } else { None };
             backgrounds.push(AvailableBackground {
                 id: i as i32,
                 name,
@@ -821,16 +807,14 @@ pub async fn get_available_base_items(
     let mut items = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("name")
-                .or_else(|| row.get("Name"))
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .or_else(|| row.get("label").and_then(std::clone::Clone::clone))
-                .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
-                .unwrap_or_else(|| format!("Item {i}"));
+            let name_ref = row_int(&row, "name", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .or_else(|| row_str(&row, "label"))
+            .unwrap_or_else(|| format!("Item {i}"));
 
             let name_lower = name.to_lowercase();
             if name.is_empty()
@@ -842,33 +826,13 @@ pub async fn get_available_base_items(
                 continue;
             }
 
-            let item_class = row
-                .get("itemclass")
-                .or_else(|| row.get("ItemClass"))
-                .and_then(std::clone::Clone::clone);
-            let store_panel = row
-                .get("StorePanel")
-                .or_else(|| row.get("storepanel"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(4);
-            let label = row
-                .get("label")
-                .or_else(|| row.get("Label"))
-                .and_then(|v| v.as_ref())
-                .cloned()
-                .unwrap_or_default();
+            let item_class = row_str(&row, "itemclass");
+            let store_panel = row_int(&row, "storepanel", 4);
+            let label = row_str(&row, "label").unwrap_or_default();
             let sub_category = compute_sub_category(store_panel, &label, item_class.as_deref());
-            let weight = row
-                .get("weight")
-                .or_else(|| row.get("Weight"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<f32>().ok());
-            let base_cost = row
-                .get("basecost")
-                .or_else(|| row.get("BaseCost"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let weight = row_str(&row, "weight").and_then(|s| s.parse::<f32>().ok());
+            let base_cost = row_int(&row, "basecost", -1);
+            let base_cost = if base_cost >= 0 { Some(base_cost) } else { None };
             items.push(AvailableBaseItem {
                 id: i as i32,
                 name,
@@ -904,21 +868,16 @@ pub async fn get_available_spell_schools(
     let mut schools = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("stringref")
-                .or_else(|| row.get("StringRef"))
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .or_else(|| row.get("label").and_then(std::clone::Clone::clone))
-                .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
-                .unwrap_or_else(|| format!("School {i}"));
-            let opposition_school = row
-                .get("oppositionschool")
-                .or_else(|| row.get("OppositionSchool"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let name_ref = row_int(&row, "stringref", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .or_else(|| row_str(&row, "label"))
+            .unwrap_or_else(|| format!("School {i}"));
+            let opposition_school = row_int(&row, "oppositionschool", -1);
+            let opposition_school = if opposition_school >= 0 { Some(opposition_school) } else { None };
             schools.push(AvailableSpellSchool {
                 id: i as i32,
                 name,
@@ -950,21 +909,16 @@ pub async fn get_available_item_properties(
     let mut props = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row
-                .get("name")
-                .or_else(|| row.get("Name"))
-                .and_then(std::clone::Clone::clone)
-                .and_then(|s| s.parse::<i32>().ok());
-            let name = name_ref
-                .and_then(|r| game_data.get_string(r))
-                .or_else(|| row.get("label").and_then(std::clone::Clone::clone))
-                .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
-                .unwrap_or_else(|| format!("Property {i}"));
-            let cost_table = row
-                .get("costtableresref")
-                .or_else(|| row.get("CostTableResRef"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok());
+            let name_ref = row_int(&row, "name", -1);
+            let name = if name_ref >= 0 {
+                game_data.get_string(name_ref)
+            } else {
+                None
+            }
+            .or_else(|| row_str(&row, "label"))
+            .unwrap_or_else(|| format!("Property {i}"));
+            let cost_table = row_int(&row, "costtableresref", -1);
+            let cost_table = if cost_table >= 0 { Some(cost_table) } else { None };
             props.push(AvailableItemProperty {
                 id: i as i32,
                 name,

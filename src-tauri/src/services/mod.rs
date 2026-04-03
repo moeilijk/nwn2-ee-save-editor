@@ -1,17 +1,11 @@
 pub mod campaign;
 pub mod class_categorizer;
-pub mod field_mapper;
 pub mod item_cost_calculator;
 pub mod item_property_decoder;
 pub mod playerinfo;
 pub mod resource_manager;
 pub mod rule_detector;
 pub mod savegame_handler;
-
-pub use field_mapper::{
-    AbilityModifiers, ClassProperties, FIELD_PATTERNS, FeatPrerequisites, FieldMapper,
-    PrereqTableParsed, SaveBonuses,
-};
 
 pub use resource_manager::{
     CacheStats, CampaignInfo, ContainerType, ModuleInfo, OverrideSource, ResourceLocation,

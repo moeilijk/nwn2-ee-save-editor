@@ -11,6 +11,7 @@ use specta::Type;
 use tracing::{debug, warn};
 
 use crate::services::resource_manager::ResourceManager;
+use crate::utils::parsing::{row_int, row_str};
 
 pub use context_maps::*;
 pub use error::{ItemPropertyError, ItemPropertyResult};
@@ -249,39 +250,27 @@ impl ItemPropertyDecoder {
             if let Ok(row) = itempropdef.get_row_dict(row_idx) {
                 let id = row_idx as u32;
 
-                let label = row
-                    .get("Label")
-                    .or_else(|| row.get("label"))
-                    .and_then(std::clone::Clone::clone)
-                    .unwrap_or_default();
+                let label = row_str(&row, "label").unwrap_or_default();
 
                 if label.is_empty() || is_invalid_label(&label) {
                     continue;
                 }
 
-                let subtype_ref = row
-                    .get("SubTypeResRef")
-                    .or_else(|| row.get("subtyperesref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let subtype_ref = row_str(&row, "subtyperesref")
+                    .filter(|s| s != "****");
 
-                let cost_table_ref = row
-                    .get("CostTableResRef")
-                    .or_else(|| row.get("costtableresref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let cost_table_ref = row_str(&row, "costtableresref")
+                    .filter(|s| s != "****");
 
-                let param1_ref = row
-                    .get("Param1ResRef")
-                    .or_else(|| row.get("param1resref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let param1_ref = row_str(&row, "param1resref")
+                    .filter(|s| s != "****");
 
-                let game_str_ref = row
-                    .get("GameStrRef")
-                    .or_else(|| row.get("gamestrref"))
-                    .and_then(|v| v.as_ref())
-                    .and_then(|s| s.parse::<i32>().ok());
+                let game_str_ref_val = row_int(&row, "gamestrref", -1);
+                let game_str_ref = if game_str_ref_val >= 0 {
+                    Some(game_str_ref_val)
+                } else {
+                    None
+                };
 
                 let description = if let Some(str_ref) = game_str_ref {
                     rm.get_string(str_ref)
@@ -326,39 +315,27 @@ impl ItemPropertyDecoder {
             if let Ok(row) = itempropdef.get_row_dict(row_idx) {
                 let id = row_idx as u32;
 
-                let label = row
-                    .get("Label")
-                    .or_else(|| row.get("label"))
-                    .and_then(std::clone::Clone::clone)
-                    .unwrap_or_default();
+                let label = row_str(&row, "label").unwrap_or_default();
 
                 if label.is_empty() || is_invalid_label(&label) {
                     continue;
                 }
 
-                let subtype_ref = row
-                    .get("SubTypeResRef")
-                    .or_else(|| row.get("subtyperesref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let subtype_ref = row_str(&row, "subtyperesref")
+                    .filter(|s| s != "****");
 
-                let cost_table_ref = row
-                    .get("CostTableResRef")
-                    .or_else(|| row.get("costtableresref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let cost_table_ref = row_str(&row, "costtableresref")
+                    .filter(|s| s != "****");
 
-                let param1_ref = row
-                    .get("Param1ResRef")
-                    .or_else(|| row.get("param1resref"))
-                    .and_then(std::clone::Clone::clone)
-                    .filter(|s| !s.is_empty() && s != "****");
+                let param1_ref = row_str(&row, "param1resref")
+                    .filter(|s| s != "****");
 
-                let game_str_ref = row
-                    .get("GameStrRef")
-                    .or_else(|| row.get("gamestrref"))
-                    .and_then(|v| v.as_ref())
-                    .and_then(|s| s.parse::<i32>().ok());
+                let game_str_ref_val = row_int(&row, "gamestrref", -1);
+                let game_str_ref = if game_str_ref_val >= 0 {
+                    Some(game_str_ref_val)
+                } else {
+                    None
+                };
 
                 let description = if let Some(str_ref) = game_str_ref {
                     rm.get_string(str_ref)
@@ -685,33 +662,33 @@ impl ItemPropertyDecoder {
                 continue;
             };
 
-            // Try Name column with TLK lookup first (Python lines 992-1004)
-            let name_str_ref = row
-                .get("Name")
-                .or_else(|| row.get("name"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .filter(|&n| n > 100); // TLK refs typically > 100
-
-            let name = name_str_ref
-                .map(|str_ref| rm.get_string(str_ref))
-                .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()));
+            let name_str_ref = row_int(&row, "name", -1);
+            let name = if name_str_ref > 100 {
+                let s = rm.get_string(name_str_ref);
+                if s.is_empty() || s.chars().all(|c| c.is_ascii_digit()) {
+                    None
+                } else {
+                    Some(s)
+                }
+            } else {
+                None
+            };
 
             let game_str = name.clone().or_else(|| {
-                row.get("GameString")
-                    .or_else(|| row.get("gamestring"))
-                    .and_then(|v| v.as_ref())
-                    .and_then(|s| s.parse::<i32>().ok())
-                    .map(|str_ref| rm.get_string(str_ref))
-                    .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))
+                let sr = row_int(&row, "gamestring", -1);
+                if sr < 0 {
+                    return None;
+                }
+                let s = rm.get_string(sr);
+                if s.is_empty() || s.chars().all(|c| c.is_ascii_digit()) {
+                    None
+                } else {
+                    Some(s)
+                }
             });
 
-            // Fallback to Label column (Python lines 1020-1046)
             let label = game_str.or_else(|| {
-                row.get("Label")
-                    .or_else(|| row.get("label"))
-                    .and_then(|v| v.clone())
-                    .filter(|s| !s.is_empty() && s != "****")
+                row_str(&row, "label").filter(|s| s != "****")
             });
 
             if let Some(display_name) = label
@@ -729,9 +706,7 @@ impl ItemPropertyDecoder {
         let rm = self.rm.read().await;
         let mapping = rm.get_2da("iprp_costtable").ok()?;
         let row = mapping.get_row_dict(idx).ok()?;
-        row.get("Name")
-            .or_else(|| row.get("name"))
-            .and_then(|v| v.clone())
+        row_str(&row, "name")
     }
 
     /// Resolve indirect param table reference via iprp_paramtable.2da.
@@ -740,9 +715,7 @@ impl ItemPropertyDecoder {
         let rm = self.rm.read().await;
         let mapping = rm.get_2da("iprp_paramtable").ok()?;
         let row = mapping.get_row_dict(idx).ok()?;
-        row.get("TableResRef")
-            .or_else(|| row.get("tableresref"))
-            .and_then(|v| v.clone())
+        row_str(&row, "tableresref")
     }
 
     /// Get editor property metadata with context-based option population.
@@ -960,29 +933,33 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
             continue;
         };
 
-        let name = row
-            .get("Name")
-            .or_else(|| row.get("name"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .filter(|&n| n > 100)
-            .map(|str_ref| rm.get_string(str_ref))
-            .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()));
+        let name_str_ref = row_int(&row, "name", -1);
+        let name = if name_str_ref > 100 {
+            let s = rm.get_string(name_str_ref);
+            if s.is_empty() || s.chars().all(|c| c.is_ascii_digit()) {
+                None
+            } else {
+                Some(s)
+            }
+        } else {
+            None
+        };
 
         let game_str = name.clone().or_else(|| {
-            row.get("GameString")
-                .or_else(|| row.get("gamestring"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .map(|str_ref| rm.get_string(str_ref))
-                .filter(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))
+            let sr = row_int(&row, "gamestring", -1);
+            if sr < 0 {
+                return None;
+            }
+            let s = rm.get_string(sr);
+            if s.is_empty() || s.chars().all(|c| c.is_ascii_digit()) {
+                None
+            } else {
+                Some(s)
+            }
         });
 
         let label = game_str.or_else(|| {
-            row.get("Label")
-                .or_else(|| row.get("label"))
-                .and_then(|v| v.clone())
-                .filter(|s| !s.is_empty() && s != "****")
+            row_str(&row, "label").filter(|s| s != "****")
         });
 
         if let Some(display_name) = label
@@ -998,18 +975,14 @@ fn resolve_cost_table_from_rm(rm: &ResourceManager, cost_table_idx: &str) -> Opt
     let idx: usize = cost_table_idx.parse().ok()?;
     let mapping = rm.get_2da("iprp_costtable").ok()?;
     let row = mapping.get_row_dict(idx).ok()?;
-    row.get("Name")
-        .or_else(|| row.get("name"))
-        .and_then(|v| v.clone())
+    row_str(&row, "name")
 }
 
 fn resolve_param_table_from_rm(rm: &ResourceManager, param_idx: &str) -> Option<String> {
     let idx: usize = param_idx.parse().ok()?;
     let mapping = rm.get_2da("iprp_paramtable").ok()?;
     let row = mapping.get_row_dict(idx).ok()?;
-    row.get("TableResRef")
-        .or_else(|| row.get("tableresref"))
-        .and_then(|v| v.clone())
+    row_str(&row, "tableresref")
 }
 
 fn get_u32(data: &HashMap<String, serde_json::Value>, key: &str) -> Option<u32> {

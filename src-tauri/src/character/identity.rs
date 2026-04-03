@@ -2,8 +2,6 @@ use super::{Character, CharacterError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::services::field_mapper::FieldMapper;
-
 pub const ALIGNMENT_MIN: i32 = 0;
 pub const ALIGNMENT_MAX: i32 = 100;
 
@@ -225,13 +223,9 @@ impl Character {
     pub fn background(&self, game_data: &GameData) -> Option<String> {
         let feats_table = game_data.get_table("feat")?;
 
-        let field_mapper = FieldMapper::new();
-
         for feat_id in self.feat_ids() {
             if let Some(_feat_data) = feats_table.get_by_id(feat_id.0) {
-                // Check raw label for "BACKGROUND" tag to identify category
-                // Use FieldMapper for robust label lookup
-                let label_opt = field_mapper.get_field_value(&_feat_data, "label");
+                let label_opt = _feat_data.get("label").and_then(|v| v.clone());
 
                 if let Some(label) = label_opt
                     && label.to_uppercase().contains("BACKGROUND")

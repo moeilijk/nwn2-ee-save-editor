@@ -7,6 +7,7 @@ use crate::services::item_property_decoder::{
     EditorContext, ItemBonuses, PropertyMetadata, is_invalid_label, load_2da_options_from_rm,
 };
 use crate::state::AppState;
+use crate::utils::parsing::{row_int, row_str};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -311,27 +312,17 @@ pub async fn get_available_templates(
         if let Some(t) = game_data.get_table("baseitems") {
             for i in 0..t.row_count() {
                 if let Ok(row) = t.get_row(i) {
-                    let store_panel = row
-                        .get("StorePanel")
-                        .or_else(|| row.get("storepanel"))
-                        .and_then(|v| v.as_ref())
-                        .and_then(|s| s.parse::<i32>().ok())
-                        .unwrap_or(4);
-                    let label = row
-                        .get("label")
-                        .or_else(|| row.get("Label"))
-                        .and_then(|v| v.as_ref())
-                        .cloned()
-                        .unwrap_or_default();
-                    let item_class = row
-                        .get("itemclass")
-                        .or_else(|| row.get("ItemClass"))
-                        .and_then(|v| v.as_ref())
-                        .map(String::as_str);
+                    let store_panel = row_int(&row, "storepanel", 4);
+                    let label = row_str(&row, "label").unwrap_or_default();
+                    let item_class = row_str(&row, "itemclass");
                     cat_map.insert(i as i32, store_panel);
                     sub_map.insert(
                         i as i32,
-                        super::gamedata::compute_sub_category(store_panel, &label, item_class),
+                        super::gamedata::compute_sub_category(
+                            store_panel,
+                            &label,
+                            item_class.as_deref(),
+                        ),
                     );
                 }
             }
@@ -618,16 +609,14 @@ fn load_skills_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u
             continue;
         };
 
-        // Try Name column with TLK lookup
         let name: Option<String> = row
-            .get("Name")
+            .get("name")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .and_then(|str_ref| game_data.get_string(str_ref));
 
-        // Fallback to Label
         let label = name.or_else(|| {
-            row.get("Label")
+            row.get("label")
                 .and_then(|v| v.clone())
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
@@ -652,13 +641,13 @@ fn load_classes_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<
         };
 
         let name: Option<String> = row
-            .get("Name")
+            .get("name")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .and_then(|str_ref| game_data.get_string(str_ref));
 
         let label = name.or_else(|| {
-            row.get("Label")
+            row.get("label")
                 .and_then(|v| v.clone())
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
@@ -683,13 +672,13 @@ fn load_racial_groups_from_game_data(game_data: &crate::loaders::GameData) -> Ha
         };
 
         let name: Option<String> = row
-            .get("Name")
+            .get("name")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .and_then(|str_ref| game_data.get_string(str_ref));
 
         let label = name.or_else(|| {
-            row.get("Label")
+            row.get("label")
                 .and_then(|v| v.clone())
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
@@ -714,13 +703,13 @@ fn load_feats_from_game_data(game_data: &crate::loaders::GameData) -> HashMap<u3
         };
 
         let name: Option<String> = row
-            .get("FEAT")
+            .get("feat")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .and_then(|str_ref| game_data.get_string(str_ref));
 
         let label = name.or_else(|| {
-            row.get("LABEL")
+            row.get("label")
                 .and_then(|v| v.clone())
                 .filter(|s| !s.is_empty() && !s.starts_with("DEL_"))
         });
