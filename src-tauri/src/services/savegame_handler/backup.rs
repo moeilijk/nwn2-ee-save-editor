@@ -13,6 +13,8 @@ use super::error::{SaveGameError, SaveGameResult};
 
 static BACKUP_CREATED_FOR_SAVES: LazyLock<Mutex<HashSet<PathBuf>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
+static LEGACY_ARTIFACT_CLEANUP_DONE: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 const BACKUP_TIMESTAMP_FORMAT: &str = "%Y%m%d_%H%M%S";
 const DEFAULT_KEEP_COUNT: usize = 5;
@@ -41,6 +43,30 @@ pub struct CleanupResult {
 }
 
 pub fn get_backups_dir(save_dir: &Path) -> PathBuf {
+    if let Some(parent) = save_dir.parent()
+        && let Some(parent_name) = parent.file_name().and_then(|n| n.to_str())
+    {
+        if parent_name.eq_ignore_ascii_case("multiplayer")
+            && let Some(saves_dir) = parent.parent()
+            && saves_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.eq_ignore_ascii_case("saves"))
+        {
+            let docs_root = saves_dir.parent().unwrap_or(saves_dir);
+            return docs_root
+                .join(".nwn2ee-save-editor-backups")
+                .join("multiplayer");
+        }
+
+        if parent_name.eq_ignore_ascii_case("saves") {
+            let docs_root = parent.parent().unwrap_or(parent);
+            return docs_root
+                .join(".nwn2ee-save-editor-backups")
+                .join("singleplayer");
+        }
+    }
+
     save_dir
         .parent()
         .map_or_else(|| save_dir.join("backups"), |p| p.join("backups"))
@@ -73,6 +99,45 @@ pub fn clear_backup_tracking() {
     if let Ok(mut set) = BACKUP_CREATED_FOR_SAVES.lock() {
         set.clear();
     }
+}
+
+pub fn cleanup_legacy_save_tree_artifacts(save_dir: &Path) -> SaveGameResult<()> {
+    let Some(docs_root) = infer_docs_root_from_save(save_dir) else {
+        return Ok(());
+    };
+
+    let already_done = LEGACY_ARTIFACT_CLEANUP_DONE
+        .lock()
+        .map(|set| set.contains(&docs_root))
+        .unwrap_or(false);
+    if already_done {
+        return Ok(());
+    }
+
+    let quarantine_root = docs_root
+        .join(".nwn2ee-save-editor-quarantine")
+        .join("legacy-save-artifacts");
+    fs::create_dir_all(&quarantine_root)?;
+
+    let saves_root = docs_root.join("saves");
+    if saves_root.exists() {
+        quarantine_named_dirs(&saves_root, "resgff", &quarantine_root)?;
+
+        for legacy_backups in [
+            saves_root.join("backups"),
+            saves_root.join("multiplayer").join("backups"),
+        ] {
+            if legacy_backups.exists() {
+                move_to_quarantine(&legacy_backups, &quarantine_root)?;
+            }
+        }
+    }
+
+    if let Ok(mut set) = LEGACY_ARTIFACT_CLEANUP_DONE.lock() {
+        set.insert(docs_root);
+    }
+
+    Ok(())
 }
 
 pub fn create_backup(save_dir: &Path) -> SaveGameResult<PathBuf> {
@@ -296,6 +361,40 @@ pub fn infer_save_path_from_backup(backup_path: &Path) -> Option<PathBuf> {
 
     let backups_root = backup_dir.parent()?;
 
+    if backups_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.eq_ignore_ascii_case("multiplayer"))
+        && backups_root
+            .parent()?
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case(".nwn2ee-save-editor-backups"))
+    {
+        let docs_root = backups_root.parent()?.parent()?;
+        let inferred = docs_root.join("saves").join("multiplayer").join(save_name);
+        if inferred.exists() {
+            return Some(inferred);
+        }
+    }
+
+    if backups_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.eq_ignore_ascii_case("singleplayer"))
+        && backups_root
+            .parent()?
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case(".nwn2ee-save-editor-backups"))
+    {
+        let docs_root = backups_root.parent()?.parent()?;
+        let inferred = docs_root.join("saves").join(save_name);
+        if inferred.exists() {
+            return Some(inferred);
+        }
+    }
+
     let saves_dir = backups_root.parent()?.join("saves");
     if saves_dir.exists() {
         let inferred = saves_dir.join(save_name);
@@ -310,6 +409,83 @@ pub fn infer_save_path_from_backup(backup_path: &Path) -> Option<PathBuf> {
     }
 
     None
+}
+
+fn infer_docs_root_from_save(save_dir: &Path) -> Option<PathBuf> {
+    if let Some(parent) = save_dir.parent()
+        && let Some(parent_name) = parent.file_name().and_then(|n| n.to_str())
+    {
+        if parent_name.eq_ignore_ascii_case("multiplayer")
+            && let Some(saves_dir) = parent.parent()
+            && saves_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.eq_ignore_ascii_case("saves"))
+        {
+            return Some(saves_dir.parent().unwrap_or(saves_dir).to_path_buf());
+        }
+
+        if parent_name.eq_ignore_ascii_case("saves") {
+            return Some(parent.parent().unwrap_or(parent).to_path_buf());
+        }
+    }
+
+    None
+}
+
+fn quarantine_named_dirs(root: &Path, dir_name: &str, quarantine_root: &Path) -> SaveGameResult<()> {
+    if !root.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case(dir_name))
+        {
+            move_to_quarantine(&path, quarantine_root)?;
+            continue;
+        }
+
+        quarantine_named_dirs(&path, dir_name, quarantine_root)?;
+    }
+
+    Ok(())
+}
+
+fn move_to_quarantine(path: &Path, quarantine_root: &Path) -> SaveGameResult<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    fs::create_dir_all(quarantine_root)?;
+
+    let mut relative_name = path
+        .to_string_lossy()
+        .replace(':', "")
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .replace('/', "__");
+    if relative_name.is_empty() {
+        relative_name = "artifact".to_string();
+    }
+
+    let mut destination = quarantine_root.join(&relative_name);
+    let mut counter = 1usize;
+    while destination.exists() {
+        destination = quarantine_root.join(format!("{relative_name}_{counter}"));
+        counter += 1;
+    }
+
+    fs::rename(path, &destination)?;
+    Ok(())
 }
 
 fn copy_directory(src: &Path, dst: &Path) -> SaveGameResult<usize> {
@@ -361,6 +537,82 @@ mod tests {
 
         assert!(backup_dir.to_string_lossy().contains("backups"));
         assert!(backup_dir.to_string_lossy().contains("mysave"));
+    }
+
+    #[test]
+    fn test_multiplayer_backup_dir_is_outside_save_tree() {
+        let save_dir =
+            PathBuf::from("/docs/Neverwinter Nights 2/saves/multiplayer/000040 - 01-04-2026-21-31");
+        let backup_dir = get_backup_dir_for_save(&save_dir);
+
+        assert_eq!(
+            backup_dir,
+            PathBuf::from(
+                "/docs/Neverwinter Nights 2/.nwn2ee-save-editor-backups/multiplayer/000040 - 01-04-2026-21-31"
+            )
+        );
+    }
+
+    #[test]
+    fn test_singleplayer_backup_dir_is_outside_save_tree() {
+        let save_dir =
+            PathBuf::from("/docs/Neverwinter Nights 2/saves/000003 - 22-03-2026-19-45");
+        let backup_dir = get_backup_dir_for_save(&save_dir);
+
+        assert_eq!(
+            backup_dir,
+            PathBuf::from(
+                "/docs/Neverwinter Nights 2/.nwn2ee-save-editor-backups/singleplayer/000003 - 22-03-2026-19-45"
+            )
+        );
+    }
+
+    #[test]
+    fn test_cleanup_legacy_save_tree_artifacts_moves_resgff_and_backups_out_of_save_tree() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let docs = temp.path().join("Neverwinter Nights 2");
+        let save_dir = docs.join("saves").join("multiplayer").join("000041 - 04-04-2026-15-24");
+        let legacy_resgff = docs
+            .join("saves")
+            .join("multiplayer")
+            .join("000026 - 29-03-2026-21-10")
+            .join("resgff");
+        let legacy_backups = docs.join("saves").join("multiplayer").join("backups");
+
+        fs::create_dir_all(&save_dir).expect("create save dir");
+        fs::create_dir_all(&legacy_resgff).expect("create resgff dir");
+        fs::create_dir_all(&legacy_backups).expect("create backups dir");
+        fs::write(legacy_resgff.join("player.bic"), b"BIC ").expect("write bic");
+        fs::write(legacy_backups.join("dummy.txt"), b"x").expect("write backup file");
+
+        cleanup_legacy_save_tree_artifacts(&save_dir).expect("cleanup should succeed");
+
+        assert!(
+            !legacy_resgff.exists(),
+            "legacy resgff dir should be moved out of save tree"
+        );
+        assert!(
+            !legacy_backups.exists(),
+            "legacy backups dir should be moved out of save tree"
+        );
+
+        let quarantine_root = docs
+            .join(".nwn2ee-save-editor-quarantine")
+            .join("legacy-save-artifacts");
+        assert!(quarantine_root.exists(), "quarantine root should be created");
+
+        let entries: Vec<_> = fs::read_dir(&quarantine_root)
+            .expect("read quarantine")
+            .map(|entry| entry.expect("entry").file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.iter().any(|name| name.contains("resgff")),
+            "resgff artifact should be moved into quarantine"
+        );
+        assert!(
+            entries.iter().any(|name| name.contains("backups")),
+            "backups artifact should be moved into quarantine"
+        );
     }
 
     #[test]

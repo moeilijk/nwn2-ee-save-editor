@@ -167,12 +167,34 @@ impl SessionState {
         };
 
         let authoritative_fields = if self.selected_player_index == primary_player_index {
-            self.character
-                .as_ref()
-                .ok_or("No character loaded".to_string())?
-                .clone_gff()
+            let character = self
+                .character
+                .as_mut()
+                .ok_or("No character loaded".to_string())?;
+            character.normalize_race_fields_for_save(game_data);
+            character.normalize_class_fields_for_save(game_data);
+            character.normalize_background_fields_for_save(game_data);
+            character.normalize_skill_points(game_data);
+            character
+                .recalculate_stats(game_data)
+                .map_err(|e| format!("Failed to recalculate class-derived stats: {e}"))?;
+            character.normalize_level_one_feat_history_for_save();
+            character.normalize_single_level_skill_history_for_save();
+            character.normalize_level_one_skill_history_for_save(game_data);
+            character.clone_gff()
         } else if let Some(player_bic_data) = player_bic_data.as_ref() {
-            read_player_bic_entry(player_bic_data.clone())?
+            let mut character = Character::from_gff(read_player_bic_entry(player_bic_data.clone())?);
+            character.normalize_race_fields_for_save(game_data);
+            character.normalize_class_fields_for_save(game_data);
+            character.normalize_background_fields_for_save(game_data);
+            character.normalize_skill_points(game_data);
+            character
+                .recalculate_stats(game_data)
+                .map_err(|e| format!("Failed to recalculate class-derived stats: {e}"))?;
+            character.normalize_level_one_feat_history_for_save();
+            character.normalize_single_level_skill_history_for_save();
+            character.normalize_level_one_skill_history_for_save(game_data);
+            character.clone_gff()
         } else {
             return Ok(false);
         };
@@ -221,7 +243,14 @@ impl SessionState {
             let character = self.character.as_mut().unwrap();
             character.normalize_race_fields_for_save(game_data);
             character.normalize_class_fields_for_save(game_data);
+            character.normalize_background_fields_for_save(game_data);
             character.normalize_skill_points(game_data);
+            character
+                .recalculate_stats(game_data)
+                .map_err(|e| format!("Failed to recalculate class-derived stats: {e}"))?;
+            character.normalize_level_one_feat_history_for_save();
+            character.normalize_single_level_skill_history_for_save();
+            character.normalize_level_one_skill_history_for_save(game_data);
             character.clone_gff()
         };
 
@@ -377,6 +406,8 @@ fn write_localvault_character(
         }
     }
 
+    quarantine_conflicting_localvault_variants(vault_path, &standalone_fields, &canonical_filename)?;
+
     Ok(dest_path)
 }
 
@@ -419,6 +450,157 @@ fn legacy_localvault_filename(character_fields: &IndexMap<String, GffValue<'stat
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '.' || *c == '-' || *c == '_')
         .collect::<String>()
+}
+
+fn canonical_localvault_stem(character_fields: &IndexMap<String, GffValue<'static>>) -> String {
+    canonical_localvault_filename(character_fields)
+        .strip_suffix(".bic")
+        .unwrap_or("character")
+        .to_string()
+}
+
+fn quarantine_conflicting_localvault_variants(
+    vault_path: &Path,
+    character_fields: &IndexMap<String, GffValue<'static>>,
+    canonical_filename: &str,
+) -> Result<(), String> {
+    let canonical_stem = canonical_localvault_stem(character_fields);
+    let quarantine_dir = localvault_conflict_quarantine_dir(vault_path);
+
+    migrate_nested_localvault_conflicts(vault_path, &quarantine_dir)?;
+
+    for entry in std::fs::read_dir(vault_path)
+        .map_err(|e| format!("Failed to scan localvault directory: {e}"))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read localvault entry: {e}"))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(file_name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let file_name_lower = file_name.to_ascii_lowercase();
+        if file_name_lower == canonical_filename.to_ascii_lowercase() {
+            continue;
+        }
+        if !file_name_lower.ends_with(".bic") {
+            continue;
+        }
+
+        let Some(stem) = file_name_lower.strip_suffix(".bic") else {
+            continue;
+        };
+        let Some(suffix) = stem.strip_prefix(&canonical_stem) else {
+            continue;
+        };
+        if suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+
+        if !quarantine_dir.exists() {
+            std::fs::create_dir_all(&quarantine_dir).map_err(|e| {
+                format!("Failed to create localvault conflict quarantine directory: {e}")
+            })?;
+        }
+
+        let mut dest_path = quarantine_dir.join(file_name);
+        if dest_path.exists() {
+            let mut counter = 1usize;
+            loop {
+                let candidate = quarantine_dir.join(format!("{stem}_{counter}.bic"));
+                if !candidate.exists() {
+                    dest_path = candidate;
+                    break;
+                }
+                counter += 1;
+            }
+        }
+
+        std::fs::rename(&path, &dest_path).map_err(|e| {
+            format!(
+                "Failed to quarantine conflicting localvault variant {}: {e}",
+                path.display()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn localvault_conflict_quarantine_dir(vault_path: &Path) -> PathBuf {
+    vault_path
+        .parent()
+        .unwrap_or(vault_path)
+        .join(".nwn2ee-save-editor-conflicts")
+        .join("localvault")
+}
+
+fn migrate_nested_localvault_conflicts(vault_path: &Path, quarantine_dir: &Path) -> Result<(), String> {
+    let nested_quarantine_dir = vault_path.join(".nwn2ee-save-editor-conflicts");
+    if !nested_quarantine_dir.exists() {
+        return Ok(());
+    }
+
+    if !quarantine_dir.exists() {
+        std::fs::create_dir_all(quarantine_dir)
+            .map_err(|e| format!("Failed to create localvault conflict quarantine directory: {e}"))?;
+    }
+
+    for entry in std::fs::read_dir(&nested_quarantine_dir)
+        .map_err(|e| format!("Failed to scan nested localvault conflict directory: {e}"))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read nested localvault conflict entry: {e}"))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(file_name) = path.file_name() else {
+            continue;
+        };
+        let mut dest_path = quarantine_dir.join(file_name);
+        if dest_path.exists() {
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("character");
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("bic");
+            let mut counter = 1usize;
+            loop {
+                let candidate = quarantine_dir.join(format!("{stem}_{counter}.{ext}"));
+                if !candidate.exists() {
+                    dest_path = candidate;
+                    break;
+                }
+                counter += 1;
+            }
+        }
+
+        std::fs::rename(&path, &dest_path).map_err(|e| {
+            format!(
+                "Failed to migrate nested localvault conflict {}: {e}",
+                path.display()
+            )
+        })?;
+    }
+
+    if nested_quarantine_dir.exists()
+        && std::fs::read_dir(&nested_quarantine_dir)
+            .map_err(|e| format!("Failed to inspect nested localvault conflict directory: {e}"))?
+            .next()
+            .is_none()
+    {
+        std::fs::remove_dir(&nested_quarantine_dir).map_err(|e| {
+            format!(
+                "Failed to remove empty nested localvault conflict directory {}: {e}",
+                nested_quarantine_dir.display()
+            )
+        })?;
+    }
+
+    Ok(())
 }
 
 fn write_playerinfo_for_character(
@@ -948,6 +1130,36 @@ mod tests {
             .expect("SkillPoints should exist in player.bic")
     }
 
+    fn read_player_bic_char_background(save_dir: &Path) -> Option<i32> {
+        let handler =
+            SaveGameHandler::new(save_dir, false, false).expect("Failed to open saved test save");
+        let player_bic_data = handler
+            .extract_player_bic()
+            .expect("Failed to read player.bic")
+            .expect("player.bic should exist");
+        let parser = GffParser::from_bytes(player_bic_data).expect("Failed to parse player.bic");
+        let root = parser
+            .read_struct_fields(0)
+            .expect("Failed to read player.bic root");
+        root.get("CharBackground")
+            .and_then(crate::character::gff_helpers::gff_value_to_i32)
+    }
+
+    fn read_playerlist_entry_char_background(save_dir: &Path, player_index: usize) -> Option<i32> {
+        let handler =
+            SaveGameHandler::new(save_dir, false, false).expect("Failed to open saved test save");
+        let playerlist_data = handler
+            .extract_player_data()
+            .expect("Failed to read playerlist.ifo");
+        let parser = GffParser::from_bytes(playerlist_data).expect("Failed to parse playerlist.ifo");
+        let entries = read_playerlist_entries(parser).expect("Failed to read playerlist entries");
+
+        entries
+            .get(player_index)
+            .and_then(|fields| fields.get("CharBackground"))
+            .and_then(crate::character::gff_helpers::gff_value_to_i32)
+    }
+
     fn read_playerinfo_classes(save_dir: &Path) -> Vec<PlayerClassEntry> {
         PlayerInfo::load(save_dir.join("playerinfo.bin"))
             .expect("Failed to load playerinfo.bin")
@@ -1072,6 +1284,12 @@ mod tests {
 
             let legacy_path = docs_dir.join("localvault").join("Garrick Ironheart.bic");
             std::fs::write(&legacy_path, b"legacy").expect("Failed to seed legacy localvault file");
+            let duplicate_one = docs_dir.join("localvault").join("garrickironheart1.bic");
+            let duplicate_two = docs_dir.join("localvault").join("garrickironheart2.bic");
+            std::fs::write(&duplicate_one, b"stale1")
+                .expect("Failed to seed first duplicate localvault file");
+            std::fs::write(&duplicate_two, b"stale2")
+                .expect("Failed to seed second duplicate localvault file");
 
             let mut session = create_session_state();
             session
@@ -1097,6 +1315,30 @@ mod tests {
             assert!(
                 !legacy_path.exists(),
                 "legacy spaced localvault filename should be removed"
+            );
+            assert!(
+                !duplicate_one.exists(),
+                "numbered duplicate localvault variant should be removed from vault root"
+            );
+            assert!(
+                !duplicate_two.exists(),
+                "all numbered duplicate localvault variants should be removed from vault root"
+            );
+            assert!(
+                docs_dir
+                    .join(".nwn2ee-save-editor-conflicts")
+                    .join("localvault")
+                    .join("garrickironheart1.bic")
+                    .exists(),
+                "first duplicate localvault variant should be quarantined"
+            );
+            assert!(
+                docs_dir
+                    .join(".nwn2ee-save-editor-conflicts")
+                    .join("localvault")
+                    .join("garrickironheart2.bic")
+                    .exists(),
+                "second duplicate localvault variant should be quarantined"
             );
 
             let localvault_fields = read_gff_root_fields(&canonical_path);
@@ -1423,6 +1665,7 @@ mod tests {
                 feat
             }]),
         );
+        player_bic.insert("CharBackground".to_string(), GffValue::Dword(8));
 
         let mut playerinfo = PlayerInfoData::new();
         playerinfo.first_name = "Stale".to_string();
@@ -1463,6 +1706,8 @@ mod tests {
             ]
         );
         assert_eq!(read_playerinfo_background_row(&save_dir), 1);
+        assert_eq!(read_player_bic_char_background(&save_dir), Some(1));
+        assert_eq!(read_playerlist_entry_char_background(&save_dir, 1), Some(1));
     }
 
     #[test]
@@ -1662,6 +1907,7 @@ mod tests {
                 feat
             }]),
         );
+        player_fields.insert("CharBackground".to_string(), GffValue::Dword(8));
 
         let mut playerinfo = PlayerInfoData::new();
         playerinfo.first_name = "Garrick".to_string();
@@ -1690,6 +1936,8 @@ mod tests {
             .expect("Failed to save playerinfo background update");
 
         assert_eq!(read_playerinfo_background_row(&save_dir), 1);
+        assert_eq!(read_player_bic_char_background(&save_dir), Some(1));
+        assert_eq!(read_playerlist_entry_char_background(&save_dir, 0), Some(1));
     }
 
     #[test]

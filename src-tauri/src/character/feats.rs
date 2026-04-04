@@ -1250,6 +1250,96 @@ impl Character {
             .collect()
     }
 
+    pub fn normalize_level_one_feat_history_for_save(&mut self) {
+        let Some(mut lvl_stat_list) = self.get_list_owned("LvlStatList") else {
+            return;
+        };
+        if lvl_stat_list.is_empty() {
+            return;
+        }
+
+        let top_level_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
+        if top_level_feat_list.is_empty() {
+            return;
+        }
+
+        let top_level_feat_ids: Vec<i32> = top_level_feat_list
+            .iter()
+            .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+            .collect();
+        if top_level_feat_ids.is_empty() {
+            return;
+        }
+
+        let mut residual_counts: HashMap<i32, usize> = HashMap::new();
+        for feat_id in &top_level_feat_ids {
+            *residual_counts.entry(*feat_id).or_insert(0) += 1;
+        }
+
+        for entry in lvl_stat_list.iter().skip(1) {
+            let Some(history_feat_list) =
+                super::gff_helpers::extract_list_from_map(entry, "FeatList")
+            else {
+                continue;
+            };
+
+            for feat_entry in history_feat_list {
+                let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) else {
+                    continue;
+                };
+
+                let Some(count) = residual_counts.get_mut(&feat_id) else {
+                    return;
+                };
+                if *count == 0 {
+                    return;
+                }
+                *count -= 1;
+            }
+        }
+
+        let rebuilt_level_one_feats: Vec<IndexMap<String, GffValue<'static>>> = top_level_feat_ids
+            .into_iter()
+            .filter_map(|feat_id| {
+                let count = residual_counts.get_mut(&feat_id)?;
+                if *count == 0 {
+                    return None;
+                }
+                *count -= 1;
+
+                let mut feat_entry = IndexMap::new();
+                feat_entry.insert("Feat".to_string(), GffValue::Word(feat_id as u16));
+                Some(feat_entry)
+            })
+            .collect();
+
+        let current_level_one_feats: Vec<i32> = lvl_stat_list[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let rebuilt_feat_ids: Vec<i32> = rebuilt_level_one_feats
+            .iter()
+            .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+            .collect();
+
+        if current_level_one_feats == rebuilt_feat_ids {
+            return;
+        }
+
+        lvl_stat_list[0].insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(rebuilt_level_one_feats),
+        );
+        self.set_list("LvlStatList", lvl_stat_list);
+    }
+
     fn build_feat_slot_sequence(&self, game_data: &GameData) -> Vec<(bool, Option<FeatId>)> {
         let level_history = self.level_history();
         let mut slots: Vec<(bool, Option<FeatId>)> = Vec::new();
@@ -3089,6 +3179,104 @@ mod tests {
         );
 
         game_data
+    }
+
+    #[test]
+    fn test_normalize_level_one_feat_history_for_save_rebuilds_missing_residual_feats() {
+        let mut character = create_empty_character();
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(4));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(3));
+        character.set_list("ClassList", vec![class_entry]);
+
+        let make_feat = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        character.set_list(
+            "FeatList",
+            vec![
+                make_feat(2),
+                make_feat(28),
+                make_feat(106),
+                make_feat(1701),
+                make_feat(6),
+                make_feat(40),
+            ],
+        );
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_one.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![make_feat(28), make_feat(106)]),
+        );
+        let mut level_two = IndexMap::new();
+        level_two.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_two.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(6)]));
+        let mut level_three = IndexMap::new();
+        level_three.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_three.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(40)]));
+
+        character.set_list("LvlStatList", vec![level_one, level_two, level_three]);
+
+        character.normalize_level_one_feat_history_for_save();
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        let level_one_feats: Vec<i32> = history[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(level_one_feats, vec![2, 28, 106, 1701]);
+    }
+
+    #[test]
+    fn test_normalize_level_one_feat_history_for_save_sets_single_level_history_to_top_level() {
+        let mut character = create_empty_character();
+
+        let make_feat = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        character.set_list(
+            "FeatList",
+            vec![make_feat(2), make_feat(28), make_feat(106), make_feat(1717)],
+        );
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_one.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(28)]));
+        character.set_list("LvlStatList", vec![level_one]);
+
+        character.normalize_level_one_feat_history_for_save();
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        let level_one_feats: Vec<i32> = history[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(level_one_feats, vec![2, 28, 106, 1717]);
     }
 
     #[test]

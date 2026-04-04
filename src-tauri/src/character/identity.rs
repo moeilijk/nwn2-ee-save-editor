@@ -5,6 +5,7 @@ use specta::Type;
 use std::collections::HashSet;
 
 use crate::loaders::GameData;
+use crate::parsers::gff::GffValue;
 
 pub const ALIGNMENT_MIN: i32 = 0;
 pub const ALIGNMENT_MAX: i32 = 100;
@@ -502,6 +503,7 @@ impl Character {
             for feat_id in current_background_feat_ids {
                 self.remove_feat(feat_id)?;
             }
+            self.remove_field("CharBackground");
             return Ok(None);
         };
 
@@ -541,7 +543,26 @@ impl Character {
             }
         }
 
+        self.gff_mut().insert(
+            "CharBackground".to_string(),
+            GffValue::Dword(background_id as u32),
+        );
+
         Ok(Some(background_name))
+    }
+
+    pub fn normalize_background_fields_for_save(&mut self, game_data: &GameData) {
+        match self.background_id(game_data) {
+            Some(background_id) => {
+                self.gff_mut().insert(
+                    "CharBackground".to_string(),
+                    GffValue::Dword(background_id as u32),
+                );
+            }
+            None => {
+                self.remove_field("CharBackground");
+            }
+        }
     }
 
     /// Get the character's background trait if present.
@@ -892,6 +913,10 @@ mod tests {
     fn test_set_background_replaces_existing_background_feat() {
         let game_data = create_game_data_with_backgrounds();
         let mut character = create_character_with_background_feats(&[0, 2]);
+        character.gff_mut().insert(
+            "CharBackground".to_string(),
+            GffValue::Dword(0),
+        );
 
         let result = character.set_background(Some(1), &game_data).unwrap();
 
@@ -905,12 +930,21 @@ mod tests {
             character.background(&game_data).as_deref(),
             Some("New Background")
         );
+        assert_eq!(
+            character.get_i32("CharBackground"),
+            Some(1),
+            "raw CharBackground should track the selected background row"
+        );
     }
 
     #[test]
     fn test_set_background_none_removes_all_background_feats() {
         let game_data = create_game_data_with_backgrounds();
         let mut character = create_character_with_background_feats(&[1, 3, 4]);
+        character.gff_mut().insert(
+            "CharBackground".to_string(),
+            GffValue::Dword(1),
+        );
 
         let result = character.set_background(None, &game_data).unwrap();
 
@@ -919,6 +953,28 @@ mod tests {
         assert!(!character.has_feat(FeatId(3)));
         assert!(!character.has_feat(FeatId(4)));
         assert_eq!(character.background(&game_data), None);
+        assert!(
+            !character.has_field("CharBackground"),
+            "raw CharBackground should be removed when the background is cleared"
+        );
+    }
+
+    #[test]
+    fn test_normalize_background_fields_for_save_repairs_stale_charbackground() {
+        let game_data = create_game_data_with_backgrounds();
+        let mut character = create_character_with_background_feats(&[1, 3, 4]);
+        character.gff_mut().insert(
+            "CharBackground".to_string(),
+            GffValue::Dword(8),
+        );
+
+        character.normalize_background_fields_for_save(&game_data);
+
+        assert_eq!(
+            character.get_i32("CharBackground"),
+            Some(1),
+            "save normalization should derive CharBackground from the active background feats"
+        );
     }
 
     #[test]

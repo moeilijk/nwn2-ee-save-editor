@@ -276,6 +276,8 @@ const BASE_ITEM_ARMOR: i32 = 16;
 const BASE_ITEM_SMALL_SHIELD: i32 = 14;
 const BASE_ITEM_LARGE_SHIELD: i32 = 56;
 const BASE_ITEM_TOWER_SHIELD: i32 = 57;
+const BASE_ITEM_BRACERS: i32 = 78;
+const BASE_ITEM_RING: i32 = 52;
 
 const FEAT_WEAPON_PROFICIENCY_SIMPLE: u16 = 44;
 const FEAT_WEAPON_PROFICIENCY_MARTIAL: u16 = 45;
@@ -314,6 +316,69 @@ const EQUIPMENT_SLOTS: [(u32, &str); 14] = [
 ];
 
 impl super::Character {
+    fn classify_generic_ac_bonus(
+        &self,
+        item_struct: &IndexMap<String, GffValue<'static>>,
+        struct_id: u32,
+        base_item_id: i32,
+        game_data: &GameData,
+    ) -> &'static str {
+        if base_item_id == BASE_ITEM_ARMOR {
+            return "armor";
+        }
+
+        if [
+            BASE_ITEM_SMALL_SHIELD,
+            BASE_ITEM_LARGE_SHIELD,
+            BASE_ITEM_TOWER_SHIELD,
+        ]
+        .contains(&base_item_id)
+        {
+            return "shield";
+        }
+
+        let item_name = self
+            .get_item_localized_name(item_struct, game_data)
+            .unwrap_or_default()
+            .to_lowercase();
+        let item_description = self
+            .get_item_localized_description(item_struct, game_data)
+            .unwrap_or_default()
+            .to_lowercase();
+
+        if item_name.contains("natural armor") || item_description.contains("natural armor") {
+            return "natural";
+        }
+
+        if struct_id == EquipmentSlot::Neck.to_bitmask() {
+            return "natural";
+        }
+
+        if item_name.contains("bracers of armor")
+            || item_name.contains("bracer")
+            || item_description.contains("just like mundane armor")
+            || base_item_id == BASE_ITEM_BRACERS
+            || struct_id == EquipmentSlot::Gloves.to_bitmask()
+        {
+            return "armor";
+        }
+
+        if base_item_id == BASE_ITEM_RING
+            || struct_id == EquipmentSlot::LeftRing.to_bitmask()
+            || struct_id == EquipmentSlot::RightRing.to_bitmask()
+        {
+            if item_name.contains("force shield")
+                || item_description.contains("shield-sized")
+                || item_description.contains("normal shield")
+            {
+                return "shield";
+            }
+            return "deflection";
+        }
+
+        "deflection"
+    }
+
     pub fn gold(&self) -> u32 {
         self.get_u32("Gold").unwrap_or(0)
     }
@@ -1080,6 +1145,10 @@ impl super::Character {
         decoder: &ItemPropertyDecoder,
     ) -> ItemBonuses {
         let mut total_bonuses = ItemBonuses::default();
+        let mut best_armor_bonus = 0;
+        let mut best_shield_bonus = 0;
+        let mut best_natural_bonus = 0;
+        let mut best_deflection_bonus = 0;
 
         let Some(equip_list) = self.get_list_owned("Equip_ItemList") else {
             return total_bonuses;
@@ -1100,6 +1169,12 @@ impl super::Character {
                 .get("BaseItem")
                 .and_then(gff_value_to_i32)
                 .unwrap_or(0);
+            let mut item_armor_bonus = 0;
+            let mut item_shield_bonus = 0;
+            let mut item_natural_bonus = 0;
+            let mut item_deflection_bonus = 0;
+            let mut item_dodge_bonus = 0;
+            let mut item_misc_ac_bonus = 0;
 
             // Logic matching Python:
             // Armor (16)
@@ -1117,7 +1192,7 @@ impl super::Character {
                         .map(|f| f as i32)
                     && ac_bonus > 0
                 {
-                    total_bonuses.ac_armor_bonus += ac_bonus;
+                    item_armor_bonus += ac_bonus;
                 }
             }
             // Shields (14, 56, 57)
@@ -1140,7 +1215,7 @@ impl super::Character {
                     .map(|f| f as i32)
                 && ac_bonus > 0
             {
-                total_bonuses.ac_shield_bonus += ac_bonus;
+                item_shield_bonus += ac_bonus;
             }
 
             // 2. Item Properties
@@ -1166,12 +1241,19 @@ impl super::Character {
                 total_bonuses.int_bonus += item_bonuses.int_bonus;
                 total_bonuses.wis_bonus += item_bonuses.wis_bonus;
                 total_bonuses.cha_bonus += item_bonuses.cha_bonus;
-                total_bonuses.ac_bonus += item_bonuses.ac_bonus;
-                total_bonuses.ac_armor_bonus += item_bonuses.ac_armor_bonus;
-                total_bonuses.ac_shield_bonus += item_bonuses.ac_shield_bonus;
-                total_bonuses.ac_natural_bonus += item_bonuses.ac_natural_bonus;
-                total_bonuses.ac_deflection_bonus += item_bonuses.ac_deflection_bonus;
-                total_bonuses.ac_dodge_bonus += item_bonuses.ac_dodge_bonus;
+                match self.classify_generic_ac_bonus(item_struct, struct_id, base_item_id, game_data)
+                {
+                    "armor" => item_armor_bonus += item_bonuses.ac_bonus,
+                    "shield" => item_shield_bonus += item_bonuses.ac_bonus,
+                    "natural" => item_natural_bonus += item_bonuses.ac_bonus,
+                    "deflection" => item_deflection_bonus += item_bonuses.ac_bonus,
+                    _ => item_misc_ac_bonus += item_bonuses.ac_bonus,
+                }
+                item_armor_bonus += item_bonuses.ac_armor_bonus;
+                item_shield_bonus += item_bonuses.ac_shield_bonus;
+                item_natural_bonus += item_bonuses.ac_natural_bonus;
+                item_deflection_bonus += item_bonuses.ac_deflection_bonus;
+                item_dodge_bonus += item_bonuses.ac_dodge_bonus;
                 total_bonuses.attack_bonus += item_bonuses.attack_bonus;
                 total_bonuses.damage_bonus += item_bonuses.damage_bonus;
                 total_bonuses.fortitude_bonus += item_bonuses.fortitude_bonus;
@@ -1189,7 +1271,19 @@ impl super::Character {
                         (*total_bonuses.damage_resistances.get(&dtype).unwrap_or(&0)).max(val);
                 }
             }
+
+            best_armor_bonus = best_armor_bonus.max(item_armor_bonus);
+            best_shield_bonus = best_shield_bonus.max(item_shield_bonus);
+            best_natural_bonus = best_natural_bonus.max(item_natural_bonus);
+            best_deflection_bonus = best_deflection_bonus.max(item_deflection_bonus);
+            total_bonuses.ac_dodge_bonus += item_dodge_bonus;
+            total_bonuses.ac_bonus += item_misc_ac_bonus;
         }
+
+        total_bonuses.ac_armor_bonus = best_armor_bonus;
+        total_bonuses.ac_shield_bonus = best_shield_bonus;
+        total_bonuses.ac_natural_bonus = best_natural_bonus;
+        total_bonuses.ac_deflection_bonus = best_deflection_bonus;
 
         total_bonuses
     }
@@ -2802,7 +2896,17 @@ fn merge_json_list_into_gff_list(
 mod tests {
     use super::*;
     use crate::character::Character;
+    use crate::config::nwn2_paths::NWN2Paths;
+    use crate::loaders::GameData;
+    use crate::loaders::types::LoadedTable;
+    use crate::parsers::tda::TDAParser;
+    use crate::parsers::tlk::TLKParser;
+    use crate::services::item_property_decoder::ItemPropertyDecoder;
+    use crate::services::resource_manager::ResourceManager;
     use std::borrow::Cow;
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock as StdRwLock};
+    use tauri::async_runtime::RwLock as AsyncRwLock;
 
     fn create_test_fields() -> IndexMap<String, GffValue<'static>> {
         let mut fields = IndexMap::new();
@@ -2862,6 +2966,79 @@ mod tests {
         );
 
         fields
+    }
+
+    fn create_test_game_data_with_armor_rules() -> GameData {
+        let mut game_data = GameData::new(Arc::new(StdRwLock::new(TLKParser::default())));
+        let content = "2DA V2.0
+
+        ACBONUS
+0       5
+1       4
+";
+        let mut parser = TDAParser::new();
+        parser.parse_from_bytes(content.as_bytes()).unwrap();
+        let table = LoadedTable::new("armorrulestats".to_string(), Arc::new(parser));
+        game_data.tables.insert("armorrulestats".to_string(), table);
+        game_data
+    }
+
+    fn create_test_decoder_with_ac_types() -> ItemPropertyDecoder {
+        let paths = Arc::new(AsyncRwLock::new(NWN2Paths::default()));
+        let rm = Arc::new(AsyncRwLock::new(ResourceManager::new(paths)));
+        let mut decoder = ItemPropertyDecoder::new(rm);
+        let mut ac_types = HashMap::new();
+        ac_types.insert(0, "Dodge".to_string());
+        ac_types.insert(1, "Natural".to_string());
+        ac_types.insert(2, "Armor".to_string());
+        ac_types.insert(3, "Shield".to_string());
+        ac_types.insert(4, "Deflection".to_string());
+        decoder.set_2da_tables(
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            ac_types,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        );
+        decoder
+    }
+
+    fn ac_property(subtype: i32, bonus: i32) -> IndexMap<String, GffValue<'static>> {
+        let mut prop = IndexMap::new();
+        prop.insert("PropertyName".to_string(), GffValue::Word(1));
+        prop.insert("Subtype".to_string(), GffValue::Word(subtype as u16));
+        prop.insert("CostValue".to_string(), GffValue::Word(bonus as u16));
+        prop
+    }
+
+    fn equipped_item(
+        slot: u32,
+        base_item: i32,
+        armor_rules_type: Option<i32>,
+        properties: Vec<IndexMap<String, GffValue<'static>>>,
+    ) -> IndexMap<String, GffValue<'static>> {
+        let mut item = IndexMap::new();
+        item.insert("__struct_id__".to_string(), GffValue::Word(slot as u16));
+        item.insert("BaseItem".to_string(), GffValue::Int(base_item));
+        if let Some(armor_rules_type) = armor_rules_type {
+            item.insert("ArmorRulesType".to_string(), GffValue::Int(armor_rules_type));
+        }
+        item.insert("PropertiesList".to_string(), GffValue::ListOwned(properties));
+        item
+    }
+
+    fn localized_string(text: &str) -> crate::parsers::gff::LocalizedString<'static> {
+        crate::parsers::gff::LocalizedString {
+            string_ref: -1,
+            substrings: vec![crate::parsers::gff::LocalizedSubstring {
+                string: Cow::Owned(text.to_string()),
+                language: 0,
+                gender: 0,
+            }],
+        }
     }
 
     #[test]
@@ -2988,6 +3165,199 @@ mod tests {
         assert_eq!(summary.total_ac_bonus, 0);
         assert_eq!(summary.total_weight, 0.0);
         assert!(summary.slots.iter().all(|slot| slot.item.is_none()));
+    }
+
+    #[test]
+    fn test_get_equipment_bonuses_uses_highest_ac_bonus_per_type() {
+        let mut fields = IndexMap::new();
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![
+                equipped_item(0x0002, 16, Some(0), vec![ac_property(2, 1)]),
+                equipped_item(0x0008, 78, None, vec![ac_property(2, 3)]),
+                equipped_item(0x0020, 57, Some(1), vec![ac_property(3, 1)]),
+                equipped_item(0x0080, 52, None, vec![ac_property(4, 2)]),
+                equipped_item(0x0100, 52, None, vec![ac_property(4, 1)]),
+                equipped_item(0x0200, 19, None, vec![ac_property(1, 2)]),
+                equipped_item(0x0004, 26, None, vec![ac_property(0, 1)]),
+                equipped_item(0x0040, 80, None, vec![ac_property(0, 2)]),
+            ]),
+        );
+
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_armor_rules();
+        let decoder = create_test_decoder_with_ac_types();
+
+        let bonuses = character.get_equipment_bonuses(&game_data, &decoder);
+
+        assert_eq!(bonuses.ac_armor_bonus, 6);
+        assert_eq!(bonuses.ac_shield_bonus, 5);
+        assert_eq!(bonuses.ac_deflection_bonus, 2);
+        assert_eq!(bonuses.ac_natural_bonus, 2);
+    }
+
+    #[test]
+    fn test_get_equipment_bonuses_infers_generic_ac_bonus_type_from_item_context() {
+        let mut breastplate = equipped_item(0x0002, 16, Some(0), vec![ac_property(0, 1)]);
+        breastplate.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Breastplate +1")),
+        );
+
+        let mut bracers = equipped_item(0x0008, 78, None, vec![ac_property(0, 3)]);
+        bracers.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Bracers of Armor +3")),
+        );
+        bracers.insert(
+            "DescIdentified".to_string(),
+            GffValue::LocString(localized_string(
+                "These items grant protection just like mundane armor.",
+            )),
+        );
+
+        let mut shield = equipped_item(0x0020, 57, Some(1), vec![ac_property(0, 1)]);
+        shield.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Tower Shield +1")),
+        );
+
+        let mut ring = equipped_item(0x0080, 52, None, vec![ac_property(0, 2)]);
+        ring.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Commander's Ring")),
+        );
+
+        let mut amulet = equipped_item(0x0200, 19, None, vec![ac_property(0, 2)]);
+        amulet.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Amulet of Natural Armor +2")),
+        );
+        amulet.insert(
+            "DescIdentified".to_string(),
+            GffValue::LocString(localized_string("An amulet of natural armor.")),
+        );
+
+        let mut fields = IndexMap::new();
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![breastplate, bracers, shield, ring, amulet]),
+        );
+
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_armor_rules();
+        let decoder = create_test_decoder_with_ac_types();
+
+        let bonuses = character.get_equipment_bonuses(&game_data, &decoder);
+
+        assert_eq!(bonuses.ac_armor_bonus, 6);
+        assert_eq!(bonuses.ac_shield_bonus, 5);
+        assert_eq!(bonuses.ac_deflection_bonus, 2);
+        assert_eq!(bonuses.ac_natural_bonus, 2);
+        assert_eq!(bonuses.ac_bonus, 0);
+    }
+
+    #[test]
+    fn test_get_equipment_bonuses_defaults_generic_non_armor_ac_to_deflection() {
+        let mut sword = equipped_item(0x0010, 1, None, vec![ac_property(0, 10)]);
+        sword.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Defensive Edge")),
+        );
+
+        let mut fields = IndexMap::new();
+        fields.insert("Equip_ItemList".to_string(), GffValue::ListOwned(vec![sword]));
+
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_armor_rules();
+        let decoder = create_test_decoder_with_ac_types();
+
+        let bonuses = character.get_equipment_bonuses(&game_data, &decoder);
+
+        assert_eq!(bonuses.ac_deflection_bonus, 10);
+        assert_eq!(bonuses.ac_bonus, 0);
+    }
+
+    #[test]
+    fn test_get_equipment_bonuses_treats_ring_force_shield_encoding_as_shield_bonus() {
+        let mut ring = equipped_item(0x0080, 52, None, vec![ac_property(0, 2)]);
+        if let Some(GffValue::ListOwned(props)) = ring.get_mut("PropertiesList")
+            && let Some(prop) = props.first_mut()
+        {
+            prop.insert("Param1Value".to_string(), GffValue::Byte(0));
+        }
+        ring.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Ring of Force Shield")),
+        );
+        ring.insert(
+            "DescIdentified".to_string(),
+            GffValue::LocString(localized_string(
+                "This special creation generates a shield-sized invisible wall of force that can be wielded as a normal shield.",
+            )),
+        );
+
+        let mut shield = equipped_item(0x0020, 57, Some(1), vec![ac_property(0, 1)]);
+        shield.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Tower Shield +1")),
+        );
+
+        let mut fields = IndexMap::new();
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![ring, shield]),
+        );
+
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_armor_rules();
+        let decoder = create_test_decoder_with_ac_types();
+
+        let bonuses = character.get_equipment_bonuses(&game_data, &decoder);
+
+        assert_eq!(bonuses.ac_shield_bonus, 5);
+        assert_eq!(bonuses.ac_deflection_bonus, 0);
+    }
+
+    #[test]
+    fn test_get_equipment_bonuses_treats_commanders_ring_as_deflection_bonus() {
+        let mut ring = equipped_item(0x0080, 52, None, vec![ac_property(0, 2)]);
+        if let Some(GffValue::ListOwned(props)) = ring.get_mut("PropertiesList")
+            && let Some(prop) = props.first_mut()
+        {
+            prop.insert("Param1Value".to_string(), GffValue::Byte(0));
+        }
+        ring.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Commander's Ring")),
+        );
+        ring.insert(
+            "DescIdentified".to_string(),
+            GffValue::LocString(localized_string(
+                "Protective rings for military use that can also cast knock.",
+            )),
+        );
+
+        let mut shield = equipped_item(0x0020, 57, Some(1), vec![ac_property(0, 1)]);
+        shield.insert(
+            "LocalizedName".to_string(),
+            GffValue::LocString(localized_string("Tower Shield +1")),
+        );
+
+        let mut fields = IndexMap::new();
+        fields.insert(
+            "Equip_ItemList".to_string(),
+            GffValue::ListOwned(vec![ring, shield]),
+        );
+
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_armor_rules();
+        let decoder = create_test_decoder_with_ac_types();
+
+        let bonuses = character.get_equipment_bonuses(&game_data, &decoder);
+
+        assert_eq!(bonuses.ac_shield_bonus, 5);
+        assert_eq!(bonuses.ac_deflection_bonus, 2);
     }
 
     #[test]

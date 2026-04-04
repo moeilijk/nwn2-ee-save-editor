@@ -102,6 +102,8 @@ impl SaveGameHandler {
             return Err(SaveGameError::NotFound { path: zip_path });
         }
 
+        backup::cleanup_legacy_save_tree_artifacts(&save_dir)?;
+
         if create_load_backup && !backup::has_backup_been_created(&save_dir) {
             backup::create_backup(&save_dir)?;
         }
@@ -278,6 +280,7 @@ impl SaveGameHandler {
             || disk_path.exists()
         {
             fs::write(&disk_path, content)?;
+            backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
             debug!("Updated file on disk: {}", filename);
             return Ok(());
         }
@@ -322,6 +325,7 @@ impl SaveGameHandler {
         }
 
         fs::rename(&temp_path, &self.zip_path)?;
+        backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
 
         debug!("Updated file in save: {}", filename);
         Ok(())
@@ -390,6 +394,7 @@ impl SaveGameHandler {
         }
 
         fs::rename(&temp_path, &self.zip_path)?;
+        backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
 
         info!("Updated player files in save");
         Ok(())

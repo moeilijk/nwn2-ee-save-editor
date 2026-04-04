@@ -697,6 +697,31 @@ impl Character {
         total_refund
     }
 
+    pub fn normalize_single_level_skill_history_for_save(&mut self) {
+        if self.total_level() != 1 {
+            return;
+        }
+
+        let Some(mut lvl_stat_list) = self.get_list_owned("LvlStatList") else {
+            return;
+        };
+        if lvl_stat_list.len() != 1 {
+            return;
+        }
+
+        let top_level_skill_list = self.get_list_owned("SkillList").unwrap_or_default();
+        let current_unspent = self.get_available_skill_points().clamp(0, i32::from(u16::MAX));
+
+        let entry = &mut lvl_stat_list[0];
+        entry.insert("SkillList".to_string(), GffValue::ListOwned(top_level_skill_list));
+        entry.insert(
+            "SkillPoints".to_string(),
+            GffValue::Word(current_unspent as u16),
+        );
+
+        self.set_list("LvlStatList", lvl_stat_list);
+    }
+
     /// Calculate total skill points spent, factoring in class/cross-class costs.
     ///
     /// Unlike `total_skill_points_spent` which just sums ranks, this method
@@ -1025,6 +1050,89 @@ mod tests {
         assert_eq!(character.skill_rank(SkillId(0)), 0);
         assert_eq!(character.skill_rank(SkillId(1)), 0);
         assert_eq!(character.get_available_skill_points(), 8);
+    }
+
+    #[test]
+    fn test_normalize_single_level_skill_history_for_save_replaces_stale_history_skilllist() {
+        let mut fields = IndexMap::new();
+        fields.insert("Str".to_string(), GffValue::Byte(18));
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("Con".to_string(), GffValue::Byte(16));
+        fields.insert("Int".to_string(), GffValue::Byte(12));
+        fields.insert("Wis".to_string(), GffValue::Byte(8));
+        fields.insert("Cha".to_string(), GffValue::Byte(8));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(0));
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Int(3));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(1));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let mut history_entry = IndexMap::new();
+        history_entry.insert("LvlStatClass".to_string(), GffValue::Byte(3));
+        history_entry.insert("SkillPoints".to_string(), GffValue::Short(0));
+        let mut stale_history = vec![IndexMap::from([("Rank".to_string(), GffValue::Byte(0))]); 30];
+        stale_history[10].insert("Rank".to_string(), GffValue::Byte(4));
+        stale_history[18].insert("Rank".to_string(), GffValue::Byte(4));
+        stale_history[21].insert("Rank".to_string(), GffValue::Byte(2));
+        stale_history[24].insert("Rank".to_string(), GffValue::Byte(8));
+        stale_history[25].insert("Rank".to_string(), GffValue::Byte(4));
+        stale_history[26].insert("Rank".to_string(), GffValue::Byte(4));
+        history_entry.insert("SkillList".to_string(), GffValue::ListOwned(stale_history));
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![history_entry]),
+        );
+
+        let mut top_level_skills = vec![IndexMap::from([("Rank".to_string(), GffValue::Byte(0))]); 30];
+        top_level_skills[10].insert("Rank".to_string(), GffValue::Byte(4));
+        top_level_skills[18].insert("Rank".to_string(), GffValue::Byte(4));
+        top_level_skills[24].insert("Rank".to_string(), GffValue::Byte(4));
+        fields.insert("SkillList".to_string(), GffValue::ListOwned(top_level_skills));
+
+        let mut character = Character::from_gff(fields);
+
+        character.normalize_single_level_skill_history_for_save();
+
+        let history = character
+            .get_list_owned("LvlStatList")
+            .expect("Level history should exist");
+        let skill_list = match history[0].get("SkillList") {
+            Some(GffValue::ListOwned(list)) => list,
+            other => panic!("Unexpected history SkillList: {other:?}"),
+        };
+
+        assert_eq!(
+            skill_list[10].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            skill_list[18].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            skill_list[24].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            skill_list[21].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert_eq!(
+            skill_list[25].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert_eq!(
+            skill_list[26].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert!(matches!(
+            history[0].get("SkillPoints"),
+            Some(GffValue::Word(0))
+        ));
     }
 
     #[test]

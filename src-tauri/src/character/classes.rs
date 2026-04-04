@@ -2048,7 +2048,10 @@ impl Character {
             "LvlStatHitDie".to_string(),
             GffValue::Byte(history_hit_die as u8),
         );
-        new_hist.insert("SkillPoints".to_string(), GffValue::Short(sp_gained as i16));
+        new_hist.insert(
+            "SkillPoints".to_string(),
+            GffValue::Word(sp_gained.clamp(0, i32::from(u16::MAX)) as u16),
+        );
         new_hist.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
         new_hist.insert("FeatList".to_string(), GffValue::ListOwned(vec![]));
         new_hist.insert(
@@ -2485,13 +2488,13 @@ impl Character {
         self.set_list("LvlStatList", lvl_stat_list);
     }
 
-    /// Recalculate derived stats like BAB and Saves.
+    /// Recalculate class-derived stats.
+    ///
+    /// Keep existing save bonus fields (`fortbonus`, `refbonus`, `willbonus`) untouched.
+    /// Those fields store misc/magic modifiers, not class-derived base saves.
     pub fn recalculate_stats(&mut self, game_data: &GameData) -> Result<(), CharacterError> {
         let bab = self.calculate_bab(game_data);
         self.set_base_attack_bonus(bab);
-
-        let saves = self.calculate_base_saves(game_data);
-        self.set_base_saves(saves)?;
 
         Ok(())
     }
@@ -2630,6 +2633,174 @@ impl Character {
                     .unwrap_or(0)
                     .max(self.get_available_skill_points()),
         )
+    }
+
+    fn skill_points_gained_for_history_entry(
+        &self,
+        class_id: ClassId,
+        level_index: usize,
+        game_data: &GameData,
+    ) -> i32 {
+        let race_bonus = game_data
+            .get_table("racialtypes")
+            .and_then(|t| t.get_by_id(self.race_id().0))
+            .and_then(|row| Self::get_field_value(&row, "SkillPointModifier"))
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+
+        let int_mod = self.get_effective_ability_modifier(AbilityIndex::INT, game_data);
+        let class_base = game_data
+            .get_table("classes")
+            .and_then(|table| table.get_by_id(class_id.0))
+            .and_then(|c_data| {
+                Self::get_field_value(&c_data, "SkillPointBase")
+                    .or_else(|| Self::get_field_value(&c_data, "skillpointbase"))
+            })
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(2);
+
+        let mut points = std::cmp::max(1, class_base + int_mod + race_bonus);
+        if level_index == 0 {
+            points *= 4;
+        }
+        points
+    }
+
+    fn skill_point_cost_for_ranks_with_classes(
+        &self,
+        class_ids: &[ClassId],
+        ranks: &[i32],
+        game_data: &GameData,
+    ) -> i32 {
+        let has_able_learner =
+            self.has_feat(FeatId(crate::character::skills::ABLE_LEARNER_FEAT_ID));
+
+        ranks
+            .iter()
+            .enumerate()
+            .filter(|(_, ranks)| **ranks > 0)
+            .map(|(skill_idx, ranks)| {
+                let is_class_skill =
+                    Self::is_class_skill_for_class_ids(class_ids, SkillId(skill_idx as i32), game_data);
+                if is_class_skill || has_able_learner {
+                    *ranks
+                } else {
+                    *ranks * 2
+                }
+            })
+            .sum()
+    }
+
+    pub fn normalize_level_one_skill_history_for_save(&mut self, game_data: &GameData) {
+        let Some(mut lvl_stat_list) = self.get_list_owned("LvlStatList") else {
+            return;
+        };
+        if lvl_stat_list.is_empty() {
+            return;
+        }
+
+        let top_skill_list = self.get_list_owned("SkillList").unwrap_or_default();
+        if top_skill_list.is_empty() {
+            return;
+        }
+
+        let skill_count = top_skill_list.len();
+        let mut top_ranks = vec![0; skill_count];
+        for (idx, skill) in top_skill_list.iter().enumerate() {
+            top_ranks[idx] = skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+        }
+
+        let mut later_ranks = vec![0; skill_count];
+        for entry in lvl_stat_list.iter().skip(1) {
+            let Some(GffValue::ListOwned(skill_list)) = entry.get("SkillList") else {
+                continue;
+            };
+            for (idx, skill) in skill_list.iter().enumerate().take(skill_count) {
+                later_ranks[idx] += skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+            }
+        }
+
+        if later_ranks
+            .iter()
+            .zip(top_ranks.iter())
+            .any(|(later, top)| later > top)
+        {
+            return;
+        }
+
+        let residual_ranks = top_ranks
+            .iter()
+            .zip(later_ranks.iter())
+            .map(|(top, later)| top - later)
+            .collect::<Vec<_>>();
+
+        let current_first_ranks = lvl_stat_list[0]
+            .get("SkillList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .take(skill_count)
+                        .map(|skill| skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0))
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        let first_class_id = lvl_stat_list[0]
+            .get("LvlStatClass")
+            .and_then(gff_value_to_i32)
+            .map(ClassId)
+            .or_else(|| self.class_entries().first().map(|entry| entry.class_id));
+
+        let Some(first_class_id) = first_class_id else {
+            return;
+        };
+
+        let first_level_points = self.skill_points_gained_for_history_entry(first_class_id, 0, game_data);
+        let spent = self.skill_point_cost_for_ranks_with_classes(
+            &[first_class_id],
+            &residual_ranks,
+            game_data,
+        );
+        if spent > first_level_points {
+            return;
+        }
+
+        let normalized_unspent = (first_level_points - spent).clamp(0, i32::from(u16::MAX)) as u16;
+        let current_unspent = lvl_stat_list[0]
+            .get("SkillPoints")
+            .and_then(gff_value_to_i32)
+            .map(|value| value.clamp(0, i32::from(u16::MAX)) as u16);
+        let skill_points_already_normalized = matches!(
+            lvl_stat_list[0].get("SkillPoints"),
+            Some(GffValue::Word(value)) if *value == normalized_unspent
+        );
+
+        if current_first_ranks == residual_ranks
+            && current_unspent == Some(normalized_unspent)
+            && skill_points_already_normalized
+        {
+            return;
+        }
+
+        let mut rebuilt_first_skill_list = Vec::with_capacity(skill_count);
+        for rank in residual_ranks {
+            let mut skill = IndexMap::new();
+            skill.insert("Rank".to_string(), GffValue::Byte(rank.clamp(0, 255) as u8));
+            rebuilt_first_skill_list.push(skill);
+        }
+
+        lvl_stat_list[0].insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(rebuilt_first_skill_list),
+        );
+        lvl_stat_list[0].insert(
+            "SkillPoints".to_string(),
+            GffValue::Word(normalized_unspent),
+        );
+
+        self.set_list("LvlStatList", lvl_stat_list);
     }
 
     /// Get a summary of skill points (theoretical vs actual).
@@ -3555,6 +3726,22 @@ mod tests {
     }
 
     #[test]
+    fn test_recalculate_stats_preserves_misc_save_bonuses() {
+        let mut character = create_test_character();
+        let game_data = create_mock_game_data();
+
+        character.set_fortitude(5).unwrap();
+        character.set_reflex(3).unwrap();
+        character.set_will(7).unwrap();
+
+        character.recalculate_stats(&game_data).unwrap();
+
+        assert_eq!(character.base_fortitude(), 5);
+        assert_eq!(character.base_reflex(), 3);
+        assert_eq!(character.base_will(), 7);
+    }
+
+    #[test]
     fn test_set_class_level() {
         let mut character = create_test_character();
 
@@ -4074,6 +4261,200 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_level_one_skill_history_for_save_rebuilds_first_entry_from_top_level() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(0));
+        fields.insert("Str".to_string(), GffValue::Byte(18));
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("Con".to_string(), GffValue::Byte(16));
+        fields.insert("Int".to_string(), GffValue::Byte(12));
+        fields.insert("Wis".to_string(), GffValue::Byte(8));
+        fields.insert("Cha".to_string(), GffValue::Byte(8));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(0));
+
+        let mut fighter = IndexMap::new();
+        fighter.insert("Class".to_string(), GffValue::Byte(4));
+        fighter.insert("ClassLevel".to_string(), GffValue::Short(3));
+        fields.insert("ClassList".to_string(), GffValue::ListOwned(vec![fighter]));
+
+        fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(skill_list_with_ranks(
+                30,
+                &[(10, 6), (18, 6), (24, 6)],
+            )),
+        );
+
+        let history = vec![
+            create_history_entry_with_skill_ranks(
+                4,
+                10,
+                0,
+                30,
+                &[(10, 4), (18, 4), (21, 2), (24, 8), (25, 4), (26, 4)],
+            ),
+            create_history_entry_with_skill_ranks(4, 6, 0, 30, &[(10, 1), (18, 1), (24, 1)]),
+            create_history_entry_with_skill_ranks(4, 6, 0, 30, &[(10, 1), (18, 1), (24, 1)]),
+        ];
+        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(history));
+
+        let mut character = Character::from_gff(fields);
+        let mut game_data = create_mock_game_data();
+
+        let mut classes_parser = TDAParser::new();
+        classes_parser
+            .parse_from_string(
+                "2DA V2.0\n\nLabel HitDie SkillPointBase SkillsTable\n\
+                 0 Unused 6 2 ****\n\
+                 1 Unused 6 2 ****\n\
+                 2 Unused 6 2 ****\n\
+                 3 Unused 6 2 ****\n\
+                 4 Fighter 10 2 fighterskills\n",
+            )
+            .expect("Failed to parse test classes 2DA");
+        game_data.tables.insert(
+            "classes".to_string(),
+            LoadedTable::new("classes".to_string(), std::sync::Arc::new(classes_parser)),
+        );
+
+        let mut fighterskills = TDAParser::new();
+        fighterskills
+            .parse_from_string(
+                "2DA V2.0\n\nSkillIndex ClassSkill\n\
+                 0 10 1\n\
+                 1 18 1\n\
+                 2 24 1\n",
+            )
+            .expect("Failed to parse fighterskills 2DA");
+        game_data.tables.insert(
+            "fighterskills".to_string(),
+            LoadedTable::new(
+                "fighterskills".to_string(),
+                std::sync::Arc::new(fighterskills),
+            ),
+        );
+
+        character.normalize_level_one_skill_history_for_save(&game_data);
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        let first_entry = &history[0];
+        let first_skills = match first_entry.get("SkillList") {
+            Some(GffValue::ListOwned(list)) => list,
+            other => panic!("Unexpected level 1 SkillList: {other:?}"),
+        };
+
+        assert_eq!(
+            first_skills[10].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            first_skills[18].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            first_skills[24].get("Rank").and_then(gff_value_to_i32),
+            Some(4)
+        );
+        assert_eq!(
+            first_skills[21].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert_eq!(
+            first_skills[25].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert_eq!(
+            first_skills[26].get("Rank").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert_eq!(
+            first_entry.get("SkillPoints").and_then(gff_value_to_i32),
+            Some(0)
+        );
+        assert!(matches!(
+            first_entry.get("SkillPoints"),
+            Some(GffValue::Word(0))
+        ));
+    }
+
+    #[test]
+    fn test_normalize_level_one_skill_history_for_save_rewrites_skillpoints_type_when_ranks_match() {
+        let mut fields = IndexMap::new();
+        fields.insert("Race".to_string(), GffValue::Byte(0));
+        fields.insert("Str".to_string(), GffValue::Byte(18));
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("Con".to_string(), GffValue::Byte(16));
+        fields.insert("Int".to_string(), GffValue::Byte(12));
+        fields.insert("Wis".to_string(), GffValue::Byte(8));
+        fields.insert("Cha".to_string(), GffValue::Byte(8));
+        fields.insert("SkillPoints".to_string(), GffValue::Word(0));
+
+        let mut fighter = IndexMap::new();
+        fighter.insert("Class".to_string(), GffValue::Byte(4));
+        fighter.insert("ClassLevel".to_string(), GffValue::Short(3));
+        fields.insert("ClassList".to_string(), GffValue::ListOwned(vec![fighter]));
+
+        fields.insert(
+            "SkillList".to_string(),
+            GffValue::ListOwned(skill_list_with_ranks(
+                30,
+                &[(10, 6), (18, 6), (24, 6)],
+            )),
+        );
+
+        let history = vec![
+            create_history_entry_with_skill_ranks(4, 10, 0, 30, &[(10, 4), (18, 4), (24, 4)]),
+            create_history_entry_with_skill_ranks(4, 6, 0, 30, &[(10, 1), (18, 1), (24, 1)]),
+            create_history_entry_with_skill_ranks(4, 6, 0, 30, &[(10, 1), (18, 1), (24, 1)]),
+        ];
+        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(history));
+
+        let mut character = Character::from_gff(fields);
+        let mut game_data = create_mock_game_data();
+
+        let mut classes_parser = TDAParser::new();
+        classes_parser
+            .parse_from_string(
+                "2DA V2.0\n\nLabel HitDie SkillPointBase SkillsTable\n\
+                 0 Unused 6 2 ****\n\
+                 1 Unused 6 2 ****\n\
+                 2 Unused 6 2 ****\n\
+                 3 Unused 6 2 ****\n\
+                 4 Fighter 10 2 fighterskills\n",
+            )
+            .expect("Failed to parse test classes 2DA");
+        game_data.tables.insert(
+            "classes".to_string(),
+            LoadedTable::new("classes".to_string(), std::sync::Arc::new(classes_parser)),
+        );
+
+        let mut fighterskills = TDAParser::new();
+        fighterskills
+            .parse_from_string(
+                "2DA V2.0\n\nSkillIndex ClassSkill\n\
+                 0 10 1\n\
+                 1 18 1\n\
+                 2 24 1\n",
+            )
+            .expect("Failed to parse fighterskills 2DA");
+        game_data.tables.insert(
+            "fighterskills".to_string(),
+            LoadedTable::new(
+                "fighterskills".to_string(),
+                std::sync::Arc::new(fighterskills),
+            ),
+        );
+
+        character.normalize_level_one_skill_history_for_save(&game_data);
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        assert!(matches!(
+            history[0].get("SkillPoints"),
+            Some(GffValue::Word(0))
+        ));
+    }
+
+    #[test]
     fn test_level_up_reuses_engine_style_history_shape() {
         let mut character = create_level_one_character_with_full_history_entry();
         let game_data = create_game_data_with_class_rows(&[(4, "Fighter", 10, 2)]);
@@ -4098,6 +4479,7 @@ mod tests {
             }),
             Some(30)
         );
+        assert!(matches!(last.get("SkillPoints"), Some(GffValue::Word(_))));
         assert!(!last.contains_key("KnownList0"));
     }
 

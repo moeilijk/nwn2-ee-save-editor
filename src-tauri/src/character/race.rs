@@ -1000,7 +1000,7 @@ impl Character {
             race_name: self.race_name(game_data),
             subrace,
             size,
-            size_name: SizeCategory::from_id(size).name().to_string(),
+            size_name: self.get_size_name_from_2da(size, game_data),
             base_speed: self.get_base_speed(game_data),
             ability_modifiers,
             racial_feats: self
@@ -1013,16 +1013,35 @@ impl Character {
         }
     }
 
+    fn get_size_lookup_id(&self, size_id: i32, game_data: &GameData) -> i32 {
+        if let Some(appearance_id) = self.get_i32("Appearance_Type")
+            && let Some(appearance_table) = game_data.get_table("appearance")
+            && let Some(row) = appearance_table.get_by_id(appearance_id)
+            && let Some(size_category) = row
+                .get("SIZECATEGORY")
+                .or_else(|| row.get("SizeCategory"))
+                .or_else(|| row.get("sizecategory"))
+                .and_then(std::clone::Clone::clone)
+                .and_then(|s| s.parse::<i32>().ok())
+        {
+            return size_category;
+        }
+
+        size_id.saturating_sub(1)
+    }
+
     pub fn get_size_modifier(&self, size_id: i32, game_data: &GameData) -> i32 {
+        let lookup_id = self.get_size_lookup_id(size_id, game_data);
         let Some(size_table) = game_data.get_table("creaturesize") else {
             return SizeCategory::from_id(size_id).ac_modifier_default();
         };
 
-        let Some(row) = size_table.get_by_id(size_id) else {
+        let Some(row) = size_table.get_by_id(lookup_id) else {
             return SizeCategory::from_id(size_id).ac_modifier_default();
         };
 
         row.get("ACAttackMod")
+            .or_else(|| row.get("ACATTACKMOD"))
             .or_else(|| row.get("ac_attack_mod"))
             .and_then(std::clone::Clone::clone)
             .and_then(|s| s.parse::<i32>().ok())
@@ -1030,16 +1049,18 @@ impl Character {
     }
 
     pub fn get_size_name_from_2da(&self, size_id: i32, game_data: &GameData) -> String {
+        let lookup_id = self.get_size_lookup_id(size_id, game_data);
         let Some(size_table) = game_data.get_table("creaturesize") else {
             return SizeCategory::from_id(size_id).name().to_string();
         };
 
-        let Some(row) = size_table.get_by_id(size_id) else {
+        let Some(row) = size_table.get_by_id(lookup_id) else {
             return SizeCategory::from_id(size_id).name().to_string();
         };
 
         if let Some(label) = row
             .get("Label")
+            .or_else(|| row.get("LABEL"))
             .or_else(|| row.get("label"))
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "INVALID")
@@ -1324,6 +1345,55 @@ mod tests {
         assert_eq!(SizeCategory::Tiny.name(), "Tiny");
         assert_eq!(SizeCategory::Medium.name(), "Medium");
         assert_eq!(SizeCategory::Huge.name(), "Huge");
+    }
+
+    #[test]
+    fn test_get_size_modifier_prefers_appearance_sizecategory_for_loaded_characters() {
+        let mut fields = IndexMap::new();
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3));
+        fields.insert("Appearance_Type".to_string(), GffValue::Word(0));
+        let character = Character::from_gff(fields);
+
+        let mut game_data = create_mock_game_data();
+        game_data.tables.insert(
+            "appearance".to_string(),
+            create_loaded_table(
+                "appearance",
+                &["SIZECATEGORY"],
+                vec![AHashMap::from_iter([(
+                    "SIZECATEGORY".to_string(),
+                    Some("3".to_string()),
+                )])],
+            ),
+        );
+        game_data.tables.insert(
+            "creaturesize".to_string(),
+            create_loaded_table(
+                "creaturesize",
+                &["LABEL", "ACAttackMod"],
+                vec![
+                    AHashMap::from_iter([
+                        ("LABEL".to_string(), Some("INVALID".to_string())),
+                        ("ACAttackMod".to_string(), None),
+                    ]),
+                    AHashMap::from_iter([
+                        ("LABEL".to_string(), Some("TINY".to_string())),
+                        ("ACAttackMod".to_string(), Some("2".to_string())),
+                    ]),
+                    AHashMap::from_iter([
+                        ("LABEL".to_string(), Some("SMALL".to_string())),
+                        ("ACAttackMod".to_string(), Some("1".to_string())),
+                    ]),
+                    AHashMap::from_iter([
+                        ("LABEL".to_string(), Some("MEDIUM".to_string())),
+                        ("ACAttackMod".to_string(), Some("0".to_string())),
+                    ]),
+                ],
+            ),
+        );
+
+        assert_eq!(character.get_size_modifier(3, &game_data), 0);
+        assert_eq!(character.get_size_name_from_2da(3, &game_data), "Medium");
     }
 
     #[test]

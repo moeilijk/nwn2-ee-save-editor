@@ -430,7 +430,13 @@ impl ItemPropertyDecoder {
                 property_types::decode_ability_penalty(name, cost_value, raw_data)
             }
             PROPERTY_ID_AC_BONUS => {
-                let name = self.ac_types.get(&subtype).map_or("Unknown", |s| s);
+                let name = self
+                    .property_cache
+                    .get(&PROPERTY_ID_AC_BONUS)
+                    .and_then(|definition| definition.subtype_ref.as_deref())
+                    .filter(|subtype_ref| subtype_ref.eq_ignore_ascii_case("iprp_acmodtype"))
+                    .and_then(|_| self.ac_types.get(&subtype).map(String::as_str))
+                    .unwrap_or("Unknown");
                 property_types::decode_ac_bonus(name, cost_value, raw_data)
             }
             PROPERTY_ID_ENHANCEMENT => {
@@ -962,6 +968,7 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
 
         let name = row
             .get("Name")
+            .or_else(|| row.get("NAME"))
             .or_else(|| row.get("name"))
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
@@ -971,6 +978,7 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
 
         let game_str = name.clone().or_else(|| {
             row.get("GameString")
+                .or_else(|| row.get("GAMESTRING"))
                 .or_else(|| row.get("gamestring"))
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
@@ -980,6 +988,7 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
 
         let label = game_str.or_else(|| {
             row.get("Label")
+                .or_else(|| row.get("LABEL"))
                 .or_else(|| row.get("label"))
                 .and_then(|v| v.clone())
                 .filter(|s| !s.is_empty() && s != "****")

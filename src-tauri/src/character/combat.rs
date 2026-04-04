@@ -152,7 +152,7 @@ impl Character {
     pub fn get_melee_attack_bonus(&self, game_data: &GameData) -> i32 {
         let bab = self.calculate_bab(game_data);
         let str_mod = self.get_effective_ability_modifier(AbilityIndex::STR, game_data);
-        let size_mod = self.size_modifier();
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
 
         bab + str_mod + size_mod
     }
@@ -160,7 +160,7 @@ impl Character {
     pub fn get_ranged_attack_bonus(&self, game_data: &GameData) -> i32 {
         let bab = self.calculate_bab(game_data);
         let dex_mod = self.get_effective_ability_modifier(AbilityIndex::DEX, game_data);
-        let size_mod = self.size_modifier();
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
 
         bab + dex_mod + size_mod
     }
