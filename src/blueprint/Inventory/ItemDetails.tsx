@@ -1,4 +1,5 @@
-import { Button, ButtonGroup, H4, Icon } from '@blueprintjs/core';
+import { useState } from 'react';
+import { Alert, Button, ButtonGroup, H4, Icon } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { T } from '../theme';
 import { fmtNum } from '../shared';
@@ -23,13 +24,19 @@ function isEquippedItem(item: AnyItem): item is FullEquippedItem & { _kind: 'equ
 
 interface ItemDetailsProps {
   item: AnyItem | null;
+  canEquip?: boolean;
   onEdit?: () => void;
+  onEquip?: (index: number, slot: string) => void;
   onUnequip?: (slot: string) => void;
   onDelete?: (index: number) => void;
 }
 
-export function ItemDetails({ item, onEdit, onUnequip, onDelete }: ItemDetailsProps) {
+export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDelete }: ItemDetailsProps) {
   const t = useTranslations();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editPlotWarnOpen, setEditPlotWarnOpen] = useState(false);
+
+  const isPlot = item && !isEquippedItem(item) && (item as FullInventoryItem).plot;
 
   if (!item) {
     return (
@@ -77,12 +84,27 @@ export function ItemDetails({ item, onEdit, onUnequip, onDelete }: ItemDetailsPr
           )}
           {!equipped && (
             <ButtonGroup minimal>
+              <Button icon="edit" small text={t('common.edit')} style={{ color: T.textMuted }}
+                onClick={() => isPlot ? setEditPlotWarnOpen(true) : onEdit?.()}
+              />
+              {canEquip && (
+                <Button
+                  icon="hand-up"
+                  small
+                  text={t('inventory.equip')}
+                  style={{ color: T.textMuted }}
+                  onClick={() => {
+                    const inv = item as FullInventoryItem;
+                    if (inv.default_slot) onEquip?.(inv.index, inv.default_slot);
+                  }}
+                />
+              )}
               <Button
                 icon="trash"
                 small
                 intent="danger"
-                text="Delete"
-                onClick={() => onDelete?.((item as FullInventoryItem).index)}
+                text={t('inventory.delete')}
+                onClick={() => setDeleteConfirmOpen(true)}
               />
             </ButtonGroup>
           )}
@@ -99,9 +121,7 @@ export function ItemDetails({ item, onEdit, onUnequip, onDelete }: ItemDetailsPr
           <span style={{ fontWeight: 600 }}>{weight > 0 ? `${weight.toFixed(1)} lbs` : '-'}</span>
 
           <span style={{ color: T.textMuted }}>{t('inventory.value')}</span>
-          <span style={{ fontWeight: 600, color: value > 0 ? T.gold : T.text }}>
-            {value > 0 ? `${fmtNum(value)} gp` : '-'}
-          </span>
+          <span>{value > 0 ? `${fmtNum(value)} gp` : '-'}</span>
 
           {baseAc !== null && baseAc !== undefined && (
             <>
@@ -171,6 +191,32 @@ export function ItemDetails({ item, onEdit, onUnequip, onDelete }: ItemDetailsPr
           </ul>
         </div>
       )}
+
+      <Alert
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => { setDeleteConfirmOpen(false); onDelete?.((item as FullInventoryItem).index); }}
+        intent="danger"
+        icon="trash"
+        confirmButtonText={t('inventory.delete')}
+        cancelButtonText={t('actions.cancel')}
+      >
+        <p><strong>{name}</strong></p>
+        <p>{isPlot ? t('inventory.deleteWarningPlot') : t('inventory.deleteWarningRegular')}</p>
+      </Alert>
+
+      <Alert
+        isOpen={editPlotWarnOpen}
+        onClose={() => setEditPlotWarnOpen(false)}
+        onConfirm={() => { setEditPlotWarnOpen(false); onEdit?.(); }}
+        intent="warning"
+        icon="warning-sign"
+        confirmButtonText={t('common.edit')}
+        cancelButtonText={t('actions.cancel')}
+      >
+        <p><strong>{name}</strong></p>
+        <p>{t('inventory.editWarningPlot')}</p>
+      </Alert>
     </div>
   );
 }

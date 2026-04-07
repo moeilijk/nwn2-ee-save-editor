@@ -80,11 +80,30 @@ export interface KnownSpell {
   is_domain_spell?: boolean;
 }
 
+export interface PendingSpellLearning {
+  class_id: number;
+  class_name: string;
+  caster_type: 'spontaneous' | 'spellbook';
+  by_level: Record<number, number>;
+  total: number;
+}
+
+export interface AbilitySpellEntry {
+  spell_id: number;
+  name: string;
+  icon: string;
+  description?: string;
+  school_name?: string;
+  innate_level: number;
+}
+
 export interface SpellsState {
   spellcasting_classes: SpellcastingClass[];
   spell_summary: SpellSummary;
   memorized_spells: MemorizedSpell[];
   known_spells: KnownSpell[];
+  pending_spell_learning: PendingSpellLearning[];
+  ability_spells: AbilitySpellEntry[];
   available_by_level?: Record<number, SpellInfo[]>;
 }
 

@@ -1,6 +1,6 @@
 
-import { createContext, useContext, useCallback, ReactNode } from 'react';
-import { toast, Toaster } from 'sonner';
+import { createContext, useContext, useCallback, useRef, useEffect, ReactNode } from 'react';
+import { OverlayToaster, Toaster, Intent, IconName } from '@blueprintjs/core';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -10,39 +10,46 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-const toastFn: Record<ToastType, typeof toast.success> = {
-  success: toast.success,
-  error: toast.error,
-  warning: toast.warning,
-  info: toast.info,
+const intentMap: Record<ToastType, Intent> = {
+  success: Intent.SUCCESS,
+  error: Intent.DANGER,
+  warning: Intent.WARNING,
+  info: Intent.PRIMARY,
+};
+
+const iconMap: Record<ToastType, IconName> = {
+  success: 'tick-circle',
+  error: 'error',
+  warning: 'warning-sign',
+  info: 'info-sign',
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 5000, description?: string) => {
-    toastFn[type](message, { description, duration });
+  const toasterRef = useRef<Toaster | null>(null);
+
+  useEffect(() => {
+    OverlayToaster.createAsync({ position: 'bottom-right' }).then(t => {
+      toasterRef.current = t;
+    });
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 2500, description?: string) => {
+    toasterRef.current?.show({
+      message: description ? (
+        <div>
+          <strong>{message}</strong>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{description}</div>
+        </div>
+      ) : message,
+      intent: intentMap[type],
+      icon: iconMap[type],
+      timeout: duration,
+    });
   }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: 'rgb(var(--color-surface-3))',
-            border: '1px solid rgb(var(--color-border))',
-            color: 'rgb(var(--color-text-primary))',
-            fontSize: '13px',
-          },
-          classNames: {
-            description: 'toast-description',
-            success: 'toast-success',
-            error: 'toast-error',
-            warning: 'toast-warning',
-            info: 'toast-info',
-          },
-        }}
-      />
     </ToastContext.Provider>
   );
 }

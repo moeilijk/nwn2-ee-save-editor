@@ -1,34 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Button, Icon, Menu, MenuItem, Popover, Switch, Tab, Tabs, Tag,
 } from '@blueprintjs/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useLocale } from '@/providers/LocaleProvider';
+import { pathService, PathConfig } from '@/lib/api/paths';
 import { T } from '../theme';
 import { KVRow, ParchmentDialog } from '../shared';
-
-const DUMMY_PATHS = {
-  game_folder: { path: 'C:/GOG Games/Neverwinter Nights 2 Complete', exists: true, source: 'auto' as const },
-  documents_folder: { path: 'C:/Users/Player/Documents/Neverwinter Nights 2', exists: true, source: 'auto' as const },
-  steam_workshop_folder: { path: null as string | null, exists: false, source: 'auto' as const },
-  localvault_folder: { path: 'C:/Users/Player/Documents/Neverwinter Nights 2/localvault', exists: true, source: 'derived' as const },
-  custom_override_folders: [
-    { path: 'D:/NWN2 Mods/override', exists: true },
-  ] as { path: string; exists: boolean }[],
-  custom_hak_folders: [] as { path: string; exists: boolean }[],
-};
-
-const PATH_KEYS = {
-  game: 'game_folder',
-  documents: 'documents_folder',
-  workshop: 'steam_workshop_folder',
-} as const;
-
-const CUSTOM_KEYS = {
-  override: 'custom_override_folders',
-  hak: 'custom_hak_folders',
-} as const;
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -46,6 +26,7 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
   onEdit?: () => void;
   onReset?: () => void;
 }) {
+  const t = useTranslations();
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -56,12 +37,12 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
           <Icon icon="folder-close" size={16} color={T.textMuted} />
           <span style={{ fontWeight: 600, color: T.text }}>{label}</span>
           <Tag minimal round intent={autoDetected ? 'primary' : 'warning'} style={{ background: autoDetected ? 'rgba(45, 114, 210, 0.1)' : 'rgba(184, 149, 47, 0.1)' }}>
-            {autoDetected ? 'Auto-detected' : 'Manually Set'}
+            {autoDetected ? t('settings.paths.autoDetected') : t('settings.paths.manuallySet')}
           </Tag>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <span style={{ fontFamily: 'monospace', color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {path || '(Not configured)'}
+            {path || t('settings.paths.notConfigured')}
           </span>
           {path && (
             <Icon icon={exists ? 'tick-circle' : 'error'} size={14} color={exists ? T.positive : T.negative} />
@@ -70,19 +51,19 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
       </div>
       <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
         {!autoDetected && onReset && (
-          <Button small minimal text="Reset" onClick={onReset} style={{ color: T.textMuted }} />
+          <Button small minimal text={t('settings.paths.reset')} onClick={onReset} style={{ color: T.textMuted }} />
         )}
         {onEdit && (
-          <Button small outlined text={path ? 'Change' : 'Set'} onClick={onEdit} />
+          <Button small outlined text={path ? t('settings.paths.change') : t('settings.paths.set')} onClick={onEdit} />
         )}
       </div>
     </div>
   );
 }
 
-function CustomFolderList({ folders, label, onAdd, onRemove }: {
+function CustomFolderList({ folders, addLabel, onAdd, onRemove }: {
   folders: { path: string; exists: boolean }[];
-  label: string;
+  addLabel: string;
   onAdd: () => void;
   onRemove: (path: string) => void;
 }) {
@@ -111,7 +92,7 @@ function CustomFolderList({ folders, label, onAdd, onRemove }: {
         small
         outlined
         icon="plus"
-        text={`Add ${label}`}
+        text={addLabel}
         onClick={onAdd}
         style={{ alignSelf: 'flex-start' }}
       />
@@ -120,42 +101,67 @@ function CustomFolderList({ folders, label, onAdd, onRemove }: {
 }
 
 function GeneralTab() {
-  const { locale, setLocale } = useLocale();
+  const { setLocale } = useLocale();
   const t = useTranslations();
-  const [fontSize, setFontSize] = useState<string>('medium');
+  const [language, setLanguage] = useState('en');
+  const [fontSize, setFontSize] = useState('medium');
   const [debugExporting, setDebugExporting] = useState(false);
   const [debugResult, setDebugResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    invoke<{ language: string; font_size: string }>('get_app_config')
+      .then((config) => {
+        setLanguage(config.language);
+        setFontSize(config.font_size);
+      })
+      .catch(() => {});
+  }, []);
+
+  const updateSetting = (key: string, value: string) => {
+    invoke('update_app_config', { updates: { [key]: value } }).catch(() => {});
+  };
+
+  const handleLanguageChange = (newLocale: string) => {
+    setLanguage(newLocale);
+    setLocale(newLocale);
+    updateSetting('language', newLocale);
+  };
+
+  const handleFontSizeChange = (size: string) => {
+    setFontSize(size);
+    updateSetting('font_size', size);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <SectionHeader title="Language & Region" />
-        <KVRow label="Language" value={
+        <SectionHeader title={t('settings.general.languageRegion')} />
+        <KVRow label={t('settings.general.language')} value={
           <Popover
-            content={<Menu><MenuItem text="English" active={locale === 'en'} onClick={() => setLocale('en')} /></Menu>}
+            content={<Menu><MenuItem text={t('settings.general.languageEnglish')} active={language === 'en'} onClick={() => handleLanguageChange('en')} /></Menu>}
             placement="bottom-end"
             minimal
           >
-            <Button minimal rightIcon="caret-down" text={locale === 'en' ? 'English' : locale} style={{ fontWeight: 600 }} />
+            <Button minimal rightIcon="caret-down" text={language === 'en' ? t('settings.general.languageEnglish') : language} style={{ fontWeight: 600 }} />
           </Popover>
         } />
       </div>
 
       <div>
-        <SectionHeader title="Display" />
-        <KVRow label="Font Size" value={
+        <SectionHeader title={t('settings.general.display')} />
+        <KVRow label={t('settings.general.fontSize')} value={
           <Popover
             content={
               <Menu>
-                <MenuItem text="Small" active={fontSize === 'small'} onClick={() => setFontSize('small')} />
-                <MenuItem text="Medium" active={fontSize === 'medium'} onClick={() => setFontSize('medium')} />
-                <MenuItem text="Large" active={fontSize === 'large'} onClick={() => setFontSize('large')} />
+                <MenuItem text={t('settings.general.fontSizeSmall')} active={fontSize === 'small'} onClick={() => handleFontSizeChange('small')} />
+                <MenuItem text={t('settings.general.fontSizeMedium')} active={fontSize === 'medium'} onClick={() => handleFontSizeChange('medium')} />
+                <MenuItem text={t('settings.general.fontSizeLarge')} active={fontSize === 'large'} onClick={() => handleFontSizeChange('large')} />
               </Menu>
             }
             placement="bottom-end"
             minimal
           >
-            <Button minimal rightIcon="caret-down" text={fontSize.charAt(0).toUpperCase() + fontSize.slice(1)} style={{ fontWeight: 600 }} />
+            <Button minimal rightIcon="caret-down" text={t(`settings.general.fontSize${fontSize.charAt(0).toUpperCase() + fontSize.slice(1)}`)} style={{ fontWeight: 600 }} />
           </Popover>
         } />
       </div>
@@ -170,10 +176,14 @@ function GeneralTab() {
             onClick={async () => {
               setDebugExporting(true);
               setDebugResult(null);
-              setTimeout(() => {
-                setDebugResult({ success: true, message: 'Debug log saved to: C:/Users/Player/Desktop/debug_log.txt' });
+              try {
+                const filePath = await invoke<string>('export_debug_log');
+                setDebugResult({ success: true, message: `${t('settings.debug.exportSuccess')} ${filePath}` });
+              } catch {
+                setDebugResult({ success: false, message: t('settings.debug.exportError') });
+              } finally {
                 setDebugExporting(false);
-              }, 1000);
+              }
             }}
           />
         </div>
@@ -193,7 +203,12 @@ function GeneralTab() {
 }
 
 function PathsTab() {
-  const [paths, setPaths] = useState(DUMMY_PATHS);
+  const t = useTranslations();
+  const [paths, setPaths] = useState<PathConfig | null>(null);
+
+  useEffect(() => {
+    pathService.getConfig().then((response) => setPaths(response.paths)).catch(() => {});
+  }, []);
 
   const selectFolder = async (title: string): Promise<string | null> => {
     try {
@@ -202,65 +217,135 @@ function PathsTab() {
     } catch { return null; }
   };
 
-  const updatePath = async (type: keyof typeof PATH_KEYS) => {
-    const titles: Record<string, string> = {
-      game: 'Select NWN2 Game Folder',
-      documents: 'Select NWN2 Documents Folder',
-      workshop: 'Select Steam Workshop Folder',
+  const reloadConfig = async () => {
+    const response = await pathService.getConfig();
+    setPaths(response.paths);
+  };
+
+  const updatePath = async (type: 'game' | 'documents' | 'workshop') => {
+    const titleKeys: Record<string, string> = {
+      game: t('settings.paths.selectGameFolder'),
+      documents: t('settings.paths.selectDocumentsFolder'),
+      workshop: t('settings.paths.selectWorkshopFolder'),
     };
-    const selected = await selectFolder(titles[type]);
+    const selected = await selectFolder(titleKeys[type]);
     if (!selected) return;
-    setPaths(prev => ({ ...prev, [PATH_KEYS[type]]: { path: selected, exists: true, source: 'manual' } }));
+    try {
+      switch (type) {
+        case 'game': await pathService.setGameFolder(selected); break;
+        case 'documents': await pathService.setDocumentsFolder(selected); break;
+        case 'workshop': await pathService.setSteamWorkshopFolder(selected); break;
+      }
+      await reloadConfig();
+    } catch { /* ignore */ }
   };
 
-  const resetPath = (type: keyof typeof PATH_KEYS) => {
-    setPaths(prev => ({ ...prev, [PATH_KEYS[type]]: { ...prev[PATH_KEYS[type]], source: 'auto' } }));
+  const resetPath = async (type: 'game' | 'documents' | 'workshop') => {
+    try {
+      switch (type) {
+        case 'game': await pathService.resetGameFolder(); break;
+        case 'documents': await pathService.resetDocumentsFolder(); break;
+        case 'workshop': await pathService.resetSteamWorkshopFolder(); break;
+      }
+      await reloadConfig();
+    } catch { /* ignore */ }
   };
 
-  const addCustomFolder = async (type: keyof typeof CUSTOM_KEYS) => {
-    const selected = await selectFolder(`Select Custom ${type} Folder`);
+  const addCustomFolder = async (type: 'override' | 'hak') => {
+    const title = type === 'override' ? t('settings.paths.selectOverrideFolder') : t('settings.paths.selectHakFolder');
+    const selected = await selectFolder(title);
     if (!selected) return;
-    setPaths(prev => ({ ...prev, [CUSTOM_KEYS[type]]: [...prev[CUSTOM_KEYS[type]], { path: selected, exists: true }] }));
+    try {
+      if (type === 'override') {
+        await pathService.addOverrideFolder(selected);
+      } else {
+        await pathService.addHakFolder(selected);
+      }
+      await reloadConfig();
+    } catch { /* ignore */ }
   };
 
-  const removeCustomFolder = (type: keyof typeof CUSTOM_KEYS, path: string) => {
-    setPaths(prev => ({ ...prev, [CUSTOM_KEYS[type]]: prev[CUSTOM_KEYS[type]].filter(f => f.path !== path) }));
+  const removeCustomFolder = async (type: 'override' | 'hak', path: string) => {
+    try {
+      if (type === 'override') {
+        await pathService.removeOverrideFolder(path);
+      } else {
+        await pathService.removeHakFolder(path);
+      }
+      await reloadConfig();
+    } catch { /* ignore */ }
   };
+
+  if (!paths) {
+    return <div style={{ color: T.textMuted, padding: 16 }}>{t('settings.debug.exporting')}</div>;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <SectionHeader title="Main Paths" />
-        <PathRow label="Game Installation Folder" path={paths.game_folder.path} exists={paths.game_folder.exists} autoDetected={paths.game_folder.source === 'auto'} onEdit={() => updatePath('game')} onReset={() => resetPath('game')} />
-        <PathRow label="Documents Folder" path={paths.documents_folder.path} exists={paths.documents_folder.exists} autoDetected={paths.documents_folder.source === 'auto'} onEdit={() => updatePath('documents')} onReset={() => resetPath('documents')} />
-        <PathRow label="Steam Workshop Folder" path={paths.steam_workshop_folder.path} exists={paths.steam_workshop_folder.exists} autoDetected={paths.steam_workshop_folder.source === 'auto'} onEdit={() => updatePath('workshop')} onReset={() => resetPath('workshop')} />
-        <PathRow label="Character Vault (LocalVault)" path={paths.localvault_folder.path} exists={paths.localvault_folder.exists} autoDetected={paths.localvault_folder.source === 'derived'} />
+        <SectionHeader title={t('settings.paths.mainPaths')} />
+        <PathRow label={t('settings.paths.gameFolder')} path={paths.game_folder.path} exists={paths.game_folder.exists} autoDetected={paths.game_folder.source === 'auto'} onEdit={() => updatePath('game')} onReset={() => resetPath('game')} />
+        <PathRow label={t('settings.paths.documentsFolder')} path={paths.documents_folder.path} exists={paths.documents_folder.exists} autoDetected={paths.documents_folder.source === 'auto'} onEdit={() => updatePath('documents')} onReset={() => resetPath('documents')} />
+        <PathRow label={t('settings.paths.workshopFolder')} path={paths.steam_workshop_folder.path} exists={paths.steam_workshop_folder.exists} autoDetected={paths.steam_workshop_folder.source === 'auto'} onEdit={() => updatePath('workshop')} onReset={() => resetPath('workshop')} />
+        <PathRow label={t('settings.paths.localvaultFolder')} path={paths.localvault_folder.path} exists={paths.localvault_folder.exists} autoDetected={paths.localvault_folder.source === 'derived'} />
       </div>
 
       <div>
-        <SectionHeader title="Custom Override Folders" />
-        <CustomFolderList folders={paths.custom_override_folders} label="Override Folder" onAdd={() => addCustomFolder('override')} onRemove={(p) => removeCustomFolder('override', p)} />
+        <SectionHeader title={t('settings.paths.customOverrideFolders')} />
+        <CustomFolderList folders={paths.custom_override_folders} addLabel={t('settings.paths.addOverrideFolder')} onAdd={() => addCustomFolder('override')} onRemove={(p) => removeCustomFolder('override', p)} />
       </div>
 
       <div>
-        <SectionHeader title="Custom HAK Folders" />
-        <CustomFolderList folders={paths.custom_hak_folders} label="HAK Folder" onAdd={() => addCustomFolder('hak')} onRemove={(p) => removeCustomFolder('hak', p)} />
+        <SectionHeader title={t('settings.paths.customHakFolders')} />
+        <CustomFolderList folders={paths.custom_hak_folders} addLabel={t('settings.paths.addHakFolder')} onAdd={() => addCustomFolder('hak')} onRemove={(p) => removeCustomFolder('hak', p)} />
       </div>
     </div>
   );
 }
 
 function GameLaunchTab() {
-  const [autoClose, setAutoClose] = useState(false);
+  const t = useTranslations();
   const [showLaunchDialog, setShowLaunchDialog] = useState(true);
+  const [autoCloseOnLaunch, setAutoCloseOnLaunch] = useState(false);
+
+  useEffect(() => {
+    invoke<{ show_launch_dialog: boolean; auto_close_on_launch: boolean }>('get_app_config')
+      .then((config) => {
+        setShowLaunchDialog(config.show_launch_dialog);
+        setAutoCloseOnLaunch(config.auto_close_on_launch);
+      })
+      .catch(() => {});
+  }, []);
+
+  const updateSetting = (key: string, value: boolean) => {
+    invoke('update_app_config', { updates: { [key]: value } }).catch(() => {});
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <SectionHeader title="Launch Behavior" />
+        <SectionHeader title={t('settings.launch.launchBehavior')} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Switch checked={showLaunchDialog} onChange={() => setShowLaunchDialog(v => !v)} label="Show launch dialog after saving" style={{ marginBottom: 0 }} />
-          <Switch checked={autoClose} onChange={() => setAutoClose(v => !v)} label="Auto-close editor after launching game" style={{ marginBottom: 0 }} />
+          <Switch
+            checked={showLaunchDialog}
+            onChange={() => {
+              const next = !showLaunchDialog;
+              setShowLaunchDialog(next);
+              updateSetting('show_launch_dialog', next);
+            }}
+            label={t('settings.launch.showLaunchDialog')}
+            style={{ marginBottom: 0 }}
+          />
+          <Switch
+            checked={autoCloseOnLaunch}
+            onChange={() => {
+              const next = !autoCloseOnLaunch;
+              setAutoCloseOnLaunch(next);
+              updateSetting('auto_close_on_launch', next);
+            }}
+            label={t('settings.launch.autoClose')}
+            style={{ marginBottom: 0 }}
+          />
         </div>
       </div>
     </div>
@@ -268,6 +353,7 @@ function GameLaunchTab() {
 }
 
 function SettingsContent() {
+  const t = useTranslations();
   const [activeTab, setActiveTab] = useState<string>('general');
 
   return (
@@ -280,9 +366,9 @@ function SettingsContent() {
           renderActiveTabPanelOnly
           large
         >
-          <Tab id="general" title="General" />
-          <Tab id="paths" title="Game Paths" />
-          <Tab id="launch" title="Game Launch" />
+          <Tab id="general" title={t('settings.tabs.general')} />
+          <Tab id="paths" title={t('settings.tabs.paths')} />
+          <Tab id="launch" title={t('settings.tabs.launch')} />
         </Tabs>
       </div>
       <div style={{ padding: 16, height: 420, overflowY: 'auto' }}>
@@ -295,15 +381,16 @@ function SettingsContent() {
 }
 
 export function SettingsDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const t = useTranslations();
   return (
     <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Settings"
+      title={t('settings.title')}
       width={680}
       minHeight={480}
       footerActions={
-        <Button intent="primary" text="Done" onClick={onClose} />
+        <Button intent="primary" text={t('settings.done')} onClick={onClose} />
       }
     >
       <div style={{ margin: -16 }}>

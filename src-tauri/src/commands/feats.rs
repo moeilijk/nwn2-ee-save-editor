@@ -319,7 +319,6 @@ pub(super) fn build_feat_list(
         if let Some(feat_data) = feats_table.get_by_id(feat_id.0) {
             let removed = feat_data
                 .get("removed")
-                .or_else(|| feat_data.get("REMOVED"))
                 .and_then(|s| s.as_ref())
                 .is_some_and(|s| s == "1");
 
@@ -479,8 +478,7 @@ pub async fn check_feat_availability(
         .map_or_else(|| format!("feat_{feat_id}"), |s| s.clone());
 
     let description = feat_data
-        .get("DESCRIPTION")
-        .or_else(|| feat_data.get("description"))
+        .get("description")
         .and_then(|s| s.as_ref()?.parse::<i32>().ok())
         .and_then(|strref| game_data.get_string(strref))
         .unwrap_or_default();

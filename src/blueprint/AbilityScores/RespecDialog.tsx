@@ -1,7 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button, ProgressBar } from '@blueprintjs/core';
 import { T } from '../theme';
 import { mod, ParchmentDialog } from '../shared';
+import { useTranslations } from '@/hooks/useTranslations';
+import type { AbilityScores, PointBuyState } from '@/lib/bindings';
 
 type AbilityKey = 'Str' | 'Dex' | 'Con' | 'Int' | 'Wis' | 'Cha';
 
@@ -29,15 +31,41 @@ function cost(score: number): number {
 interface RespecDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  pointBuyState: PointBuyState | null;
+  onApply?: (scores: AbilityScores) => Promise<void>;
 }
 
-export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
+export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: RespecDialogProps) {
+  const t = useTranslations();
   const [scores, setScores] = useState<Record<AbilityKey, number>>({
     Str: 10, Dex: 10, Con: 10, Int: 10, Wis: 10, Cha: 10,
   });
+  const [isApplying, setIsApplying] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && pointBuyState?.starting_scores) {
+      setScores({
+        Str: pointBuyState.starting_scores.Str,
+        Dex: pointBuyState.starting_scores.Dex,
+        Con: pointBuyState.starting_scores.Con,
+        Int: pointBuyState.starting_scores.Int,
+        Wis: pointBuyState.starting_scores.Wis,
+        Cha: pointBuyState.starting_scores.Cha,
+      });
+    }
+  }, [isOpen, pointBuyState]);
+
+  const initialScores = useMemo(() => {
+    if (pointBuyState?.starting_scores) {
+      const s = pointBuyState.starting_scores;
+      return { Str: s.Str, Dex: s.Dex, Con: s.Con, Int: s.Int, Wis: s.Wis, Cha: s.Cha };
+    }
+    return { Str: 10, Dex: 10, Con: 10, Int: 10, Wis: 10, Cha: 10 };
+  }, [pointBuyState]);
 
   const totalCost = useMemo(() => KEYS.reduce((s, k) => s + cost(scores[k]), 0), [scores]);
   const remaining = BUDGET - totalCost;
+  const hasChanged = useMemo(() => KEYS.some(k => scores[k] !== initialScores[k]), [scores, initialScores]);
 
   const change = useCallback((key: AbilityKey, delta: number) => {
     const next = scores[key] + delta;
@@ -49,28 +77,31 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
 
   const reset = () => setScores({ Str: 8, Dex: 8, Con: 8, Int: 8, Wis: 8, Cha: 8 });
 
-  const handleOpen = () => {
-    setScores({ Str: 10, Dex: 10, Con: 10, Int: 10, Wis: 10, Cha: 10 });
-  };
-
   return (
     <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
-      onOpened={handleOpen}
-      title="Respec - Point Buy"
+      title={t('abilityScores.pointBuy.title')}
       width={480}
       footerActions={
         <Button
-          text="Apply"
-          intent="primary"
-          disabled={remaining < 0}
-          onClick={onClose}
-          style={{ background: T.accent }}
+          text={isApplying ? t('actions.saving') : t('actions.apply')}
+          intent={remaining === 0 && hasChanged && !isApplying ? 'primary' : 'none'}
+          disabled={remaining !== 0 || !hasChanged || isApplying}
+          onClick={async () => {
+            setIsApplying(true);
+            try {
+              await onApply?.(scores as AbilityScores);
+              onClose();
+            } finally {
+              setIsApplying(false);
+            }
+          }}
+          style={remaining === 0 && hasChanged && !isApplying ? { background: T.accent } : undefined}
         />
       }
       footerLeft={
-        <Button text="Reset All" icon="reset" minimal onClick={reset} style={{ color: T.negative }} />
+        <Button text={t('abilityScores.pointBuy.reset')} icon="reset" minimal onClick={reset} style={{ color: T.textMuted }} />
       }
     >
       <div style={{
@@ -78,19 +109,19 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
         background: '#fde8e8', border: `1px solid ${T.negative}30`,
         fontSize: 12, color: T.negative, lineHeight: 1.5,
       }}>
-        This will reset all base ability scores to the point buy values. Level-up increases, racial bonuses, and equipment bonuses are recalculated automatically.
+        {t('abilityScores.pointBuy.warning')}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
-            Points Used: <strong style={{ color: T.text }}>{totalCost}</strong> / {BUDGET}
+            {t('abilityScores.pointBuy.pointsUsed')}: <strong style={{ color: T.text }}>{totalCost}</strong> / {BUDGET}
           </span>
           <span style={{
             fontSize: 12, fontWeight: 700,
             color: remaining === 0 ? T.positive : remaining < 0 ? T.negative : T.accent,
           }}>
-            {remaining} remaining
+            {remaining} {t('abilityScores.pointBuy.remaining')}
           </span>
         </div>
         <ProgressBar
@@ -129,7 +160,7 @@ export function RespecDialog({ isOpen, onClose }: RespecDialogProps) {
               </span>
               <Button
                 icon="plus" small minimal
-                disabled={score >= MAX || remaining <= 0}
+                disabled={score >= MAX || remaining < (cost(score + 1) - cost(score))}
                 onClick={() => change(key, 1)}
                 style={{ color: T.textMuted }}
               />

@@ -463,6 +463,7 @@ export function useAbilityScores(
     calculateModifier,
     updateAlignment,
 
+    updateStats,
     pointSummary,
     resetAbilityOverrides: () => setLocalAbilityScoreOverrides({}),
   };

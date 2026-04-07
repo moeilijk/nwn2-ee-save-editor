@@ -146,19 +146,17 @@ pub fn update_campaign_settings(
     if let Err(e) = backup_campaign_file(&campaign_file, settings, paths) {
         warn!("Failed to backup campaign file: {}", e);
     }
-
-    // Read existing GFF to preserve other fields
-    let parser = GffParser::new(&campaign_file)
+    // Read existing GFF into memory to preserve fields not in CampaignSettings
+    let file_bytes = fs::read(&campaign_file)
+        .map_err(|e| format!("Failed to read campaign file: {e}"))?;
+    let parser = GffParser::from_bytes(file_bytes)
         .map_err(|e| format!("Failed to parse campaign file for update: {e}"))?;
-
     let root_fields = parser
         .read_struct_fields(0)
         .map_err(|e| format!("Failed to read root struct: {e}"))?;
-
-    // Convert to owned map
     let mut owned_fields: IndexMap<String, GffValue<'static>> = root_fields
         .into_iter()
-        .map(|(k, v)| (k, v.into_owned()))
+        .map(|(k, v)| (k, v.force_owned()))
         .collect();
 
     // Update fields
@@ -206,17 +204,28 @@ pub fn update_campaign_settings(
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampaignBackupInfo {
+    pub filename: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub created_at: i64,
+}
+
+fn get_campaign_backups_dir(paths: &NWN2Paths) -> Result<PathBuf, String> {
+    Ok(paths
+        .saves()
+        .ok_or("Saves path not configured")?
+        .join("backups")
+        .join("campaign_backups"))
+}
+
 fn backup_campaign_file(
     path: &Path,
     settings: &CampaignSettings,
     paths: &NWN2Paths,
 ) -> Result<PathBuf, String> {
-    let backup_dir = paths
-        .saves()
-        .ok_or("Saves path not configured")?
-        .join("backups")
-        .join("campaign_backups");
-
+    let backup_dir = get_campaign_backups_dir(paths)?;
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     let timestamp = Local::now().format("%Y%m%d_%H%M%S");
@@ -240,6 +249,79 @@ fn backup_campaign_file(
 
     info!("Created campaign backup at {:?}", backup_path);
     Ok(backup_path)
+}
+
+pub fn list_campaign_backups(
+    campaign_id: &str,
+    paths: &NWN2Paths,
+) -> Result<Vec<CampaignBackupInfo>, String> {
+    let backup_dir = get_campaign_backups_dir(paths)?;
+
+    if !backup_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let guid_prefix: String = campaign_id.chars().take(8).collect();
+    let mut backups = Vec::new();
+
+    for entry in fs::read_dir(&backup_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+
+        if path.is_file() && path.extension().is_some_and(|e| e == "cam") {
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string();
+
+            if !guid_prefix.is_empty() && !filename.contains(&guid_prefix) {
+                continue;
+            }
+
+            let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+            let created_at = metadata
+                .created()
+                .or_else(|_| metadata.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_secs() as i64);
+
+            backups.push(CampaignBackupInfo {
+                filename,
+                path: path.to_string_lossy().to_string(),
+                size_bytes: metadata.len(),
+                created_at,
+            });
+        }
+    }
+
+    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Ok(backups)
+}
+
+pub fn restore_campaign_from_backup(
+    backup_path: &str,
+    campaign_id: &str,
+    paths: &NWN2Paths,
+) -> Result<(), String> {
+    let backup = PathBuf::from(backup_path);
+    if !backup.exists() {
+        return Err(format!("Backup file not found: {backup_path}"));
+    }
+
+    let campaign_file = find_campaign_path(campaign_id, paths)
+        .ok_or_else(|| format!("Campaign file for GUID {campaign_id} not found"))?;
+
+    fs::copy(&backup, &campaign_file)
+        .map_err(|e| format!("Failed to restore campaign backup: {e}"))?;
+
+    info!(
+        "Restored campaign from backup: {} -> {}",
+        backup.display(),
+        campaign_file.display()
+    );
+    Ok(())
 }
 
 #[cfg(test)]

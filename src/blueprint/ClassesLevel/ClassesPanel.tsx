@@ -280,7 +280,8 @@ export function ClassesPanel() {
               {classes.map((cls, i) => {
                 const atMax = isAtMaxLevel(cls.id);
                 const remaining = getRemainingLevels(cls.id);
-                const maxForClass = Math.min(cls.max_level ?? maxLevel, maxLevel - totalLevel + cls.level);
+                const classLevelCap = (cls.max_level && cls.max_level > 0) ? cls.max_level : maxLevel;
+                const maxForClass = Math.min(classLevelCap, maxLevel - totalLevel + cls.level);
                 return (
                   <tr key={`${cls.id}-${i}`}>
                     <td>
@@ -298,7 +299,7 @@ export function ClassesPanel() {
                         width={88}
                         disabled={isUpdating}
                       />
-                      {cls.max_level && cls.max_level < 60 && (
+                      {cls.max_level != null && cls.max_level > 0 && cls.max_level < 60 && (
                         <div style={{ fontSize: 10, color: atMax ? T.negative : T.textMuted, marginTop: 1 }}>
                           {atMax ? 'Max Level' : `${remaining} left`}
                         </div>
@@ -363,9 +364,9 @@ export function ClassesPanel() {
           <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 64 }} />
-              <col style={{ width: 90 }} />
-              <col style={{ width: 56 }} />
-              <col style={{ width: 50 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 72 }} />
+              <col style={{ width: 48 }} />
               <col style={{ width: 72 }} />
               <col style={{ width: '25%' }} />
               <col />
@@ -375,7 +376,7 @@ export function ClassesPanel() {
                 <th style={{ textAlign: 'center' }}>{t('classes.level')}</th>
                 <th>{t('classes.class')}</th>
                 <th style={{ textAlign: 'center' }}>{t('classes.hpGained')}</th>
-                <th style={{ textAlign: 'center' }}>{t('classes.skillPointsRemaining')}</th>
+                <th style={{ textAlign: 'center' }}>SP Left</th>
                 <th style={{ textAlign: 'center' }}>{t('classes.abilityIncrease')}</th>
                 <th>{t('classes.skills')}</th>
                 <th>{t('classes.feats')}</th>
@@ -399,7 +400,7 @@ export function ClassesPanel() {
                   </td>
                   <td>
                     {lv.feats_gained && lv.feats_gained.length > 0
-                      ? lv.feats_gained.map(f => f.name).join(', ')
+                      ? lv.feats_gained.map(f => f.name.replace(/<[^>]*>/g, '')).join(', ')
                       : <span style={{ color: T.textMuted }}>-</span>
                     }
                   </td>

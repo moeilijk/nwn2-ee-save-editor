@@ -32,7 +32,7 @@ async fn extract_storm_campaign_character() {
     println!("================================================================");
 
     // ── Overview (same as get_overview_state) ──
-    let overview = character.get_overview_state(game_data);
+    let overview = character.get_overview_state(game_data, decoder);
     println!("\n--- OVERVIEW (get_overview_state) ---");
     println!("Name:        {}", overview.full_name);
     println!("Race:        {}", overview.race_name);

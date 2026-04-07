@@ -21,9 +21,11 @@ export const T = {
 } as const;
 
 export const FEAT_TYPE_COLORS: Record<string, string> = {
-  Combat: '#d84315', General: '#43a047', Class: '#1e88e5', Proficiency: '#6d4c41',
-  Metamagic: '#8e24aa', Divine: '#f9a825', Background: '#00897b', Racial: '#00acc1',
-  Epic: '#e53935',
+  General: '#43a047', Proficiency: '#6d4c41', 'Skill/Save': '#00acc1',
+  Metamagic: '#8e24aa', Divine: '#f9a825', Epic: '#e53935',
+  Class: '#1e88e5', Background: '#00897b', Spellcasting: '#5c6bc0',
+  History: '#f57f17', Heritage: '#c62828', 'Item Creation': '#689f38',
+  Racial: '#00838f', Domain: '#7b1fa2',
 };
 
 export const SPELL_SCHOOL_COLORS: Record<string, string> = {

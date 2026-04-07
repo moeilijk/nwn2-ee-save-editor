@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Button, Card, Elevation, HTMLTable, InputGroup, NonIdealState, Spinner, Tag } from '@blueprintjs/core';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Alert, Button, Card, Elevation, HTMLTable, InputGroup, NonIdealState, Spinner, Tag } from '@blueprintjs/core';
 import { T } from '../theme';
 import { ModCell, mod, StepInput } from '../shared';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
@@ -31,9 +31,11 @@ export function SkillsPanel() {
   const [sortCol, setSortCol] = useState<SortCol>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [localOverrides, setLocalOverrides] = useState<Record<number, number>>({});
-  const [updatingSkills, setUpdatingSkills] = useState<Set<number>>(new Set());
   const [isResetting, setIsResetting] = useState(false);
+  const pendingRef = useRef<Record<number, number>>({});
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fixedTotalBudget, setFixedTotalBudget] = useState<number | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const { data: skillsData, isLoading, error } = skillsSubsystem;
 
@@ -46,6 +48,12 @@ export function SkillsPanel() {
   useEffect(() => {
     setLocalOverrides({});
   }, [skillsData]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setFixedTotalBudget(null);
@@ -83,29 +91,32 @@ export function SkillsPanel() {
     }
   };
 
-  const handleRankChange = async (skillId: number, newRank: number) => {
-    if (!character?.id || newRank < 0) return;
-
-    setLocalOverrides(prev => ({ ...prev, [skillId]: newRank }));
-    setUpdatingSkills(prev => new Set([...prev, skillId]));
+  const flushSkillUpdates = useCallback(async () => {
+    const batch = { ...pendingRef.current };
+    pendingRef.current = {};
+    if (Object.keys(batch).length === 0) return;
 
     try {
-      await updateSkills({ [skillId]: newRank });
+      await updateSkills(batch);
     } catch (err) {
       handleError(err);
       setLocalOverrides(prev => {
         const updated = { ...prev };
-        delete updated[skillId];
+        for (const id of Object.keys(batch)) delete updated[Number(id)];
         return updated;
       });
-    } finally {
-      setUpdatingSkills(prev => {
-        const next = new Set(prev);
-        next.delete(skillId);
-        return next;
-      });
     }
-  };
+  }, [updateSkills, handleError]);
+
+  const handleRankChange = useCallback((skillId: number, newRank: number) => {
+    if (!character?.id || newRank < 0) return;
+
+    setLocalOverrides(prev => ({ ...prev, [skillId]: newRank }));
+    pendingRef.current[skillId] = newRank;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(flushSkillUpdates, 50);
+  }, [character?.id, flushSkillUpdates]);
 
   const handleReset = async () => {
     if (!character?.id) return;
@@ -165,17 +176,17 @@ export function SkillsPanel() {
             style={{ maxWidth: 240 }}
           />
           <Button icon="reset" text={t('skills.reset')} minimal style={{ color: T.textMuted }}
-            onClick={handleReset} disabled={isResetting} />
+            onClick={() => setShowResetConfirm(true)} disabled={isResetting} />
         </div>
 
         <div style={{ padding: '12px 16px 16px' }}>
           <HTMLTable compact striped bordered interactive style={{ width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col />
-              <col style={{ width: 200 }} />
-              <col style={{ width: 72 }} />
-              <col style={{ width: 72 }} />
-              <col style={{ width: 72 }} />
+              <col style={{ width: 240 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 64 }} />
+              <col style={{ width: 64 }} />
+              <col style={{ width: 64 }} />
               <col style={{ width: 80 }} />
             </colgroup>
             <thead>
@@ -201,7 +212,7 @@ export function SkillsPanel() {
                   <tr key={s.skill_id}>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <strong style={{ color: T.text, display: 'inline-block', width: 120 }}>{s.name}</strong>
+                        <strong style={{ color: T.text }}>{s.name}</strong>
                         <span style={{ color: T.textMuted, display: 'inline-block', width: 28 }}>{s.ability}</span>
                         {s.armor_check_penalty && (
                           <Tag minimal style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.accent }}>ACP</Tag>
@@ -216,7 +227,6 @@ export function SkillsPanel() {
                         value={s.ranks}
                         onValueChange={(v) => handleRankChange(s.skill_id, v)}
                         min={0} max={99} width={88}
-                        disabled={updatingSkills.has(s.skill_id)}
                       />
                     </td>
                     <td style={{ textAlign: 'center' }}><ModCell value={s.modifier} /></td>
@@ -238,6 +248,18 @@ export function SkillsPanel() {
           </div>
         </div>
       </Card>
+
+      <Alert
+        isOpen={showResetConfirm}
+        onCancel={() => setShowResetConfirm(false)}
+        onConfirm={() => { setShowResetConfirm(false); handleReset(); }}
+        cancelButtonText={t('skills.cancel')}
+        confirmButtonText={t('skills.reset')}
+        intent="danger"
+        icon="reset"
+      >
+        <p>{t('skills.resetConfirmMessage')}</p>
+      </Alert>
     </div>
   );
 }

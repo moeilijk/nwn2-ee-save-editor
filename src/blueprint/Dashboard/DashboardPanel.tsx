@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Button, Spinner } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
@@ -47,13 +48,26 @@ export default function DashboardPanel() {
             date: save.modified
               ? new Date(save.modified * 1000).toLocaleString()
               : '',
-            thumbnail: save.thumbnail || null,
+            thumbnail: null,
             isActive: false,
           };
         });
 
         setSaves(entries);
         setSavePaths(paths);
+
+        // Load thumbnails in background
+        result.forEach((save, i) => {
+          if (save.thumbnail) {
+            TauriAPI.getSaveThumbnail(save.thumbnail).then(base64 => {
+              if (!cancelled) {
+                setSaves(prev => prev.map((s, j) =>
+                  j === i ? { ...s, thumbnail: base64 } : s
+                ));
+              }
+            }).catch(() => { /* thumbnail failed, keep placeholder */ });
+          }
+        });
       } catch (err) {
         if (!cancelled) handleError(err);
       } finally {
@@ -142,13 +156,10 @@ export default function DashboardPanel() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
+          justifyContent: 'flex-end',
+          padding: '10px 24px',
           borderBottom: `1px solid ${T.borderLight}`,
         }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: T.accent }}>
-            {t('dashboard.title')}
-          </span>
           <div style={{ display: 'flex', gap: 4 }}>
             {selectedIndex !== null && (
               <Button
@@ -164,10 +175,36 @@ export default function DashboardPanel() {
             <Button minimal small icon="import" onClick={() => setShowVaultBrowser(true)}>
               {t('actions.importCharacter')}
             </Button>
-            <Button minimal small icon="folder-open" onClick={() => TauriAPI.openFolderInExplorer('').catch(() => {})}>
+            <Button
+              minimal
+              small
+              icon="folder-open"
+              onClick={async () => {
+                try {
+                  const config = await TauriAPI.getPathsConfig();
+                  const docsPath = config?.documents_folder?.path;
+                  if (docsPath) {
+                    await TauriAPI.openFolderInExplorer(docsPath);
+                  }
+                } catch (err) { handleError(err); }
+              }}
+            >
               {t('actions.openDocumentsFolder')}
             </Button>
-            <Button minimal small icon="history" onClick={() => setShowBackupBrowser(true)}>
+            <Button
+              minimal
+              small
+              icon="history"
+              onClick={async () => {
+                try {
+                  const path = await invoke<string>('get_default_backups_path');
+                  if (path) {
+                    setBackupPath(path);
+                  }
+                } catch { /* open dialog anyway */ }
+                setShowBackupBrowser(true);
+              }}
+            >
               {t('actions.manageBackups')}
             </Button>
             <Button minimal small icon="cog" onClick={() => setShowSettings(true)}>

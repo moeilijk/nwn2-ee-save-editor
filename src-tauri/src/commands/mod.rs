@@ -1,5 +1,6 @@
 pub mod campaign;
 pub mod character;
+pub mod config;
 pub mod classes;
 pub mod combat;
 pub mod debug;

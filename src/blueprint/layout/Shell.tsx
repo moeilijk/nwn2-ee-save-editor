@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Elevation, Icon, Overlay2, ProgressBar, Spinner } from '@blueprintjs/core';
+import { Button, Card, Elevation, Icon, ProgressBar } from '@blueprintjs/core';
 import { invoke } from '@tauri-apps/api/core';
 import { TauriAPI } from '@/lib/tauri-api';
 import { CharacterProvider, useCharacterContext } from '@/contexts/CharacterContext';
@@ -30,23 +30,6 @@ const PANELS: Record<string, React.ComponentType> = {
   inventory: InventoryPanel,
   gamestate: GameStatePanel,
 };
-
-function LoadingOverlay({ isOpen, message }: { isOpen: boolean; message: string }) {
-  return (
-    <Overlay2 isOpen={isOpen} canEscapeKeyClose={false} canOutsideClickClose={false}>
-      <div style={{
-        position: 'fixed', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.5)',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <Spinner size={40} intent="primary" />
-          <div style={{ marginTop: 12, color: '#e8e4dc', fontSize: 14 }}>{message}</div>
-        </div>
-      </div>
-    </Overlay2>
-  );
-}
 
 function ShellContent() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -82,7 +65,6 @@ function ShellContent() {
             padding: '8px 16px', background: T.sectionBg, borderBottom: `1px solid ${T.sectionBorder}`,
           }}>
             <span style={{ fontSize: 13, color: T.text }}>
-              <Icon icon="person" size={12} style={{ marginRight: 6 }} />
               <strong>{t('dashboard.sessionActive', { name: character.name })}</strong>
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -93,7 +75,6 @@ function ShellContent() {
         )}
         <DashboardPanel />
         <AboutDialog isOpen={showAbout} onClose={() => setShowAbout(false)} />
-        <LoadingOverlay isOpen={isLoading} message={t('common.loading')} />
       </div>
     );
   }
@@ -126,7 +107,6 @@ function ShellContent() {
         </div>
       </div>
       <AboutDialog isOpen={showAbout} onClose={() => setShowAbout(false)} />
-      <LoadingOverlay isOpen={isLoading} message={t('common.loading')} />
     </div>
   );
 }
@@ -154,7 +134,7 @@ export default function Shell() {
       } catch {
         // backend not ready yet
       }
-      if (!cancelled) setTimeout(poll, 500);
+      if (!cancelled) setTimeout(poll, 50);
     };
     poll();
 

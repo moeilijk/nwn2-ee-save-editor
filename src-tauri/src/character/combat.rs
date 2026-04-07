@@ -137,15 +137,7 @@ impl Character {
     }
 
     pub fn size_modifier(&self) -> i32 {
-        let size = self.creature_size();
-        match size {
-            2 => 2,
-            3 => 1,
-            4 => 0,
-            5 => -1,
-            6 => -2,
-            _ => 0,
-        }
+        self.size_category().ac_modifier_default()
     }
 
     pub fn get_melee_attack_bonus(&self, game_data: &GameData) -> i32 {
@@ -516,23 +508,24 @@ mod tests {
     fn test_size_modifier() {
         let mut fields = IndexMap::new();
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(2));
+        // NWN2 creaturesize.2da: 1=Tiny(+2), 2=Small(+1), 3=Medium(0), 4=Large(-1), 5=Huge(-2)
+        fields.insert("CreatureSize".to_string(), GffValue::Int(1));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 2);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(3));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(2));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 1);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 0);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(5));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), -1);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(6));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(5));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), -2);
     }

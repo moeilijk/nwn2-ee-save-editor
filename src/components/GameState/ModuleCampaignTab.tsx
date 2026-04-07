@@ -217,7 +217,7 @@ export default function ModuleCampaignTab() {
     setRestoreError(null);
 
     try {
-      const data = await gameStateAPI.getCampaignBackups(characterId);
+      const data = await gameStateAPI.getSaveBackups();
       setBackups(data.backups);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load backups';

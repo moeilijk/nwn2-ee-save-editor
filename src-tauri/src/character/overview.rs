@@ -6,7 +6,7 @@ use super::Character;
 use super::classes::{ClassSummaryEntry, XpProgress};
 use super::feats::DomainInfo;
 use super::identity::Alignment;
-use super::types::{HitPoints, SaveBonuses};
+use super::types::{AbilityModifiers, AbilityScores, HitPoints, SaveBonuses};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OverviewState {
@@ -36,12 +36,45 @@ pub struct OverviewState {
     pub gold: u32,
     pub skill_points_available: i32,
 
+    pub size_name: String,
+
     pub background: Option<String>,
     pub domains: Vec<DomainInfo>,
+
+    pub ability_scores: AbilityScores,
+    pub ability_modifiers: AbilityModifiers,
+    pub melee_attack_bonus: i32,
+    pub ranged_attack_bonus: i32,
+    pub initiative: i32,
+    pub movement_speed: i32,
+    pub total_feats: i32,
+    pub known_spells_count: i32,
+    pub spent_skill_points: i32,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub campaign_info: Option<CampaignOverviewInfo>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CampaignOverviewInfo {
+    pub campaign_name: Option<String>,
+    pub module_name: Option<String>,
+    pub area_name: Option<String>,
+    pub game_year: Option<u32>,
+    pub game_month: Option<u8>,
+    pub game_day: Option<u8>,
+    pub game_hour: Option<u8>,
+    pub game_act: Option<String>,
+    pub last_saved: Option<String>,
+    pub difficulty: Option<String>,
 }
 
 impl Character {
-    pub fn get_overview_state(&self, game_data: &GameData) -> OverviewState {
+    pub fn get_overview_state(
+        &self,
+        game_data: &GameData,
+        decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
+    ) -> OverviewState {
         let alignment = self.alignment();
         let gender_id = self.gender();
         let gender_str = match gender_id {
@@ -73,9 +106,22 @@ impl Character {
         };
 
         let bab = self.calculate_bab(game_data);
-        let dex_mod = self.ability_modifier(super::types::AbilityIndex::DEX);
-        let tumble_rank = self.skill_rank(crate::character::types::SkillId(21));
-        let base_ac = 10 + dex_mod + self.natural_ac() + (tumble_rank / 10);
+        let armor_class = self.get_armor_class(game_data, decoder).total;
+        let attack_bonuses = self.get_attack_bonuses(game_data, decoder);
+        let initiative = self.get_initiative_breakdown(game_data, decoder);
+        let movement = self.get_movement_speed(game_data);
+
+        let base_scores = self.base_scores();
+        let equip = self.get_equipment_bonuses(game_data, decoder);
+        let total_scores = AbilityScores::new(
+            base_scores.str_ + equip.str_bonus,
+            base_scores.dex + equip.dex_bonus,
+            base_scores.con + equip.con_bonus,
+            base_scores.int + equip.int_bonus,
+            base_scores.wis + equip.wis_bonus,
+            base_scores.cha + equip.cha_bonus,
+        );
+        let ability_modifiers = AbilityModifiers::from_scores(&total_scores);
 
         OverviewState {
             first_name: self.first_name(),
@@ -97,15 +143,69 @@ impl Character {
             classes: self.get_class_summary(game_data),
 
             hit_points,
-            armor_class: base_ac,
+            armor_class,
             base_attack_bonus: bab,
             saving_throws,
 
             gold: self.gold(),
             skill_points_available: self.get_available_skill_points(),
 
+            size_name: self.get_size_name_from_2da(self.creature_size(), game_data),
+
             background: self.background(game_data),
             domains,
+
+            ability_scores: total_scores,
+            ability_modifiers,
+            melee_attack_bonus: attack_bonuses.melee,
+            ranged_attack_bonus: attack_bonuses.ranged,
+            initiative: initiative.total,
+            movement_speed: movement.current,
+            total_feats: self.feat_count() as i32,
+            known_spells_count: self.count_unique_spells(),
+            spent_skill_points: self.calculate_total_spent_with_costs(game_data),
+            campaign_info: None,
         }
+    }
+
+    pub fn count_unique_spells(&self) -> i32 {
+        use std::collections::HashSet;
+        use crate::parsers::gff::GffValue;
+
+        let Some(class_list) = self.get_list("ClassList") else {
+            return 0;
+        };
+
+        let mut unique: HashSet<i32> = HashSet::new();
+
+        for class_entry in class_list {
+            for level in 0..=9 {
+                let known_key = format!("KnownList{level}");
+                if let Some(GffValue::ListOwned(list)) = class_entry.get(&known_key) {
+                    for entry in list {
+                        if let Some(id) = entry
+                            .get("Spell")
+                            .and_then(crate::character::gff_helpers::gff_value_to_i32)
+                        {
+                            unique.insert(id);
+                        }
+                    }
+                }
+
+                let mem_key = format!("MemorizedList{level}");
+                if let Some(GffValue::ListOwned(list)) = class_entry.get(&mem_key) {
+                    for entry in list {
+                        if let Some(id) = entry
+                            .get("Spell")
+                            .and_then(crate::character::gff_helpers::gff_value_to_i32)
+                        {
+                            unique.insert(id);
+                        }
+                    }
+                }
+            }
+        }
+
+        unique.len() as i32
     }
 }

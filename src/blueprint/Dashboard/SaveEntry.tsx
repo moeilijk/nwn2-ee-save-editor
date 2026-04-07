@@ -42,19 +42,34 @@ export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntr
         e.currentTarget.style.background = isSelected ? 'rgba(160, 82, 45, 0.06)' : 'transparent';
       }}
     >
-      <div style={{
-        width: 128,
-        height: 96,
-        borderRadius: 4,
-        background: T.surfaceAlt,
-        border: `1px solid ${T.borderLight}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <Icon icon="media" size={32} color={T.border} />
-      </div>
+      {save.thumbnail ? (
+        <img
+          src={`data:image/webp;base64,${save.thumbnail}`}
+          alt={save.characterName}
+          style={{
+            width: 128,
+            height: 96,
+            borderRadius: 4,
+            objectFit: 'cover',
+            border: `1px solid ${T.borderLight}`,
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <div style={{
+          width: 128,
+          height: 96,
+          borderRadius: 4,
+          background: T.surfaceAlt,
+          border: `1px solid ${T.borderLight}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icon icon="media" size={32} color={T.border} />
+        </div>
+      )}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

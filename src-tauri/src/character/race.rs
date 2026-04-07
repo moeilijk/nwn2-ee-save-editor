@@ -11,59 +11,48 @@ use crate::utils::parsing::{row_int, row_str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[repr(i32)]
+/// NWN2 creature size IDs matching creaturesize.2da rows
 pub enum SizeCategory {
-    Fine = 0,
-    Diminutive = 1,
-    Tiny = 2,
-    Small = 3,
-    Medium = 4,
-    Large = 5,
-    Huge = 6,
-    Gargantuan = 7,
-    Colossal = 8,
+    Invalid = 0,
+    Tiny = 1,
+    Small = 2,
+    Medium = 3,
+    Large = 4,
+    Huge = 5,
 }
 
 impl SizeCategory {
     pub fn from_id(id: i32) -> Self {
         match id {
-            0 => Self::Fine,
-            1 => Self::Diminutive,
-            2 => Self::Tiny,
-            3 => Self::Small,
-            4 => Self::Medium,
-            5 => Self::Large,
-            6 => Self::Huge,
-            7 => Self::Gargantuan,
-            8 => Self::Colossal,
+            0 => Self::Invalid,
+            1 => Self::Tiny,
+            2 => Self::Small,
+            3 => Self::Medium,
+            4 => Self::Large,
+            5 => Self::Huge,
             _ => Self::Medium,
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Fine => "Fine",
-            Self::Diminutive => "Diminutive",
+            Self::Invalid => "Invalid",
             Self::Tiny => "Tiny",
             Self::Small => "Small",
             Self::Medium => "Medium",
             Self::Large => "Large",
             Self::Huge => "Huge",
-            Self::Gargantuan => "Gargantuan",
-            Self::Colossal => "Colossal",
         }
     }
 
     pub fn ac_modifier_default(&self) -> i32 {
         match self {
-            Self::Fine => 8,
-            Self::Diminutive => 4,
+            Self::Invalid => 0,
             Self::Tiny => 2,
             Self::Small => 1,
             Self::Medium => 0,
             Self::Large => -1,
             Self::Huge => -2,
-            Self::Gargantuan => -4,
-            Self::Colossal => -8,
         }
     }
 }
@@ -958,7 +947,7 @@ mod tests {
             "Subrace".to_string(),
             GffValue::String(Cow::Owned("Moon Elf".to_string())),
         );
-        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3)); // 3 = Medium in NWN2
         Character::from_gff(fields)
     }
 
@@ -1013,14 +1002,14 @@ mod tests {
     #[test]
     fn test_creature_size() {
         let character = create_test_character();
-        assert_eq!(character.creature_size(), 4);
+        assert_eq!(character.creature_size(), 3);
     }
 
     #[test]
     fn test_set_creature_size() {
         let mut character = create_test_character();
-        character.set_creature_size(3);
-        assert_eq!(character.creature_size(), 3);
+        character.set_creature_size(2);
+        assert_eq!(character.creature_size(), 2);
         assert!(character.is_modified());
     }
 
@@ -1032,19 +1021,23 @@ mod tests {
 
     #[test]
     fn test_size_category_from_id() {
-        assert_eq!(SizeCategory::from_id(0), SizeCategory::Fine);
-        assert_eq!(SizeCategory::from_id(4), SizeCategory::Medium);
-        assert_eq!(SizeCategory::from_id(8), SizeCategory::Colossal);
+        // NWN2 creaturesize.2da: 0=Invalid, 1=Tiny, 2=Small, 3=Medium, 4=Large, 5=Huge
+        assert_eq!(SizeCategory::from_id(0), SizeCategory::Invalid);
+        assert_eq!(SizeCategory::from_id(1), SizeCategory::Tiny);
+        assert_eq!(SizeCategory::from_id(2), SizeCategory::Small);
+        assert_eq!(SizeCategory::from_id(3), SizeCategory::Medium);
+        assert_eq!(SizeCategory::from_id(4), SizeCategory::Large);
+        assert_eq!(SizeCategory::from_id(5), SizeCategory::Huge);
         assert_eq!(SizeCategory::from_id(100), SizeCategory::Medium);
     }
 
     #[test]
     fn test_size_category_modifiers() {
-        assert_eq!(SizeCategory::Fine.ac_modifier_default(), 8);
+        assert_eq!(SizeCategory::Tiny.ac_modifier_default(), 2);
         assert_eq!(SizeCategory::Small.ac_modifier_default(), 1);
         assert_eq!(SizeCategory::Medium.ac_modifier_default(), 0);
         assert_eq!(SizeCategory::Large.ac_modifier_default(), -1);
-        assert_eq!(SizeCategory::Colossal.ac_modifier_default(), -8);
+        assert_eq!(SizeCategory::Huge.ac_modifier_default(), -2);
     }
 
     #[test]

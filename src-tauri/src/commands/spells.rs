@@ -5,7 +5,7 @@ use crate::character::{
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tauri::State;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,14 +344,14 @@ pub struct PaginationInfo {
 }
 
 const LEARNABLE_CLASS_COLUMNS: &[(&str, &str)] = &[
-    ("Bard", "Bard"),
-    ("Cleric", "Cleric"),
-    ("Druid", "Druid"),
-    ("Paladin", "Paladin"),
-    ("Ranger", "Ranger"),
-    ("Wiz_Sorc", "Wizard/Sorcerer"),
-    ("FavSoul", "Favored Soul"),
-    ("SpiritShm", "Spirit Shaman"),
+    ("bard", "Bard"),
+    ("cleric", "Cleric"),
+    ("druid", "Druid"),
+    ("paladin", "Paladin"),
+    ("ranger", "Ranger"),
+    ("wiz_sorc", "Wizard/Sorcerer"),
+    ("favsoul", "Favored Soul"),
+    ("spiritshm", "Spirit Shaman"),
 ];
 
 #[tauri::command]
@@ -373,7 +373,7 @@ pub async fn get_character_available_spells(
         .ok_or(CommandError::NoCharacterLoaded)?;
 
     let page = page.unwrap_or(1).max(1);
-    let limit = limit.unwrap_or(50).clamp(10, 100);
+    let limit = limit.unwrap_or(50).clamp(10, 10000);
     let show_all = show_all.unwrap_or(false);
 
     let spells_table = game_data
@@ -390,7 +390,7 @@ pub async fn get_character_available_spells(
         .filter_map(|ce| {
             let col = character.get_spell_table_column_for_class(ce.class_id, &game_data)?;
             let name = character.get_class_name(ce.class_id, &game_data);
-            Some((ce.class_id, col, name))
+            Some((ce.class_id, col.to_lowercase(), name))
         })
         .collect();
 
@@ -487,7 +487,7 @@ pub async fn get_character_available_spells(
 
         // Get spell name
         let name = spell_row
-            .get("Name")
+            .get("name")
             .and_then(|v| v.as_ref())
             .and_then(|name_raw| {
                 if let Ok(strref) = name_raw.parse::<i32>() {
@@ -512,12 +512,12 @@ pub async fn get_character_available_spells(
         }
 
         let icon = spell_row
-            .get("IconResRef")
+            .get("iconresref")
             .and_then(|v| v.as_ref())
             .map(std::string::ToString::to_string)
             .unwrap_or_else(|| "io_unknown".to_string());
 
-        let school_raw = spell_row.get("School").and_then(|v| v.as_ref());
+        let school_raw = spell_row.get("school").and_then(|v| v.as_ref());
         let school_id = school_raw.and_then(|s| {
             if let Some(c) = s.chars().next() {
                 match c.to_ascii_uppercase() {
@@ -554,14 +554,14 @@ pub async fn get_character_available_spells(
                 .get_table("spellschools")
                 .and_then(|t| t.get_by_id(id))
                 .and_then(|row| {
-                    row.get("Label")
+                    row.get("label")
                         .and_then(|v| v.as_ref())
                         .map(std::string::ToString::to_string)
                 })
         });
 
         let description = spell_row
-            .get("SpellDesc")
+            .get("spelldesc")
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
@@ -613,120 +613,15 @@ pub async fn get_character_available_spells(
     })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AbilitySpellEntry {
-    pub spell_id: i32,
-    pub name: String,
-    pub icon: String,
-    pub description: Option<String>,
-    pub school_name: Option<String>,
-    pub innate_level: i32,
-}
-
-fn is_on_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
-    LEARNABLE_CLASS_COLUMNS.iter().any(|&(col, _)| {
-        spell_row
-            .get(col)
-            .and_then(|v| v.as_ref())
-            .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
-    })
-}
-
 #[tauri::command]
 pub async fn get_character_ability_spells(
     state: State<'_, AppState>,
-) -> CommandResult<Vec<AbilitySpellEntry>> {
+) -> CommandResult<Vec<crate::character::AbilitySpellEntry>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-
-    let spells_table = game_data
-        .get_table("spells")
-        .ok_or_else(|| CommandError::NotFound {
-            item: "spells table".to_string(),
-        })?;
-
-    let char_feats: HashSet<i32> = character.feat_ids().iter().map(|f| f.0).collect();
-
-    // Collect all spell IDs from the character's known spell lists
-    let mut known_spell_ids: HashSet<i32> = HashSet::new();
-    for class_entry in character.class_entries() {
-        for level in 0..=9 {
-            for spell_id in character.known_spells(class_entry.class_id, level) {
-                known_spell_ids.insert(spell_id.0);
-            }
-        }
-    }
-
-    let mut ability_spells = Vec::new();
-    let mut seen = HashSet::new();
-
-    for row_id in 0..spells_table.row_count() {
-        let Ok(spell_row) = spells_table.get_row(row_id) else {
-            continue;
-        };
-
-        if spell_row
-            .get("REMOVED")
-            .and_then(|v| v.as_ref())
-            .is_some_and(|v| v == "1")
-        {
-            continue;
-        }
-
-        let spell_id_val = row_id as i32;
-        let user_type = spell_row
-            .get("UserType")
-            .and_then(|v| v.as_ref())
-            .and_then(|v| v.parse::<i32>().ok())
-            .unwrap_or(1);
-        let feat_id = spell_row
-            .get("FeatID")
-            .and_then(|v| v.as_ref())
-            .and_then(|v| v.parse::<i32>().ok());
-        let is_spellability = spell_row
-            .get("Label")
-            .and_then(|v| v.as_ref())
-            .is_some_and(|v| v.starts_with("SPELLABILITY_"));
-        let on_caster_list = is_on_caster_list(&spell_row);
-
-        // Include if: character has the feat that grants this spell
-        let has_feat = feat_id.is_some_and(|fid| char_feats.contains(&fid));
-        // Include if: character knows this spell AND it's not a regular learnable spell
-        let is_known_ability = known_spell_ids.contains(&spell_id_val)
-            && (user_type != 1 || is_spellability || !on_caster_list);
-
-        if !has_feat && !is_known_ability {
-            continue;
-        }
-        if !seen.insert(spell_id_val) {
-            continue;
-        }
-
-        let spell_id = SpellId(spell_id_val);
-        let Some(details) = character.get_spell_details(spell_id, &game_data) else {
-            continue;
-        };
-
-        let innate_level = spell_row
-            .get("Innate")
-            .and_then(|v| v.as_ref())
-            .and_then(|v| v.parse::<i32>().ok())
-            .unwrap_or(0);
-
-        ability_spells.push(AbilitySpellEntry {
-            spell_id: spell_id_val,
-            name: details.name,
-            icon: details.icon,
-            description: details.description,
-            school_name: details.school_name,
-            innate_level,
-        });
-    }
-
-    ability_spells.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(ability_spells)
+    Ok(character.get_ability_spells(&game_data))
 }

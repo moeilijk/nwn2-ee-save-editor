@@ -9,12 +9,16 @@ import { useSubsystem } from '@/contexts/CharacterContext';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { mapKnownSpellsToSpellInfo, groupMemorizedSpells, mapCasterClasses } from '@/utils/spellUtils';
-import type { SpellInfo, SpellsState } from '@/components/Spells/types';
+import type { SpellInfo, SpellsState, AbilitySpellEntry } from '@/components/Spells/types';
 import { display } from '@/utils/dataHelpers';
+import { useSpellManagement } from '@/hooks/useSpellManagement';
+import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useTranslations } from '@/hooks/useTranslations';
 
 type TabId = 'known' | 'prepared' | 'all';
 
-const SPELLS_PER_PAGE = 100;
+const SPELLS_PER_PAGE = 10000;
 
 const SPELL_SCHOOL_OPTIONS = [
   'Abjuration', 'Conjuration', 'Divination', 'Enchantment',
@@ -22,9 +26,15 @@ const SPELL_SCHOOL_OPTIONS = [
 ];
 
 export function SpellsPanel() {
-  const { character } = useCharacterContext();
+  const { character, allSpellsCache } = useCharacterContext();
+
   const spells = useSubsystem('spells');
   const spellsData = spells.data as SpellsState | null;
+  const abilitySpells = spellsData?.ability_spells ?? [];
+  const { addSpell, removeSpell } = useSpellManagement();
+  const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
+  const t = useTranslations();
 
   const [tab, setTab] = useState<TabId>('known');
   const [search, setSearch] = useState('');
@@ -37,19 +47,12 @@ export function SpellsPanel() {
   const [allSpellsLoading, setAllSpellsLoading] = useState(false);
   const [allSpellsPage, setAllSpellsPage] = useState(1);
   const [allSpellsTotal, setAllSpellsTotal] = useState(0);
-  const [allSpellsHasNext, setAllSpellsHasNext] = useState(false);
-  const [allSpellsHasPrev, setAllSpellsHasPrev] = useState(false);
+  const [_allSpellsHasNext, setAllSpellsHasNext] = useState(false);
+  const [_allSpellsHasPrev, setAllSpellsHasPrev] = useState(false);
+  const [usedCache, setUsedCache] = useState(false);
+  const [abilitiesOpen, setAbilitiesOpen] = useState(true);
 
   const debouncedSearch = useDebouncedValue(search, 300);
-
-  const [abilitySpells, setAbilitySpells] = useState<Array<{
-    spell_id: number;
-    name: string;
-    icon: string;
-    description?: string;
-    school_name?: string;
-    innate_level: number;
-  }>>([]);
 
   useEffect(() => {
     if (character?.id && !spells.data && !spells.isLoading) {
@@ -57,17 +60,25 @@ export function SpellsPanel() {
     }
   }, [character?.id, spells.data, spells.isLoading, spells]);
 
+  // Use preloaded cache for initial unfiltered load
   useEffect(() => {
-    if (character?.id) {
-      CharacterAPI.getAbilitySpells()
-        .then(setAbilitySpells)
-        .catch(() => setAbilitySpells([]));
+    if (allSpellsCache && allSpells.length === 0 && !usedCache) {
+      setAllSpells(allSpellsCache.spells);
+      setAllSpellsTotal(allSpellsCache.pagination.total);
+      setAllSpellsHasNext(allSpellsCache.pagination.has_next);
+      setAllSpellsHasPrev(allSpellsCache.pagination.has_previous);
+      setUsedCache(true);
     }
-  }, [character?.id]);
+  }, [allSpellsCache]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch when filters change on the 'all' tab
   useEffect(() => {
     const characterId = character?.id;
-    if (!characterId) return;
+    if (!characterId || tab !== 'all') return;
+
+    // Skip fetch if we can use the cache (no filters active, page 1)
+    const hasFilters = activeSchool !== 'all' || activeLevel !== 'all' || activeClass !== 'all' || debouncedSearch.length >= 3;
+    if (!hasFilters && allSpellsPage === 1 && usedCache) return;
 
     const loadAllSpells = async () => {
       setAllSpellsLoading(true);
@@ -100,13 +111,34 @@ export function SpellsPanel() {
       }
     };
 
-    if (tab === 'all') {
-      loadAllSpells();
-    }
+    loadAllSpells();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [character?.id, tab, allSpellsPage, activeSchool, activeLevel, activeClass, debouncedSearch]);
+  }, [character?.id, tab, allSpellsPage, activeSchool, activeLevel, activeClass, debouncedSearch, usedCache]);
 
   const casterClasses = useMemo(() => mapCasterClasses(spellsData?.spellcasting_classes), [spellsData]);
+
+  const editableClasses = useMemo(
+    () => casterClasses.filter(c => c.can_edit_spells),
+    [casterClasses]
+  );
+
+  const handleAddSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
+    try {
+      const response = await addSpell(spellId, classIndex, spellLevel);
+      showToast(response.message || t('placeholders.spellAdded'), 'success');
+      setAllSpells(prev => prev.filter(s => s.id !== spellId));
+      setAllSpellsTotal(prev => prev - 1);
+      setSelectedSpell(null);
+    } catch (error) { handleError(error); }
+  }, [addSpell, showToast, handleError, t]);
+
+  const handleRemoveSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
+    try {
+      const response = await removeSpell(spellId, classIndex, spellLevel);
+      showToast(response.message || t('placeholders.spellRemoved'), 'success');
+      setSelectedSpell(null);
+    } catch (error) { handleError(error); }
+  }, [removeSpell, showToast, handleError, t]);
 
   const clearFilters = useCallback(() => {
     setSearch('');
@@ -245,8 +277,9 @@ export function SpellsPanel() {
   const totalKnown = knownSpells.length;
   const totalPrepared = preparedSpells.length;
 
-  const allTabTitle = allSpellsTotal > 0
-    ? `All Spells (${allSpellsTotal})`
+  const allSpellsCount = allSpellsTotal || allSpellsCache?.pagination.total || 0;
+  const allTabTitle = allSpellsCount > 0
+    ? `All Spells (${allSpellsCount})`
     : 'All Spells';
 
   const toolbar = (
@@ -330,30 +363,31 @@ export function SpellsPanel() {
   };
 
   const list = (
-    <div>
-      {listContent()}
-      {tab === 'all' && allSpellsTotal > SPELLS_PER_PAGE && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 12px', borderTop: `1px solid ${T.sectionBorder}` }}>
-          <Button minimal small icon="chevron-left" disabled={!allSpellsHasPrev} onClick={() => setAllSpellsPage(p => Math.max(1, p - 1))} />
-          <span style={{ color: T.textMuted, fontSize: 12 }}>
-            Page {allSpellsPage} of {Math.ceil(allSpellsTotal / SPELLS_PER_PAGE)}
-          </span>
-          <Button minimal small icon="chevron-right" disabled={!allSpellsHasNext} onClick={() => setAllSpellsPage(p => p + 1)} />
-        </div>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {listContent()}
+      </div>
       {abilitySpells.length > 0 && (
         <>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px',
-            background: T.sectionBg,
-            borderBottom: `1px solid ${T.sectionBorder}`,
-            borderTop: `1px solid ${T.sectionBorder}`,
-          }}>
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px',
+              background: T.sectionBg,
+              borderBottom: `1px solid ${T.sectionBorder}`,
+              borderTop: `1px solid ${T.sectionBorder}`,
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+            onClick={() => setAbilitiesOpen(o => !o)}
+          >
+            <span style={{ color: T.accent, width: 10 }}>
+              {abilitiesOpen ? '\u25BC' : '\u25B6'}
+            </span>
             <span style={{ fontWeight: 700, color: T.accent, flex: 1 }}>Special Abilities</span>
             <span style={{ color: T.textMuted }}>{abilitySpells.length}</span>
           </div>
-          {abilitySpells.map(a => (
+          {abilitiesOpen && abilitySpells.map(a => (
             <div key={a.spell_id} style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '5px 12px 5px 28px',
@@ -377,7 +411,16 @@ export function SpellsPanel() {
     <SplitPane
       toolbar={toolbar}
       list={list}
-      detail={<SpellDetail spell={selectedSpell} memorizedCount={detailMemoizedCount} />}
+      detail={
+        <SpellDetail
+          spell={selectedSpell}
+          memorizedCount={detailMemoizedCount}
+          isOwned={tab !== 'all'}
+          editableClasses={editableClasses}
+          onAdd={handleAddSpell}
+          onRemove={handleRemoveSpell}
+        />
+      }
     />
   );
 }

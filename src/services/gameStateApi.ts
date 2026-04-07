@@ -121,11 +121,11 @@ export interface CampaignSettingsResponse {
   xp_cap: number;
   companion_xp_weight: number;
   henchman_xp_weight: number;
-  attack_neutrals: number;
-  auto_xp_award: number;
-  journal_sync: number;
-  no_char_changing: number;
-  use_personal_reputation: number;
+  attack_neutrals: boolean;
+  auto_xp_award: boolean;
+  journal_sync: boolean;
+  no_char_changing: boolean;
+  use_personal_reputation: boolean;
   start_module: string;
   module_names: string[];
 }
@@ -259,6 +259,12 @@ export interface EnrichedQuestsResponse {
   cache_info: DialogueCacheInfo;
 }
 
+export interface ModuleSummary {
+  id: string;
+  name: string;
+  is_current: boolean;
+}
+
 export interface ModuleInfo {
   module_name: string;
   area_name: string;
@@ -267,6 +273,10 @@ export interface ModuleInfo {
   module_description: string;
   campaign_id: string;
   current_module?: string;
+  game_year?: number;
+  game_month?: number;
+  game_day?: number;
+  game_hour?: number;
 }
 
 export interface ModuleVariablesResponse {
@@ -408,32 +418,37 @@ export class GameStateAPI {
 
   async updateCampaignSettings(
     characterId: number,
-    settingsUpdates: UpdateCampaignSettingsRequest
-  ): Promise<UpdateCampaignSettingsResponse> {
-    const currentSettings = await this.getCampaignSettings(characterId);
-    const merged = {
-      ...currentSettings,
-      attack_neutrals: Boolean(currentSettings.attack_neutrals),
-      auto_xp_award: Boolean(currentSettings.auto_xp_award),
-      journal_sync: Boolean(currentSettings.journal_sync),
-      no_char_changing: Boolean(currentSettings.no_char_changing),
-      use_personal_reputation: Boolean(currentSettings.use_personal_reputation),
-    };
-    const updatedFields: string[] = [];
-    if (settingsUpdates.level_cap !== undefined) { merged.level_cap = settingsUpdates.level_cap; updatedFields.push('level_cap'); }
-    if (settingsUpdates.xp_cap !== undefined) { merged.xp_cap = settingsUpdates.xp_cap; updatedFields.push('xp_cap'); }
-    if (settingsUpdates.companion_xp_weight !== undefined) { merged.companion_xp_weight = settingsUpdates.companion_xp_weight; updatedFields.push('companion_xp_weight'); }
-    if (settingsUpdates.henchman_xp_weight !== undefined) { merged.henchman_xp_weight = settingsUpdates.henchman_xp_weight; updatedFields.push('henchman_xp_weight'); }
-    if (settingsUpdates.attack_neutrals !== undefined) { merged.attack_neutrals = Boolean(settingsUpdates.attack_neutrals); updatedFields.push('attack_neutrals'); }
-    if (settingsUpdates.auto_xp_award !== undefined) { merged.auto_xp_award = Boolean(settingsUpdates.auto_xp_award); updatedFields.push('auto_xp_award'); }
-    if (settingsUpdates.journal_sync !== undefined) { merged.journal_sync = Boolean(settingsUpdates.journal_sync); updatedFields.push('journal_sync'); }
-    if (settingsUpdates.no_char_changing !== undefined) { merged.no_char_changing = Boolean(settingsUpdates.no_char_changing); updatedFields.push('no_char_changing'); }
-    if (settingsUpdates.use_personal_reputation !== undefined) { merged.use_personal_reputation = Boolean(settingsUpdates.use_personal_reputation); updatedFields.push('use_personal_reputation'); }
-    await invoke('update_campaign_settings', { settings: merged });
-    return { success: true, updated_fields: updatedFields, warning: '' };
+    settings: CampaignSettingsResponse
+  ): Promise<void> {
+    await invoke('update_campaign_settings', { settings });
   }
 
-  async getCampaignBackups(characterId: number): Promise<CampaignBackupsResponse> {
+  async batchUpdateCampaignVariables(
+    updates: Array<[string, string, string]>,
+  ): Promise<void> {
+    await invoke('batch_update_campaign_variables', { updates });
+  }
+
+  async getCampaignBackups(campaignId: string): Promise<CampaignBackupsResponse> {
+    try {
+        const backups = await invoke<any[]>('list_campaign_backups', { campaignId });
+        return {
+            backups: backups.map(b => ({
+                filename: b.filename,
+                path: b.path,
+                size_bytes: b.size_bytes || 0,
+                created: b.created_at ? new Date(b.created_at * 1000).toISOString() : new Date().toISOString()
+            })),
+            campaign_name: null,
+            campaign_guid: campaignId
+        };
+    } catch (e) {
+        console.warn("list_campaign_backups failed", e);
+        return { backups: [], campaign_name: null, campaign_guid: null };
+    }
+  }
+
+  async getSaveBackups(): Promise<CampaignBackupsResponse> {
     try {
         const backups = await invoke<any[]>('list_backups');
         return {
@@ -441,7 +456,7 @@ export class GameStateAPI {
                 filename: b.filename || b.path.split(/[\\/]/).pop(),
                 path: b.path,
                 size_bytes: b.size_bytes || 0,
-                created: b.created_at || new Date().toISOString()
+                created: b.created_at ? new Date(b.created_at * 1000).toISOString() : new Date().toISOString()
             })),
             campaign_name: "Current Session",
             campaign_guid: null
@@ -466,18 +481,71 @@ export class GameStateAPI {
   }
 
   async restoreCampaignFromBackup(
-    characterId: number,
-    backupPath: string
+    backupPath: string,
+    campaignId: string
   ): Promise<RestoreCampaignResponse> {
       try {
-          await invoke('restore_backup', { 
-              backupPath: backupPath, 
-              createPreRestoreBackup: true 
-          });
+          await invoke('restore_campaign_backup', { backupPath, campaignId });
           return { success: true, restored_from: backupPath };
       } catch (e) {
           throw new Error(String(e));
       }
+  }
+
+  async getCampaignVariableBackups(): Promise<CampaignBackupsResponse> {
+    try {
+      const backups = await invoke<any[]>('list_campaign_variable_backups');
+      return {
+        backups: backups.map(b => ({
+          filename: b.filename,
+          path: b.path,
+          size_bytes: b.size_bytes || 0,
+          created: b.created_at ? new Date(b.created_at * 1000).toISOString() : new Date().toISOString()
+        })),
+        campaign_name: null,
+        campaign_guid: null
+      };
+    } catch (e) {
+      console.warn('list_campaign_variable_backups failed', e);
+      return { backups: [], campaign_name: null, campaign_guid: null };
+    }
+  }
+
+  async restoreCampaignVariableBackup(backupPath: string): Promise<RestoreCampaignResponse> {
+    try {
+      await invoke('restore_campaign_variable_backup', { backupPath });
+      return { success: true, restored_from: backupPath };
+    } catch (e) {
+      throw new Error(String(e));
+    }
+  }
+
+  async getModuleBackups(): Promise<CampaignBackupsResponse> {
+    try {
+      const backups = await invoke<any[]>('list_module_backups');
+      return {
+        backups: backups.map(b => ({
+          filename: b.filename,
+          path: b.path,
+          size_bytes: b.size_bytes || 0,
+          created: b.created_at ? new Date(b.created_at * 1000).toISOString() : new Date().toISOString()
+        })),
+        campaign_name: null,
+        campaign_guid: null
+      };
+    } catch (e) {
+      console.warn('list_module_backups failed', e);
+      return { backups: [], campaign_name: null, campaign_guid: null };
+    }
+  }
+
+  async restoreModuleBackup(backupPath: string): Promise<RestoreCampaignResponse> {
+    try {
+      await invoke('restore_module_backup', { backupPath });
+      return { success: true, restored_from: backupPath };
+    } catch (e) {
+      throw new Error(String(e));
+    }
   }
 
   async getModuleInfo(characterId: number): Promise<ModuleInfo> {
@@ -485,22 +553,21 @@ export class GameStateAPI {
     return info;
   }
 
+  async listModules(): Promise<ModuleSummary[]> {
+    return invoke<ModuleSummary[]>('list_modules');
+  }
+
   async getAllModules(characterId: number): Promise<{modules: Array<{id: string, name: string, campaign: string, variable_count: number, is_current: boolean}>, current_module: string}> {
-    const [info, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    const summaries = await this.listModules();
+    const current = summaries.find(m => m.is_current);
     return {
-      modules: [{
-        id: info.current_module || info.module_name,
-        name: info.module_name,
-        campaign: info.campaign,
-        variable_count: variables.total_count || (Object.keys(variables.integers).length + Object.keys(variables.strings).length + Object.keys(variables.floats).length),
-        is_current: true
-      }],
-      current_module: info.current_module || info.module_name
+      modules: summaries.map(m => ({ id: m.id, name: m.name, campaign: '', variable_count: 0, is_current: m.is_current })),
+      current_module: current?.id || (summaries.length > 0 ? summaries[0].id : ''),
     };
   }
 
   async getModuleById(characterId: number, moduleId: string): Promise<ModuleInfo & {variables: ModuleVariablesResponse}> {
-    const [info, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info');
+    const [info, variables] = await invoke<[ModuleInfo, ModuleVariablesResponse]>('get_module_info_by_id', { moduleId });
     const totalCount = Object.keys(variables.integers).length + Object.keys(variables.strings).length + Object.keys(variables.floats).length;
     return {
       ...info,
@@ -541,6 +608,16 @@ export class GameStateAPI {
       message: 'Updated',
       has_unsaved_changes: true,
     };
+  }
+
+  async batchUpdateModuleVariables(
+    updates: Array<[string, string, string]>,
+    moduleId?: string
+  ): Promise<void> {
+    await invoke('batch_update_module_variables', {
+      updates,
+      moduleId: moduleId ?? null,
+    });
   }
 
   async getQuestProgress(characterId: number): Promise<QuestProgressResponse> {

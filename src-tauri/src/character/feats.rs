@@ -2238,14 +2238,14 @@ impl Character {
         description: &str,
     ) -> FeatType {
         if let Some(type_str) = feat_data
-            .get("toolscategories")
+            .get("featcategory")
             .and_then(|s| s.as_ref())
         {
             return FeatType::from_string(type_str);
         }
 
         if let Some(type_str) = feat_data
-            .get("featcategory")
+            .get("toolscategories")
             .and_then(|s| s.as_ref())
         {
             return FeatType::from_string(type_str);

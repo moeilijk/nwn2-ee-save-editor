@@ -1,9 +1,9 @@
 use crate::commands::{CommandError, CommandResult};
 use crate::parsers::xml::{CompanionStatus, FullSummary, XmlData};
 use crate::services::campaign::CampaignManager;
-use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
+use crate::services::campaign::content::{ModuleInfo, ModuleSummary, ModuleVariables};
 use crate::services::campaign::journal::QuestDefinition;
-use crate::services::campaign::settings::CampaignSettings;
+use crate::services::campaign::settings::{CampaignBackupInfo, CampaignSettings};
 use crate::state::AppState;
 use std::collections::HashMap;
 use tauri::State;
@@ -39,6 +39,33 @@ pub async fn get_module_info(
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::get_module_info(handler, &paths).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn list_modules(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<ModuleSummary>> {
+    let paths = state.paths.read();
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::list_modules(handler, &paths).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn get_module_info_by_id(
+    state: State<'_, AppState>,
+    module_id: String,
+) -> CommandResult<(ModuleInfo, ModuleVariables)> {
+    let paths = state.paths.read();
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::get_module_info_by_id(handler, &paths, &module_id).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -164,6 +191,58 @@ pub async fn update_module_variable(
 }
 
 #[tauri::command]
+pub async fn batch_update_module_variables(
+    state: State<'_, AppState>,
+    updates: Vec<(String, String, String)>,
+    module_id: Option<String>,
+) -> CommandResult<()> {
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::batch_update_module_variables(
+        handler,
+        &updates,
+        module_id.as_deref(),
+    )
+    .map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn list_campaign_backups(
+    state: State<'_, AppState>,
+    campaign_id: String,
+) -> CommandResult<Vec<CampaignBackupInfo>> {
+    let paths = state.paths.read();
+    CampaignManager::list_campaign_backups(&campaign_id, &paths).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn batch_update_campaign_variables(
+    state: State<'_, AppState>,
+    updates: Vec<(String, String, String)>,
+) -> CommandResult<()> {
+    let mut session = state.session.write();
+    let handler = session
+        .savegame_handler
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::batch_update_campaign_variables(handler, &updates).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn restore_campaign_backup(
+    state: State<'_, AppState>,
+    backup_path: String,
+    campaign_id: String,
+) -> CommandResult<()> {
+    let paths = state.paths.read();
+    CampaignManager::restore_campaign_backup(&backup_path, &campaign_id, &paths)
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
 pub async fn update_campaign_variable(
     state: State<'_, AppState>,
     variable_name: String,
@@ -176,5 +255,57 @@ pub async fn update_campaign_variable(
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::update_campaign_variable(handler, &variable_name, &value, &variable_type)
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn list_campaign_variable_backups(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<CampaignBackupInfo>> {
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::list_campaign_variable_backups(handler).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn restore_campaign_variable_backup(
+    state: State<'_, AppState>,
+    backup_path: String,
+) -> CommandResult<()> {
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::restore_campaign_variable_backup(handler, &backup_path)
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn list_module_backups(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<CampaignBackupInfo>> {
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::list_module_backups(handler).map_err(CommandError::from)
+}
+
+#[tauri::command]
+pub async fn restore_module_backup(
+    state: State<'_, AppState>,
+    backup_path: String,
+) -> CommandResult<()> {
+    let session = state.session.read();
+    let handler = session
+        .savegame_handler
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    CampaignManager::restore_module_backup(handler, &backup_path)
         .map_err(CommandError::from)
 }

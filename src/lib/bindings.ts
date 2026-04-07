@@ -247,12 +247,13 @@ export interface FeatEntry {
 }
 
 export interface FeatSummary {
-  feats: FeatEntry[];
-  total_count: number;
-  general_count: number;
-  bonus_count: number;
-  class_count: number;
-  racial_count: number;
+  total: number;
+  protected: FeatInfo[];
+  class_feats: FeatInfo[];
+  general_feats: FeatInfo[];
+  custom_feats: FeatInfo[];
+  background_feats: FeatInfo[];
+  domain_feats: FeatInfo[];
 }
 
 export interface FeatSlots {
@@ -352,11 +353,20 @@ export interface SpellDetails {
   target_type: string | null;
 }
 
+export interface PendingSpellLearning {
+  class_id: number;
+  class_name: string;
+  caster_type: string;
+  by_level: Record<number, number>;
+  total: number;
+}
+
 export interface SpellsState {
   spellcasting_classes: SpellcastingClass[];
   spell_summary: SpellSummary;
   memorized_spells: MemorizedSpellEntry[];
   known_spells: KnownSpellEntry[];
+  pending_spell_learning: PendingSpellLearning[];
 }
 
 // =============================================================================
@@ -422,8 +432,9 @@ export interface AttackBreakdown {
 }
 
 export interface AttackBonuses {
-  melee: number;
-  ranged: number;
+  melee_attack_bonus: number;
+  ranged_attack_bonus: number;
+  base_attack_bonus: number;
   melee_breakdown: AttackBreakdown;
   ranged_breakdown: AttackBreakdown;
 }
@@ -439,17 +450,28 @@ export interface DamageReduction {
   bypass: string;
 }
 
+export interface MovementSpeed {
+  base: number;
+  current: number;
+  armor_penalty: boolean;
+}
+
+export interface CombatManeuverBonus {
+  total: number;
+  bab: number;
+  str_mod: number;
+  size_mod: number;
+}
+
 export interface CombatSummary {
   armor_class: ArmorClass;
   attack_bonuses: AttackBonuses;
   base_attack_bonus: number;
-  attacks_per_round: number;
+  attack_sequence: number[];
   initiative: Initiative;
-  damage_reduction: DamageReduction[];
-  hit_points: HitPoints;
-  fortitude: number;
-  reflex: number;
-  will: number;
+  movement: MovementSpeed;
+  cmb: CombatManeuverBonus;
+  damage_reductions: DamageReduction[];
 }
 
 export type SaveType = 'Fortitude' | 'Reflex' | 'Will';

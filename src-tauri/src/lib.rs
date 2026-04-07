@@ -17,7 +17,8 @@ use tracing::{debug, info};
 
 use file_operations::{
     browse_backups, browse_localvault, browse_saves, detect_nwn2_installation, find_nwn2_saves,
-    get_default_localvault_path, get_default_saves_path, get_save_thumbnail,
+    get_default_backups_path, get_default_localvault_path, get_default_saves_path,
+    get_save_thumbnail,
     get_steam_workshop_path, launch_nwn2_game, open_folder_in_explorer, select_nwn2_directory,
     select_save_file, validate_nwn2_installation,
 };
@@ -76,6 +77,7 @@ pub fn run() {
             show_main_window,
             browse_saves,
             get_default_saves_path,
+            get_default_backups_path,
             browse_backups,
             browse_localvault,
             get_default_localvault_path,
@@ -270,10 +272,15 @@ pub fn run() {
             crate::commands::paths::reset_steam_workshop_folder,
             crate::commands::paths::reset_steam_workshop_folder,
             crate::commands::paths::auto_detect_paths,
+            // Config
+            crate::commands::config::get_app_config,
+            crate::commands::config::update_app_config,
             // Campaign
             crate::commands::campaign::get_campaign_summary,
             crate::commands::campaign::get_campaign_variables,
             crate::commands::campaign::get_module_info,
+            crate::commands::campaign::list_modules,
+            crate::commands::campaign::get_module_info_by_id,
             crate::commands::campaign::get_journal,
             crate::commands::campaign::update_global_int,
             crate::commands::campaign::update_global_float,
@@ -283,7 +290,15 @@ pub fn run() {
             crate::commands::campaign::get_companion_influence,
             crate::commands::campaign::update_companion_influence,
             crate::commands::campaign::update_module_variable,
+            crate::commands::campaign::batch_update_module_variables,
+            crate::commands::campaign::batch_update_campaign_variables,
+            crate::commands::campaign::list_campaign_backups,
+            crate::commands::campaign::restore_campaign_backup,
             crate::commands::campaign::update_campaign_variable,
+            crate::commands::campaign::list_campaign_variable_backups,
+            crate::commands::campaign::restore_campaign_variable_backup,
+            crate::commands::campaign::list_module_backups,
+            crate::commands::campaign::restore_module_backup,
             // Overview (Aggregated State Commands)
             crate::commands::overview::get_overview_state,
             crate::commands::overview::update_character,

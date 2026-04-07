@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { CharacterAPI, CharacterData } from '@/services/characterApi';
+import { CharacterAPI, CharacterData, LegitimateFeatsResponse, LegitimateSpellsResponse } from '@/services/characterApi';
+import { inventoryAPI, type ItemEditorMetadataResponse } from '@/services/inventoryApi';
 import { CharacterStateAPI } from '@/lib/api/character-state';
 import type {
   AbilitiesState,
@@ -125,6 +126,11 @@ interface CharacterContextState {
   categorizedClasses: CategorizedClassesResponse | null;
   isMetadataLoading: boolean;
   
+  // Preloaded game data caches (loaded on character import)
+  allFeatsCache: LegitimateFeatsResponse | null;
+  allSpellsCache: LegitimateSpellsResponse | null;
+  itemEditorMetadata: ItemEditorMetadataResponse | null;
+
   // Persistent counts (prevent flickering/reset)
   totalFeats: number;
   totalSpells: number;
@@ -213,6 +219,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [isMetadataLoading, setIsMetadataLoading] = useState(false);
   const [totalFeats, setTotalFeats] = useState<number>(0);
   const [totalSpells, setTotalSpells] = useState<number>(0);
+  const [allFeatsCache, setAllFeatsCache] = useState<LegitimateFeatsResponse | null>(null);
+  const [allSpellsCache, setAllSpellsCache] = useState<LegitimateSpellsResponse | null>(null);
+  const [itemEditorMetadata, setItemEditorMetadata] = useState<ItemEditorMetadataResponse | null>(null);
 
   // Generic subsystem loader - always fetch fresh, no caching
   const loadSubsystem = useCallback(async (
@@ -346,6 +355,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     setError(null);
     setSubsystems(initializeSubsystems());
     setCategorizedClasses(null);
+    setAllFeatsCache(null);
+    setAllSpellsCache(null);
+    setItemEditorMetadata(null);
   }, []);
 
   const loadMetadataInternal = useCallback(async (_id: number) => {
@@ -367,6 +379,38 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     }
   }, [characterId, loadMetadataInternal]);
 
+  const preloadGameData = useCallback((id: number) => {
+    CharacterAPI.getLegitimateFeats(id, { page: 1, limit: 10000 })
+      .then(setAllFeatsCache)
+      .catch(err => console.error('Background preload failed for all feats:', err));
+    CharacterAPI.getLegitimateSpells(id, { page: 1, limit: 10000 })
+      .then(setAllSpellsCache)
+      .catch(err => console.error('Background preload failed for all spells:', err));
+    inventoryAPI.getEditorMetadata(id)
+      .then(setItemEditorMetadata)
+      .catch(err => console.error('Background preload failed for item editor metadata:', err));
+
+    // Preload all subsystems so tabs open instantly
+    const subsystemPreloads: [SubsystemType, () => Promise<unknown>][] = [
+      ['feats', CharacterStateAPI.getFeats],
+      ['spells', CharacterStateAPI.getSpells],
+      ['skills', CharacterStateAPI.getSkills],
+      ['inventory', CharacterStateAPI.getInventory],
+      ['abilityScores', CharacterStateAPI.getAbilities],
+      ['combat', CharacterStateAPI.getCombat],
+      ['saves', CharacterStateAPI.getSaves],
+      ['classes', CharacterStateAPI.getClasses],
+    ];
+    for (const [key, fetcher] of subsystemPreloads) {
+      fetcher()
+        .then(data => setSubsystems(prev => ({
+          ...prev,
+          [key]: { data, isLoading: false, error: null, lastFetched: new Date() }
+        })))
+        .catch(err => console.error(`Background preload failed for ${key}:`, err));
+    }
+  }, []);
+
   const loadCharacter = useCallback(async (id: number) => {
     setIsLoading(true);
     setError(null);
@@ -375,19 +419,20 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       const data = await CharacterAPI.getCharacterState(id);
       setCharacter(data);
       setCharacterId(id);
-      
+
       // Reset subsystems when loading new character
       setSubsystems(initializeSubsystems());
-      
-      // Load metadata
-      await loadMetadataInternal(id);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load character';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [loadMetadataInternal]);
+
+    // Load metadata and preload game data in background (non-blocking)
+    loadMetadataInternal(id);
+    preloadGameData(id);
+  }, [loadMetadataInternal, preloadGameData]);
 
   // Import character from save
   const importCharacter = useCallback(async (savePath: string) => {
@@ -412,16 +457,17 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       
       // Reset subsystems
       setSubsystems(initializeSubsystems());
-      
-      // Load metadata immediately after import
-      await loadMetadataInternal(newCharacterId);
+
+      // Load metadata and preload game data in background (non-blocking)
+      loadMetadataInternal(newCharacterId);
+      preloadGameData(newCharacterId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to import character';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [characterId, loadMetadataInternal]);
+  }, [loadMetadataInternal, preloadGameData]);
 
   const refreshAll = useCallback(async () => {
     if (!characterId) return;
@@ -447,6 +493,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     subsystems,
     categorizedClasses,
     isMetadataLoading,
+    allFeatsCache,
+    allSpellsCache,
+    itemEditorMetadata,
     loadCharacter,
     importCharacter,
     loadSubsystem,

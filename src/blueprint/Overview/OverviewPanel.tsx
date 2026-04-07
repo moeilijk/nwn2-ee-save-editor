@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Card, Elevation, H4, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
+import { Button, Card, Elevation, H4, Icon, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { T } from '../theme';
 import { KVRow, mod, StepInput } from '../shared';
 import { DeityDialog } from './DeityDialog';
-import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
+import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
 
@@ -41,10 +41,6 @@ export function OverviewPanel() {
   const { handleError } = useErrorHandler();
   const { character, characterId, isLoading, updateCharacterPartial } = useCharacterContext();
 
-  const abilitySub = useSubsystem('abilityScores');
-  const combatSub = useSubsystem('combat');
-  const savesSub = useSubsystem('saves');
-
   const [isEditingName, setIsEditingName] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -63,6 +59,7 @@ export function OverviewPanel() {
   const [goodEvil, setGoodEvil] = useState(50);
   const [alignmentSaving, setAlignmentSaving] = useState(false);
 
+
   useEffect(() => {
     if (!character) return;
     setFirstName(character.first_name ?? '');
@@ -74,31 +71,19 @@ export function OverviewPanel() {
   }, [character?.id]);
 
   useEffect(() => {
-    if (abilitySub.data) {
-      setHp(abilitySub.data.hit_points.current);
-      setMaxHp(abilitySub.data.hit_points.max);
-    } else if (character) {
-      setHp(character.hitPoints ?? 0);
-      setMaxHp(character.maxHitPoints ?? 1);
-    }
+    if (!character) return;
+    setHp(character.hitPoints ?? 0);
+    setMaxHp(character.maxHitPoints ?? 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [abilitySub.data, character?.hitPoints, character?.maxHitPoints]);
+  }, [character?.hitPoints, character?.maxHitPoints]);
 
   useEffect(() => {
-    if (!characterId) return;
-    CharacterAPI.getAlignment(characterId).then(a => {
-      setLawChaos(a.law_chaos);
-      setGoodEvil(a.good_evil);
-    }).catch(handleError);
-  }, [characterId, handleError]);
-
-  useEffect(() => {
-    if (!characterId) return;
-    abilitySub.load({ silent: true }).catch(handleError);
-    combatSub.load({ silent: true }).catch(handleError);
-    savesSub.load({ silent: true }).catch(handleError);
+    if (!character?.alignmentValues) return;
+    setLawChaos(character.alignmentValues.law_chaos);
+    setGoodEvil(character.alignmentValues.good_evil);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [characterId]);
+  }, [character?.id]);
+
 
   const handleNameSave = useCallback(async () => {
     if (!characterId) return;
@@ -195,24 +180,36 @@ export function OverviewPanel() {
 
   const hpPct = maxHp > 0 ? hp / maxHp : 0;
 
-  const abilityData = abilitySub.data;
-  const combatData = combatSub.data;
-  const savesData = savesSub.data;
+  const ac = character.armorClass ?? 0;
+  const bab = character.baseAttackBonus ?? 0;
+  const melee = character.meleeAttackBonus ?? 0;
+  const ranged = character.rangedAttackBonus ?? 0;
+  const initTotal = character.initiative ?? 0;
 
-  const ac = combatData?.armor_class.total ?? character.armorClass ?? 0;
-  const bab = combatData?.base_attack_bonus ?? character.baseAttackBonus ?? 0;
-  const melee = combatData?.attack_bonuses.melee ?? character.meleeAttackBonus ?? 0;
-  const ranged = combatData?.attack_bonuses.ranged ?? character.rangedAttackBonus ?? 0;
-  const initiative = combatData?.initiative.total ?? character.initiative ?? 0;
-
-  const fort = savesData?.saves.fortitude.total ?? character.saves?.fortitude ?? 0;
-  const reflex = savesData?.saves.reflex.total ?? character.saves?.reflex ?? 0;
-  const will = savesData?.saves.will.total ?? character.saves?.will ?? 0;
+  const fort = character.saves?.fortitude ?? 0;
+  const reflex = character.saves?.reflex ?? 0;
+  const will = character.saves?.will ?? 0;
 
   const classes = character.classes ?? [];
   const domains = character.domains ?? [];
-  const damageResistances = character.damageResistances ?? [];
-  const damageImmunities = character.damageImmunities ?? [];
+
+  const totalSkillPoints = character.totalSkillPoints ?? character.skill_points_available ?? null;
+  const totalFeats = character.totalFeats ?? null;
+  const knownSpells = character.knownSpells ?? null;
+
+  const campaignName = character.campaignName ?? null;
+  const moduleName = character.moduleName ?? null;
+  const locationName = character.location ?? null;
+  const gameAct = character.gameAct != null ? String(character.gameAct) : null;
+  const difficultyLabel = character.difficultyLabel ?? null;
+  const gt = character.gameTime;
+  const gameTimeStr = gt?.year != null
+    ? `Y${gt.year} M${gt.month} D${gt.day}, Hour ${gt.hour}`
+    : null;
+  const lastSavedStr = character.lastSaved
+    ? (() => { try { return new Date(character.lastSaved!).toLocaleDateString(); } catch { return character.lastSaved; } })()
+    : character.lastSavedTimestamp != null ? new Date(character.lastSavedTimestamp * 1000).toLocaleDateString()
+    : null;
 
   const questDetails = character.questDetails;
   const completedQuests = questDetails?.summary.completed_quests ?? character.completedQuests ?? 0;
@@ -233,9 +230,11 @@ export function OverviewPanel() {
               <Button icon="cross" minimal small onClick={handleNameCancel} />
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-              <H4 style={{ margin: 0, color: T.text }}>{display(firstName)} {display(lastName)}</H4>
-              <Button icon="edit" minimal small style={{ color: T.textMuted }} onClick={() => setIsEditingName(true)} />
+            <div style={{ marginBottom: 4 }}>
+              <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, cursor: 'pointer' }} onClick={() => setIsEditingName(true)}>
+                <H4 style={{ margin: 0, color: T.text }}>{display(firstName)} {display(lastName)}</H4>
+                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+              </span>
             </div>
           )}
           <div style={{ color: T.textMuted, marginBottom: 10 }}>
@@ -244,13 +243,13 @@ export function OverviewPanel() {
           </div>
 
           <div style={{ fontSize: 13 }}>
-            <KVRow label={t('character.race') ?? 'Race'} value={display(character.race)} />
+            <KVRow label={t('character.race')} value={display(character.race)} />
             <KVRow label="Gender / Age" value={`${display(character.gender)}, ${display(character.age)} yrs`} />
             <KVRow label={t('character.alignment')} value={ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.name ?? display(character.alignment)} />
             <KVRow label="Deity" value={
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsDeityOpen(true)}>
                 {display(character.deity, 'None')}
-                <Button icon="edit" minimal small style={{ color: T.textMuted }} onClick={() => setIsDeityOpen(true)} />
+                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
               </span>
             } />
             <KVRow label="Background" value={display(character.background?.name)} />
@@ -268,19 +267,20 @@ export function OverviewPanel() {
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Progression</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
-            <KVRow label={t('character.skillPoints')} value={display(character.skill_points_available ?? character.totalSkillPoints)} />
-            <KVRow label={t('character.totalFeats')} value={display(character.totalFeats)} />
-            <KVRow label={t('character.knownSpells')} value={display(character.knownSpells)} />
-            <KVRow label={t('character.size')} value={display(character.size)} />
+            <KVRow label={t('character.skillPoints')} value={display(totalSkillPoints)} />
+            <KVRow label={t('character.totalFeats')} value={display(totalFeats)} />
+            <KVRow label={t('character.knownSpells')} value={display(knownSpells)} />
           </div>
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>Biography</span>
-            {!isEditingBio && (
-              <Button icon="edit" minimal small style={{ color: T.textMuted }} onClick={() => setIsEditingBio(true)} />
-            )}
+          <div style={{ marginBottom: 8 }}>
+            <span className={isEditingBio ? undefined : 'editable-row'} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isEditingBio ? undefined : 'pointer' }} onClick={() => !isEditingBio && setIsEditingBio(true)}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>Biography</span>
+              {!isEditingBio && (
+                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+              )}
+            </span>
           </div>
           {isEditingBio ? (
             <div>
@@ -300,14 +300,16 @@ export function OverviewPanel() {
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px', fontSize: 13 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Campaign</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>
+            <KVRow label="Campaign Name" value={display(campaignName)} />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-            <KVRow label="Campaign" value={display(character.campaignName)} />
-            <KVRow label="Game Act" value={character.gameAct != null ? `Act ${character.gameAct}` : '-'} />
-            <KVRow label="Difficulty" value={display(character.difficultyLabel)} />
-            <KVRow label="Module" value={display(character.moduleName)} />
-            <KVRow label={t('character.location')} value={display(character.location)} />
-            <KVRow label={t('character.playTime')} value={display(character.playTime)} />
-            <KVRow label={t('character.lastSaved')} value={character.lastSavedTimestamp != null ? new Date(character.lastSavedTimestamp * 1000).toLocaleDateString() : display(character.lastSaved)} />
+            <KVRow label="Game Act" value={gameAct != null ? `Act ${gameAct}` : '-'} />
+            <KVRow label="Module" value={display(moduleName)} />
+            <KVRow label={t('character.location')} value={display(locationName)} />
+            <KVRow label="Difficulty" value={display(difficultyLabel)} />
+            <KVRow label={t('character.lastSaved')} value={display(lastSavedStr)} />
+            <KVRow label="Game Time" value={display(gameTimeStr)} />
           </div>
         </div>
 
@@ -336,7 +338,7 @@ export function OverviewPanel() {
               <span style={{ fontSize: 11, fontWeight: 400, color: T.textMuted, marginLeft: 4 }}>({Math.round(hpPct * 100)}%)</span>
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Current</div>
               <StepInput value={hp} onValueChange={v => { setHp(v); handleHpChange(v, maxHp); }} min={-10} max={maxHp} width={88} />
@@ -354,9 +356,10 @@ export function OverviewPanel() {
             <KVRow label={t('character.armorClass')} value={display(ac)} />
             <KVRow label={t('character.speed')} value={character.movementSpeed != null ? `${character.movementSpeed} ft` : '-'} />
             <KVRow label={t('character.baseAttackBonus')} value={formatModifier(bab)} />
-            <KVRow label={t('character.initiative')} value={formatModifier(initiative)} />
+            <KVRow label={t('character.initiative')} value={formatModifier(initTotal)} />
             <KVRow label={t('character.meleeAttack')} value={formatModifier(melee)} />
             <KVRow label={t('character.rangedAttack')} value={formatModifier(ranged)} />
+            <KVRow label={t('character.size')} value={display(character.size)} />
           </div>
         </div>
 
@@ -373,9 +376,8 @@ export function OverviewPanel() {
           <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('abilityScores.abilityScores')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
             {ABILITY_DEFS.map(a => {
-              const score = abilityData?.effective_scores[a.key] ?? character.abilities?.[a.fallbackKey];
-              const modifier = abilityData?.modifiers[a.key];
-              const modVal = modifier != null ? modifier : score != null ? Math.floor((score - 10) / 2) : null;
+              const score = character.abilities?.[a.fallbackKey];
+              const modVal = character.abilityModifiers?.[a.key] ?? (score != null ? Math.floor((score - 10) / 2) : null);
               return (
                 <KVRow key={a.key} label={a.label} value={
                   <>
@@ -417,7 +419,7 @@ export function OverviewPanel() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Law - Chaos</div>
               <StepInput value={lawChaos} onValueChange={v => handleAlignmentStep('lc', v)} min={0} max={100} width={88} />
@@ -429,18 +431,6 @@ export function OverviewPanel() {
           </div>
         </div>
 
-        <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Special Defenses</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
-            <KVRow label={t('character.spellResistance')} value={display(character.spellResistance)} />
-            {damageImmunities.length > 0 && (
-              <KVRow label={t('character.immunities')} value={damageImmunities.join(', ')} />
-            )}
-            {damageResistances.map(r => (
-              <KVRow key={r.type} label={r.type} value={r.amount} />
-            ))}
-          </div>
-        </div>
       </Card>
 
       <DeityDialog

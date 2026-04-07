@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button, Icon, Popover, Tag, type IconName } from '@blueprintjs/core';
 import { T } from '../theme';
+import { useSubsystem } from '@/contexts/CharacterContext';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface PendingGain {
   label: string;
@@ -13,25 +15,18 @@ interface PendingGain {
 
 interface SpellClass {
   name: string;
-  casterType: 'spontaneous' | 'spellbook';
+  casterType: string;
   byLevel: Record<number, number>;
   total: number;
 }
 
-const DUMMY_GAINS: PendingGain[] = [
-  { label: 'Skill Points', count: 8, icon: 'build', color: T.positive, tagIntent: 'success', tabId: 'skills' },
-  { label: 'Feat Slots', count: 1, icon: 'star', color: T.accent, tagIntent: 'primary', tabId: 'feats' },
-  { label: 'Ability Score Increase', count: 1, icon: 'properties', color: T.gold, tagIntent: 'warning', tabId: 'abilities' },
-];
-
-const DUMMY_SPELLS: SpellClass[] = [
-  {
-    name: 'Cleric',
-    casterType: 'spontaneous',
-    byLevel: { 0: 1, 2: 1, 3: 1 },
-    total: 3,
-  },
-];
+interface PendingSpellLearning {
+  class_id: number;
+  class_name: string;
+  caster_type: string;
+  by_level: Record<number, number>;
+  total: number;
+}
 
 const SPELL_COLOR = '#5c7cfa';
 
@@ -40,11 +35,62 @@ interface LevelHelperProps {
 }
 
 export function LevelHelper({ onNavigate }: LevelHelperProps) {
+  const t = useTranslations();
   const [isOpen, setIsOpen] = useState(false);
   const [spellsExpanded, setSpellsExpanded] = useState(false);
 
-  const gains = DUMMY_GAINS.filter(g => g.count > 0);
-  const spellTotal = DUMMY_SPELLS.reduce((s, c) => s + c.total, 0);
+  const skillsSub = useSubsystem('skills');
+  const featsSub = useSubsystem('feats');
+  const abilitiesSub = useSubsystem('abilityScores');
+  const spellsSub = useSubsystem('spells');
+
+  const remainingSkillPoints = skillsSub.data
+    ? skillsSub.data.total_available - skillsSub.data.spent_points
+    : 0;
+
+  const openFeatSlots = featsSub.data?.feat_slots?.open_slots ?? 0;
+
+  const pendingAbilityIncreases = abilitiesSub.data?.point_summary?.available ?? 0;
+
+  const gains: PendingGain[] = [
+    remainingSkillPoints > 0 && {
+      label: t('levelHelper.skillPoints'),
+      count: remainingSkillPoints,
+      icon: 'build' as IconName,
+      color: T.positive,
+      tagIntent: 'success' as const,
+      tabId: 'skills',
+    },
+    openFeatSlots > 0 && {
+      label: t('levelHelper.featSlots'),
+      count: openFeatSlots,
+      icon: 'star' as IconName,
+      color: T.accent,
+      tagIntent: 'primary' as const,
+      tabId: 'feats',
+    },
+    pendingAbilityIncreases > 0 && {
+      label: t('levelHelper.abilityScoreIncrease'),
+      count: pendingAbilityIncreases,
+      icon: 'properties' as IconName,
+      color: T.gold,
+      tagIntent: 'warning' as const,
+      tabId: 'abilities',
+    },
+  ].filter(Boolean) as PendingGain[];
+
+  const pending: PendingSpellLearning[] = spellsSub.data?.pending_spell_learning ?? [];
+
+  const spellClasses: SpellClass[] = pending
+    .filter(cls => cls.total > 0)
+    .map(cls => ({
+      name: cls.class_name,
+      casterType: cls.caster_type,
+      byLevel: cls.by_level,
+      total: cls.total,
+    }));
+
+  const spellTotal = spellClasses.reduce((s, c) => s + c.total, 0);
   const hasSpells = spellTotal > 0;
   const totalPending = gains.reduce((s, g) => s + g.count, 0) + spellTotal;
 
@@ -82,14 +128,14 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
         justifyContent: 'space-between',
       }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: T.accent, letterSpacing: '0.04em' }}>
-          Pending Allocations
+          {t('levelHelper.pendingAllocations')}
         </span>
         <Button minimal small icon="cross" onClick={() => setIsOpen(false)} />
       </div>
 
       <div style={{ padding: '8px 10px' }}>
         <p style={{ fontSize: 11, color: T.textMuted, margin: '0 0 8px 0' }}>
-          You have pending gains to allocate:
+          {t('levelHelper.pendingGainsMessage')}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -121,7 +167,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
                   onClick={() => handleRowClick('spells')}
                 >
                   <Icon icon="flash" size={14} style={{ color: SPELL_COLOR }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>Spells to Learn</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{t('levelHelper.spellsToLearn')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Tag minimal round style={{ fontSize: 11, minWidth: 20, textAlign: 'center', color: SPELL_COLOR }}>
@@ -144,17 +190,17 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
                   borderLeft: `2px solid ${T.border}`,
                   marginTop: 4,
                 }}>
-                  {DUMMY_SPELLS.map((cls, i) => (
-                    <div key={i} style={{ marginBottom: i < DUMMY_SPELLS.length - 1 ? 8 : 0 }}>
+                  {spellClasses.map((cls, i) => (
+                    <div key={i} style={{ marginBottom: i < spellClasses.length - 1 ? 8 : 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 2 }}>
                         {cls.name}
                         {cls.casterType === 'spellbook' && (
-                          <span style={{ color: T.textMuted, fontWeight: 400, marginLeft: 4 }}>(Spellbook)</span>
+                          <span style={{ color: T.textMuted, fontWeight: 400, marginLeft: 4 }}>({t('levelHelper.spellbook')})</span>
                         )}
                       </div>
                       {cls.casterType === 'spellbook' ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.textMuted, paddingLeft: 8 }}>
-                          <span>Free Spells</span>
+                          <span>{t('levelHelper.freeSpells')}</span>
                           <span style={{ fontWeight: 600, color: SPELL_COLOR }}>{cls.total}</span>
                         </div>
                       ) : (
@@ -162,7 +208,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
                           .sort(([a], [b]) => Number(a) - Number(b))
                           .map(([level, count]) => (
                             <div key={level} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T.textMuted, paddingLeft: 8 }}>
-                              <span>{Number(level) === 0 ? 'Cantrips' : `Level ${level}`}</span>
+                              <span>{Number(level) === 0 ? t('levelHelper.cantrips') : t('levelHelper.spellLevel', { level })}</span>
                               <span style={{ fontWeight: 600, color: SPELL_COLOR }}>{count}</span>
                             </div>
                           ))

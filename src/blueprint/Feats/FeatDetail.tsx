@@ -1,12 +1,17 @@
-import { Icon } from '@blueprintjs/core';
+import { useState } from 'react';
+import { Button, Icon } from '@blueprintjs/core';
 import { T, FEAT_TYPE_COLORS } from '../theme';
 import type { FeatInfo, BackendFeatPrerequisites } from '@/components/Feats/types';
 import { FEAT_TYPE_LABELS, getFeatTypeLabel } from '@/utils/featUtils';
 import { DetailSection } from '../shared';
 import { display } from '@/utils/dataHelpers';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface FeatDetailProps {
   feat: FeatInfo | null;
+  isOwned: boolean;
+  onAdd?: (featId: number) => Promise<void>;
+  onRemove?: (featId: number) => Promise<void>;
 }
 
 
@@ -16,7 +21,10 @@ function isBackendPrerequisites(prereqs: unknown): prereqs is BackendFeatPrerequ
   return 'feats' in p || 'abilities' in p || 'bab' in p || 'level' in p || 'skills' in p;
 }
 
-export function FeatDetail({ feat }: FeatDetailProps) {
+export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) {
+  const t = useTranslations();
+  const [busy, setBusy] = useState(false);
+
   if (!feat) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.textMuted }}>
@@ -24,6 +32,18 @@ export function FeatDetail({ feat }: FeatDetailProps) {
       </div>
     );
   }
+
+  const handleAdd = async () => {
+    if (!onAdd) return;
+    setBusy(true);
+    try { await onAdd(feat.id); } finally { setBusy(false); }
+  };
+
+  const handleRemove = async () => {
+    if (!onRemove) return;
+    setBusy(true);
+    try { await onRemove(feat.id); } finally { setBusy(false); }
+  };
 
   const typeLabel = getFeatTypeLabel(feat.type);
   const typeColor = FEAT_TYPE_COLORS[typeLabel] || T.textMuted;
@@ -40,13 +60,37 @@ export function FeatDetail({ feat }: FeatDetailProps) {
   return (
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      <div>
-        <span style={{ fontWeight: 700, color: T.text }}>{display(feat.name)}</span>
-        <span style={{ color: T.textMuted }}> — </span>
-        <span style={{ color: typeColor, fontWeight: 500 }}>{typeLabel}</span>
-        {feat.protected && (
-          <span style={{ marginLeft: 8, fontSize: 11, color: T.textMuted, fontStyle: 'italic' }}>protected</span>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <span style={{ fontWeight: 700, color: T.text }}>{display(feat.name)}</span>
+          <span style={{ color: T.textMuted }}> — </span>
+          <span style={{ color: typeColor, fontWeight: 500 }}>{typeLabel}</span>
+          {feat.protected && (
+            <span style={{ marginLeft: 8, fontSize: 11, color: T.textMuted, fontStyle: 'italic' }}>protected</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {isOwned && !feat.protected && onRemove && (
+            <Button
+              small
+              intent="danger"
+              icon="trash"
+              text={t('placeholders.removeFeat')}
+              loading={busy}
+              onClick={handleRemove}
+            />
+          )}
+          {!isOwned && onAdd && (
+            <Button
+              small
+              intent="success"
+              icon="plus"
+              text={t('placeholders.addFeat')}
+              loading={busy}
+              onClick={handleAdd}
+            />
+          )}
+        </div>
       </div>
 
       {feat.description && (

@@ -1,237 +1,466 @@
-import { useState } from 'react';
-import { Button, Checkbox, InputGroup, Menu, MenuItem, Popover, Tab, Tabs, TextArea } from '@blueprintjs/core';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Button, Checkbox, Menu, MenuItem, Popover, Spinner, Tab, Tabs } from '@blueprintjs/core';
 import { ParchmentDialog, StepInput } from '../shared';
 import { T } from '../theme';
+import { useTranslations } from '@/hooks/useTranslations';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useCharacterContext } from '@/contexts/CharacterContext';
+import { useInventoryManagement } from '@/hooks/useInventoryManagement';
+import { type ItemEditorMetadataResponse, type PropertyMetadata } from '@/services/inventoryApi';
+import { stripNwn2Tags, nwn2ToHtml, htmlToNwn2 } from '@/utils/nwn2Markup';
 
-const DUMMY_PROPERTY_TYPES = [
-  { id: 0, label: 'Enhancement Bonus' },
-  { id: 1, label: 'Damage Bonus' },
-  { id: 2, label: 'AC Bonus' },
-  { id: 3, label: 'Ability Bonus' },
-  { id: 4, label: 'Saving Throw Bonus' },
-  { id: 5, label: 'Regeneration' },
-  { id: 6, label: 'Keen' },
-  { id: 7, label: 'Massive Criticals' },
-  { id: 8, label: 'Immunity' },
-  { id: 9, label: 'Skill Bonus' },
-  { id: 10, label: 'Spell Resistance' },
-  { id: 11, label: 'Freedom of Movement' },
-];
-
-const DUMMY_SUBTYPES: Record<number, { id: number; label: string }[]> = {
-  1: [{ id: 0, label: 'Acid' }, { id: 1, label: 'Cold' }, { id: 2, label: 'Fire' }, { id: 3, label: 'Electrical' }, { id: 4, label: 'Sonic' }, { id: 5, label: 'Divine' }],
-  3: [{ id: 0, label: 'Strength' }, { id: 1, label: 'Dexterity' }, { id: 2, label: 'Constitution' }, { id: 3, label: 'Intelligence' }, { id: 4, label: 'Wisdom' }, { id: 5, label: 'Charisma' }],
-  4: [{ id: 0, label: 'Fortitude' }, { id: 1, label: 'Reflex' }, { id: 2, label: 'Will' }, { id: 3, label: 'Universal' }],
-};
-
-const DUMMY_VALUE_OPTIONS = Array.from({ length: 21 }, (_, i) => ({ id: i, label: `+${i}` }));
-
-interface Property {
-  typeId: number;
-  subtype: number;
-  value: number;
+function sortCostTableEntries(entries: [string, string][]): [string, string][] {
+  return entries.sort(([, a], [, b]) => {
+    const isDiceA = /\d+d\d+/.test(a);
+    const isDiceB = /\d+d\d+/.test(b);
+    if (isDiceA && !isDiceB) return -1;
+    if (!isDiceA && isDiceB) return 1;
+    if (isDiceA && isDiceB) {
+      const [numA, dieA] = a.match(/(\d+)d(\d+)/)!.slice(1).map(Number);
+      const [numB, dieB] = b.match(/(\d+)d(\d+)/)!.slice(1).map(Number);
+      return numA !== numB ? numA - numB : dieA - dieB;
+    }
+    const numA = parseInt(a.replace(/[^-\d]/g, '')) || 0;
+    const numB = parseInt(b.replace(/[^-\d]/g, '')) || 0;
+    return numA - numB;
+  });
 }
 
-interface EditItemDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  itemName?: string;
-}
-
-function DropdownSelect({ label, value, items, onChange }: {
+function DropdownSelect({ label, value, items, onChange, disabled }: {
   label: string;
   value: string;
-  items: { id: number; label: string }[];
+  items: { id: string | number; label: string }[];
   onChange: (id: number) => void;
+  disabled?: boolean;
 }) {
   const menu = (
     <Menu style={{ maxHeight: 300, overflowY: 'auto' }}>
       {items.map(item => (
-        <MenuItem key={item.id} text={item.label} active={item.label === value} onClick={() => onChange(item.id)} />
+        <MenuItem key={item.id} text={item.label} active={item.label === value} onClick={() => onChange(Number(item.id))} />
       ))}
     </Menu>
   );
-
   return (
-    <div>
-      <div style={{ fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>{label}</div>
-      <Popover content={menu} placement="bottom-start" minimal fill>
+    <div style={{ opacity: disabled ? 0.35 : 1, pointerEvents: disabled ? 'none' : undefined }}>
+      <div style={{ fontWeight: 600, color: T.textMuted, marginBottom: 3, fontSize: 11 }}>{label}</div>
+      <Popover content={menu} placement="bottom-start" minimal fill disabled={disabled}>
         <Button minimal rightIcon="caret-down" text={value} fill
           style={{ textAlign: 'left', border: `1px solid ${T.border}`, background: T.surface }}
+          disabled={disabled}
         />
       </Popover>
     </div>
   );
 }
 
-export function EditItemDialog({ isOpen, onClose, itemName }: EditItemDialogProps) {
-  const [tab, setTab] = useState<string>('basic');
-  const [name, setName] = useState(itemName || 'Kamas +3');
-  const [description, setDescription] = useState('A pair of finely crafted kamas imbued with elemental fire.');
-  const [stackSize, setStackSize] = useState(1);
-  const [charges, setCharges] = useState(0);
-  const [identified, setIdentified] = useState(true);
-  const [plot, setPlot] = useState(false);
-  const [cursed, setCursed] = useState(false);
-  const [stolen, setStolen] = useState(false);
+export interface EditItemDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved?: () => void;
+  itemData: Record<string, unknown> | null;
+  itemIndex?: number | null;
+  slot?: string | null;
+  resolvedName?: string;
+  resolvedDescription?: string;
+  preloadedMetadata?: ItemEditorMetadataResponse | null;
+}
 
-  const [properties, setProperties] = useState<Property[]>([
-    { typeId: 0, subtype: 0, value: 3 },
-    { typeId: 6, subtype: 0, value: 0 },
-    { typeId: 1, subtype: 2, value: 6 },
-  ]);
+export function EditItemDialog({
+  isOpen,
+  onClose,
+  onSaved,
+  itemData,
+  itemIndex,
+  slot,
+  resolvedName,
+  resolvedDescription,
+  preloadedMetadata,
+}: EditItemDialogProps) {
+  const t = useTranslations();
+  const { handleError } = useErrorHandler();
+  const { characterId } = useCharacterContext();
+  const { updateItem } = useInventoryManagement();
+
+  const [tab, setTab] = useState<string>('basic');
+  const [localData, setLocalData] = useState<Record<string, unknown> | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editorInitialized, setEditorInitialized] = useState(false);
+
+  const nameRef = useRef<HTMLDivElement>(null);
+  const descRef = useRef<HTMLDivElement>(null);
+  const prevItemKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !itemData || !characterId) return;
+
+    const itemKey = `${itemIndex ?? ''}:${slot ?? ''}`;
+    if (prevItemKey.current !== itemKey) {
+      setTab('basic');
+      prevItemKey.current = itemKey;
+    }
+
+    const data = JSON.parse(JSON.stringify(itemData));
+    if (data.StackSize === undefined) data.StackSize = 1;
+
+    if (resolvedName && data.LocalizedName) {
+      const substrings = (data.LocalizedName as Record<string, unknown>).substrings as Array<{ string?: string }> | undefined;
+      if (!substrings || substrings.length === 0) {
+        (data.LocalizedName as Record<string, unknown>).substrings = [{ language: 0, gender: 0, string: resolvedName }];
+      }
+    }
+
+    if (resolvedDescription && data.DescIdentified) {
+      const substrings = (data.DescIdentified as Record<string, unknown>).substrings as Array<{ string?: string }> | undefined;
+      if (!substrings || substrings.length === 0) {
+        (data.DescIdentified as Record<string, unknown>).substrings = [{ language: 0, gender: 0, string: resolvedDescription }];
+      }
+    }
+
+    setLocalData(data);
+    setEditorInitialized(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, itemData, characterId, resolvedName, resolvedDescription]);
+
+  useEffect(() => {
+    if (!isOpen || !localData || editorInitialized) return;
+    const nameField = localData['LocalizedName'] as Record<string, unknown> | undefined;
+    const nameSubstrings = nameField?.substrings as Array<{ string?: string }> | undefined;
+    const descField = localData['DescIdentified'] as Record<string, unknown> | undefined;
+    const descSubstrings = descField?.substrings as Array<{ string?: string }> | undefined;
+    const nameHtml = nwn2ToHtml(nameSubstrings?.[0]?.string || '');
+    const descHtml = nwn2ToHtml(descSubstrings?.[0]?.string || '');
+
+    const tryInit = () => {
+      if (nameRef.current && descRef.current) {
+        nameRef.current.innerHTML = nameHtml;
+        descRef.current.innerHTML = descHtml;
+        setEditorInitialized(true);
+      } else {
+        requestAnimationFrame(tryInit);
+      }
+    };
+    requestAnimationFrame(tryInit);
+  }, [isOpen, localData, editorInitialized]);
+
+  const syncField = useCallback((field: string, ref: React.RefObject<HTMLDivElement | null>) => {
+    if (!ref.current) return;
+    const value = htmlToNwn2(ref.current);
+    setLocalData(prev => {
+      if (!prev) return prev;
+      const existing = prev[field] as Record<string, unknown> | undefined;
+      if (!existing) {
+        return { ...prev, [field]: { string_ref: 4294967295, substrings: [{ language: 0, gender: 0, string: value }] } };
+      }
+      return { ...prev, [field]: { ...existing, substrings: [{ language: 0, gender: 0, string: value }] } };
+    });
+  }, []);
+
+  const handleBasicChange = (field: string, value: unknown) => {
+    setLocalData(prev => prev ? { ...prev, [field]: value } : prev);
+  };
 
   const handleAddProperty = () => {
-    setProperties(prev => [...prev, { typeId: 0, subtype: 0, value: 0 }]);
+    if (!preloadedMetadata?.property_types.length) return;
+    const firstProp = preloadedMetadata.property_types[0];
+    const newProp = {
+      PropertyName: firstProp.id,
+      Subtype: 0,
+      CostTable: firstProp.cost_table_idx ?? 0,
+      CostValue: 0,
+      Param1: firstProp.param1_idx ?? 255,
+      Param1Value: 0,
+      ChancesAppear: 100,
+      Useable: true,
+      SpellID: 65535,
+      UsesPerDay: 255,
+    };
+    setLocalData(prev => prev ? { ...prev, PropertiesList: [...((prev.PropertiesList as unknown[]) || []), newProp] } : prev);
   };
 
   const handleRemoveProperty = (index: number) => {
-    setProperties(prev => prev.filter((_, i) => i !== index));
+    setLocalData(prev => {
+      if (!prev) return prev;
+      const newList = [...((prev.PropertiesList as unknown[]) || [])];
+      newList.splice(index, 1);
+      return { ...prev, PropertiesList: newList };
+    });
   };
 
-  const handlePropertyChange = (index: number, field: keyof Property, val: number) => {
-    setProperties(prev => prev.map((p, i) => {
-      if (i !== index) return p;
-      if (field === 'typeId') return { ...p, typeId: val, subtype: 0, value: 0 };
-      return { ...p, [field]: val };
-    }));
+  const handlePropertyChange = (index: number, field: string, value: unknown) => {
+    setLocalData(prev => {
+      if (!prev) return prev;
+      const newList = [...((prev.PropertiesList as Record<string, unknown>[]) || [])];
+      const property = { ...newList[index], [field]: value };
+      if (field === 'PropertyName') {
+        const propMeta = preloadedMetadata?.property_types.find(p => p.id === value);
+        if (propMeta) {
+          property.Subtype = 0;
+          property.CostTable = propMeta.cost_table_idx ?? 0;
+          property.CostValue = 0;
+          property.Param1 = propMeta.param1_idx ?? 255;
+          property.Param1Value = 0;
+        }
+      }
+      newList[index] = property;
+      return { ...prev, PropertiesList: newList };
+    });
   };
 
-  const getPropertyLabel = (id: number) => DUMMY_PROPERTY_TYPES.find(p => p.id === id)?.label || 'Unknown';
-  const getSubtypeLabel = (typeId: number, subtypeId: number) => DUMMY_SUBTYPES[typeId]?.find(s => s.id === subtypeId)?.label || '-';
-  const getValueLabel = (val: number) => DUMMY_VALUE_OPTIONS.find(v => v.id === val)?.label || `+${val}`;
+  const handleSave = async () => {
+    if (!localData || isSaving) return;
+    setIsSaving(true);
+    try {
+      await updateItem({
+        item_index: itemIndex ?? undefined,
+        slot: slot ?? undefined,
+        item_data: localData,
+      });
+      onClose();
+      onSaved?.();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getLocalizedValue = (field: string) => {
+    const fieldData = localData?.[field] as Record<string, unknown> | undefined;
+    const substrings = fieldData?.substrings as Array<{ string?: string }> | undefined;
+    return substrings?.[0]?.string || '';
+  };
+
+  const getSubtypeOptions = (propertyName: number): Record<number, string> | null => {
+    const propDef = preloadedMetadata?.property_types.find(p => p.id === propertyName);
+    return propDef?.subtype_options || null;
+  };
+
+  const getPropMeta = (propertyName: number): PropertyMetadata | undefined =>
+    preloadedMetadata?.property_types.find(p => p.id === propertyName);
+
+  const properties = (localData?.PropertiesList as Record<string, unknown>[] | undefined) || [];
+  const itemName = stripNwn2Tags(getLocalizedValue('LocalizedName'));
 
   return (
     <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
-      onOpened={() => setTab('basic')}
-      title={`Edit: ${name}`}
-      width={720}
-      minHeight={540}
+      onOpened={undefined}
+      title={itemName ? `${t('inventory.editItem')}: ${itemName}` : t('inventory.editItem')}
+      width={960}
+      minHeight={560}
       footerActions={
-        <Button intent="primary" icon="floppy-disk" text="Save" onClick={onClose} />
+        <Button
+          intent="primary"
+          icon="floppy-disk"
+          text={isSaving ? t('inventory.addingItem') : t('inventory.save')}
+          onClick={handleSave}
+          loading={isSaving}
+          disabled={isSaving || !localData}
+        />
       }
       footerLeft={
         <span style={{ color: T.textMuted }}>
-          {properties.length} properties
+          {properties.length} {t('inventory.properties')}
         </span>
       }
     >
-      <Tabs id="edit-item-tab" selectedTabId={tab} onChange={(id) => setTab(id as string)}>
-        <Tab id="basic" title="Basic Info" panel={
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
-            <div>
-              <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>Name</label>
-              <InputGroup value={name} onChange={(e) => setName(e.target.value)} fill />
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>Description</label>
-              <TextArea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                fill rows={4}
-                style={{ background: T.surfaceAlt, borderColor: T.border, color: T.text, resize: 'vertical' }}
-              />
-            </div>
-
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-              padding: '10px 12px', background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 4,
-            }}>
+      {!localData ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10 }}>
+          <Spinner size={20} />
+        </div>
+      ) : (
+        <Tabs id="edit-item-tab" selectedTabId={tab} onChange={(id) => setTab(id as string)}>
+          <Tab id="basic" title={t('inventory.basicInfoTab')} panel={
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
               <div>
-                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>Stack Size</label>
-                <StepInput value={stackSize} onValueChange={setStackSize} min={1} max={99} width={120} />
+                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.name')}</label>
+                <div
+                  ref={nameRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => syncField('LocalizedName', nameRef)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+                  }}
+                  style={{
+                    width: '100%', borderRadius: 3, border: `1px solid ${T.border}`,
+                    background: T.surface, padding: '6px 10px', color: T.text,
+                    minHeight: 32, outline: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
+                  }}
+                />
               </div>
-              <div>
-                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>Charges</label>
-                <StepInput value={charges} onValueChange={setCharges} min={0} max={255} width={120} />
-              </div>
-            </div>
 
-            <div>
-              <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 6 }}>Flags</label>
+              <div>
+                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.description')}</label>
+                <div
+                  ref={descRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => syncField('DescIdentified', descRef)}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+                  }}
+                  style={{
+                    width: '100%', borderRadius: 3, border: `1px solid ${T.border}`,
+                    background: T.surfaceAlt, padding: '6px 10px', color: T.text,
+                    minHeight: 100, outline: 'none', resize: 'vertical',
+                  }}
+                />
+              </div>
+
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6,
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
                 padding: '10px 12px', background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 4,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox checked={identified} onChange={(e) => setIdentified((e.target as HTMLInputElement).checked)} style={{ margin: 0 }} />
-                  <span style={{ color: T.text }}>Identified</span>
+                <div>
+                  <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.stackSize')}</label>
+                  <StepInput
+                    value={(localData.StackSize as number | undefined) ?? 1}
+                    onValueChange={(v) => handleBasicChange('StackSize', v)}
+                    min={1} max={99} width={120}
+                  />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox checked={plot} onChange={(e) => setPlot((e.target as HTMLInputElement).checked)} style={{ margin: 0 }} />
-                  <span style={{ color: T.accent }}>Plot Item</span>
+                <div>
+                  <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.charges')}</label>
+                  <StepInput
+                    value={(localData.Charges as number | undefined) ?? 0}
+                    onValueChange={(v) => handleBasicChange('Charges', v)}
+                    min={0} max={255} width={120}
+                  />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox checked={cursed} onChange={(e) => setCursed((e.target as HTMLInputElement).checked)} style={{ margin: 0 }} />
-                  <span style={{ color: T.negative }}>Cursed</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox checked={stolen} onChange={(e) => setStolen((e.target as HTMLInputElement).checked)} style={{ margin: 0 }} />
-                  <span style={{ color: T.text }}>Stolen</span>
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 6 }}>Flags</label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6,
+                  padding: '10px 12px', background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 4,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Checkbox
+                      checked={localData.Identified === 1}
+                      onChange={(e) => handleBasicChange('Identified', (e.target as HTMLInputElement).checked ? 1 : 0)}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{ color: T.text }}>{t('inventory.identified')}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Checkbox
+                      checked={localData.Plot === 1}
+                      onChange={(e) => handleBasicChange('Plot', (e.target as HTMLInputElement).checked ? 1 : 0)}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{ color: T.accent }}>{t('inventory.plotItem')}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Checkbox
+                      checked={localData.Cursed === 1}
+                      onChange={(e) => handleBasicChange('Cursed', (e.target as HTMLInputElement).checked ? 1 : 0)}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{ color: T.negative }}>{t('inventory.cursedItem')}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Checkbox
+                      checked={localData.Stolen === 1}
+                      onChange={(e) => handleBasicChange('Stolen', (e.target as HTMLInputElement).checked ? 1 : 0)}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{ color: T.text }}>{t('inventory.stolenItem')}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        } />
+          } />
 
-        <Tab id="properties" title="Properties" panel={
-          <div style={{ paddingTop: 4 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              marginBottom: 10,
-            }}>
-              <span style={{ fontWeight: 600, color: T.text }}>Enchantments ({properties.length})</span>
-              <Button small icon="add" intent="primary" text="Add Property" onClick={handleAddProperty} />
-            </div>
+          <Tab id="properties" title={t('inventory.propertiesTab')} panel={
+            <div style={{ paddingTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontWeight: 600, color: T.text }}>{t('inventory.enchantments')} ({properties.length})</span>
+                <Button small icon="add" intent="primary" text={t('inventory.addProperty')} onClick={handleAddProperty} disabled={!preloadedMetadata} />
+              </div>
 
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              {properties.map((prop, i) => {
-                const subtypes = DUMMY_SUBTYPES[prop.typeId];
-                return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '8px 0',
-                    borderBottom: `1px solid ${T.borderLight}`,
-                  }}>
-                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: subtypes ? '1fr 1fr 100px' : '1fr 100px', gap: 8 }}>
+              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                {properties.map((prop, i) => {
+                  const propMeta = getPropMeta(prop.PropertyName as number);
+                  const subtypeOptions = getSubtypeOptions(prop.PropertyName as number);
+
+                  const propertyItems = (preloadedMetadata?.property_types || []).map(pt => ({ id: pt.id, label: pt.label }));
+                  const subtypeItems = subtypeOptions
+                    ? Object.entries(subtypeOptions).map(([id, label]) => ({ id, label }))
+                    : [];
+                  const costItems = propMeta?.cost_table_options
+                    ? sortCostTableEntries(Object.entries(propMeta.cost_table_options)).map(([id, label]) => ({ id, label }))
+                    : [];
+                  const param1Items = propMeta?.param1_options
+                    ? Object.entries(propMeta.param1_options).map(([id, label]) => ({ id, label }))
+                    : [];
+
+                  const propLabel = propertyItems.find(p => p.id === prop.PropertyName)?.label || String(prop.PropertyName);
+                  const subtypeLabel = subtypeItems.find(s => String(s.id) === String(prop.Subtype ?? 0))?.label || String(prop.Subtype ?? 0);
+                  const costLabel = costItems.find(c => String(c.id) === String(prop.CostValue ?? 0))?.label || String(prop.CostValue ?? 0);
+                  const param1Label = param1Items.find(p => String(p.id) === String(prop.Param1Value ?? 0))?.label || String(prop.Param1Value ?? 0);
+
+                  const colCount = (propMeta?.has_subtype ? 1 : 0) + (propMeta?.has_cost_table ? 1 : 0) + (propMeta?.has_param1 ? 1 : 0);
+                  const gridCols = `1fr ${Array(colCount).fill('1fr').join(' ')} 80px`;
+
+                  return (
+                    <div key={i} style={{
+                      display: 'grid', gridTemplateColumns: gridCols, gap: 8, alignItems: 'end',
+                      padding: '8px 0',
+                      borderBottom: `1px solid ${T.borderLight}`,
+                    }}>
                       <DropdownSelect
-                        label="Property"
-                        value={getPropertyLabel(prop.typeId)}
-                        items={DUMMY_PROPERTY_TYPES}
-                        onChange={(id) => handlePropertyChange(i, 'typeId', id)}
+                        label={t('inventory.propertyType')}
+                        value={propLabel}
+                        items={propertyItems}
+                        onChange={(id) => handlePropertyChange(i, 'PropertyName', id)}
                       />
-                      {subtypes && (
+                      {propMeta?.has_subtype && (
                         <DropdownSelect
-                          label="Subtype"
-                          value={getSubtypeLabel(prop.typeId, prop.subtype)}
-                          items={subtypes}
-                          onChange={(id) => handlePropertyChange(i, 'subtype', id)}
+                          label={t('inventory.propertySubtype')}
+                          value={subtypeLabel}
+                          items={subtypeItems}
+                          onChange={(id) => handlePropertyChange(i, 'Subtype', id)}
                         />
                       )}
-                      <DropdownSelect
-                        label="Value"
-                        value={getValueLabel(prop.value)}
-                        items={DUMMY_VALUE_OPTIONS}
-                        onChange={(id) => handlePropertyChange(i, 'value', id)}
-                      />
+                      {propMeta?.has_cost_table && (
+                        <DropdownSelect
+                          label={propMeta.has_param1 ? t('inventory.propertyValue') : t('inventory.propertyValue')}
+                          value={costLabel}
+                          items={costItems}
+                          onChange={(id) => handlePropertyChange(i, 'CostValue', id)}
+                        />
+                      )}
+                      {propMeta?.has_param1 && (
+                        <DropdownSelect
+                          label={t('inventory.propertyValue')}
+                          value={param1Label}
+                          items={param1Items}
+                          onChange={(id) => handlePropertyChange(i, 'Param1Value', id)}
+                        />
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button small minimal icon="trash" intent="danger" onClick={() => handleRemoveProperty(i)} />
+                      </div>
                     </div>
-                    <Button small minimal icon="trash" intent="danger" onClick={() => handleRemoveProperty(i)} style={{ marginTop: 18 }} />
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {properties.length === 0 && (
-                <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>
-                  No properties. Click "Add Property" to add enchantments.
-                </div>
-              )}
+                {properties.length === 0 && (
+                  <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>
+                    {t('inventory.noPropertiesAdded')}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        } />
-      </Tabs>
+          } />
+        </Tabs>
+      )}
     </ParchmentDialog>
   );
 }

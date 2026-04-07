@@ -11,17 +11,27 @@ import { aggregateFeats, filterFeatsByType, sortFeats, FEAT_TYPE_LABELS, getFeat
 import type { FeatInfo, FeatsState } from '@/components/Feats/types';
 import { FEAT_TYPES } from '@/components/Feats/types';
 import { display } from '@/utils/dataHelpers';
+import { useFeatManagement } from '@/hooks/useFeatManagement';
+import { useToast } from '@/contexts/ToastContext';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useTranslations } from '@/hooks/useTranslations';
 
 type TabId = 'my' | 'all';
 
 const FEAT_TYPE_OPTIONS: { label: string; value: number }[] = [
   { label: 'General', value: FEAT_TYPES.GENERAL },
-  { label: 'Combat', value: FEAT_TYPES.COMBAT },
+  { label: 'Proficiency', value: FEAT_TYPES.PROFICIENCY },
+  { label: 'Skill/Save', value: FEAT_TYPES.SKILL_SAVE },
   { label: 'Metamagic', value: FEAT_TYPES.METAMAGIC },
   { label: 'Divine', value: FEAT_TYPES.DIVINE },
   { label: 'Epic', value: FEAT_TYPES.EPIC },
   { label: 'Class', value: FEAT_TYPES.CLASS },
   { label: 'Background', value: FEAT_TYPES.BACKGROUND },
+  { label: 'Spellcasting', value: FEAT_TYPES.SPELLCASTING },
+  { label: 'History', value: FEAT_TYPES.HISTORY },
+  { label: 'Heritage', value: FEAT_TYPES.HERITAGE },
+  { label: 'Item Creation', value: FEAT_TYPES.ITEM_CREATION },
+  { label: 'Racial', value: FEAT_TYPES.RACIAL },
   { label: 'Domain', value: FEAT_TYPES.DOMAIN },
 ];
 
@@ -35,14 +45,18 @@ const MY_FEATS_SECTIONS: { key: keyof FeatsState['summary']; title: string }[] =
   { key: 'protected', title: 'Protected Feats' },
 ];
 
-const FEATS_PER_PAGE = 100;
+const FEATS_PER_PAGE = 10000;
 
 export function FeatsPanel() {
-  const { character } = useCharacterContext();
+  const { character, allFeatsCache } = useCharacterContext();
   const featsSubsystem = useSubsystem('feats');
   const featsData = featsSubsystem.data as FeatsState | null;
   const isLoading = featsSubsystem.isLoading;
   const loadError = featsSubsystem.error;
+  const { addFeat, removeFeat } = useFeatManagement({ autoLoadFeats: false, enableValidation: false });
+  const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
+  const t = useTranslations();
 
   const [tab, setTab] = useState<TabId>('my');
   const [search, setSearch] = useState('');
@@ -53,9 +67,10 @@ export function FeatsPanel() {
   const [allFeatsLoading, setAllFeatsLoading] = useState(false);
   const [allFeatsError, setAllFeatsError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrevious, setHasPrevious] = useState(false);
+  const [_hasNext, setHasNext] = useState(false);
+  const [_hasPrevious, setHasPrevious] = useState(false);
   const [allFeatsTotal, setAllFeatsTotal] = useState(0);
+  const [usedCache, setUsedCache] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -65,8 +80,30 @@ export function FeatsPanel() {
     }
   }, [character, featsData, featsSubsystem]);
 
+  // Use preloaded cache for initial unfiltered load
+  useEffect(() => {
+    if (allFeatsCache && allFeats.length === 0 && !usedCache) {
+      setAllFeats(allFeatsCache.feats);
+      setAllFeatsTotal(allFeatsCache.pagination.total);
+      setHasNext(allFeatsCache.pagination.has_next);
+      setHasPrevious(allFeatsCache.pagination.has_previous);
+      setUsedCache(true);
+    }
+  }, [allFeatsCache]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch when filters change on the 'all' tab
   useEffect(() => {
     if (tab !== 'all' || !character?.id) return;
+
+    // Restore cache when returning to unfiltered state
+    const hasFilters = activeTypeBit != null || debouncedSearch.length >= 3;
+    if (!hasFilters && currentPage === 1 && usedCache && allFeatsCache) {
+      setAllFeats(allFeatsCache.feats);
+      setAllFeatsTotal(allFeatsCache.pagination.total);
+      setHasNext(allFeatsCache.pagination.has_next);
+      setHasPrevious(allFeatsCache.pagination.has_previous);
+      return;
+    }
 
     let cancelled = false;
     setAllFeatsLoading(true);
@@ -96,7 +133,7 @@ export function FeatsPanel() {
     });
 
     return () => { cancelled = true; };
-  }, [tab, character?.id, currentPage, activeTypeBit, debouncedSearch]);
+  }, [tab, character?.id, currentPage, activeTypeBit, debouncedSearch, usedCache]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -106,6 +143,24 @@ export function FeatsPanel() {
     setSearch('');
     setActiveTypeBit(null);
   }, []);
+
+  const handleAddFeat = useCallback(async (featId: number) => {
+    try {
+      const response = await addFeat(featId);
+      showToast(response.message || t('placeholders.featAdded'), 'success');
+      setAllFeats(prev => prev.filter(f => f.id !== featId));
+      setAllFeatsTotal(prev => prev - 1);
+      setSelectedFeat(null);
+    } catch (error) { handleError(error); }
+  }, [addFeat, showToast, handleError, t]);
+
+  const handleRemoveFeat = useCallback(async (featId: number) => {
+    try {
+      await removeFeat(featId);
+      showToast(t('placeholders.featRemoved'), 'success');
+      setSelectedFeat(null);
+    } catch (error) { handleError(error); }
+  }, [removeFeat, showToast, handleError, t]);
 
   const allMyFeats = useMemo(() => aggregateFeats(featsData?.summary), [featsData]);
 
@@ -180,8 +235,9 @@ export function FeatsPanel() {
     </Menu>
   );
 
-  const allTabTitle = tab === 'all' && allFeatsTotal > 0
-    ? `All Feats (${allFeatsTotal})`
+  const allFeatsCount = allFeatsTotal || allFeatsCache?.pagination.total || 0;
+  const allTabTitle = allFeatsCount > 0
+    ? `All Feats (${allFeatsCount})`
     : 'All Feats';
 
   const toolbar = (
@@ -204,14 +260,6 @@ export function FeatsPanel() {
         style={{ maxWidth: 220 }}
       />
       <Button minimal icon="filter-remove" text="Clear" onClick={clearFilters} disabled={!hasFilters} />
-      {tab === 'all' && (hasPrevious || hasNext) && (
-        <>
-          <div style={{ flex: 1 }} />
-          <Button minimal icon="chevron-left" disabled={!hasPrevious} onClick={() => setCurrentPage(p => p - 1)} />
-          <span style={{ color: T.textMuted, fontSize: 12 }}>Page {currentPage}</span>
-          <Button minimal icon="chevron-right" disabled={!hasNext} onClick={() => setCurrentPage(p => p + 1)} />
-        </>
-      )}
       <div style={{ flex: 1 }} />
     </>
   );
@@ -277,7 +325,14 @@ export function FeatsPanel() {
     <SplitPane
       toolbar={toolbar}
       list={renderList()}
-      detail={<FeatDetail feat={selectedFeat} />}
+      detail={
+        <FeatDetail
+          feat={selectedFeat}
+          isOwned={tab === 'my'}
+          onAdd={handleAddFeat}
+          onRemove={handleRemoveFeat}
+        />
+      }
     />
   );
 }

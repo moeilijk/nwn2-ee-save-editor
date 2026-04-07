@@ -388,13 +388,15 @@ export function FileBrowserDialog({
             }}>
               {display(currentPath) || t('fileBrowser.defaultLocation')}
             </span>
-            <Button
-              minimal
-              small
-              icon="folder-open"
-              text={t('fileBrowser.changeLocation')}
-              onClick={handleChangeLocation}
-            />
+            {mode !== 'manage-backups' && (
+              <Button
+                minimal
+                small
+                icon="folder-open"
+                text={t('fileBrowser.changeLocation')}
+                onClick={handleChangeLocation}
+              />
+            )}
           </div>
 
           {successMessage && (

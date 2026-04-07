@@ -8,7 +8,7 @@ interface SplitPaneProps {
   listWidth?: number;
 }
 
-export function SplitPane({ toolbar, list, detail, listWidth = 320 }: SplitPaneProps) {
+export function SplitPane({ toolbar, list, detail, listWidth = 400 }: SplitPaneProps) {
   return (
     <div style={{ padding: 16, height: '100%' }}>
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>

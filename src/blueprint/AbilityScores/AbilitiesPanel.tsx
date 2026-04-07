@@ -7,7 +7,9 @@ import { useSubsystem, useCharacterContext } from '@/contexts/CharacterContext';
 import { useAbilityScores } from '@/hooks/useAbilityScores';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useTranslations } from '@/hooks/useTranslations';
+import { CharacterStateAPI } from '@/lib/api/character-state';
 import { useState } from 'react';
+import type { AbilityScores } from '@/lib/bindings';
 
 function SectionLabel({ children }: { children: string }) {
   return (
@@ -31,7 +33,7 @@ export function AbilitiesPanel() {
   const savesSubsystem = useSubsystem('saves');
   const combatSubsystem = useSubsystem('combat');
 
-  const { abilityScores, stats, pointSummary, updateAbilityScore } = useAbilityScores(
+  const { abilityScores, stats, pointSummary, updateAbilityScore, updateStats } = useAbilityScores(
     abilitiesSubsystem.data,
     { combat: combatSubsystem.data, saves: savesSubsystem.data }
   );
@@ -134,6 +136,33 @@ export function AbilitiesPanel() {
     }
   };
 
+  const handleSaveMiscChange = async (saveKey: 'fortitude' | 'reflex' | 'will', value: number) => {
+    try {
+      await updateStats({ [saveKey]: { ...stats[saveKey], base: value } });
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
+  const handleInitiativeMiscChange = async (value: number) => {
+    try {
+      await updateStats({ initiative: { ...stats.initiative, base: value } });
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
+  const handleRespecApply = async (scores: AbilityScores) => {
+    try {
+      await CharacterStateAPI.applyPointBuy(scores);
+      await abilitiesSubsystem.load();
+      await combatSubsystem.load();
+      await savesSubsystem.load();
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -196,7 +225,7 @@ export function AbilitiesPanel() {
                       <td style={{ textAlign: 'center' }}><ModCell value={equipBonus} /></td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: T.text }}>{a.value}</td>
                       <td style={{
-                        textAlign: 'center', fontSize: 12, fontWeight: 600,
+                        textAlign: 'center', fontWeight: 600,
                         color: a.modifier > 0 ? T.positive : a.modifier < 0 ? T.negative : T.textMuted,
                       }}>
                         {mod(a.modifier)}
@@ -239,7 +268,7 @@ export function AbilitiesPanel() {
                       <td style={{ textAlign: 'center' }}><ModCell value={equip} /></td>
                       <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: T.text }}>{effective}</td>
                       <td style={{
-                        textAlign: 'center', fontSize: 12, fontWeight: 600,
+                        textAlign: 'center', fontWeight: 600,
                         color: modifier > 0 ? T.positive : modifier < 0 ? T.negative : T.textMuted,
                       }}>
                         {mod(modifier)}
@@ -263,7 +292,7 @@ export function AbilitiesPanel() {
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
-            <col style={{ width: 112 }} />
+            <col style={{ width: 120 }} />
             <col style={{ width: 80 }} />
           </colgroup>
           <thead>
@@ -287,7 +316,13 @@ export function AbilitiesPanel() {
                 <td style={{ textAlign: 'center' }}><ModCell value={s.data?.equipment ?? 0} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={(s.data?.feat ?? 0) + (s.data?.class_bonus ?? 0)} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={s.data?.racial ?? 0} /></td>
-                <td style={{ textAlign: 'center' }}><ModCell value={s.data?.misc ?? 0} /></td>
+                <td style={{ textAlign: 'center' }}>
+                  <StepInput
+                    value={stats[s.key as 'fortitude' | 'reflex' | 'will'].base}
+                    onValueChange={(v) => handleSaveMiscChange(s.key as 'fortitude' | 'reflex' | 'will', v)}
+                    min={-35} max={255} width={88}
+                  />
+                </td>
                 <td style={{ textAlign: 'center' }}>
                   <strong style={{ fontSize: 15, color: T.text }}>{mod(s.data?.total ?? 0)}</strong>
                 </td>
@@ -300,7 +335,13 @@ export function AbilitiesPanel() {
               <td />
               <td />
               <td />
-              <td style={{ textAlign: 'center' }}><ModCell value={initMisc} /></td>
+              <td style={{ textAlign: 'center' }}>
+                <StepInput
+                  value={stats.initiative.base}
+                  onValueChange={handleInitiativeMiscChange}
+                  min={-128} max={127} width={88}
+                />
+              </td>
               <td style={{ textAlign: 'center' }}>
                 <strong style={{ fontSize: 15, color: T.text }}>{mod(initTotal)}</strong>
               </td>
@@ -359,7 +400,7 @@ export function AbilitiesPanel() {
         </HTMLTable>
       </Card>
 
-      <RespecDialog isOpen={isRespecOpen} onClose={() => setIsRespecOpen(false)} />
+      <RespecDialog isOpen={isRespecOpen} onClose={() => setIsRespecOpen(false)} pointBuyState={abilitiesData?.point_buy ?? null} onApply={handleRespecApply} />
     </div>
   );
 }

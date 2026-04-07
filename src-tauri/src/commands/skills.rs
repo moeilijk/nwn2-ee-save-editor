@@ -172,21 +172,14 @@ pub async fn set_skill_rank(
 
 #[tauri::command]
 pub async fn reset_all_skills(state: State<'_, AppState>) -> CommandResult<i32> {
+    let game_data = state.game_data.read();
     let mut session = state.session.write();
     let character = session
         .character
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    let skill_ranks = character.skill_ranks();
-    let mut total_refunded = 0;
-
-    for entry in skill_ranks {
-        character.set_skill_rank(entry.skill_id, 0)?;
-        total_refunded += entry.ranks;
-    }
-
-    Ok(total_refunded)
+    Ok(character.reset_all_skills(&game_data))
 }
 
 #[tauri::command]

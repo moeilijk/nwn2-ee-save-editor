@@ -19,6 +19,7 @@ interface SaveListProps {
 export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrowseFile }: SaveListProps) {
   const t = useTranslations();
   const [showBrowser, setShowBrowser] = useState(false);
+  const [browsePath, setBrowsePath] = useState('');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -70,6 +71,8 @@ export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrow
         isOpen={showBrowser}
         onClose={() => setShowBrowser(false)}
         mode="load-saves"
+        currentPath={browsePath}
+        onPathChange={setBrowsePath}
         onSelectFile={(file) => {
           setShowBrowser(false);
           onBrowseFile?.(file);

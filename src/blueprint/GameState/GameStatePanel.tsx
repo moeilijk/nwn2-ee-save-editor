@@ -1,16 +1,19 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
-  Button, Card, Elevation, HTMLTable, InputGroup,
+  Button, Card, Elevation, HTMLTable, InputGroup, Menu, MenuItem,
   NonIdealState, Spinner, Switch, Tab, Tabs,
 } from '@blueprintjs/core';
+import { Popover } from '@blueprintjs/core';
 import { T, formatBytes } from '../theme';
 import { KVRow, ParchmentDialog, StepInput } from '../shared';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useTranslations } from '@/hooks/useTranslations';
 import { gameStateAPI } from '@/services/gameStateApi';
 import type {
   CompanionInfluenceData,
   ModuleInfo,
+  ModuleSummary,
   ModuleVariablesResponse,
   CampaignVariablesResponse,
   CampaignSettingsResponse,
@@ -46,7 +49,7 @@ function RestoreBackupDialog({
       onClose={onClose}
       onOpened={() => setSelected(null)}
       title="Restore Backup"
-      width={600}
+      width={780}
       minHeight={480}
       footerActions={
         <Button
@@ -325,7 +328,7 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
 
   return (
     <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
-      <colgroup><col /><col style={{ width: 160 }} /><col style={{ width: 200 }} /><col style={{ width: 40 }} /></colgroup>
+      <colgroup><col /><col style={{ width: 200 }} /><col style={{ width: 260 }} /><col style={{ width: 40 }} /></colgroup>
       <thead>
         <tr><th>Variable</th><th>Current</th><th>Value</th><th /></tr>
       </thead>
@@ -365,7 +368,7 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
 }
 
 function VariableSection({
-  integers, strings, floats, edits, onEdit, onRevert, onRevertAll, onSave, changeCount, showWarning,
+  integers, strings, floats, edits, onEdit, onRevert, onRevertAll, onSave, changeCount, warningText,
   onRestoreClick,
 }: {
   integers: VarEntry[];
@@ -377,7 +380,7 @@ function VariableSection({
   onRevertAll: () => void;
   onSave: () => void;
   changeCount: number;
-  showWarning?: boolean;
+  warningText?: string;
   onRestoreClick?: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -410,10 +413,10 @@ function VariableSection({
           />
         </div>
       </div>
-      {showWarning && changeCount > 0 && (
+      {warningText && changeCount > 0 && (
         <div style={{ margin: '0 16px', padding: '8px 12px', background: `${MODIFIED}12`, border: `1px solid ${MODIFIED}40`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: MODIFIED, fontWeight: 600 }}>&#9888;</span>
-          <span style={{ color: T.text }}>Changes are saved directly to disk. Campaign edits affect all saves in that campaign. Use Revert to restore original values.</span>
+          <span style={{ color: T.text }}>{warningText}</span>
         </div>
       )}
       <div style={{ padding: '0 16px 16px' }}>
@@ -467,7 +470,7 @@ function useVariableEdits(onSaveCallback: (edits: Record<string, string>) => Pro
   return { edits, onEdit, onRevert, onRevertAll, onSave, isSaving, changeCount: Object.keys(edits).length };
 }
 
-function useBackupDialog(characterId: number, onRestored: () => void) {
+function useModuleBackupDialog(onRestored: () => void) {
   const [isOpen, setIsOpen] = useState(false);
   const [backups, setBackups] = useState<CampaignBackupInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -478,7 +481,7 @@ function useBackupDialog(characterId: number, onRestored: () => void) {
     setIsOpen(true);
     setIsLoading(true);
     setError(null);
-    gameStateAPI.getCampaignBackups(characterId)
+    gameStateAPI.getModuleBackups()
       .then(res => setBackups(res.backups))
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load backups'))
       .finally(() => setIsLoading(false));
@@ -490,7 +493,79 @@ function useBackupDialog(characterId: number, onRestored: () => void) {
     setIsRestoring(true);
     setError(null);
     try {
-      await gameStateAPI.restoreCampaignFromBackup(characterId, path);
+      await gameStateAPI.restoreModuleBackup(path);
+      setIsOpen(false);
+      onRestored();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  return { isOpen, backups, isLoading, isRestoring, error, open, close, restore };
+}
+
+function useCampaignBackupDialog(campaignId: string, onRestored: () => void) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [backups, setBackups] = useState<CampaignBackupInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const open = () => {
+    setIsOpen(true);
+    setIsLoading(true);
+    setError(null);
+    gameStateAPI.getCampaignBackups(campaignId)
+      .then(res => setBackups(res.backups))
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load backups'))
+      .finally(() => setIsLoading(false));
+  };
+
+  const close = () => setIsOpen(false);
+
+  const restore = async (path: string) => {
+    setIsRestoring(true);
+    setError(null);
+    try {
+      await gameStateAPI.restoreCampaignFromBackup(path, campaignId);
+      setIsOpen(false);
+      onRestored();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  return { isOpen, backups, isLoading, isRestoring, error, open, close, restore };
+}
+
+function useCampaignVariablesBackupDialog(onRestored: () => void) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [backups, setBackups] = useState<CampaignBackupInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const open = () => {
+    setIsOpen(true);
+    setIsLoading(true);
+    setError(null);
+    gameStateAPI.getCampaignVariableBackups()
+      .then(res => setBackups(res.backups))
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load backups'))
+      .finally(() => setIsLoading(false));
+  };
+
+  const close = () => setIsOpen(false);
+
+  const restore = async (path: string) => {
+    setIsRestoring(true);
+    setError(null);
+    try {
+      await gameStateAPI.restoreCampaignVariableBackup(path);
       setIsOpen(false);
       onRestored();
     } catch (err) {
@@ -509,45 +584,94 @@ function recordToVarEntries(record: Record<string, number | string>): VarEntry[]
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function ModuleInfoSection({ characterId }: { characterId: number }) {
+function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: number; onModuleIdChange?: (id: string | null) => void }) {
   const { handleError } = useErrorHandler();
   const [moduleInfo, setModuleInfo] = useState<ModuleInfo | null>(null);
+  const [availableModules, setAvailableModules] = useState<ModuleSummary[]>([]);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
-    gameStateAPI.getModuleInfo(characterId)
-      .then(info => setModuleInfo(info))
+    gameStateAPI.listModules()
+      .then(modules => {
+        setAvailableModules(modules);
+        const current = modules.find(m => m.is_current);
+        const initial = current?.id || (modules.length > 0 ? modules[0].id : null);
+        setSelectedModuleId(initial);
+        onModuleIdChange?.(initial);
+      })
       .catch(handleError)
       .finally(() => setIsLoading(false));
   }, [characterId, handleError]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!selectedModuleId) return;
+    setIsLoading(true);
+    gameStateAPI.getModuleById(characterId, selectedModuleId)
+      .then(data => setModuleInfo({
+        module_name: data.module_name,
+        area_name: data.area_name,
+        campaign: data.campaign,
+        entry_area: data.entry_area,
+        module_description: data.module_description,
+        campaign_id: data.campaign_id,
+        current_module: data.current_module,
+      }))
+      .catch(handleError)
+      .finally(() => setIsLoading(false));
+  }, [characterId, selectedModuleId, handleError]);
+
+  const handleModuleSelect = (id: string) => {
+    setSelectedModuleId(id);
+    onModuleIdChange?.(id);
+  };
+
+  const selectedLabel = availableModules.find(m => m.id === selectedModuleId)?.name || selectedModuleId || '-';
+
+  if (isLoading && !moduleInfo) {
     return <div style={{ padding: 16 }}><Spinner size={20} /></div>;
   }
 
-  if (!moduleInfo) {
-    return (
-      <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-        <KVRow label="Module" value="-" />
-        <KVRow label="Campaign" value="-" />
-        <KVRow label="Current Area" value="-" />
-        <KVRow label="Entry Area" value="-" />
-      </div>
-    );
-  }
+  const moduleMenu = (
+    <Menu style={{ maxHeight: 300, overflowY: 'auto' }}>
+      {availableModules.map(m => (
+        <MenuItem
+          key={m.id}
+          text={`${m.name}${m.is_current ? ' (Current)' : ''}`}
+          active={m.id === selectedModuleId}
+          onClick={() => handleModuleSelect(m.id)}
+        />
+      ))}
+    </Menu>
+  );
 
   return (
-    <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-      <KVRow label="Module" value={moduleInfo.module_name || '-'} />
-      <KVRow label="Campaign" value={moduleInfo.campaign || '-'} />
-      <KVRow label="Current Area" value={moduleInfo.area_name || '-'} />
-      <KVRow label="Entry Area" value={moduleInfo.entry_area || '-'} />
-    </div>
+    <>
+      {availableModules.length > 0 && (
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 600, color: T.textMuted }}>Module</span>
+          <Popover content={moduleMenu} placement="bottom-end" minimal>
+            <Button
+              minimal
+              rightIcon="caret-down"
+              text={selectedLabel}
+              style={{ textAlign: 'left', border: `1px solid ${T.border}`, background: T.surface, minWidth: 260 }}
+            />
+          </Popover>
+        </div>
+      )}
+      <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
+        <KVRow label="Module" value={moduleInfo?.module_name || '-'} />
+        <KVRow label="Campaign" value={moduleInfo?.campaign || '-'} />
+        <KVRow label="Current Area" value={moduleInfo?.area_name || '-'} />
+        <KVRow label="Entry Area" value={moduleInfo?.entry_area || '-'} />
+      </div>
+    </>
   );
 }
 
-function ModuleVariablesSection({ characterId }: { characterId: number }) {
+function ModuleVariablesSection({ characterId, moduleId }: { characterId: number; moduleId?: string | null }) {
   const [vars, setVars] = useState<ModuleVariablesResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -564,17 +688,17 @@ function ModuleVariablesSection({ characterId }: { characterId: number }) {
   useEffect(() => { loadVars(); }, [loadVars]);
 
   const varEdits = useVariableEdits(async (edits) => {
-    for (const [name, rawValue] of Object.entries(edits)) {
+    const updates: Array<[string, string, string]> = Object.entries(edits).map(([name, rawValue]) => {
       const type = vars
         ? (name in vars.integers ? 'int' : name in vars.floats ? 'float' : 'string')
         : 'string';
-      const value = type === 'int' ? parseInt(rawValue, 10) : type === 'float' ? parseFloat(rawValue) : rawValue;
-      await gameStateAPI.updateModuleVariable(characterId, name, value, type);
-    }
+      return [name, String(rawValue), type];
+    });
+    await gameStateAPI.batchUpdateModuleVariables(updates, moduleId || undefined);
     loadVars();
   });
 
-  const backupDialog = useBackupDialog(characterId, loadVars);
+  const backupDialog = useModuleBackupDialog(loadVars);
 
   const integers = vars ? recordToVarEntries(vars.integers) : [];
   const strings = vars ? recordToVarEntries(vars.strings) : [];
@@ -611,10 +735,12 @@ function ModuleVariablesSection({ characterId }: { characterId: number }) {
 }
 
 function CampaignSettingsSection({ characterId }: { characterId: number }) {
+  const t = useTranslations();
   const [settings, setSettings] = useState<CampaignSettingsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [campaignGuid, setCampaignGuid] = useState('');
 
   const [levelCap, setLevelCap] = useState(0);
   const [xpCap, setXpCap] = useState(0);
@@ -631,40 +757,68 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
     setXpCap(s.xp_cap ?? 0);
     setCompXp(s.companion_xp_weight ?? 0);
     setHenchXp(s.henchman_xp_weight ?? 0);
-    setAttackNeutrals(!!s.attack_neutrals);
-    setAutoXp(!!s.auto_xp_award);
-    setJournalSync(!!s.journal_sync);
-    setNoCharChange(!!s.no_char_changing);
-    setPersonalRep(!!s.use_personal_reputation);
+    setAttackNeutrals(s.attack_neutrals);
+    setAutoXp(s.auto_xp_award);
+    setJournalSync(s.journal_sync);
+    setNoCharChange(s.no_char_changing);
+    setPersonalRep(s.use_personal_reputation);
   };
 
   useEffect(() => {
     setIsLoading(true);
     setError(null);
     gameStateAPI.getCampaignSettings(characterId)
-      .then(s => { setSettings(s); populateFromSettings(s); })
+      .then(s => { setSettings(s); setCampaignGuid(s.guid || ''); populateFromSettings(s); })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load campaign settings'))
       .finally(() => setIsLoading(false));
   }, [characterId]);
+
+  const reloadSettings = useCallback(() => {
+    gameStateAPI.getCampaignSettings(characterId)
+      .then(s => { setSettings(s); populateFromSettings(s); })
+      .catch(() => {});
+  }, [characterId]);
+
+  const backupDialog = useCampaignBackupDialog(campaignGuid, reloadSettings);
+
+  const hasChanges = settings !== null && (
+    levelCap !== (settings.level_cap ?? 0) ||
+    xpCap !== (settings.xp_cap ?? 0) ||
+    compXp !== (settings.companion_xp_weight ?? 0) ||
+    henchXp !== (settings.henchman_xp_weight ?? 0) ||
+    attackNeutrals !== settings.attack_neutrals ||
+    autoXp !== settings.auto_xp_award ||
+    journalSync !== settings.journal_sync ||
+    noCharChange !== settings.no_char_changing ||
+    personalRep !== settings.use_personal_reputation
+  );
+
+  const handleRevert = () => {
+    if (settings) populateFromSettings(settings);
+  };
 
   const handleSave = async () => {
     if (!settings) return;
     setIsSaving(true);
     setError(null);
     try {
-      await gameStateAPI.updateCampaignSettings(characterId, {
+      const updated = {
+        ...settings,
         level_cap: levelCap,
         xp_cap: xpCap,
         companion_xp_weight: compXp,
         henchman_xp_weight: henchXp,
-        attack_neutrals: attackNeutrals ? 1 : 0,
-        auto_xp_award: autoXp ? 1 : 0,
-        journal_sync: journalSync ? 1 : 0,
-        no_char_changing: noCharChange ? 1 : 0,
-        use_personal_reputation: personalRep ? 1 : 0,
-      });
+        attack_neutrals: attackNeutrals,
+        auto_xp_award: autoXp,
+        journal_sync: journalSync,
+        no_char_changing: noCharChange,
+        use_personal_reputation: personalRep,
+      };
+      await gameStateAPI.updateCampaignSettings(characterId, updated);
+      setSettings(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save campaign settings');
+      const msg = err instanceof Error ? err.message : typeof err === 'object' && err !== null ? JSON.stringify(err) : String(err);
+      setError(msg);
     } finally {
       setIsSaving(false);
     }
@@ -729,8 +883,21 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button intent="primary" loading={isSaving} onClick={handleSave}>Save Settings</Button>
+        {hasChanges && (
+          <div style={{ marginTop: 12, padding: '8px 12px', background: `${MODIFIED}12`, border: `1px solid ${MODIFIED}40`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: MODIFIED, fontWeight: 600 }}>&#9888;</span>
+            <span style={{ color: T.text }}>Campaign settings (.cam) are shared across all saves in this campaign. A backup is created automatically before saving.</span>
+          </div>
+        )}
+
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button small minimal icon="history" style={{ color: T.textMuted }} onClick={backupDialog.open}>Restore Backup</Button>
+          {hasChanges && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button minimal onClick={handleRevert}>{t('gameState.campaign.revertSettings')}</Button>
+              <Button intent="primary" loading={isSaving} onClick={handleSave}>{t('gameState.campaign.saveSettings')}</Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -747,6 +914,15 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
           )}
         </div>
       </div>
+      <RestoreBackupDialog
+        isOpen={backupDialog.isOpen}
+        onClose={backupDialog.close}
+        onRestore={backupDialog.restore}
+        backups={backupDialog.backups}
+        isLoading={backupDialog.isLoading}
+        isRestoring={backupDialog.isRestoring}
+        error={backupDialog.error}
+      />
     </>
   );
 }
@@ -768,17 +944,17 @@ function CampaignVariablesSection({ characterId }: { characterId: number }) {
   useEffect(() => { loadVars(); }, [loadVars]);
 
   const varEdits = useVariableEdits(async (edits) => {
-    for (const [name, rawValue] of Object.entries(edits)) {
+    const updates: Array<[string, string, string]> = Object.entries(edits).map(([name, rawValue]) => {
       const type = vars
         ? (name in vars.integers ? 'int' : name in vars.floats ? 'float' : 'string')
         : 'string';
-      const value = type === 'int' ? parseInt(rawValue, 10) : type === 'float' ? parseFloat(rawValue) : rawValue;
-      await gameStateAPI.updateCampaignVariable(characterId, name, value, type);
-    }
+      return [name, String(rawValue), type];
+    });
+    await gameStateAPI.batchUpdateCampaignVariables(updates);
     loadVars();
   });
 
-  const backupDialog = useBackupDialog(characterId, loadVars);
+  const backupDialog = useCampaignVariablesBackupDialog(loadVars);
 
   const integers = vars ? recordToVarEntries(vars.integers) : [];
   const strings = vars ? recordToVarEntries(vars.strings) : [];
@@ -798,7 +974,7 @@ function CampaignVariablesSection({ characterId }: { characterId: number }) {
         integers={integers}
         strings={strings}
         floats={floats}
-        showWarning
+        warningText="Changes to campaign variables are saved directly to this save file."
         onRestoreClick={backupDialog.open}
         {...varEdits}
       />
@@ -819,6 +995,15 @@ export function GameStatePanel() {
   const { character } = useCharacterContext();
   const characterId = character?.id;
   const [activeTab, setActiveTab] = useState<string>('reputation');
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!characterId) return;
+    gameStateAPI.getCampaignSettings(characterId)
+      .then(s => setCampaignId(s.guid || null))
+      .catch(() => setCampaignId(null));
+  }, [characterId]);
 
   if (!characterId) {
     return (
@@ -836,7 +1021,6 @@ export function GameStatePanel() {
             id="gamestate-tabs"
             selectedTabId={activeTab}
             onChange={(newTab) => setActiveTab(newTab as string)}
-            renderActiveTabPanelOnly
             large
           >
             <Tab id="reputation" title="Companion Influence" />
@@ -845,21 +1029,29 @@ export function GameStatePanel() {
           </Tabs>
         </div>
 
-        {activeTab === 'reputation' && <ReputationTab characterId={characterId} />}
-        {activeTab === 'moduleVars' && <ModuleInfoSection characterId={characterId} />}
-        {activeTab === 'campaignSettings' && <CampaignSettingsSection characterId={characterId} />}
+        <div style={{ display: activeTab === 'reputation' ? undefined : 'none' }}>
+          <ReputationTab characterId={characterId} />
+        </div>
+        <div style={{ display: activeTab === 'moduleVars' ? undefined : 'none' }}>
+          <ModuleInfoSection characterId={characterId} onModuleIdChange={setSelectedModuleId} />
+        </div>
+        <div style={{ display: activeTab === 'campaignSettings' ? undefined : 'none' }}>
+          <CampaignSettingsSection characterId={characterId} />
+        </div>
       </Card>
 
-      {activeTab === 'moduleVars' && (
+      <div style={{ display: activeTab === 'moduleVars' ? undefined : 'none' }}>
         <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
-          <ModuleVariablesSection characterId={characterId} />
+          <ModuleVariablesSection characterId={characterId} moduleId={selectedModuleId} />
         </Card>
-      )}
+      </div>
 
-      {activeTab === 'campaignSettings' && (
-        <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
-          <CampaignVariablesSection characterId={characterId} />
-        </Card>
+      {campaignId && (
+        <div style={{ display: activeTab === 'campaignSettings' ? undefined : 'none' }}>
+          <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
+            <CampaignVariablesSection characterId={characterId} />
+          </Card>
+        </div>
       )}
     </div>
   );

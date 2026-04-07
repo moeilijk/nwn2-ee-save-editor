@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  Button, Navbar as BPNavbar, NavbarGroup, NavbarHeading, NavbarDivider,
+  Button, Navbar as BPNavbar, NavbarGroup, NavbarDivider,
 } from '@blueprintjs/core';
 import { invoke } from '@tauri-apps/api/core';
 import { T } from '../theme';
@@ -21,21 +21,20 @@ export function Navbar({ onBack }: NavbarProps) {
   const { handleError } = useErrorHandler();
   const { showToast } = useToast();
   const { character } = useCharacterContext();
-  const classesSubsystem = useSubsystem('classes');
   const [showSettings, setShowSettings] = useState(false);
   const [showGameLaunch, setShowGameLaunch] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-
-  const classes = classesSubsystem.data?.entries ?? [];
-  const classLabel = classes.map(c => c.name).join('/');
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       await invoke('save_character', { filePath: null });
       showToast(t('actions.saveSuccess'), 'success');
-      setShowGameLaunch(true);
+      const config = await invoke<{ show_launch_dialog: boolean }>('get_app_config');
+      if (config.show_launch_dialog) {
+        setShowGameLaunch(true);
+      }
     } catch (err) {
       handleError(err);
     } finally {
@@ -56,8 +55,9 @@ export function Navbar({ onBack }: NavbarProps) {
   };
 
   const handleLaunchGame = async (closeEditor: boolean) => {
+    const config = await invoke<{ auto_close_on_launch: boolean }>('get_app_config');
     await TauriAPI.launchNWN2Game();
-    if (closeEditor) {
+    if (closeEditor || config.auto_close_on_launch) {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().close();
     }
@@ -78,21 +78,12 @@ export function Navbar({ onBack }: NavbarProps) {
     <>
       <BPNavbar className="bp5-dark" style={{ background: T.navbar, paddingLeft: 12, paddingRight: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', position: 'relative', zIndex: 10 }}>
         <NavbarGroup align="left">
-          <NavbarHeading style={{ fontSize: 14, fontWeight: 700, marginRight: 8, color: T.sidebarAccent }}>NWN2 Save Editor</NavbarHeading>
-          <NavbarDivider />
-          <span style={{ fontSize: 13, color: '#e8e4dc' }}>{character?.name ?? ''}</span>
-          {classLabel && (
-            <span style={{ fontSize: 12, marginLeft: 8, color: T.sidebarText }}>
-              Lvl {character?.level} {classLabel}
-            </span>
-          )}
+          <Button icon="cog" text={t('common.settings')} small minimal style={{ color: T.sidebarText }} onClick={() => setShowSettings(true)} />
+          <Button icon="arrow-left" text={t('common.back')} small minimal style={{ color: T.sidebarText }} onClick={onBack} />
         </NavbarGroup>
         <NavbarGroup align="right">
-          <Button icon="floppy-disk" text={isSaving ? t('actions.saving') : t('actions.save')} small minimal loading={isSaving} style={{ color: T.sidebarText }} onClick={handleSave} />
           <Button icon="export" text={t('actions.exportCharacter')} small minimal loading={isExporting} style={{ color: T.sidebarText }} onClick={handleExport} />
-          <Button icon="arrow-left" text={t('common.back')} small minimal style={{ color: T.sidebarText }} onClick={onBack} />
-          <NavbarDivider />
-          <Button icon="cog" small minimal style={{ color: T.sidebarText }} onClick={() => setShowSettings(true)} />
+          <Button icon="floppy-disk" text={isSaving ? t('actions.saving') : t('actions.save')} small minimal loading={isSaving} style={{ color: T.sidebarText }} onClick={handleSave} />
         </NavbarGroup>
       </BPNavbar>
       {showSettings && <SettingsDialog isOpen onClose={() => setShowSettings(false)} />}

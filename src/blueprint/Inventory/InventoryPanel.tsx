@@ -12,7 +12,8 @@ import { useSubsystem } from '@/contexts/CharacterContext';
 import { useInventoryManagement } from '@/hooks/useInventoryManagement';
 import { inventoryAPI } from '@/services/inventoryApi';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import type { FullEquippedItem } from '@/lib/bindings';
+import type { FullEquippedItem, FullInventoryItem } from '@/lib/bindings';
+import { resolveEquipSlot } from '@/utils/inventoryUtils';
 
 const DISPLAY_SLOT_TO_API: Record<string, string> = {
   'Main Hand': 'right_hand',
@@ -108,15 +109,20 @@ function EquipSlot({ slot, equippedItem, selected, onSelect }: EquipSlotProps) {
 export function InventoryPanel() {
   const t = useTranslations();
   const { handleError } = useErrorHandler();
-  const { character, characterId } = useCharacterContext();
+  const { character, characterId, itemEditorMetadata } = useCharacterContext();
   const inventorySubsystem = useSubsystem('inventory');
-  const { unequipItem, deleteItem } = useInventoryManagement();
+  const { equipItem, unequipItem, deleteItem } = useInventoryManagement();
 
   const [selectedItem, setSelectedItem] = useState<AnyItem | null>(null);
   const [goldInput, setGoldInput] = useState('0');
   const [gold, setGold] = useState(0);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editItemOpen, setEditItemOpen] = useState(false);
+  const [editItemData, setEditItemData] = useState<Record<string, unknown> | null>(null);
+  const [editItemIndex, setEditItemIndex] = useState<number | null>(null);
+  const [editItemSlot, setEditItemSlot] = useState<string | null>(null);
+  const [editResolvedName, setEditResolvedName] = useState<string | undefined>(undefined);
+  const [editResolvedDescription, setEditResolvedDescription] = useState<string | undefined>(undefined);
 
   const inventoryData = inventorySubsystem.data;
 
@@ -133,6 +139,21 @@ export function InventoryPanel() {
       setGoldInput(g.toString());
     }
   }, [inventoryData, character?.gold]);
+
+  // Sync selected item with fresh inventory data after silent reloads
+  useEffect(() => {
+    if (!inventoryData || !selectedItem) return;
+    if (selectedItem._kind === 'inventory') {
+      const fresh = inventoryData.inventory?.find(i => i.index === (selectedItem as FullInventoryItem).index);
+      if (fresh) setSelectedItem(makeInventoryItem(fresh));
+      else setSelectedItem(null);
+    } else {
+      const fresh = inventoryData.equipped?.find(e => e.slot === selectedItem.slot);
+      if (fresh) setSelectedItem(makeEquippedItem(fresh));
+      else setSelectedItem(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryData]);
 
   const goldDirty = goldInput !== gold.toString();
 
@@ -152,6 +173,18 @@ export function InventoryPanel() {
   };
 
   const handleGoldReset = () => setGoldInput(gold.toString());
+
+  const handleEquip = async (index: number, defaultSlot: string) => {
+    const invItem = backpackItems.find(i => i.index === index);
+    const equippableSlots = invItem?.equippable_slots ?? [];
+    const resolvedSlot = resolveEquipSlot(defaultSlot, equippableSlots, equippedItems);
+    try {
+      await equipItem({ inventory_index: index, slot: resolvedSlot, item_data: {} });
+      setSelectedItem(null);
+    } catch (err) {
+      handleError(err);
+    }
+  };
 
   const handleUnequip = async (slot: string) => {
     try {
@@ -213,7 +246,7 @@ export function InventoryPanel() {
     <div style={{ padding: 16, height: '100%' }}>
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden', display: 'flex', height: '100%' }}>
 
-        <div style={{ width: 400, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 780, minWidth: 780, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column' }}>
 
           <div style={{ padding: '12px 16px' }}>
             <div style={{ fontWeight: 700, color: T.accent, marginBottom: 10 }}>{t('inventory.equipment')}</div>
@@ -310,7 +343,7 @@ export function InventoryPanel() {
               <span style={{ color: T.textMuted }}>{totalItems} items</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: T.gold, fontWeight: 600 }}>{t('inventory.gold')}</span>
+              <span style={{ fontWeight: 600 }}>{t('inventory.gold')}</span>
               <input
                 type="text"
                 value={goldInput}
@@ -319,7 +352,6 @@ export function InventoryPanel() {
                 className="bp6-input"
                 style={{ width: 100, textAlign: 'center', padding: '2px 8px', height: 24 }}
               />
-              <span style={{ color: T.textMuted, fontSize: 12 }}>{fmtNum(gold)} gp</span>
               <Button minimal icon="tick" intent="success" onClick={handleGoldSubmit} disabled={!goldDirty} style={{ opacity: goldDirty ? 1 : 0.3 }} />
               <Button minimal icon="cross" onClick={handleGoldReset} disabled={!goldDirty} style={{ opacity: goldDirty ? 1 : 0.3 }} />
             </div>
@@ -329,7 +361,26 @@ export function InventoryPanel() {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ItemDetails
             item={selectedItem}
-            onEdit={() => setEditItemOpen(true)}
+            canEquip={
+              selectedItem?._kind === 'inventory' &&
+              !!(selectedItem as FullInventoryItem).default_slot
+            }
+            onEdit={() => {
+              if (!selectedItem) return;
+              if (selectedItem._kind === 'equipped') {
+                setEditItemData(selectedItem.item_data);
+                setEditItemIndex(null);
+                setEditItemSlot(selectedItem.slot);
+              } else {
+                setEditItemData((selectedItem as FullInventoryItem).item);
+                setEditItemIndex((selectedItem as FullInventoryItem).index);
+                setEditItemSlot(null);
+              }
+              setEditResolvedName(selectedItem.name || undefined);
+              setEditResolvedDescription(selectedItem.description || undefined);
+              setEditItemOpen(true);
+            }}
+            onEquip={handleEquip}
             onUnequip={handleUnequip}
             onDelete={handleDelete}
           />
@@ -340,7 +391,12 @@ export function InventoryPanel() {
       <EditItemDialog
         isOpen={editItemOpen}
         onClose={() => setEditItemOpen(false)}
-        itemName={selectedItem?.name}
+        itemData={editItemData}
+        itemIndex={editItemIndex}
+        slot={editItemSlot}
+        resolvedName={editResolvedName}
+        resolvedDescription={editResolvedDescription}
+        preloadedMetadata={itemEditorMetadata}
       />
     </div>
   );

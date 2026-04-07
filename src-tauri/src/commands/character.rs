@@ -272,20 +272,20 @@ pub async fn get_domains(state: State<'_, AppState>) -> CommandResult<Vec<Domain
         for domain_id in domain_ids {
             if let Some(row) = domains_table.get_by_id(domain_id.0) {
                 let name_strref = row
-                    .get("Name")
+                    .get("name")
                     .and_then(|v| v.as_ref())
                     .and_then(|s| s.parse::<i32>().ok())
                     .unwrap_or(-1);
                 let name = game_data.get_string(name_strref).unwrap_or_default();
 
                 let description_strref = row
-                    .get("Description")
+                    .get("description")
                     .and_then(|v| v.as_ref())
                     .and_then(|s| s.parse::<i32>().ok())
                     .unwrap_or(-1);
                 let description = game_data.get_string(description_strref);
 
-                let icon = row.get("Icon").and_then(|v| v.as_ref()).cloned();
+                let icon = row.get("icon").and_then(|v| v.as_ref()).cloned();
 
                 domains.push(DomainInfo {
                     id: domain_id.0,

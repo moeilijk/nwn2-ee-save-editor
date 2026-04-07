@@ -830,7 +830,7 @@ pub async fn get_available_base_items(
             let store_panel = row_int(&row, "storepanel", 4);
             let label = row_str(&row, "label").unwrap_or_default();
             let sub_category = compute_sub_category(store_panel, &label, item_class.as_deref());
-            let weight = row_str(&row, "weight").and_then(|s| s.parse::<f32>().ok());
+            let weight = row_str(&row, "tenthlbs").and_then(|s| s.parse::<f32>().ok()).map(|w| w / 10.0);
             let base_cost = row_int(&row, "basecost", -1);
             let base_cost = if base_cost >= 0 { Some(base_cost) } else { None };
             items.push(AvailableBaseItem {

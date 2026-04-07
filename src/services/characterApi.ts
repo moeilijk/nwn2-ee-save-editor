@@ -369,6 +369,7 @@ export interface CharacterData {
   gender: string;
   age: number;
   alignment: string;
+  alignmentValues?: { law_chaos: number; good_evil: number };
   deity: string;
   biography?: string;
   level: number;
@@ -419,6 +420,8 @@ export interface CharacterData {
   movementSpeed?: number;
   size?: string;
   initiative?: number;
+  // Ability modifiers from overview dashboard
+  abilityModifiers?: { Str: number; Dex: number; Con: number; Int: number; Wis: number; Cha: number };
   // Campaign stats
   completedQuests?: number;
   currentQuests?: number;
@@ -430,6 +433,7 @@ export interface CharacterData {
   campaignName?: string;
   moduleName?: string;
   campaignModules?: string[];
+  gameTime?: { year: number | null; month: number | null; day: number | null; hour: number | null };
   // Enhanced campaign data
   gameAct?: number;
   difficultyLevel?: number;
@@ -521,8 +525,30 @@ export class CharacterAPI {
         saving_throws: { fortitude: number; reflex: number; will: number };
         gold: number;
         skill_points_available: number;
+        size_name: string;
         background: string | null;
         domains: Array<{ id: number; name: string; description: string; has_domain: boolean }>;
+        ability_scores: { Str: number; Dex: number; Con: number; Int: number; Wis: number; Cha: number };
+        ability_modifiers: { Str: number; Dex: number; Con: number; Int: number; Wis: number; Cha: number };
+        melee_attack_bonus: number;
+        ranged_attack_bonus: number;
+        initiative: number;
+        movement_speed: number;
+        total_feats: number;
+        known_spells_count: number;
+        spent_skill_points: number;
+        campaign_info?: {
+          campaign_name: string | null;
+          module_name: string | null;
+          area_name: string | null;
+          game_year: number | null;
+          game_month: number | null;
+          game_day: number | null;
+          game_hour: number | null;
+          game_act: string | null;
+          last_saved: string | null;
+          difficulty: string | null;
+        };
       }>('get_overview_state');
 
       return {
@@ -535,6 +561,7 @@ export class CharacterAPI {
         gender: overview.gender,
         age: overview.age,
         alignment: overview.alignment_string,
+        alignmentValues: { law_chaos: overview.alignment.law_chaos, good_evil: overview.alignment.good_evil },
         deity: overview.deity,
         biography: overview.description,
         level: overview.total_level,
@@ -542,12 +569,12 @@ export class CharacterAPI {
         hitPoints: overview.hit_points.current,
         maxHitPoints: overview.hit_points.max,
         abilities: {
-          strength: 10, // Abilities now in get_abilities_state
-          dexterity: 10,
-          constitution: 10,
-          intelligence: 10,
-          wisdom: 10,
-          charisma: 10,
+          strength: overview.ability_scores.Str,
+          dexterity: overview.ability_scores.Dex,
+          constitution: overview.ability_scores.Con,
+          intelligence: overview.ability_scores.Int,
+          wisdom: overview.ability_scores.Wis,
+          charisma: overview.ability_scores.Cha,
         },
         saves: {
           fortitude: overview.saving_throws.fortitude,
@@ -558,8 +585,36 @@ export class CharacterAPI {
         gold: overview.gold,
         background: overview.background ? { name: overview.background, id: 0 } : undefined,
         domains: overview.domains,
+        size: overview.size_name,
         baseAttackBonus: overview.base_attack_bonus,
+        meleeAttackBonus: overview.melee_attack_bonus,
+        rangedAttackBonus: overview.ranged_attack_bonus,
+        initiative: overview.initiative,
+        movementSpeed: overview.movement_speed,
+        totalFeats: overview.total_feats,
+        knownSpells: overview.known_spells_count,
+        totalSkillPoints: overview.spent_skill_points,
         skill_points_available: overview.skill_points_available,
+        abilityModifiers: {
+          Str: overview.ability_modifiers.Str,
+          Dex: overview.ability_modifiers.Dex,
+          Con: overview.ability_modifiers.Con,
+          Int: overview.ability_modifiers.Int,
+          Wis: overview.ability_modifiers.Wis,
+          Cha: overview.ability_modifiers.Cha,
+        },
+        campaignName: overview.campaign_info?.campaign_name ?? undefined,
+        moduleName: overview.campaign_info?.module_name ?? undefined,
+        location: overview.campaign_info?.area_name ?? undefined,
+        gameAct: overview.campaign_info?.game_act != null ? Number(overview.campaign_info.game_act) || undefined : undefined,
+        difficultyLabel: overview.campaign_info?.difficulty ?? undefined,
+        lastSaved: overview.campaign_info?.last_saved ?? undefined,
+        gameTime: overview.campaign_info ? {
+          year: overview.campaign_info.game_year,
+          month: overview.campaign_info.game_month,
+          day: overview.campaign_info.game_day,
+          hour: overview.campaign_info.game_hour,
+        } : undefined,
         classes: overview.classes.map(c => ({ name: c.name, level: c.level })),
         derived_stats: {
           armor_class: overview.armor_class,

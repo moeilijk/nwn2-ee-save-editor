@@ -567,7 +567,7 @@ impl super::Character {
             .unwrap_or_else(|| format!("Item {base_item_id}"));
 
         let weight = row
-            .get("weight")
+            .get("tenthlbs")
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<f32>().ok())
             .map_or(0.0, |w| w / 10.0);
@@ -1148,7 +1148,7 @@ impl super::Character {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
-        row.get("weight")
+        row.get("tenthlbs")
             .and_then(|s| s.as_ref())
             .and_then(|s| s.parse::<f32>().ok())
             .map(|w| w / 10.0)

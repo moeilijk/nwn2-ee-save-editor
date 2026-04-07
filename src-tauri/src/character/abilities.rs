@@ -136,7 +136,7 @@ impl Character {
         Ok(())
     }
 
-    fn recalculate_hit_points(&mut self, old_con: i32, new_con: i32) {
+    pub(crate) fn recalculate_hit_points(&mut self, old_con: i32, new_con: i32) {
         let old_mod = calculate_modifier(old_con);
         let new_mod = calculate_modifier(new_con);
 

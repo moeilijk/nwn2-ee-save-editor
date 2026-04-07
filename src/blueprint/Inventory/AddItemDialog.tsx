@@ -1,67 +1,17 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Button, InputGroup, Menu, MenuItem, Popover, Tab, Tabs, Tag } from '@blueprintjs/core';
+import { Button, InputGroup, Menu, MenuItem, Popover, Spinner, Tab, Tabs } from '@blueprintjs/core';
 import { FixedSizeList as List } from 'react-window';
 import { ParchmentDialog } from '../shared';
 import { T } from '../theme';
+import { useTranslations } from '@/hooks/useTranslations';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useCharacterContext } from '@/contexts/CharacterContext';
+import { useInventoryManagement } from '@/hooks/useInventoryManagement';
+import { inventoryAPI, BaseItem, ItemTemplate, ITEM_CATEGORIES, CATEGORIES_WITH_SUBS, SUB_CATEGORY_LABELS } from '@/services/inventoryApi';
+import { display } from '@/utils/dataHelpers';
 
-interface BaseItem {
-  id: number;
-  name: string;
-  category: string;
-}
-
-const DUMMY_BASE_ITEMS: BaseItem[] = [
-  { id: 1, name: 'Longsword', category: 'Weapons' },
-  { id: 2, name: 'Shortsword', category: 'Weapons' },
-  { id: 3, name: 'Greataxe', category: 'Weapons' },
-  { id: 4, name: 'Dagger', category: 'Weapons' },
-  { id: 5, name: 'Kama', category: 'Weapons' },
-  { id: 6, name: 'Longbow', category: 'Weapons' },
-  { id: 7, name: 'Light Crossbow', category: 'Weapons' },
-  { id: 8, name: 'Throwing Axe', category: 'Weapons' },
-  { id: 10, name: 'Full Plate', category: 'Armor & Clothing' },
-  { id: 11, name: 'Chain Shirt', category: 'Armor & Clothing' },
-  { id: 12, name: 'Leather Armor', category: 'Armor & Clothing' },
-  { id: 13, name: 'Monk Robe', category: 'Armor & Clothing' },
-  { id: 14, name: 'Tower Shield', category: 'Armor & Clothing' },
-  { id: 15, name: 'Helmet', category: 'Armor & Clothing' },
-  { id: 16, name: 'Boots', category: 'Armor & Clothing' },
-  { id: 20, name: 'Ring', category: 'Magic Items' },
-  { id: 21, name: 'Amulet', category: 'Magic Items' },
-  { id: 22, name: 'Belt', category: 'Magic Items' },
-  { id: 23, name: 'Cloak', category: 'Magic Items' },
-  { id: 24, name: 'Gloves', category: 'Magic Items' },
-  { id: 30, name: 'Potion', category: 'Miscellaneous' },
-  { id: 31, name: 'Scroll', category: 'Miscellaneous' },
-  { id: 32, name: 'Gem', category: 'Miscellaneous' },
-  { id: 33, name: 'Trap Kit', category: 'Miscellaneous' },
-];
-
-interface Template {
-  resref: string;
-  name: string;
-  category: string;
-  source: string;
-}
-
-const DUMMY_TEMPLATES: Template[] = [
-  { resref: 'nw_wswls012', name: 'Longsword +3', category: 'Weapons', source: 'Campaign' },
-  { resref: 'nw_wswgs010', name: 'Greatsword +2', category: 'Weapons', source: 'Campaign' },
-  { resref: 'nw_waxgr011', name: 'Greataxe +1', category: 'Weapons', source: 'Campaign' },
-  { resref: 'nw_arhe005', name: 'Helmet of Intellect', category: 'Armor & Clothing', source: 'Campaign' },
-  { resref: 'nw_arhe010', name: 'Helm of Brilliance', category: 'Armor & Clothing', source: 'Campaign' },
-  { resref: 'nw_it_mring021', name: 'Ring of Protection +3', category: 'Magic Items', source: 'Base' },
-  { resref: 'nw_it_mring022', name: 'Ring of Regeneration +2', category: 'Magic Items', source: 'Base' },
-  { resref: 'nw_it_mpotion001', name: 'Potion of Cure Light Wounds', category: 'Miscellaneous', source: 'Base' },
-  { resref: 'nw_it_mpotion021', name: 'Potion of Heal', category: 'Miscellaneous', source: 'Base' },
-  { resref: 'nw_it_gem001', name: 'Emerald', category: 'Miscellaneous', source: 'Base' },
-];
-
-const CATEGORIES = ['Weapons', 'Armor & Clothing', 'Magic Items', 'Miscellaneous'];
-
-const LIST_HEIGHT = 420;
-const ROW_HEIGHT_BASE = 46;
-const ROW_HEIGHT_TEMPLATE = 46;
+const LIST_HEIGHT = 380;
+const ROW_HEIGHT = 46;
 
 type TabId = 'base' | 'template';
 
@@ -70,59 +20,170 @@ interface AddItemDialogProps {
   onClose: () => void;
 }
 
+const CATEGORY_ORDER = ['Weapons', 'Armor & Clothing', 'Magic Items', 'Miscellaneous'];
+
 export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
+  const t = useTranslations();
+  const { handleError } = useErrorHandler();
+  const { characterId } = useCharacterContext();
+  const { addItemByBaseType, addItemFromTemplate } = useInventoryManagement();
+
   const [tab, setTab] = useState<TabId>('base');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
+  const [subCategory, setSubCategory] = useState<string | null>(null);
   const [selectedBaseId, setSelectedBaseId] = useState<number | null>(null);
   const [selectedResref, setSelectedResref] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+
+  const [baseItems, setBaseItems] = useState<BaseItem[]>([]);
+  const [templates, setTemplates] = useState<ItemTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [listWidth, setListWidth] = useState(680);
+
+  useEffect(() => {
+    if (!isOpen || !characterId) return;
+    setIsLoading(true);
+    Promise.all([
+      inventoryAPI.getAllBaseItems(characterId),
+      inventoryAPI.getAvailableTemplates(characterId),
+    ]).then(([baseRes, templRes]) => {
+      setBaseItems(baseRes.base_items);
+      setTemplates(templRes.templates);
+    }).catch(handleError).finally(() => setIsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, characterId]);
 
   useEffect(() => {
     if (containerRef.current) {
       setListWidth(containerRef.current.offsetWidth);
     }
-  }, [isOpen]);
+  }, [isOpen, isLoading]);
+
+  const handleReset = useCallback(() => {
+    setSearch('');
+    setCategory('all');
+    setSubCategory(null);
+    setSelectedBaseId(null);
+    setSelectedResref(null);
+    setTab('base');
+  }, []);
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setCategory('all');
+    setSubCategory(null);
   }, []);
 
   const hasFilters = search.length > 0 || category !== 'all';
-  const categoryLabel = category === 'all' ? 'Category: All' : category;
+
+  const baseCategories = useMemo(() => {
+    const present = new Set(baseItems.map(i => i.category));
+    return CATEGORY_ORDER.filter(c => present.has(c));
+  }, [baseItems]);
+
+  const templateCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tmpl of templates) {
+      const name = ITEM_CATEGORIES[tmpl.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous';
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return CATEGORY_ORDER.filter(c => counts.has(c)).map(c => [c, counts.get(c)!] as const);
+  }, [templates]);
+
+  const availableBaseSubCategories = useMemo(() => {
+    if (category === 'all' || !CATEGORIES_WITH_SUBS.has(category)) return [];
+    const subs = new Map<string, number>();
+    for (const item of baseItems) {
+      if (item.category === category && item.subCategory) {
+        subs.set(item.subCategory, (subs.get(item.subCategory) || 0) + 1);
+      }
+    }
+    return Array.from(subs.entries()).filter(([, c]) => c > 0).sort(([a], [b]) => {
+      const la = SUB_CATEGORY_LABELS[a] || a;
+      const lb = SUB_CATEGORY_LABELS[b] || b;
+      return la.localeCompare(lb);
+    });
+  }, [baseItems, category]);
+
+  const availableTemplateSubCategories = useMemo(() => {
+    if (category === 'all' || !CATEGORIES_WITH_SUBS.has(category)) return [];
+    const subs = new Map<string, number>();
+    for (const tmpl of templates) {
+      const catName = ITEM_CATEGORIES[tmpl.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous';
+      if (catName === category && tmpl.sub_category) {
+        subs.set(tmpl.sub_category, (subs.get(tmpl.sub_category) || 0) + 1);
+      }
+    }
+    return Array.from(subs.entries()).filter(([, c]) => c > 0).sort(([a], [b]) => {
+      const la = SUB_CATEGORY_LABELS[a] || a;
+      const lb = SUB_CATEGORY_LABELS[b] || b;
+      return la.localeCompare(lb);
+    });
+  }, [templates, category]);
 
   const filteredBase = useMemo(() => {
-    let items = DUMMY_BASE_ITEMS;
+    let items = baseItems;
     if (category !== 'all') items = items.filter(i => i.category === category);
+    if (subCategory) items = items.filter(i => i.subCategory === subCategory);
     if (search.trim()) {
       const q = search.toLowerCase();
       items = items.filter(i => i.name.toLowerCase().includes(q));
     }
     return items;
-  }, [search, category]);
+  }, [baseItems, search, category, subCategory]);
 
   const filteredTemplates = useMemo(() => {
-    let items = DUMMY_TEMPLATES;
-    if (category !== 'all') items = items.filter(i => i.category === category);
+    let items = templates;
+    if (category !== 'all') {
+      items = items.filter(i => {
+        const name = ITEM_CATEGORIES[i.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous';
+        return name === category;
+      });
+    }
+    if (subCategory) items = items.filter(i => i.sub_category === subCategory);
     if (search.trim()) {
       const q = search.toLowerCase();
       items = items.filter(i => i.name.toLowerCase().includes(q) || i.resref.toLowerCase().includes(q));
     }
     return items;
-  }, [search, category]);
+  }, [templates, search, category, subCategory]);
 
   const canAdd = tab === 'base' ? selectedBaseId !== null : selectedResref !== null;
 
+  const handleAdd = async () => {
+    if (isAdding) return;
+    setIsAdding(true);
+    try {
+      if (tab === 'base' && selectedBaseId !== null) {
+        await addItemByBaseType(selectedBaseId);
+      } else if (tab === 'template' && selectedResref) {
+        await addItemFromTemplate(selectedResref);
+      }
+      onClose();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const categoryLabel = category === 'all'
+    ? t('inventory.filterCategory')
+    : category;
+
   const categoryMenu = (
     <Menu>
-      <MenuItem text="All" active={category === 'all'} onClick={() => setCategory('all')} />
-      {CATEGORIES.map(cat => (
-        <MenuItem key={cat} text={cat} active={category === cat} onClick={() => setCategory(cat)} />
+      <MenuItem text={t('inventory.categoryAll')} active={category === 'all'} onClick={() => { setCategory('all'); setSubCategory(null); }} />
+      {(tab === 'base' ? baseCategories : templateCategories.map(([c]) => c)).map(cat => (
+        <MenuItem key={cat} text={cat} active={category === cat} onClick={() => { setCategory(cat); setSubCategory(null); }} />
       ))}
     </Menu>
   );
+
+  const activeSubCategories = tab === 'base' ? availableBaseSubCategories : availableTemplateSubCategories;
 
   const BaseRow = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
     const item = filteredBase[index];
@@ -140,7 +201,7 @@ export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
         onClick={() => setSelectedBaseId(item.id)}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
           <div style={{ fontSize: 11, color: T.textMuted }}>{item.category}</div>
         </div>
       </div>
@@ -163,69 +224,110 @@ export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
         onClick={() => setSelectedResref(item.resref)}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-          <div style={{ fontSize: 11, color: T.textMuted }}>{item.category} - {item.source}</div>
+          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
+          <div style={{ fontSize: 11, color: T.textMuted }}>
+            {ITEM_CATEGORIES[item.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous'} - {item.source}
+          </div>
         </div>
       </div>
     );
   }, [filteredTemplates, selectedResref]);
 
   const itemCount = tab === 'base' ? filteredBase.length : filteredTemplates.length;
+  const totalBase = baseItems.length;
+  const totalTemplates = templates.length;
+
+  const selectedName = tab === 'base'
+    ? (selectedBaseId !== null ? display(baseItems.find(i => i.id === selectedBaseId)?.name) : t('inventory.selectNone'))
+    : (selectedResref || t('inventory.selectNone'));
 
   return (
     <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
-      onOpened={() => { setSearch(''); setSelectedBaseId(null); setSelectedResref(null); setCategory('all'); setTab('base'); }}
-      title="Add Item"
+      onOpened={handleReset}
+      title={t('inventory.addItem')}
       width={720}
-      minHeight={540}
+      minHeight={560}
       footerActions={
-        <Button intent="primary" text="Add Item" disabled={!canAdd} onClick={onClose} />
+        <Button
+          intent="primary"
+          text={isAdding ? t('inventory.addingItem') : t('inventory.addItem')}
+          disabled={!canAdd || isAdding}
+          loading={isAdding}
+          onClick={handleAdd}
+        />
       }
       footerLeft={
         <span style={{ fontSize: 11, color: T.textMuted }}>
-          {tab === 'base'
-            ? `Selected: ${selectedBaseId !== null ? DUMMY_BASE_ITEMS.find(i => i.id === selectedBaseId)?.name : 'None'}`
-            : `Selected: ${selectedResref || 'None'}`
-          }
+          {t('inventory.selectedId')}: {selectedName}
         </span>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ padding: '6px 0', borderBottom: `1px solid ${T.borderLight}`, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Tabs
-            id="add-item-tabs" selectedTabId={tab}
+            id="add-item-tabs"
+            selectedTabId={tab}
             onChange={(id) => { setTab(id as TabId); clearFilters(); setSelectedBaseId(null); setSelectedResref(null); }}
             renderActiveTabPanelOnly
           >
-            <Tab id="base" title={`Base Type (${DUMMY_BASE_ITEMS.length})`} />
-            <Tab id="template" title={`Template (${DUMMY_TEMPLATES.length})`} />
+            <Tab id="base" title={`${t('inventory.createNewBaseType')} (${totalBase})`} />
+            <Tab id="template" title={`${t('inventory.addExistingTemplate')} (${totalTemplates})`} />
           </Tabs>
           <Popover content={categoryMenu} placement="bottom-start" minimal>
             <Button minimal rightIcon="caret-down" text={categoryLabel} />
           </Popover>
           <InputGroup
-            leftIcon="search" placeholder="Filter items..." value={search}
+            leftIcon="search"
+            placeholder={tab === 'base' ? t('inventory.searchBaseItems') : t('inventory.searchTemplates')}
+            value={search}
             onChange={e => setSearch(e.target.value)}
             rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
-            style={{ maxWidth: 200 }}
+            style={{ maxWidth: 220 }}
           />
-          <Button minimal icon="filter-remove" text="Clear" onClick={clearFilters} disabled={!hasFilters} />
+          <Button minimal icon="filter-remove" text={t('inventory.filterClear')} onClick={clearFilters} disabled={!hasFilters} />
         </div>
 
+        {activeSubCategories.length > 1 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 0', borderBottom: `1px solid ${T.borderLight}`, flexShrink: 0 }}>
+            <Button
+              small minimal
+              active={subCategory === null}
+              text={t('inventory.categoryAll')}
+              onClick={() => setSubCategory(null)}
+              style={{ color: subCategory === null ? T.accent : T.textMuted }}
+            />
+            {activeSubCategories.map(([sub]) => (
+              <Button
+                key={sub}
+                small minimal
+                active={subCategory === sub}
+                text={t(SUB_CATEGORY_LABELS[sub] || sub)}
+                onClick={() => setSubCategory(sub)}
+                style={{ color: subCategory === sub ? T.accent : T.textMuted }}
+              />
+            ))}
+          </div>
+        )}
+
         <div ref={containerRef} style={{ flex: 1, minHeight: LIST_HEIGHT }}>
-          {itemCount > 0 ? (
+          {isLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: LIST_HEIGHT, gap: 10 }}>
+              <Spinner size={20} />
+              <span style={{ color: T.textMuted }}>{tab === 'base' ? t('inventory.loadingBaseItems') : t('inventory.loadingTemplates')}</span>
+            </div>
+          ) : itemCount > 0 ? (
             <List
               height={LIST_HEIGHT}
               itemCount={itemCount}
-              itemSize={tab === 'base' ? ROW_HEIGHT_BASE : ROW_HEIGHT_TEMPLATE}
+              itemSize={ROW_HEIGHT}
               width={listWidth}
             >
               {tab === 'base' ? BaseRow : TemplateRow}
             </List>
           ) : (
-            <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>No items match your filters.</div>
+            <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>{t('inventory.noItemsMatch')}</div>
           )}
         </div>
       </div>

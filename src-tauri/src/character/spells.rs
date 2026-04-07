@@ -534,12 +534,13 @@ impl Character {
         let spell_column = class_data
             .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
+            .map(|s| s.to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****")?;
 
         let spells_table = game_data.get_table("spells")?;
         let spell_data = spells_table.get_by_id(spell_id.0)?;
 
-        let level_str = spell_data.get(spell_column).and_then(|v| v.as_ref())?;
+        let level_str = spell_data.get(&spell_column).and_then(|v| v.as_ref())?;
         let level = level_str.parse::<i32>().ok()?;
 
         if (0..=MAX_SPELL_LEVEL).contains(&level) {
@@ -776,6 +777,7 @@ impl Character {
         let Some(spell_column) = class_data
             .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
+            .map(|s| s.to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****")
         else {
             return Ok(());
@@ -790,7 +792,7 @@ impl Character {
                 continue;
             };
 
-            let level_str = spell_row.get(spell_column).and_then(|v| v.as_ref());
+            let level_str = spell_row.get(&spell_column).and_then(|v| v.as_ref());
             if let Some(level_str) = level_str
                 && let Ok(level) = level_str.parse::<i32>()
                 && level == 0
@@ -1075,6 +1077,11 @@ impl Character {
         class_id: ClassId,
         game_data: &GameData,
     ) -> Option<PendingSpellLearning> {
+        // AllSpellsKnown classes (Cleric, Druid) auto-know all spells — nothing to learn
+        if self.uses_all_spells_known(class_id, game_data) {
+            return None;
+        }
+
         let class_name = self.get_class_name(class_id, game_data);
 
         // Spellbook casters (Wizard): 2 spells per level
@@ -1180,6 +1187,103 @@ impl Character {
         }
 
         classes
+    }
+
+    const LEARNABLE_CLASS_COLUMNS: &[&str] = &[
+        "bard", "cleric", "druid", "paladin", "ranger", "wiz_sorc", "favsoul", "spiritshm",
+    ];
+
+    fn is_on_learnable_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
+        Self::LEARNABLE_CLASS_COLUMNS.iter().any(|&col| {
+            spell_row
+                .get(col)
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+        })
+    }
+
+    pub fn get_ability_spells(&self, game_data: &GameData) -> Vec<AbilitySpellEntry> {
+        let Some(spells_table) = game_data.get_table("spells") else {
+            return Vec::new();
+        };
+
+        let char_feats: HashSet<i32> = self.feat_ids().iter().map(|f| f.0).collect();
+
+        let mut known_spell_ids: HashSet<i32> = HashSet::new();
+        for class_entry in self.class_entries() {
+            for level in 0..=9 {
+                for spell_id in self.known_spells(class_entry.class_id, level) {
+                    known_spell_ids.insert(spell_id.0);
+                }
+            }
+        }
+
+        let mut ability_spells = Vec::new();
+        let mut seen = HashSet::new();
+
+        for row_id in 0..spells_table.row_count() {
+            let Ok(spell_row) = spells_table.get_row(row_id) else {
+                continue;
+            };
+
+            if spell_row
+                .get("removed")
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| v == "1")
+            {
+                continue;
+            }
+
+            let spell_id_val = row_id as i32;
+            let user_type = spell_row
+                .get("usertype")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(1);
+            let feat_id = spell_row
+                .get("featid")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok());
+            let is_spellability = spell_row
+                .get("label")
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| v.starts_with("SPELLABILITY_"));
+            let on_caster_list = Self::is_on_learnable_caster_list(&spell_row);
+
+            let has_feat = feat_id.is_some_and(|fid| char_feats.contains(&fid));
+            let is_known_ability = known_spell_ids.contains(&spell_id_val)
+                && (user_type != 1 || is_spellability || !on_caster_list);
+
+            if !has_feat && !is_known_ability {
+                continue;
+            }
+            if !seen.insert(spell_id_val) {
+                continue;
+            }
+
+            let spell_id = SpellId(spell_id_val);
+            let Some(details) = self.get_spell_details(spell_id, game_data) else {
+                continue;
+            };
+
+            let innate_level = spell_row
+                .get("innate")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(0);
+
+            ability_spells.push(AbilitySpellEntry {
+                spell_id: spell_id_val,
+                name: details.name,
+                icon: details.icon,
+                description: details.description,
+                school_name: details.school_name,
+                innate_level,
+            });
+        }
+
+        ability_spells.sort_by(|a, b| a.name.cmp(&b.name));
+        ability_spells
     }
 
     pub fn get_spells_state(&self, game_data: &GameData) -> SpellsState {
@@ -1403,6 +1507,8 @@ impl Character {
             .filter_map(|ce| self.get_pending_spells_to_learn(ce.class_id, game_data))
             .collect();
 
+        let ability_spells = self.get_ability_spells(game_data);
+
         SpellsState {
             spellcasting_classes,
             spell_summary: SpellSummary {
@@ -1414,6 +1520,7 @@ impl Character {
             memorized_spells,
             known_spells,
             pending_spell_learning,
+            ability_spells,
         }
     }
 
@@ -1428,7 +1535,7 @@ impl Character {
         let spell_col = class_data
             .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
-            .map(|s| s.trim().to_string())
+            .map(|s| s.trim().to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****");
 
         if spell_col.is_some() {
@@ -1443,19 +1550,19 @@ impl Character {
         let l_lower = label.to_lowercase();
         Some(
             if l_lower.contains("wizard") || l_lower.contains("sorcerer") {
-                "Wiz_Sorc".to_string()
+                "wiz_sorc".to_string()
             } else if l_lower.contains("cleric") || l_lower.contains("favored") {
-                "Cleric".to_string()
+                "cleric".to_string()
             } else if l_lower.contains("druid") || l_lower.contains("spirit") {
-                "Druid".to_string()
+                "druid".to_string()
             } else if l_lower.contains("bard") {
-                "Bard".to_string()
+                "bard".to_string()
             } else if l_lower.contains("paladin") {
-                "Paladin".to_string()
+                "paladin".to_string()
             } else if l_lower.contains("ranger") {
-                "Ranger".to_string()
+                "ranger".to_string()
             } else {
-                label.clone()
+                l_lower
             },
         )
     }
@@ -1923,84 +2030,25 @@ impl Character {
     ) -> Vec<SpellId> {
         let mut available = Vec::new();
 
-        let Some(classes_table) = game_data.get_table("classes") else {
+        let Some(target_col) = self.get_spell_table_column_for_class(class_id, game_data) else {
             return available;
-        };
-        let Some(class_data) = classes_table.get_by_id(class_id.0) else {
-            return available;
-        };
-
-        // e.g., "Bard", "Cleric", "Druid"
-        let spell_col_opt = class_data
-            .get("spelltablecolumn")
-            .and_then(|v| v.as_ref())
-            .map(|s| s.trim().to_string())
-            .filter(|v| !v.is_empty() && *v != "****");
-
-        let spell_col = if let Some(col) = spell_col_opt {
-            col
-        } else {
-            // Fallback: Use Class Label to guess column
-            // Common NWN2 columns: Wiz_Sorc, Cleric, Druid, Bard, Paladin, Ranger, Warlock
-            let label_opt = class_data
-                .get("label")
-                .and_then(|v| v.as_ref());
-
-            match label_opt {
-                Some(l) => {
-                    let l_lower = l.to_lowercase();
-                    if l_lower.contains("wizard") || l_lower.contains("sorcerer") {
-                        "Wiz_Sorc".to_string()
-                    } else if l_lower.contains("spirit") && l_lower.contains("shaman") {
-                        "Druid".to_string()
-                    } else if l_lower.contains("favored") && l_lower.contains("soul") {
-                        "Cleric".to_string()
-                    } else {
-                        l.clone()
-                    }
-                }
-                None => return available,
-            }
         };
 
         let Some(spells_table) = game_data.get_table("spells") else {
             return available;
         };
 
-        // Determine actual column name (handle case mismatch)
-        let mut target_col = spell_col.clone();
-        if let Ok(first_row) = spells_table.get_row(0)
-            && !first_row.contains_key(&target_col)
-        {
-            for k in first_row.keys() {
-                if k.eq_ignore_ascii_case(&spell_col) {
-                    target_col = k.clone();
-                    break;
-                }
-            }
-        }
-
-        // Final check: if target_col doesn't exist in keys, we can't do anything
-        if let Ok(first_row) = spells_table.get_row(0)
-            && !first_row.contains_key(&target_col)
-        {
-            return available;
-        }
-
-        // Scan all spells
         for row_id in 0..spells_table.row_count() {
             let Ok(spell_row) = spells_table.get_row(row_id) else {
                 continue;
             };
 
-            // Check if spell is removed or deleted
             if let Some(removed) = spell_row.get("removed").and_then(|v| v.as_ref())
                 && removed == "1"
             {
                 continue;
             }
 
-            // Check level for this class
             if let Some(level_str) = spell_row.get(&target_col).and_then(|v| v.as_ref())
                 && let Ok(lvl) = level_str.parse::<i32>()
                 && lvl == spell_level
@@ -2153,6 +2201,16 @@ pub struct PendingSpellLearning {
     pub total: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AbilitySpellEntry {
+    pub spell_id: i32,
+    pub name: String,
+    pub icon: String,
+    pub description: Option<String>,
+    pub school_name: Option<String>,
+    pub innate_level: i32,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct SpellsState {
     pub spellcasting_classes: Vec<SpellcastingClass>,
@@ -2160,6 +2218,7 @@ pub struct SpellsState {
     pub memorized_spells: Vec<MemorizedSpellEntry>,
     pub known_spells: Vec<KnownSpellEntry>,
     pub pending_spell_learning: Vec<PendingSpellLearning>,
+    pub ability_spells: Vec<AbilitySpellEntry>,
 }
 
 #[cfg(test)]

@@ -398,7 +398,10 @@ fn get_overview(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let session_lock = state.session.read();
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
-        Ok(serde_json::to_value(char_ref.get_overview_state(&game_data_lock))?)
+        let decoder = &session_lock.item_property_decoder;
+        Ok(serde_json::to_value(
+            char_ref.get_overview_state(&game_data_lock, decoder),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }

@@ -1,15 +1,16 @@
 import { Icon, type IconName } from '@blueprintjs/core';
 import { T } from '../theme';
+import { useTranslations } from '@/hooks/useTranslations';
 
-const NAV_ITEMS: { id: string; icon: IconName; label: string }[] = [
-  { id: 'overview', icon: 'person', label: 'Overview' },
-  { id: 'abilities', icon: 'properties', label: 'Abilities' },
-  { id: 'classes', icon: 'layers', label: 'Classes' },
-  { id: 'skills', icon: 'build', label: 'Skills' },
-  { id: 'feats', icon: 'star', label: 'Feats' },
-  { id: 'spells', icon: 'flash', label: 'Spells' },
-  { id: 'inventory', icon: 'box', label: 'Inventory' },
-  { id: 'gamestate', icon: 'globe', label: 'Game State' },
+const NAV_ITEMS: { id: string; icon: IconName; labelKey: string }[] = [
+  { id: 'overview', icon: 'person', labelKey: 'navigation.overview' },
+  { id: 'abilities', icon: 'properties', labelKey: 'navigation.abilityScores' },
+  { id: 'classes', icon: 'layers', labelKey: 'navigation.classes' },
+  { id: 'skills', icon: 'build', labelKey: 'navigation.skills' },
+  { id: 'feats', icon: 'star', labelKey: 'navigation.feats' },
+  { id: 'spells', icon: 'flash', labelKey: 'navigation.spells' },
+  { id: 'inventory', icon: 'box', labelKey: 'navigation.inventory' },
+  { id: 'gamestate', icon: 'globe', labelKey: 'navigation.gameState' },
 ];
 
 interface SidebarProps {
@@ -18,9 +19,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+  const t = useTranslations();
   return (
     <div style={{
-      width: 160, flexShrink: 0,
+      width: 200, flexShrink: 0,
       background: T.sidebar,
       borderRight: `1px solid ${T.sidebar}`,
       display: 'flex', flexDirection: 'column',
@@ -45,7 +47,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             }}
           >
             <Icon icon={item.icon} size={14} />
-            {item.label}
+            {t(item.labelKey)}
           </button>
         );
       })}

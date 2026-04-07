@@ -3,12 +3,18 @@ import { FEAT_TYPES } from '@/components/Feats/types';
 
 export const FEAT_TYPE_LABELS: Record<number, string> = {
   [FEAT_TYPES.GENERAL]: 'General',
-  [FEAT_TYPES.COMBAT]: 'Combat',
+  [FEAT_TYPES.PROFICIENCY]: 'Proficiency',
+  [FEAT_TYPES.SKILL_SAVE]: 'Skill/Save',
   [FEAT_TYPES.METAMAGIC]: 'Metamagic',
   [FEAT_TYPES.DIVINE]: 'Divine',
   [FEAT_TYPES.EPIC]: 'Epic',
   [FEAT_TYPES.CLASS]: 'Class',
   [FEAT_TYPES.BACKGROUND]: 'Background',
+  [FEAT_TYPES.SPELLCASTING]: 'Spellcasting',
+  [FEAT_TYPES.HISTORY]: 'History',
+  [FEAT_TYPES.HERITAGE]: 'Heritage',
+  [FEAT_TYPES.ITEM_CREATION]: 'Item Creation',
+  [FEAT_TYPES.RACIAL]: 'Racial',
   [FEAT_TYPES.DOMAIN]: 'Domain',
 };
 

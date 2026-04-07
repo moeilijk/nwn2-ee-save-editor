@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 pub struct AppConfig {
     pub theme: String,
     pub language: String,
+    pub font_size: String,
     pub auto_backup: bool,
     pub backup_count: u32,
+    pub auto_close_on_launch: bool,
+    pub show_launch_dialog: bool,
     pub last_save_path: Option<PathBuf>,
     pub recent_saves: Vec<PathBuf>,
     pub max_recent_saves: usize,
@@ -18,8 +21,11 @@ impl Default for AppConfig {
         Self {
             theme: "dark".to_string(),
             language: "en".to_string(),
+            font_size: "medium".to_string(),
             auto_backup: true,
             backup_count: 3,
+            auto_close_on_launch: false,
+            show_launch_dialog: true,
             last_save_path: None,
             recent_saves: Vec::new(),
             max_recent_saves: 10,

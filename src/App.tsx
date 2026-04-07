@@ -2,7 +2,6 @@ import { Routes, Route } from 'react-router-dom';
 import { LocaleProvider } from '@/providers/LocaleProvider';
 import { TauriProvider } from '@/providers/TauriProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import Shell from '@/blueprint/layout/Shell';
 
@@ -10,13 +9,11 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <TauriProvider>
       <ThemeProvider>
-        <SettingsProvider>
-          <LocaleProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </LocaleProvider>
-        </SettingsProvider>
+        <LocaleProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </LocaleProvider>
       </ThemeProvider>
     </TauriProvider>
   );

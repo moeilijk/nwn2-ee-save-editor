@@ -366,7 +366,7 @@ mod tests {
         fields.insert("Str".to_string(), GffValue::Byte(16));
         fields.insert("Dex".to_string(), GffValue::Byte(14));
         fields.insert("NaturalAC".to_string(), GffValue::Byte(2));
-        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3)); // 3 = Medium in NWN2
         fields.insert("initbonus".to_string(), GffValue::Int(0));
         Character::from_gff(fields)
     }

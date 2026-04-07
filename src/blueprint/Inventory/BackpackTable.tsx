@@ -25,15 +25,15 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
     <HTMLTable compact striped bordered interactive style={{ width: '100%', tableLayout: 'fixed' }}>
       <colgroup>
         <col />
-        <col style={{ width: 72 }} />
-        <col style={{ width: 44 }} />
-        <col style={{ width: 64 }} />
-        <col style={{ width: 72 }} />
+        <col style={{ width: 120 }} />
+        <col style={{ width: 56 }} />
+        <col style={{ width: 84 }} />
+        <col style={{ width: 116 }} />
       </colgroup>
       <thead>
         <tr>
           <th>Item</th>
-          <th style={{ textAlign: 'center' }}>Type</th>
+          <th>Type</th>
           <th style={{ textAlign: 'center' }}>Qty</th>
           <th style={{ textAlign: 'right' }}>Weight</th>
           <th style={{ textAlign: 'right' }}>Value</th>
@@ -53,13 +53,13 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
             }}>
               {display(item.name)}
             </td>
-            <td style={{ textAlign: 'center', color: T.textMuted, fontSize: 12 }}>{display(item.category)}</td>
+            <td style={{ color: T.textMuted }}>{display(item.category)}</td>
             <td style={{ textAlign: 'center' }}>{item.stack_size > 1 ? item.stack_size : ''}</td>
-            <td style={{ textAlign: 'right', color: T.textMuted, fontSize: 12 }}>
-              {item.weight > 0 ? `${item.weight.toFixed(1)}` : '-'}
+            <td style={{ textAlign: 'right', color: T.textMuted }}>
+              {item.weight > 0 ? `${item.weight.toFixed(1)} lbs` : '-'}
             </td>
-            <td style={{ textAlign: 'right', color: item.value > 0 ? T.gold : T.textMuted, fontWeight: 600 }}>
-              {item.value > 0 ? fmtNum(item.value) : '-'}
+            <td style={{ textAlign: 'right', color: T.textMuted }}>
+              {item.value > 0 ? `${fmtNum(item.value)} gp` : '-'}
             </td>
           </tr>
         ))}

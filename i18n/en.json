@@ -13,7 +13,8 @@
     "continueEditing": "Continue Editing",
     "closeSession": "Close Session",
     "active": "Active",
-    "sessionActive": "Session Active: {name}"
+    "sessionActive": "Session Active: {name}",
+    "openSave": "Open Save"
   },
   "fileBrowser": {
     "loadSave": "Load Save",
@@ -99,6 +100,7 @@
     "noCharacter": "No Character",
     "loadSaveFile": "Load a save file",
     "level": "Level",
+    "race": "Race",
     "experience": "Experience",
     "experiencePoints": "Experience Points",
     "hitPoints": "Hit Points",
@@ -134,6 +136,10 @@
     "deaths": "Deaths",
     "enemiesDefeated": "Enemies Defeated",
     "physicalAttributes": "Physical Attributes"
+  },
+  "overview": {
+    "armorClass": "Armor Class",
+    "initiative": "Initiative"
   },
   "abilityScores": {
     "title": "Ability Scores",
@@ -219,10 +225,13 @@
     "plotItem": "Plot Item",
     "cursedItem": "Cursed",
     "stolenItem": "Stolen",
+    "equip": "Equip",
+    "delete": "Delete",
     "confirmDeleteTitle": "Confirm Delete",
     "deleteItemName": "Item",
     "deleteWarningRegular": "Are you sure you want to delete this item? This action cannot be undone.",
     "deleteWarningPlot": "This is a quest/plot item required for quest progression. Deleting it may break your save file or prevent quest completion. Are you absolutely sure?",
+    "editWarningPlot": "This is a quest/plot item. Editing it may affect quest progression.",
     "noDescription": "No description available",
     "noProperties": "No special properties",
     "baseArmorClass": "Base Armor Class",
@@ -327,7 +336,28 @@
       "containers": "Containers",
       "otherMisc": "Other",
       "other": "Other"
-    }
+    },
+    "categoryAll": "All",
+    "categoryWeapons": "Weapons",
+    "categoryArmor": "Armor & Clothing",
+    "categoryMagic": "Magic Items",
+    "categoryMisc": "Miscellaneous",
+    "filterCategory": "Category: All",
+    "filterClear": "Clear",
+    "noItemsMatch": "No items match your filters.",
+    "addingItem": "Adding...",
+    "selectNone": "None",
+    "propertiesTab": "Properties",
+    "basicInfoTab": "Basic Info",
+    "enchantments": "Enchantments",
+    "addProperty": "Add Property",
+    "noPropertiesAdded": "No properties. Click \"Add Property\" to add enchantments.",
+    "propertyType": "Property",
+    "propertySubtype": "Subtype",
+    "propertyValue": "Value",
+    "stackSize": "Stack Size",
+    "save": "Save",
+    "editItem": "Edit"
   },
   "status": {
     "ready": "Ready",
@@ -345,6 +375,16 @@
     "skillsEditor": "Skills editor will appear here",
     "featsManagement": "Feats management will appear here",
     "spellsManagement": "Spells management will appear here",
+    "addFeat": "Add Feat",
+    "removeFeat": "Remove Feat",
+    "featAdded": "Feat added successfully",
+    "featRemoved": "Feat removed successfully",
+    "featProtected": "This feat is protected and cannot be removed",
+    "addSpell": "Add Spell",
+    "removeSpell": "Remove Spell",
+    "spellAdded": "Spell added successfully",
+    "spellRemoved": "Spell removed successfully",
+    "selectClass": "Select Class",
     "companionManagement": "Companion management will appear here"
   },
   "classes": {
@@ -380,6 +420,8 @@
     "schoolSpecialization": "School Specialization",
     "noClasses": "No classes selected",
     "selectClassToAdd": "Select a class to add",
+    "selectClassToView": "Select a class to view details",
+    "selectClass": "Select Class",
     "maximumLevelReached": "Maximum level reached",
     "alignmentIncompatible": "Your alignment is incompatible with this class",
     "prerequisitesNotMet": "Prerequisites not met",
@@ -406,6 +448,11 @@
     "xpLevel": "XP Level",
     "xpToNextLevel": "XP to Next Level",
     "setXP": "Set XP",
+    "colAbility": "Ability",
+    "colHD": "HD",
+    "colSP": "SP",
+    "colMagic": "Magic",
+    "colAlign": "Align",
     "xpLevelMismatchWarning": "Your XP level ({xpLevel}) differs from your class levels ({classLevel}). When you load this save in-game, you will be prompted to level up.",
     "classNames": {
       "barbarian": "Barbarian",
@@ -483,6 +530,8 @@
     "armorCheck": "Armor Check",
     "miscModifiers": "Miscellaneous modifiers from feats, items, or other effects",
     "cancel": "Cancel",
+    "resetConfirmTitle": "Reset Skill Ranks",
+    "resetConfirmMessage": "Reset all skill ranks to 0? Points will be refunded.",
     "fromFeatsItemsOrOtherBonuses": "From feats, items, or other bonuses",
     "skillNames": {
       "appraise": "Appraise",
@@ -690,6 +739,8 @@
       "startModule": "Start Module",
       "moduleCount": "Module Count",
       "campaignFile": "Campaign File",
+      "saveSettings": "Save Settings",
+      "revertSettings": "Revert",
       "restoreBackup": "Restore Backup",
       "restoreBackupTitle": "Restore Campaign Backup",
       "restoreBackupDesc": "Select a backup to restore the campaign.cam file to a previous state",
@@ -705,6 +756,7 @@
     "no": "No",
     "save": "Save",
     "saving": "Saving...",
+    "edit": "Edit",
     "revert": "Revert",
     "revertAll": "Revert All",
     "close": "Close",
@@ -717,7 +769,8 @@
     "restore": "Restore",
     "cancel": "Cancel",
     "back": "Back",
-    "next": "Next"
+    "next": "Next",
+    "settings": "Settings"
   },
   "levelup": {
     "title": "Level Up",
@@ -840,6 +893,50 @@
     }
   },
   "settings": {
+    "title": "Settings",
+    "tabs": {
+      "general": "General",
+      "paths": "Game Paths",
+      "launch": "Game Launch"
+    },
+    "done": "Done",
+    "general": {
+      "languageRegion": "Language & Region",
+      "language": "Language",
+      "languageEnglish": "English",
+      "display": "Display",
+      "fontSize": "Font Size",
+      "fontSizeSmall": "Small",
+      "fontSizeMedium": "Medium",
+      "fontSizeLarge": "Large"
+    },
+    "paths": {
+      "mainPaths": "Main Paths",
+      "gameFolder": "Game Installation Folder",
+      "documentsFolder": "Documents Folder",
+      "workshopFolder": "Steam Workshop Folder",
+      "localvaultFolder": "Character Vault (LocalVault)",
+      "customOverrideFolders": "Custom Override Folders",
+      "customHakFolders": "Custom HAK Folders",
+      "autoDetected": "Auto-detected",
+      "manuallySet": "Manually Set",
+      "notConfigured": "(Not configured)",
+      "reset": "Reset",
+      "change": "Change",
+      "set": "Set",
+      "addOverrideFolder": "Add Override Folder",
+      "addHakFolder": "Add HAK Folder",
+      "selectGameFolder": "Select NWN2 Game Folder",
+      "selectDocumentsFolder": "Select NWN2 Documents Folder",
+      "selectWorkshopFolder": "Select Steam Workshop Folder",
+      "selectOverrideFolder": "Select Custom Override Folder",
+      "selectHakFolder": "Select Custom HAK Folder"
+    },
+    "launch": {
+      "launchBehavior": "Launch Behavior",
+      "showLaunchDialog": "Show launch dialog after saving",
+      "autoClose": "Auto-close editor after launching game"
+    },
     "debug": {
       "title": "Debug",
       "exportButton": "Export Debug Log",
@@ -869,8 +966,8 @@
     "appInfo": "App Info",
     "credits": "Credits",
     "legal": "Legal",
-    "description": "A modern, cross-platform save game editor for Neverwinter Nights 2: Enhanced Edition.",
-    "builtWith": "Built with Tauri and Next.js.",
+    "description": "Desktop save editor for Neverwinter Nights 2 Enhanced Edition. Edit characters, companions, inventory, and more.",
+    "builtWith": "Built with Tauri, Rust, and Vite.",
     "github": "GitHub",
     "reportBug": "Report Bug",
     "createdBy": "Created By",

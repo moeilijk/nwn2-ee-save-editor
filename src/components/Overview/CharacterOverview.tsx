@@ -617,7 +617,7 @@ export default function CharacterOverview({ onNavigate: _onNavigate }: Character
                 </div>
                 <div className="">
                   <div className="text-xs text-[rgb(var(--color-text-muted))] uppercase mb-1">{t('character.totalFeats')}</div>
-                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(feats.data?.summary?.total_count || character.totalFeats || 0)}</div>
+                  <div className="text-lg font-bold text-[rgb(var(--color-text-primary))]">{display(feats.data?.summary?.total || character.totalFeats || 0)}</div>
                 </div>
                 {character.knownSpells !== undefined && (
                   <div className="">

@@ -458,6 +458,7 @@ impl RustXmlParser {
         info.insert("player_name".to_string(), None);
         info.insert("game_act".to_string(), None);
         info.insert("last_saved".to_string(), None);
+        info.insert("difficulty".to_string(), None);
 
         let name_vars = ["MainCharacter", "PlayerName"];
         for var in &name_vars {
@@ -469,6 +470,17 @@ impl RustXmlParser {
 
         if let Some(val) = self.data.integers.get("00_nAct") {
             info.insert("game_act".to_string(), Some(val.to_string()));
+        }
+
+        if let Some(val) = self.data.integers.get("MinimalDifficultyLevel") {
+            let label = match *val {
+                0 => "Easy",
+                1 => "Normal",
+                2 => "Hard",
+                3 => "Hardcore",
+                _ => "Normal",
+            };
+            info.insert("difficulty".to_string(), Some(label.to_string()));
         }
 
         if let Some(timestamp) = self.data.integers.get("LastWriteTime") {

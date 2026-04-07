@@ -94,7 +94,7 @@ export default function CampaignSettingsTab() {
     setRestoreError(null);
 
     try {
-      const data = await gameStateAPI.getCampaignBackups(characterId);
+      const data = await gameStateAPI.getCampaignBackups(settings?.guid || '');
       setBackups(data.backups);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load backups';
@@ -116,7 +116,7 @@ export default function CampaignSettingsTab() {
     setRestoreError(null);
 
     try {
-      await gameStateAPI.restoreCampaignFromBackup(characterId, backupPath);
+      await gameStateAPI.restoreCampaignFromBackup(backupPath, settings?.guid || '');
       setIsRestoreDialogOpen(false);
       await loadCampaignSettings();
       setSaveMessage(t('gameState.campaign.restoreSuccess'));
