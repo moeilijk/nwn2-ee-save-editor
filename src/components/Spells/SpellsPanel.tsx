@@ -9,7 +9,7 @@ import { useSubsystem } from '@/contexts/CharacterContext';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { mapKnownSpellsToSpellInfo, groupMemorizedSpells, mapCasterClasses } from '@/utils/spellUtils';
-import type { SpellInfo, SpellsState, AbilitySpellEntry } from '@/blueprint/Spells/types';
+import type { SpellInfo, SpellsState, AbilitySpellEntry } from '@/components/Spells/types';
 import { display } from '@/utils/dataHelpers';
 import { useSpellManagement } from '@/hooks/useSpellManagement';
 import { useToast } from '@/contexts/ToastContext';

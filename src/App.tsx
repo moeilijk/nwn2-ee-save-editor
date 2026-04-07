@@ -3,7 +3,7 @@ import { LocaleProvider } from '@/providers/LocaleProvider';
 import { TauriProvider } from '@/providers/TauriProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { ToastProvider } from '@/contexts/ToastContext';
-import Shell from '@/blueprint/layout/Shell';
+import Shell from '@/components/layout/Shell';
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (

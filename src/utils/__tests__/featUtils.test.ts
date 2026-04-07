@@ -5,7 +5,7 @@ import {
   sortFeats,
   filterOwnedFeats,
 } from '../featUtils';
-import type { FeatInfo } from '@/blueprint/Feats/types';
+import type { FeatInfo } from '@/components/Feats/types';
 
 const makeFeat = (id: number, name: string, type = 0): FeatInfo => ({
   id, name, label: name, type, description: '', protected: false, custom: false,

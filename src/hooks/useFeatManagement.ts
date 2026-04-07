@@ -7,7 +7,7 @@ import type {
   FeatsState,
   ValidationCache,
   ValidationState
-} from '@/blueprint/Feats/types';
+} from '@/components/Feats/types';
 
 const FEAT_DEPENDENT_SUBSYSTEMS = ['combat', 'abilityScores', 'saves', 'skills'] as const;
 

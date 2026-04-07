@@ -6,7 +6,7 @@ import {
   filterSpells,
   sortSpells,
 } from '../spellUtils';
-import type { SpellInfo } from '@/blueprint/Spells/types';
+import type { SpellInfo } from '@/components/Spells/types';
 
 const makeKnownSpell = (id: number, name: string, level: number, classId: number) => ({
   spell_id: id, name, level, icon: 'icon', school_name: 'Evocation',

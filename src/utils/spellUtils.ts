@@ -1,4 +1,4 @@
-import type { SpellInfo, SpellcastingClass, KnownSpell, MemorizedSpell } from '@/blueprint/Spells/types';
+import type { SpellInfo, SpellcastingClass, KnownSpell, MemorizedSpell } from '@/components/Spells/types';
 
 export interface CasterClassInfo {
   index: number;
