@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Popover, Menu, MenuItem } from '@blueprintjs/core';
 import { T, SPELL_SCHOOL_COLORS } from '../theme';
-import type { SpellInfo } from '@/components/Spells/types';
+import type { SpellInfo } from '@/blueprint/Spells/types';
 import { DetailSection } from '../shared';
 import { display } from '@/utils/dataHelpers';
 import { useTranslations } from '@/hooks/useTranslations';

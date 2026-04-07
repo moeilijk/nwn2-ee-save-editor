@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Icon } from '@blueprintjs/core';
 import { T, FEAT_TYPE_COLORS } from '../theme';
-import type { FeatInfo, BackendFeatPrerequisites } from '@/components/Feats/types';
+import type { FeatInfo, BackendFeatPrerequisites } from '@/blueprint/Feats/types';
 import { FEAT_TYPE_LABELS, getFeatTypeLabel } from '@/utils/featUtils';
 import { DetailSection } from '../shared';
 import { display } from '@/utils/dataHelpers';

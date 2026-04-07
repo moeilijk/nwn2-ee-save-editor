@@ -1,5 +1,5 @@
-import type { FeatInfo } from '@/components/Feats/types';
-import { FEAT_TYPES } from '@/components/Feats/types';
+import type { FeatInfo } from '@/blueprint/Feats/types';
+import { FEAT_TYPES } from '@/blueprint/Feats/types';
 
 export const FEAT_TYPE_LABELS: Record<number, string> = {
   [FEAT_TYPES.GENERAL]: 'General',
