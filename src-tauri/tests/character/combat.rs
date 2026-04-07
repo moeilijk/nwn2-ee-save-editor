@@ -427,11 +427,11 @@ async fn test_size_modifier() {
         let size_mod = character.size_modifier();
 
         let expected_mod = match size {
-            2 => 2,  // Tiny
-            3 => 1,  // Small
-            4 => 0,  // Medium
-            5 => -1, // Large
-            6 => -2, // Huge
+            1 => 2,  // Tiny
+            2 => 1,  // Small
+            3 => 0,  // Medium
+            4 => -1, // Large
+            5 => -2, // Huge
             _ => 0,
         };
 
