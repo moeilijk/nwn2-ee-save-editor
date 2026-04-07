@@ -12,7 +12,8 @@
     "loadSave": "Load Save",
     "continueEditing": "Continue Editing",
     "closeSession": "Close Session",
-    "active": "Active"
+    "active": "Active",
+    "sessionActive": "Session Active: {name}"
   },
   "fileBrowser": {
     "loadSave": "Load Save",
@@ -85,7 +86,14 @@
     "sort": "Sort",
     "dropAll": "Drop All",
     "apply": "Apply",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "exportingVault": "Exporting...",
+    "exportSuccess": "Character exported to LocalVault",
+    "saveSuccess": "Character saved successfully",
+    "launchGame": "Launch Game",
+    "launching": "Launching...",
+    "stayInEditor": "Stay in Editor",
+    "closeEditorAfterLaunch": "Close editor after launching game"
   },
   "character": {
     "noCharacter": "No Character",
@@ -848,5 +856,45 @@
     "abilitySpells": "Special Abilities",
     "abilitySpellsDescription": "Spell-like abilities granted by feats and class features. These are read-only.",
     "noAbilitySpells": "No special ability spells found on this character."
+  },
+  "titlebar": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close",
+    "about": "About"
+  },
+  "about": {
+    "title": "About",
+    "appInfo": "App Info",
+    "credits": "Credits",
+    "legal": "Legal",
+    "description": "A modern, cross-platform save game editor for Neverwinter Nights 2: Enhanced Edition.",
+    "builtWith": "Built with Tauri and Next.js.",
+    "github": "GitHub",
+    "reportBug": "Report Bug",
+    "createdBy": "Created By",
+    "specialThanks": "Special Thanks",
+    "obsidianCredit": "For creating the original Neverwinter Nights 2 and its rich, moddable foundation.",
+    "aspyrCredit": "For the 2025 Enhanced Edition, which inspired the creation of this modern editor.",
+    "scripterronCredit": "For the Java-based Character Editor, which served as a vital technical reference for the file specifications used in this project.",
+    "license": "License",
+    "licenseText": "This application is open source software licensed under the MIT License.",
+    "thirdParty": "Third Party Notices",
+    "fanContent": "{appName} is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast.",
+    "notAffiliated": "This project is not affiliated with or endorsed by Aspyr Media.",
+    "copyVersion": "Copy version"
+  },
+  "gameLaunch": {
+    "saveComplete": "Save Complete",
+    "savedSuccessfully": "{name} has been saved successfully.",
+    "readyToVerify": "Ready to verify in-game?",
+    "readyToVerifyDesc": "Launch NWN2:EE now to test your changes immediately.",
+    "gamePathWarning": "Game installation not automatically detected. We'll try to find it when you launch."
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "This section encountered an error and cannot be displayed.",
+    "retry": "Try Again"
   }
 }

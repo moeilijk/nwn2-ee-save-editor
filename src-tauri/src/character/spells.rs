@@ -661,7 +661,7 @@ impl Character {
 
             // Calculate slots for each spell level (0-9)
             for spell_level in 0..=MAX_SPELL_LEVEL {
-                let column_name = format!("SpellLevel{spell_level}");
+                let column_name = format!("spelllevel{spell_level}");
 
                 let base_slots = spell_table
                     .get_cell(table_row_idx, &column_name)
@@ -850,7 +850,7 @@ impl Character {
         };
 
         for spell_level in 0..=MAX_SPELL_LEVEL {
-            let field_name = format!("SpellLevel{spell_level}");
+            let field_name = format!("spelllevel{spell_level}");
             if let Some(slot_value_str) = row_data.get(&field_name).and_then(|v| v.as_ref())
                 && let Ok(base_slots) = slot_value_str.parse::<i32>()
             {
@@ -1025,7 +1025,7 @@ impl Character {
         };
 
         for spell_level in 0..=MAX_SPELL_LEVEL {
-            let column_name = format!("SpellLevel{spell_level}");
+            let column_name = format!("spelllevel{spell_level}");
             if let Some(count_str) = row_data.get(&column_name).and_then(|v| v.as_ref())
                 && let Ok(count) = count_str.parse::<i32>()
                 && count > 0
@@ -1634,7 +1634,7 @@ impl Character {
             };
 
             for spell_level in 1..=MAX_SPELL_LEVEL {
-                let field_name = format!("Level_{spell_level}");
+                let field_name = format!("level_{spell_level}");
                 if let Some(spell_id_str) = domain_data.get(&field_name).and_then(|v| v.as_ref())
                     && let Ok(spell_id) = spell_id_str.parse::<i32>()
                     && spell_id >= 0
@@ -1668,7 +1668,7 @@ impl Character {
         };
 
         for spell_level in 1..=MAX_SPELL_LEVEL {
-            let field_name = format!("Level_{spell_level}");
+            let field_name = format!("level_{spell_level}");
             if let Some(spell_id_str) = domain_data.get(&field_name).and_then(|v| v.as_ref())
                 && let Ok(spell_id) = spell_id_str.parse::<i32>()
                 && spell_id >= 0
