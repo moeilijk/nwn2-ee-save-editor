@@ -1184,6 +1184,8 @@ impl Character {
             std::collections::HashMap<i32, i32>,
         > = std::collections::HashMap::new();
 
+        let mut leftover_selectable: i32 = 0;
+
         for (total_level_idx, level_entry) in level_history.iter().enumerate() {
             let total_level = (total_level_idx + 1) as i32;
             let class_id = level_entry.class_id.0;
@@ -1239,6 +1241,21 @@ impl Character {
                     open_bonus_slots += 1;
                 }
             }
+
+            leftover_selectable += selectable_feats.len() as i32;
+        }
+
+        // Feats added via editor may land on a level without a slot.
+        // Use leftover selectable feats to fill open slots from other levels.
+        while leftover_selectable > 0 && open_general_slots > 0 {
+            open_general_slots -= 1;
+            filled_general_slots += 1;
+            leftover_selectable -= 1;
+        }
+        while leftover_selectable > 0 && open_bonus_slots > 0 {
+            open_bonus_slots -= 1;
+            filled_bonus_slots += 1;
+            leftover_selectable -= 1;
         }
 
         let racial_bonus = self.get_racial_bonus_feats();

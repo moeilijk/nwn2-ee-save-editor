@@ -97,7 +97,6 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
   if (totalPending === 0) return null;
 
   const handleRowClick = (tabId: string) => {
-    setIsOpen(false);
     onNavigate?.(tabId);
   };
 
@@ -229,7 +228,6 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
       <Popover
         content={content}
         isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
         placement="top-end"
         minimal
         popoverClassName="level-helper-popover"
