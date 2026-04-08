@@ -1018,5 +1018,24 @@
     "noMatch": "No races match your search.",
     "selectRace": "Select a race from the list",
     "confirm": "Confirm"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "raceAndGender": "Race & Gender",
+    "head": "Head",
+    "headVariation": "Head Variation",
+    "colors": "Colors",
+    "skinColor": "Skin Color",
+    "hairColor": "Hair Color",
+    "tattoo1Color": "Tattoo 1 Color",
+    "tattoo2Color": "Tattoo 2 Color",
+    "voice": "Voice",
+    "soundset": "Soundset",
+    "build": "Build",
+    "phenotype": "Phenotype",
+    "wingsAndTail": "Wings & Tail",
+    "wings": "Wings",
+    "tail": "Tail",
+    "none": "None"
   }
 }

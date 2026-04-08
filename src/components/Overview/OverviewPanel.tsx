@@ -5,9 +5,11 @@ import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { T } from '../theme';
 import { KVRow, mod, StepInput } from '../shared';
 import { DeityDialog } from './DeityDialog';
+import { RaceDialog } from './RaceDialog';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { CharacterAPI } from '@/services/characterApi';
 import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
+import { invoke } from '@tauri-apps/api/core';
 
 const ALIGNMENT_GRID = [
   { name: 'Lawful Good', lc: 85, ge: 85, color: '#FFD700' },
@@ -39,7 +41,7 @@ const ABILITY_DEFS = [
 export function OverviewPanel() {
   const t = useTranslations();
   const { handleError } = useErrorHandler();
-  const { character, characterId, isLoading, updateCharacterPartial } = useCharacterContext();
+  const { character, characterId, isLoading, updateCharacterPartial, refreshAll } = useCharacterContext();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -50,6 +52,7 @@ export function OverviewPanel() {
   const [savedBiography, setSavedBiography] = useState('');
 
   const [isDeityOpen, setIsDeityOpen] = useState(false);
+  const [isRaceOpen, setIsRaceOpen] = useState(false);
 
   const [hp, setHp] = useState(0);
   const [maxHp, setMaxHp] = useState(1);
@@ -129,6 +132,17 @@ export function OverviewPanel() {
       handleError(err);
     }
   }, [characterId, updateCharacterPartial, handleError]);
+
+  const handleRaceChange = useCallback(async (raceId: number, subrace: string | null) => {
+    if (!characterId) return;
+    try {
+      await invoke('change_race', { raceId, subrace });
+      await refreshAll();
+      setIsRaceOpen(false);
+    } catch (err) {
+      handleError(err);
+    }
+  }, [characterId, refreshAll, handleError]);
 
   const handleHpChange = useCallback(async (newCurrent: number, newMax: number) => {
     if (!characterId || hpSaving) return;
@@ -243,7 +257,12 @@ export function OverviewPanel() {
           </div>
 
           <div style={{ fontSize: 13 }}>
-            <KVRow label={t('character.race')} value={display(character.race)} />
+            <KVRow label={t('character.race')} value={
+              <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsRaceOpen(true)}>
+                {display(character.race)}
+                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+              </span>
+            } />
             <KVRow label="Gender / Age" value={`${display(character.gender)}, ${display(character.age)} yrs`} />
             <KVRow label={t('character.alignment')} value={ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.name ?? display(character.alignment)} />
             <KVRow label="Deity" value={
@@ -438,6 +457,13 @@ export function OverviewPanel() {
         currentDeity={character.deity ?? ''}
         onClose={() => setIsDeityOpen(false)}
         onSelect={handleDeitySelect}
+      />
+      <RaceDialog
+        isOpen={isRaceOpen}
+        currentRaceId={character.race_id ?? 0}
+        currentSubrace={character.subrace ?? null}
+        onClose={() => setIsRaceOpen(false)}
+        onSelect={handleRaceChange}
       />
     </div>
   );

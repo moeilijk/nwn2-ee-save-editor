@@ -116,10 +116,8 @@ pub fn run() {
             crate::commands::character::get_encumbrance_limits,
             crate::commands::character::get_ability_points_summary,
             // Character - Race
-            crate::commands::character::set_race,
             crate::commands::character::get_race_id,
             crate::commands::character::get_race_name,
-            crate::commands::character::set_subrace,
             crate::commands::character::get_subrace,
             crate::commands::character::get_available_subraces,
             crate::commands::character::get_ability_modifiers,
@@ -299,6 +297,12 @@ pub fn run() {
             crate::commands::campaign::restore_campaign_variable_backup,
             crate::commands::campaign::list_module_backups,
             crate::commands::campaign::restore_module_backup,
+            // Appearance
+            crate::commands::appearance::get_appearance_state,
+            crate::commands::appearance::update_appearance,
+            crate::commands::appearance::get_available_wings,
+            crate::commands::appearance::get_available_tails,
+            crate::commands::appearance::get_available_phenotypes,
             // Overview (Aggregated State Commands)
             crate::commands::overview::get_overview_state,
             crate::commands::overview::update_character,

@@ -111,16 +111,7 @@ impl Character {
         let initiative = self.get_initiative_breakdown(game_data, decoder);
         let movement = self.get_movement_speed(game_data);
 
-        let base_scores = self.base_scores();
-        let equip = self.get_equipment_bonuses(game_data, decoder);
-        let total_scores = AbilityScores::new(
-            base_scores.str_ + equip.str_bonus,
-            base_scores.dex + equip.dex_bonus,
-            base_scores.con + equip.con_bonus,
-            base_scores.int + equip.int_bonus,
-            base_scores.wis + equip.wis_bonus,
-            base_scores.cha + equip.cha_bonus,
-        );
+        let total_scores = self.get_total_abilities(game_data, decoder);
         let ability_modifiers = AbilityModifiers::from_scores(&total_scores);
 
         OverviewState {

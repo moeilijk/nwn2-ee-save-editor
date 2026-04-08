@@ -496,6 +496,7 @@ export interface CharacterData {
   last_name?: string;
   skill_points_available?: number;
   has_unsaved_changes?: boolean;
+  race_id?: number;
 }
 
 export class CharacterAPI {
@@ -557,6 +558,7 @@ export class CharacterAPI {
         first_name: overview.first_name,
         last_name: overview.last_name,
         race: overview.race_name,
+        race_id: overview.race_id,
         subrace: overview.subrace || undefined,
         gender: overview.gender,
         age: overview.age,

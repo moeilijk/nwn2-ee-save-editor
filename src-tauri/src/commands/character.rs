@@ -1,6 +1,4 @@
-use crate::character::{
-    AbilityIndex, AbilityPointsSummary, AbilityScores, Alignment, HitPoints, RaceId,
-};
+use crate::character::{AbilityIndex, AbilityPointsSummary, AbilityScores, Alignment, HitPoints};
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -500,31 +498,9 @@ pub async fn get_subrace(state: State<'_, AppState>) -> CommandResult<Option<Str
 }
 
 #[tauri::command]
-pub async fn set_race(state: State<'_, AppState>, race_id: i32) -> CommandResult<()> {
-    let mut session = state.session.write();
-    let character = session
-        .character
-        .as_mut()
-        .ok_or(CommandError::NoCharacterLoaded)?;
-    character.set_race(RaceId(race_id));
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_subrace(state: State<'_, AppState>, subrace: Option<String>) -> CommandResult<()> {
-    let mut session = state.session.write();
-    let character = session
-        .character
-        .as_mut()
-        .ok_or(CommandError::NoCharacterLoaded)?;
-    character.set_subrace(subrace);
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn get_available_subraces(
     state: State<'_, AppState>,
-    _race_id: i32,
+    race_id: i32,
 ) -> CommandResult<Vec<crate::character::SubraceInfo>> {
     let session = state.session.read();
     let game_data = state.game_data.read();
@@ -532,7 +508,7 @@ pub async fn get_available_subraces(
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.available_subraces(&game_data))
+    Ok(character.get_available_subraces_for_race(race_id, &game_data))
 }
 
 #[tauri::command]
@@ -567,6 +543,7 @@ pub async fn change_race(
     subrace: Option<String>,
 ) -> CommandResult<RaceChangedEvent> {
     let mut session = state.session.write();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_mut()
@@ -575,8 +552,7 @@ pub async fn change_race(
     let old_race_id = character.race_id();
     let old_subrace = character.subrace();
 
-    character.set_race(RaceId(race_id));
-    character.set_subrace(subrace.clone());
+    character.change_race(race_id, subrace.clone(), false, &game_data)?;
 
     Ok(RaceChangedEvent {
         old_race_id: Some(old_race_id.0),
