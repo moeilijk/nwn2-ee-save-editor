@@ -62,7 +62,8 @@
     "aiSettings": "AI Settings",
     "quickAccess": "Quick Access",
     "settings": "Settings",
-    "gameState": "Game State"
+    "gameState": "Game State",
+    "models": "3D Models"
   },
   "actions": {
     "openSave": "Open Save",
@@ -975,6 +976,8 @@
     "obsidianCredit": "For creating the original Neverwinter Nights 2 and its rich, moddable foundation.",
     "aspyrCredit": "For the 2025 Enhanced Edition, which inspired the creation of this modern editor.",
     "scripterronCredit": "For the Java-based Character Editor, which served as a vital technical reference for the file specifications used in this project.",
+    "nwn2mdkCredit": "For the NWN2 Modding & Development Kit, whose MDB/GR2 file format parsing code was ported to Rust for this project's 3D model viewer (Apache 2.0).",
+    "xoreosCredit": "For the Oodle1 decompression algorithm used to read GR2 skeleton files (Boost Software License 1.0).",
     "license": "License",
     "licenseText": "This application is open source software licensed under the MIT License.",
     "thirdParty": "Third Party Notices",
@@ -993,5 +996,27 @@
     "title": "Something went wrong",
     "message": "This section encountered an error and cannot be displayed.",
     "retry": "Try Again"
+  },
+  "modelViewer": {
+    "loading": "Loading model...",
+    "error": "Error",
+    "searchPlaceholder": "Search models...",
+    "modelsFound": "models",
+    "resref": "Model",
+    "source": "Source",
+    "selectModel": "Select a model to preview"
+  },
+  "race": {
+    "selectTitle": "Select Race",
+    "searchPlaceholder": "Search races...",
+    "selectSubrace": "Select Subrace",
+    "noSubraces": "No subraces available",
+    "abilityModifiers": "Ability Modifiers",
+    "favoredClass": "Favored Class",
+    "size": "Size",
+    "speed": "Speed",
+    "noMatch": "No races match your search.",
+    "selectRace": "Select a race from the list",
+    "confirm": "Confirm"
   }
 }

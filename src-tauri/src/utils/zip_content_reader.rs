@@ -244,6 +244,58 @@ impl ZipContentReader {
         }
     }
 
+    pub fn find_file_by_name(
+        &mut self,
+        zip_path: &str,
+        filename: &str,
+    ) -> Result<Option<Vec<u8>>, String> {
+        if !self.open_archives.contains_key(zip_path) {
+            self.open_archive(zip_path)?;
+        }
+
+        let filename_lower = filename.to_lowercase();
+        let internal_path = self
+            .file_indices
+            .get(zip_path)
+            .and_then(|indices| {
+                indices.keys().find(|k| {
+                    let name = k.rsplit('/').next().unwrap_or(k);
+                    name.eq_ignore_ascii_case(&filename_lower)
+                })
+            })
+            .cloned();
+
+        if let Some(path) = internal_path {
+            let data = self.read_file_from_zip(zip_path.to_string(), path)?;
+            Ok(Some(data))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn list_files_by_extension(
+        &mut self,
+        zip_path: &str,
+        extension: &str,
+    ) -> Result<Vec<String>, String> {
+        if !self.open_archives.contains_key(zip_path) {
+            self.open_archive(zip_path)?;
+        }
+
+        let ext_lower = format!(".{}", extension.to_lowercase());
+        Ok(self
+            .file_indices
+            .get(zip_path)
+            .map(|indices| {
+                indices
+                    .keys()
+                    .filter(|name| name.to_lowercase().ends_with(&ext_lower))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     fn open_archive(&mut self, zip_path: &str) -> Result<(), String> {
         let path = Path::new(zip_path);
         if !path.exists() {

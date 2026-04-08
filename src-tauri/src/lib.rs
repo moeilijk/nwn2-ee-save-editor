@@ -18,9 +18,8 @@ use tracing::{debug, info};
 use file_operations::{
     browse_backups, browse_localvault, browse_saves, detect_nwn2_installation, find_nwn2_saves,
     get_default_backups_path, get_default_localvault_path, get_default_saves_path,
-    get_save_thumbnail,
-    get_steam_workshop_path, launch_nwn2_game, open_folder_in_explorer, select_nwn2_directory,
-    select_save_file, validate_nwn2_installation,
+    get_save_thumbnail, get_steam_workshop_path, launch_nwn2_game, open_folder_in_explorer,
+    select_nwn2_directory, select_save_file, validate_nwn2_installation,
 };
 use window_manager::{close_settings_window, open_settings_window, show_main_window};
 
@@ -249,6 +248,7 @@ pub fn run() {
             crate::commands::gamedata::get_available_skills,
             crate::commands::gamedata::get_available_spells,
             crate::commands::gamedata::get_available_races,
+            crate::commands::gamedata::get_subraces_for_race,
             crate::commands::gamedata::get_available_genders,
             crate::commands::gamedata::get_available_alignments,
             crate::commands::gamedata::get_available_deities,
@@ -311,6 +311,10 @@ pub fn run() {
             // Debug
             crate::commands::test_deities::debug_deities,
             crate::commands::debug::export_debug_log,
+            // Models
+            crate::commands::models::load_model,
+            crate::commands::models::get_texture_bytes,
+            crate::commands::models::list_available_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1142,6 +1142,132 @@ impl ResourceManager {
     pub fn get_tlk_parser(&self) -> Option<Arc<StdRwLock<TLKParser>>> {
         self.tlk_cache.clone()
     }
+
+    pub fn get_resource_bytes(
+        &self,
+        resref: &str,
+        extension: &str,
+    ) -> ResourceManagerResult<Vec<u8>> {
+        let filename = format!("{resref}.{extension}");
+        let filename_lower = filename.to_lowercase();
+
+        tracing::debug!("get_resource_bytes: looking for '{}'", filename_lower);
+
+        let paths = self.paths.blocking_read();
+
+        for override_dir in paths.custom_override_folders() {
+            let file_path = override_dir.join(&filename);
+            if file_path.exists() {
+                tracing::debug!("  Found in custom override: {:?}", file_path);
+                return Ok(std::fs::read(&file_path)?);
+            }
+            let file_path = override_dir.join(&filename_lower);
+            if file_path.exists() {
+                tracing::debug!("  Found in custom override (lowercase): {:?}", file_path);
+                return Ok(std::fs::read(&file_path)?);
+            }
+        }
+
+        if let Some(override_dir) = paths.override_dir() {
+            let file_path = override_dir.join(&filename);
+            if file_path.exists() {
+                tracing::debug!("  Found in override dir: {:?}", file_path);
+                return Ok(std::fs::read(&file_path)?);
+            }
+            let file_path = override_dir.join(&filename_lower);
+            if file_path.exists() {
+                tracing::debug!("  Found in override dir (lowercase): {:?}", file_path);
+                return Ok(std::fs::read(&file_path)?);
+            }
+        }
+
+        if let Some(data_dir) = paths.data() {
+            tracing::debug!("  Searching zips in {:?}", data_dir);
+            drop(paths);
+            if data_dir.exists()
+                && let Ok(entries) = std::fs::read_dir(&data_dir)
+            {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path
+                        .extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
+                    {
+                        match self
+                            .zip_reader
+                            .lock()
+                            .find_file_by_name(&path.to_string_lossy(), &filename_lower)
+                        {
+                            Ok(Some(bytes)) => {
+                                tracing::debug!(
+                                    "  Found '{}' in zip {:?} ({} bytes)",
+                                    filename_lower,
+                                    path.file_name().unwrap_or_default(),
+                                    bytes.len()
+                                );
+                                return Ok(bytes);
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                tracing::warn!(
+                                    "  Error searching zip {:?}: {}",
+                                    path.file_name().unwrap_or_default(),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            tracing::warn!("  No game data directory configured");
+            drop(paths);
+        }
+
+        tracing::debug!("  Not found: {}", filename_lower);
+        Err(ResourceManagerError::FileNotFound(
+            std::path::PathBuf::from(format!("{resref}.{extension}")),
+        ))
+    }
+
+    pub fn list_resources_by_extension(&self, extension: &str) -> Vec<(String, String)> {
+        let mut results = Vec::new();
+        let paths = self.paths.blocking_read();
+
+        if let Some(data_dir) = paths.data() {
+            drop(paths);
+            if data_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&data_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path
+                            .extension()
+                            .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
+                        {
+                            let zip_name = path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            if let Ok(files) = self
+                                .zip_reader
+                                .lock()
+                                .list_files_by_extension(&path.to_string_lossy(), extension)
+                            {
+                                for file in files {
+                                    results.push((file, zip_name.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            drop(paths);
+        }
+
+        results.sort_by(|a, b| a.0.cmp(&b.0));
+        results
+    }
 }
 
 fn gff_value_to_json(value: &crate::parsers::gff::GffValue<'_>) -> serde_json::Value {

@@ -1,13 +1,14 @@
 pub mod campaign;
 pub mod character;
-pub mod config;
 pub mod classes;
 pub mod combat;
+pub mod config;
 pub mod debug;
 pub mod error;
 pub mod feats;
 pub mod gamedata;
 pub mod inventory;
+pub mod models;
 pub mod overview;
 pub mod paths;
 pub mod savegame;
