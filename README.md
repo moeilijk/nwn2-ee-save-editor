@@ -1,38 +1,67 @@
 # NWN2 Enhanced Edition Save Editor
 
-A desktop application for editing Neverwinter Nights 2 Enhanced Edition save files.
+A desktop application for editing Neverwinter Nights 2 Enhanced Edition saves.
 
-**⚠️ This project is currently under active development and not ready for production use.**
+Built with Tauri, Rust, and Vite. Fully offline, available as a portable `.exe` or installer.
 
 ## Features
 
-- Edit ability scores
-- View base scores, racial modifiers, level bonuses, and equipment bonuses separately
-- Alignment editing (Law/Chaos and Good/Evil axes)
-- Multi-class support (add, remove, modify classes)
-- Individual level management per class
-- Experience point editing
-- Automatic real-time calculations for all stats
-- Edit all skills
-- Add/remove feats
-- Add/remove spells
-- Add, remove, and modify inventory items
-- Equipment slot management
-- Support for custom and modded items
-- Modify character appearance (head, hair, body parts)
-- Color customization (hair, skin, clothing)
-- Change character race
-- Edit Biography
-- Equipment visual representation
-- Edit all party companions
-- Switch between main character and companions
-- Automatic backup creation before modifications
-- File integrity preservation
-- Custom module support
-- Automatic Steam Workshop mod detection
-- Prevents invalid modifications that could corrupt saves
-- Automatic prerequisite checking for feats and classes
-- Game rule integration using NWN2 data
-- Edit Companion Influence and Quests
-- Edit Module/Campaign rules
-- Voice Set Selection
+### Character Editing
+- **Ability Scores** - Edit base scores with point-buy tracking, view racial modifiers, level bonuses, and equipment bonuses
+- **Classes & Levels** - Multiclass management, level history tracking and experience points
+- **Feats** - Add/remove feats
+- **Skills** - Edit skills with rank allocation, class skill detection, and skill point budgets
+- **Spells** - Manage known/memorized spells, domain spells, and spell slot calculations
+- **Inventory** - Full equipment management, inventory items, gold, encumbrance, item property editing
+- **Race** - Change race with subrace support and automatic stat adjustments
+- **Appearance** - Customize body parts, phenotype, wings, tails, and colors with live 3D preview
+- **Identity** - Name, biography, alignment, deity, age and gender
+- **Combat Stats** - View attack bonuses, armor class, saving throws, and initiative
+
+### Game State
+- **Campaign Variables and Settings** - Edit global campaign settings and variables
+- **Module Variables** - View and modify module-level state
+
+### Save Management
+- Automatic backup creation before every save
+- Backup restore with safety snapshots
+
+### Mod Support
+- HAK pack override chain
+- Steam Workshop integration
+- Custom override directories
+
+### 3D Model Viewer
+- Browse and preview all in-game 3D models
+
+## Requirements
+
+- Windows 10+ / Ubuntu
+- Neverwinter Nights 2 Enhanced Edition 
+
+## Getting Started
+
+1. Download the latest release
+2. Run the `.exe` - game paths are auto-detected
+3. Open a save file and start editing
+
+## Building from Source
+
+```bash
+# Install dependencies
+npm install
+
+# Development
+npm run tauri:dev
+
+# Production build
+npm run tauri:build
+```
+
+Requires:
+- Node.js 18+
+- Rust toolchain (stable)
+
+## Roadmap
+
+- Companion editing (view, edit, and manage party companions)

@@ -75,7 +75,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         <p><strong>Obsidian Entertainment</strong> — {t('about.obsidianCredit')}</p>
         <p><strong>Aspyr</strong> — {t('about.aspyrCredit')}</p>
         <p><strong>ScripterRon</strong> — {t('about.scripterronCredit')}</p>
-        <p><strong>Jose M. Arbos (nwn2mdk)</strong> — {t('about.nwn2mdkCredit')}</p>
+        <p><strong>Arbos (nwn2mdk)</strong> — {t('about.nwn2mdkCredit')}</p>
         <p><strong>xoreos-tools</strong> — {t('about.xoreosCredit')}</p>
       </div>
     </div>

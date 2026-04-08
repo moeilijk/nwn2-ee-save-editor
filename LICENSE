@@ -27,7 +27,7 @@ Third Party Notices
 This project includes code ported from the following open source projects:
 
 nwn2mdk - Neverwinter Nights 2 Modding & Development Kit
-Copyright 2017 Jose M. Arbos
+Copyright 2017 Arbos
 Licensed under the Apache License, Version 2.0
 https://github.com/Arbos/nwn2mdk
 Used for: MDB and GR2 binary file format parsing (ported to Rust)
