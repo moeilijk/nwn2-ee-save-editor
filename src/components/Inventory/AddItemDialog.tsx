@@ -18,11 +18,12 @@ type TabId = 'base' | 'template';
 interface AddItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onItemAdded?: (itemIndex: number) => void;
 }
 
 const CATEGORY_ORDER = ['Weapons', 'Armor & Clothing', 'Magic Items', 'Miscellaneous'];
 
-export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
+export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogProps) {
   const t = useTranslations();
   const { handleError } = useErrorHandler();
   const { characterId } = useCharacterContext();
@@ -157,12 +158,18 @@ export function AddItemDialog({ isOpen, onClose }: AddItemDialogProps) {
     if (isAdding) return;
     setIsAdding(true);
     try {
+      let itemIndex: number | undefined;
       if (tab === 'base' && selectedBaseId !== null) {
-        await addItemByBaseType(selectedBaseId);
+        const response = await addItemByBaseType(selectedBaseId);
+        itemIndex = response.item_index;
       } else if (tab === 'template' && selectedResref) {
-        await addItemFromTemplate(selectedResref);
+        const response = await addItemFromTemplate(selectedResref);
+        itemIndex = response.item_index;
       }
       onClose();
+      if (itemIndex !== undefined) {
+        onItemAdded?.(itemIndex);
+      }
     } catch (err) {
       handleError(err);
     } finally {

@@ -117,6 +117,7 @@ export function InventoryPanel() {
   const [goldInput, setGoldInput] = useState('0');
   const [gold, setGold] = useState(0);
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [pendingEditIndex, setPendingEditIndex] = useState<number | null>(null);
   const [editItemOpen, setEditItemOpen] = useState(false);
   const [editItemData, setEditItemData] = useState<Record<string, unknown> | null>(null);
   const [editItemIndex, setEditItemIndex] = useState<number | null>(null);
@@ -139,6 +140,22 @@ export function InventoryPanel() {
       setGoldInput(g.toString());
     }
   }, [inventoryData, character?.gold]);
+
+  // Open edit dialog for newly added item once inventory reloads
+  useEffect(() => {
+    if (pendingEditIndex === null || !inventoryData) return;
+    const newItem = inventoryData.inventory?.find(i => i.index === pendingEditIndex);
+    if (newItem) {
+      setPendingEditIndex(null);
+      setSelectedItem(makeInventoryItem(newItem));
+      setEditItemData(newItem.item);
+      setEditItemIndex(newItem.index);
+      setEditItemSlot(null);
+      setEditResolvedName(newItem.name || undefined);
+      setEditResolvedDescription(newItem.description || undefined);
+      setEditItemOpen(true);
+    }
+  }, [pendingEditIndex, inventoryData]);
 
   // Sync selected item with fresh inventory data after silent reloads
   useEffect(() => {
@@ -387,7 +404,7 @@ export function InventoryPanel() {
         </div>
       </Card>
 
-      <AddItemDialog isOpen={addItemOpen} onClose={() => setAddItemOpen(false)} />
+      <AddItemDialog isOpen={addItemOpen} onClose={() => setAddItemOpen(false)} onItemAdded={(index) => setPendingEditIndex(index)} />
       <EditItemDialog
         isOpen={editItemOpen}
         onClose={() => setEditItemOpen(false)}
