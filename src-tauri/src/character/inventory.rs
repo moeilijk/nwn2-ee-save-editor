@@ -1634,8 +1634,8 @@ impl super::Character {
                     && let Some(stats) = game_data
                         .get_table("armorrulestats")
                         .and_then(|t| t.get_by_id(armor_rules_type))
-                    && let Some(max_dex) = row_str(&stats, "maxdexbonus")
-                        .and_then(|s| s.parse::<i32>().ok())
+                    && let Some(max_dex) =
+                        row_str(&stats, "maxdexbonus").and_then(|s| s.parse::<i32>().ok())
                 {
                     return max_dex;
                 }
@@ -2257,15 +2257,8 @@ impl super::Character {
     pub fn add_item_from_struct(
         &mut self,
         item: IndexMap<String, GffValue<'static>>,
-        _game_data: &GameData,
+        game_data: &GameData,
     ) -> Result<AddItemResult, CharacterError> {
-        if !self.has_field("ItemList") {
-            self.set_list("ItemList", Vec::new());
-        }
-        let inv_list = self
-            .get_list_mut("ItemList")
-            .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
-
         let base_item_id = item.get("BaseItem").and_then(gff_value_to_i32).unwrap_or(0);
 
         let tag = item
@@ -2286,11 +2279,58 @@ impl super::Character {
             })
             .unwrap_or(1);
 
-        // TODO: Implement stacking logic here using game_data if needed
-        // For now, simpler implementation appends as new stack
+        let max_stack = self
+            .get_base_item_data(base_item_id, game_data)
+            .map_or(1, |d| d.max_stack);
+
+        if !self.has_field("ItemList") {
+            self.set_list("ItemList", Vec::new());
+        }
+
+        if max_stack > 1 {
+            let inv_list = self
+                .get_list_mut("ItemList")
+                .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
+
+            for (index, existing) in inv_list.iter_mut().enumerate() {
+                let existing_base = existing
+                    .get("BaseItem")
+                    .and_then(gff_value_to_i32)
+                    .unwrap_or(0);
+                if existing_base != base_item_id {
+                    continue;
+                }
+
+                let current_stack = existing
+                    .get("StackSize")
+                    .and_then(gff_value_to_i32)
+                    .unwrap_or(1);
+
+                if current_stack < max_stack {
+                    let new_stack = (current_stack + stack_size).min(max_stack);
+                    existing.insert("StackSize".to_string(), GffValue::Short(new_stack as i16));
+
+                    return Ok(AddItemResult {
+                        success: true,
+                        inventory_index: Some(index),
+                        stacked: true,
+                        message: format!("Stacked {stack_size} onto existing {tag}"),
+                        item: Some(BasicItemInfo {
+                            base_item: base_item_id,
+                            tag,
+                            stack_size: new_stack,
+                            identified: true,
+                        }),
+                    });
+                }
+            }
+        }
+
+        let inv_list = self
+            .get_list_mut("ItemList")
+            .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
         inv_list.push(item);
-
         let index = inv_list.len() - 1;
 
         Ok(AddItemResult {
