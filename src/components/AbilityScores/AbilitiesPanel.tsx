@@ -152,6 +152,15 @@ export function AbilitiesPanel() {
     }
   };
 
+  const handleNaturalAcChange = async (value: number) => {
+    try {
+      await CharacterStateAPI.updateNaturalArmor(value);
+      await combatSubsystem.load();
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
   const handleRespecApply = async (scores: AbilityScores) => {
     try {
       await CharacterStateAPI.applyPointBuy(scores);
@@ -359,7 +368,7 @@ export function AbilitiesPanel() {
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
-            <col style={{ width: 80 }} />
+            <col style={{ width: 120 }} />
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
             <col style={{ width: 72 }} />
@@ -387,7 +396,17 @@ export function AbilitiesPanel() {
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.dex} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.armor} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.shield} /></td>
-                <td style={{ textAlign: 'center' }}><ModCell value={ac.natural} /></td>
+                <td style={{ textAlign: 'center' }}>
+                  {ac.name === 'AC' ? (
+                    <StepInput
+                      value={ac.natural}
+                      onValueChange={handleNaturalAcChange}
+                      min={0} max={255} width={72}
+                    />
+                  ) : (
+                    <ModCell value={ac.natural} />
+                  )}
+                </td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.deflection} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.size} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.misc} /></td>

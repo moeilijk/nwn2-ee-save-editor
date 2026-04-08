@@ -5,11 +5,6 @@ use crate::utils::parsing::row_int;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-// TODO: Future enhancements for full Python parity:
-// - Damage Reduction stacking (aggregate from Barbarian levels, items, feats)
-// - Spell Resistance calculation from race/class features
-// - Touch AC and Flat-Footed AC breakdowns
-
 const NATURAL_AC_MIN: i32 = 0;
 const NATURAL_AC_MAX: i32 = 255;
 const INIT_BONUS_MIN: i32 = -128;
