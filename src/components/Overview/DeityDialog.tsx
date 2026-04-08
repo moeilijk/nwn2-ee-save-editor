@@ -61,7 +61,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
         <Button text="Confirm" intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
       }
     >
-      <div style={{ display: 'flex', gap: 0, margin: -16, minHeight: 400 }}>
+      <div style={{ display: 'flex', gap: 0, margin: -16, height: 550, overflow: 'hidden' }}>
         <div style={{ width: 240, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column', background: T.surfaceAlt }}>
           <div style={{ padding: 8 }}>
             <InputGroup
@@ -118,7 +118,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        <div style={{ flex: 1, padding: 16 }}>
           {detail ? (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 4 }}>{detail.name}</div>
@@ -150,8 +150,8 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
-      <span style={{ color: T.textMuted }}>{label}</span>
+    <div style={{ display: 'flex', gap: 12, padding: '4px 0', fontSize: 13 }}>
+      <span style={{ color: T.textMuted, width: 120, flexShrink: 0 }}>{label}</span>
       <span style={{ fontWeight: 600, color: T.text }}>{value}</span>
     </div>
   );
