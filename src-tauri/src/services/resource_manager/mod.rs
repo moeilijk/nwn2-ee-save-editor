@@ -64,6 +64,8 @@ pub struct ResourceManager {
     module_cache: ModuleLRUCache,
     file_mod_tracker: FileModificationTracker,
 
+    data_zip_paths: Vec<PathBuf>,
+
     cache_hits: AtomicU64,
     cache_misses: AtomicU64,
     initialized: bool,
@@ -95,6 +97,7 @@ impl ResourceManager {
             module_info: None,
             current_campaign_id: None,
             current_campaign_folder: None,
+            data_zip_paths: Vec::new(),
             module_cache: ModuleLRUCache::new(),
             file_mod_tracker: FileModificationTracker::new(),
             cache_hits: AtomicU64::new(0),
@@ -114,6 +117,7 @@ impl ResourceManager {
         self.scan_workshop_directories().await?;
         self.scan_override_directories().await?;
         self.load_base_tlk().await?;
+        self.cache_data_zip_paths().await;
 
         self.initialized = true;
         info!(
@@ -424,6 +428,20 @@ impl ResourceManager {
         }
 
         Ok(())
+    }
+
+    async fn cache_data_zip_paths(&mut self) {
+        let paths = self.paths.read().await;
+        if let Some(data_dir) = paths.data()
+            && let Ok(entries) = std::fs::read_dir(data_dir)
+        {
+            self.data_zip_paths = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip")))
+                .collect();
+        }
+        debug!("Cached {} data zip paths", self.data_zip_paths.len());
     }
 
     pub fn get_2da(&self, name: &str) -> ResourceManagerResult<Arc<TDAParser>> {
@@ -1136,7 +1154,12 @@ impl ResourceManager {
     }
 
     pub fn get_available_2da_files(&self) -> Vec<String> {
-        self.tda_locations.keys().cloned().collect()
+        let mut files: std::collections::HashSet<String> =
+            self.tda_locations.keys().cloned().collect();
+        files.extend(self.workshop_file_paths.keys().cloned());
+        files.extend(self.override_file_paths.keys().cloned());
+        files.extend(self.custom_override_paths.keys().cloned());
+        files.into_iter().collect()
     }
 
     pub fn get_tlk_parser(&self) -> Option<Arc<StdRwLock<TLKParser>>> {
@@ -1181,47 +1204,33 @@ impl ResourceManager {
             }
         }
 
-        if let Some(data_dir) = paths.data() {
-            tracing::debug!("  Searching zips in {:?}", data_dir);
-            drop(paths);
-            if data_dir.exists()
-                && let Ok(entries) = std::fs::read_dir(&data_dir)
-            {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
-                    {
-                        match self
-                            .zip_reader
-                            .lock()
-                            .find_file_by_name(&path.to_string_lossy(), &filename_lower)
-                        {
-                            Ok(Some(bytes)) => {
-                                tracing::debug!(
-                                    "  Found '{}' in zip {:?} ({} bytes)",
-                                    filename_lower,
-                                    path.file_name().unwrap_or_default(),
-                                    bytes.len()
-                                );
-                                return Ok(bytes);
-                            }
-                            Ok(None) => {}
-                            Err(e) => {
-                                tracing::warn!(
-                                    "  Error searching zip {:?}: {}",
-                                    path.file_name().unwrap_or_default(),
-                                    e
-                                );
-                            }
-                        }
+        drop(paths);
+
+        if self.data_zip_paths.is_empty() {
+            tracing::warn!("  No data zip paths cached");
+        } else {
+            let mut zip_reader = self.zip_reader.lock();
+            for path in &self.data_zip_paths {
+                match zip_reader.find_file_by_name(&path.to_string_lossy(), &filename_lower) {
+                    Ok(Some(bytes)) => {
+                        tracing::debug!(
+                            "  Found '{}' in zip {:?} ({} bytes)",
+                            filename_lower,
+                            path.file_name().unwrap_or_default(),
+                            bytes.len()
+                        );
+                        return Ok(bytes);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            "  Error searching zip {:?}: {}",
+                            path.file_name().unwrap_or_default(),
+                            e
+                        );
                     }
                 }
             }
-        } else {
-            tracing::warn!("  No game data directory configured");
-            drop(paths);
         }
 
         tracing::debug!("  Not found: {}", filename_lower);

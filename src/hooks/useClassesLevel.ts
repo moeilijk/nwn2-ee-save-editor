@@ -38,7 +38,12 @@ export interface ClassInfo {
   bab_progression: string;
   alignment_restricted: boolean;
   description?: string;
-  prerequisites?: Record<string, unknown>;
+  prerequisites?: {
+    base_attack_bonus: number | null;
+    skills: [string, number][];
+    feats: string[];
+    alignment: string | null;
+  } | null;
 }
 
 export interface FocusInfo {

@@ -34,7 +34,6 @@ function checkCanSelect(
   if (hasClass && !isChanging) return { ok: false, reason: 'Already have this class' };
   if (!isChanging && currentClassCount >= maxClasses) return { ok: false, reason: `Max ${maxClasses} classes` };
   if (!isChanging && totalLevel >= maxLevel) return { ok: false, reason: 'At max level' };
-  if (cls.type === 'prestige' && totalLevel < 6) return { ok: false, reason: 'Requires level 6+' };
   return { ok: true };
 }
 
@@ -153,7 +152,7 @@ export function ClassSelectorDialog({
       onClose={onClose}
       title={isChanging ? t('classes.changeClass') : t('classes.selectClass')}
       width={820}
-      minHeight={500}
+      minHeight={650}
       footerActions={
         <Button
           intent="primary"
@@ -164,7 +163,7 @@ export function ClassSelectorDialog({
         </Button>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', height: 460 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 600 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${T.borderLight}` }}>
           {toolbar}
         </div>

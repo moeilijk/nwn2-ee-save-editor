@@ -145,6 +145,7 @@ pub fn run() {
             crate::commands::classes::decode_alignment_restriction,
             crate::commands::classes::get_class_progression_details,
             crate::commands::classes::get_all_categorized_classes,
+            crate::commands::classes::get_class_detail,
             // Feats
             crate::commands::feats::get_feat_list,
             crate::commands::feats::has_feat,
@@ -303,6 +304,7 @@ pub fn run() {
             crate::commands::appearance::get_available_wings,
             crate::commands::appearance::get_available_tails,
             crate::commands::appearance::get_available_phenotypes,
+            crate::commands::appearance::load_character_model,
             // Overview (Aggregated State Commands)
             crate::commands::overview::get_overview_state,
             crate::commands::overview::update_character,

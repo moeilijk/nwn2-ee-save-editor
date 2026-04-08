@@ -5,6 +5,7 @@ import { inventoryAPI, type ItemEditorMetadataResponse } from '@/services/invent
 import { CharacterStateAPI } from '@/lib/api/character-state';
 import type {
   AbilitiesState,
+  AppearanceState,
   CombatSummary,
   SkillsState,
   FeatsState,
@@ -23,6 +24,7 @@ export type SavesData = SaveSummary;
 export type ClassesData = ClassesState;
 export type SpellsData = SpellsState;
 export type InventoryData = FullInventorySummary;
+export type AppearanceData = AppearanceState;
 
 // Add metadata interfaces for classes
 export interface ClassInfo {
@@ -41,7 +43,12 @@ export interface ClassInfo {
   bab_progression: string;
   alignment_restricted: boolean;
   description?: string;
-  prerequisites?: Record<string, unknown>;
+  prerequisites?: {
+    base_attack_bonus: number | null;
+    skills: [string, number][];
+    feats: string[];
+    alignment: string | null;
+  } | null;
 }
 
 export interface FocusInfo {
@@ -76,7 +83,7 @@ interface SubsystemData<T = unknown> {
 }
 
 // Define available subsystems
-export type SubsystemType = 'feats' | 'spells' | 'skills' | 'inventory' | 'abilityScores' | 'combat' | 'saves' | 'classes';
+export type SubsystemType = 'feats' | 'spells' | 'skills' | 'inventory' | 'abilityScores' | 'combat' | 'saves' | 'classes' | 'appearance';
 
 // Subsystem configuration - no caching, always fetch fresh
 const SUBSYSTEM_CONFIG: Record<SubsystemType, { endpoint: string }> = {
@@ -88,6 +95,7 @@ const SUBSYSTEM_CONFIG: Record<SubsystemType, { endpoint: string }> = {
   combat: { endpoint: 'combat/state' },
   saves: { endpoint: 'saves/summary' }, // Updated to match backend
   classes: { endpoint: 'classes/state' },
+  appearance: { endpoint: 'appearance/state' },
 };
 
 // Subsystem type mappings
@@ -100,6 +108,7 @@ interface SubsystemTypeMap {
   combat: CombatData;
   saves: SavesData;
   classes: ClassesData;
+  appearance: AppearanceData;
 }
 
 // Context state interface
@@ -120,6 +129,7 @@ interface CharacterContextState {
     combat: SubsystemData<CombatData>;
     saves: SubsystemData<SavesData>;
     classes: SubsystemData<ClassesData>;
+    appearance: SubsystemData<AppearanceData>;
   };
   
   // Metadata store
@@ -205,6 +215,12 @@ const initializeSubsystems = (): CharacterContextState['subsystems'] => {
       error: null,
       lastFetched: null,
     },
+    appearance: {
+      data: null,
+      isLoading: false,
+      error: null,
+      lastFetched: null,
+    },
   };
 };
 
@@ -269,6 +285,9 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
             break;
         case 'classes':
             data = await CharacterStateAPI.getClasses();
+            break;
+        case 'appearance':
+            data = await CharacterStateAPI.getAppearance();
             break;
         default:
             throw new Error(`Unknown subsystem: ${subsystem}`);

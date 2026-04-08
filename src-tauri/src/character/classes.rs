@@ -1436,6 +1436,182 @@ impl Character {
             requirements.alignment = AlignmentRestriction(align_restrict).decode_to_string();
         }
 
+        if let Some(prereq_table_name) = row_str(class_data, "prereqtable") {
+            let prereq_table_key = prereq_table_name.to_lowercase();
+            if let Some(prereq_table) = game_data.get_table(&prereq_table_key) {
+                // First pass: collect all rows
+                let mut rows_parsed: Vec<(String, String, String)> = Vec::new();
+                for row_idx in 0..prereq_table.row_count() {
+                    let Ok(row) = prereq_table.get_row(row_idx) else {
+                        continue;
+                    };
+                    let req_type = row_str(&row, "reqtype").unwrap_or_default().to_uppercase();
+                    let param1 = row_str(&row, "reqparam1").unwrap_or_default();
+                    let param2 = row_str(&row, "reqparam2").unwrap_or_default();
+                    rows_parsed.push((req_type, param1, param2));
+                }
+
+                let resolve_feat_name = |feat_id_str: &str| -> String {
+                    feat_id_str
+                        .trim()
+                        .parse::<i32>()
+                        .ok()
+                        .and_then(|id| {
+                            game_data
+                                .get_table("feat")
+                                .and_then(|t| t.get_by_id(id))
+                                .and_then(|r| r.get("feat").and_then(|v| v.clone()))
+                                .and_then(|strref| strref.trim().parse::<i32>().ok())
+                                .and_then(|strref| game_data.get_string(strref))
+                        })
+                        .unwrap_or_else(|| feat_id_str.to_string())
+                };
+
+                let resolve_class_name = |class_id_str: &str| -> String {
+                    class_id_str
+                        .trim()
+                        .parse::<i32>()
+                        .ok()
+                        .and_then(|id| {
+                            game_data
+                                .get_table("classes")
+                                .and_then(|t| t.get_by_id(id))
+                                .and_then(|r| r.get("name").and_then(|v| v.clone()))
+                                .and_then(|strref| strref.trim().parse::<i32>().ok())
+                                .and_then(|strref| game_data.get_string(strref))
+                        })
+                        .unwrap_or_else(|| class_id_str.to_string())
+                };
+
+                let mut i = 0;
+                while i < rows_parsed.len() {
+                    let (ref req_type, ref param1, ref param2) = rows_parsed[i];
+
+                    match req_type.as_str() {
+                        "FEAT" => {
+                            let feat_name = resolve_feat_name(param1);
+                            if !requirements.feats.contains(&feat_name) {
+                                requirements.feats.push(feat_name);
+                            }
+                        }
+                        "FEATOR" => {
+                            // Collect consecutive FEATOR entries as alternatives
+                            let mut or_feats = vec![resolve_feat_name(param1)];
+                            while i + 1 < rows_parsed.len() && rows_parsed[i + 1].0 == "FEATOR" {
+                                i += 1;
+                                or_feats.push(resolve_feat_name(&rows_parsed[i].1));
+                            }
+                            let label = or_feats.join(" or ");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "SKILL" => {
+                            let min_ranks = param2.trim().parse::<i32>().unwrap_or(1);
+                            let skill_name = param1
+                                .trim()
+                                .parse::<i32>()
+                                .ok()
+                                .and_then(|id| {
+                                    game_data
+                                        .get_table("skills")
+                                        .and_then(|t| t.get_by_id(id))
+                                        .and_then(|r| r.get("name").and_then(|v| v.clone()))
+                                        .and_then(|strref| strref.trim().parse::<i32>().ok())
+                                        .and_then(|strref| game_data.get_string(strref))
+                                })
+                                .unwrap_or_else(|| param1.clone());
+                            if !requirements.skills.iter().any(|(n, _)| n == &skill_name) {
+                                requirements.skills.push((skill_name, min_ranks));
+                            }
+                        }
+                        "BAB" => {
+                            if let Ok(bab) = param1.trim().parse::<i32>() {
+                                requirements.base_attack_bonus =
+                                    Some(requirements.base_attack_bonus.unwrap_or(0).max(bab));
+                            }
+                        }
+                        "ARCANE" => {
+                            let level = param1.trim().parse::<i32>().unwrap_or(1);
+                            let label = format!("Arcane Caster Level {level}");
+                            if !requirements.skills.iter().any(|(n, _)| n == &label) {
+                                requirements.skills.push((label, level));
+                            }
+                        }
+                        "ARCSPELL" => {
+                            let level = param1.trim().parse::<i32>().unwrap_or(1);
+                            let label = format!("Able to cast level {level} arcane spells");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "DIVINE" => {
+                            let level = param1.trim().parse::<i32>().unwrap_or(1);
+                            let label = format!("Divine Caster Level {level}");
+                            if !requirements.skills.iter().any(|(n, _)| n == &label) {
+                                requirements.skills.push((label, level));
+                            }
+                        }
+                        "DIVSPELL" => {
+                            let level = param1.trim().parse::<i32>().unwrap_or(1);
+                            let label = format!("Able to cast level {level} divine spells");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "CLASSLEVEL" => {
+                            let class_level = param2.trim().parse::<i32>().unwrap_or(1);
+                            let class_name = resolve_class_name(param1);
+                            let label = format!("{class_name} Level {class_level}");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "CLASSOR" => {
+                            // Collect consecutive CLASSOR entries as alternatives
+                            let class_level = param2.trim().parse::<i32>().unwrap_or(1);
+                            let mut or_classes = vec![resolve_class_name(param1)];
+                            while i + 1 < rows_parsed.len() && rows_parsed[i + 1].0 == "CLASSOR" {
+                                i += 1;
+                                or_classes.push(resolve_class_name(&rows_parsed[i].1));
+                            }
+                            let label = format!("{} Level {class_level}", or_classes.join(" or "));
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "SPELLLVL" => {
+                            let spell_level = param1.trim().parse::<i32>().unwrap_or(1);
+                            let label = format!("Able to cast level {spell_level} spells");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "SAVE" => {
+                            let save_value = param1.trim().parse::<i32>().unwrap_or(0);
+                            let save_type = match param2.trim() {
+                                "1" => "Fortitude",
+                                "2" => "Reflex",
+                                "3" => "Will",
+                                _ => "Base Save",
+                            };
+                            let label = format!("{save_type} Save +{save_value}");
+                            if !requirements.feats.contains(&label) {
+                                requirements.feats.push(label);
+                            }
+                        }
+                        "VAR" => {} // Script variable check, not displayable
+                        other => {
+                            tracing::debug!("Skipping unknown prereqtable reqtype: {other}");
+                        }
+                    }
+                    i += 1;
+                }
+            } else {
+                tracing::warn!("Prereq table '{prereq_table_key}' not found in game data");
+            }
+        }
+
         requirements
     }
 

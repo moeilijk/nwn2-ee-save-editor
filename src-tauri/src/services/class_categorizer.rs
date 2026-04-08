@@ -9,6 +9,7 @@ use ahash::AHashMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::character::classes::PrestigeRequirements;
 use crate::loaders::GameData;
 use crate::utils::parsing::{row_bool, row_int, row_str};
 
@@ -72,6 +73,7 @@ pub struct ClassInfo {
     pub bab_progression: String,
     pub alignment_restricted: bool,
     pub description: Option<String>,
+    pub prerequisites: Option<PrestigeRequirements>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -279,6 +281,16 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             None
         };
 
+        let prerequisites = if align_restrict > 0 {
+            Some(PrestigeRequirements {
+                alignment: crate::character::classes::AlignmentRestriction(align_restrict)
+                    .decode_to_string(),
+                ..Default::default()
+            })
+        } else {
+            None
+        };
+
         let class_info = ClassInfo {
             id: row_idx as i32,
             name,
@@ -296,6 +308,7 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
                 .unwrap_or_else(|| "CLS_ATK_2".to_string()),
             alignment_restricted: align_restrict > 0,
             description,
+            prerequisites,
         };
 
         let focus_key = class_focus.as_str().to_string();
