@@ -107,15 +107,115 @@ impl SessionState {
         Ok(())
     }
 
-    pub fn save_character(&mut self) -> Result<(), String> {
-        let _handler = self
+    pub fn save_character(&mut self, game_data: &crate::loaders::GameData) -> Result<(), String> {
+        let handler = self
             .savegame_handler
             .as_mut()
             .ok_or("No active save handler")?;
-        let _character = self.character.as_ref().ok_or("No character loaded")?;
+        let character = self.character.as_ref().ok_or("No character loaded")?;
 
-        // TODO: serialize character data to GFF and write to save file
+        if !character.is_modified() {
+            info!("No changes to save");
+            return Ok(());
+        }
+
+        let char_fields = character.clone_gff();
+
+        // Step 1: Build playerlist.ifo
+        let ifo_bytes = Self::build_playerlist_ifo(&char_fields)
+            .map_err(|e| format!("Failed to build playerlist.ifo: {e}"))?;
+
+        // Step 2: Sync player.bic
+        let bic_bytes = Self::build_synced_player_bic(handler, &char_fields)
+            .map_err(|e| format!("Failed to sync player.bic: {e}"))?;
+
+        // Step 3: Sync playerinfo.bin
+        let subrace = character.subrace().unwrap_or_default();
+        let alignment_name = character.alignment().alignment_string();
+        let class_entries = character.class_entries();
+        let classes: Vec<(String, u8)> = class_entries
+            .iter()
+            .map(|e| {
+                let name = character.get_class_name(e.class_id, game_data);
+                (name, e.level as u8)
+            })
+            .collect();
+
+        handler
+            .sync_playerinfo_bin(&char_fields, &subrace, &alignment_name, &classes)
+            .map_err(|e| format!("Failed to sync playerinfo.bin: {e}"))?;
+
+        // Step 4: Atomic write of IFO + BIC to zip
+        handler
+            .update_player_complete(&ifo_bytes, &bic_bytes, None, None)
+            .map_err(|e| format!("Failed to write save files: {e}"))?;
+
+        let character = self.character.as_mut().ok_or("No character loaded")?;
+        character.mark_saved();
+
+        info!("Character saved successfully");
         Ok(())
+    }
+
+    fn build_playerlist_ifo(
+        char_fields: &indexmap::IndexMap<String, crate::parsers::gff::GffValue<'static>>,
+    ) -> Result<Vec<u8>, String> {
+        use crate::parsers::gff::GffValue;
+
+        let mut root = indexmap::IndexMap::new();
+        root.insert(
+            "Mod_PlayerList".to_string(),
+            GffValue::ListOwned(vec![char_fields.clone()]),
+        );
+
+        let mut writer = crate::parsers::gff::GffWriter::new("IFO ", "V3.2");
+        writer
+            .write(root)
+            .map_err(|e| format!("GFF write error: {e}"))
+    }
+
+    fn build_synced_player_bic(
+        handler: &crate::services::savegame_handler::SaveGameHandler,
+        char_fields: &indexmap::IndexMap<String, crate::parsers::gff::GffValue<'static>>,
+    ) -> Result<Vec<u8>, String> {
+        use crate::parsers::gff::{GffParser, GffValue, GffWriter};
+
+        let bic_data = handler
+            .extract_player_bic()
+            .map_err(|e| format!("Failed to extract player.bic: {e}"))?
+            .ok_or("No player.bic found in save")?;
+
+        let bic_gff = GffParser::from_bytes(bic_data)
+            .map_err(|e| format!("Failed to parse player.bic: {e}"))?;
+
+        let bic_fields = bic_gff
+            .read_struct_fields(0)
+            .map_err(|e| format!("Failed to read player.bic fields: {e}"))?;
+
+        let root_struct_id = bic_gff
+            .get_struct_id(0)
+            .map_err(|e| format!("Failed to get BIC root struct_id: {e}"))?;
+
+        // Merge: for each key in BIC, if it exists in char_fields, overwrite it
+        // Preserves BIC-only fields, updates matching fields from character data
+        let mut merged: indexmap::IndexMap<String, GffValue<'static>> = bic_fields
+            .into_iter()
+            .map(|(k, v)| (k, v.force_owned()))
+            .collect();
+
+        for (key, value) in char_fields {
+            if key.starts_with("__") {
+                continue;
+            }
+            if merged.contains_key(key) {
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+
+        let mut writer = GffWriter::new("BIC ", "V3.2");
+        writer
+            .write_with_struct_id(merged, root_struct_id)
+            .map_err(|e| format!("GFF write error for player.bic: {e}"))
     }
 
     pub fn close_character(&mut self) {

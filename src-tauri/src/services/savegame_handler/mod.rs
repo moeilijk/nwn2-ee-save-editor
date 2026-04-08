@@ -27,7 +27,7 @@ const PLAYER_BIC: &str = "player.bic";
 const GLOBALS_XML: &str = "globals.xml";
 const CURRENTMODULE_TXT: &str = "currentmodule.txt";
 const MODULE_IFO: &str = "module.ifo";
-// const PLAYERINFO_BIN: &str = "playerinfo.bin";
+const PLAYERINFO_BIN: &str = "playerinfo.bin";
 
 const FILE_HEADERS: &[(&str, &[u8; 4])] = &[
     (".bic", b"BIC "),
@@ -386,6 +386,36 @@ impl SaveGameHandler {
         fs::rename(&temp_path, &self.zip_path)?;
 
         info!("Updated player files in save");
+        Ok(())
+    }
+
+    pub fn sync_playerinfo_bin(
+        &self,
+        fields: &indexmap::IndexMap<String, crate::parsers::gff::GffValue<'_>>,
+        subrace_name: &str,
+        alignment_name: &str,
+        classes: &[(String, u8)],
+    ) -> SaveGameResult<()> {
+        let playerinfo_path = self.save_dir.join(PLAYERINFO_BIN);
+
+        if !playerinfo_path.exists() {
+            return Err(SaveGameError::PlayerInfoSync(
+                "playerinfo.bin not found - save is invalid".into(),
+            ));
+        }
+
+        let mut player_info = crate::services::playerinfo::PlayerInfo::load(&playerinfo_path)
+            .map_err(|e| {
+                SaveGameError::PlayerInfoSync(format!("playerinfo.bin is corrupted: {e}"))
+            })?;
+
+        player_info.update_from_gff_data(fields, subrace_name, alignment_name, classes);
+
+        player_info.save(&playerinfo_path).map_err(|e| {
+            SaveGameError::PlayerInfoSync(format!("Failed to write playerinfo.bin: {e}"))
+        })?;
+
+        info!("Successfully synced playerinfo.bin");
         Ok(())
     }
 
