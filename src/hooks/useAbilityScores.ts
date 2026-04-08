@@ -341,7 +341,7 @@ export function useAbilityScores(
       await CharacterAPI.updateAttributes(characterId, {
         [backendAttrName]: clampedValue
       });
-      await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills']);
+      await invalidateSubsystems(['abilityScores', 'combat', 'saves', 'skills', 'classes']);
 
     } catch (err) {
       setLocalAbilityScoreOverrides(prev => {

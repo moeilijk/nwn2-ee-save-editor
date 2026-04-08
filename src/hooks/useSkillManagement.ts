@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { CharacterAPI } from '@/services/characterApi';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 
-const SKILL_DEPENDENT_SUBSYSTEMS = ['combat'] as const;
+const SKILL_DEPENDENT_SUBSYSTEMS = ['combat', 'classes'] as const;
 
 export function useSkillManagement() {
   const { character, invalidateSubsystems } = useCharacterContext();

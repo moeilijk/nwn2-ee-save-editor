@@ -9,7 +9,7 @@ import type {
   ValidationState
 } from '@/components/Feats/types';
 
-const FEAT_DEPENDENT_SUBSYSTEMS = ['combat', 'abilityScores', 'saves', 'skills'] as const;
+const FEAT_DEPENDENT_SUBSYSTEMS = ['combat', 'abilityScores', 'saves', 'skills', 'classes'] as const;
 
 interface UseFeatManagementOptions {
   autoLoadFeats?: boolean;

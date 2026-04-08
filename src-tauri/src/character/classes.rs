@@ -1002,6 +1002,7 @@ impl Character {
 
         let mut class_level_counts: HashMap<i32, i32> = HashMap::new();
         let mut result = Vec::with_capacity(lvl_stat_list.len());
+        let mut cumulative_sp: i32 = 0;
 
         for (idx, entry) in lvl_stat_list.iter().enumerate() {
             let character_level = (idx + 1) as i32;
@@ -1020,10 +1021,15 @@ impl Character {
                 .and_then(gff_value_to_i32)
                 .unwrap_or(0);
 
-            let skill_points_remaining = entry
+            let feats_gained = Self::extract_feat_list(entry, "FeatList");
+            let skills_gained = Self::extract_skill_list(entry);
+
+            let sp_granted = entry
                 .get("SkillPoints")
                 .and_then(gff_value_to_i32)
                 .unwrap_or(0);
+            cumulative_sp += sp_granted;
+            let skill_points_remaining = cumulative_sp;
 
             let ability_raw = entry
                 .get("LvlStatAbility")
@@ -1034,9 +1040,6 @@ impl Character {
             } else {
                 None
             };
-
-            let feats_gained = Self::extract_feat_list(entry, "FeatList");
-            let skills_gained = Self::extract_skill_list(entry);
 
             result.push(LevelHistoryEntry {
                 character_level,
