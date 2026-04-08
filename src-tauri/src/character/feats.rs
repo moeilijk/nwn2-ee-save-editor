@@ -13,7 +13,6 @@ use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
 use crate::utils::parsing::{row_bool, row_int, row_str};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Type)]
 #[repr(transparent)]
 pub struct FeatType(pub i32);
@@ -1277,9 +1276,7 @@ impl Character {
             return feat_table;
         };
 
-        let feats_table_name_opt = class_data
-            .get("featstable")
-            .and_then(|s| s.as_ref());
+        let feats_table_name_opt = class_data.get("featstable").and_then(|s| s.as_ref());
 
         let Some(feats_table_name) = feats_table_name_opt else {
             return feat_table;
@@ -1323,9 +1320,7 @@ impl Character {
             return false;
         };
 
-        let bonus_table_name_opt = class_data
-            .get("bonusfeatstable")
-            .and_then(|s| s.as_ref());
+        let bonus_table_name_opt = class_data.get("bonusfeatstable").and_then(|s| s.as_ref());
 
         let Some(bonus_table_name) = bonus_table_name_opt else {
             return false;
@@ -1562,8 +1557,7 @@ impl Character {
             return name;
         }
 
-        row_str(&feat_data, "label")
-            .unwrap_or_else(|| format!("Feat {}", feat_id.0))
+        row_str(&feat_data, "label").unwrap_or_else(|| format!("Feat {}", feat_id.0))
     }
 
     // ========== BONUS CALCULATION FROM FEAT DESCRIPTIONS ==========
@@ -1894,8 +1888,7 @@ impl Character {
         feat_data: &ahash::AHashMap<String, Option<String>>,
         game_data: &GameData,
     ) -> String {
-        let desc_strref = row_str(feat_data, "description")
-            .and_then(|s| s.parse::<i32>().ok());
+        let desc_strref = row_str(feat_data, "description").and_then(|s| s.parse::<i32>().ok());
 
         if let Some(strref) = desc_strref
             && let Some(desc) = game_data.get_string(strref)
@@ -2237,17 +2230,11 @@ impl Character {
         feat_data: &ahash::AHashMap<String, Option<String>>,
         description: &str,
     ) -> FeatType {
-        if let Some(type_str) = feat_data
-            .get("featcategory")
-            .and_then(|s| s.as_ref())
-        {
+        if let Some(type_str) = feat_data.get("featcategory").and_then(|s| s.as_ref()) {
             return FeatType::from_string(type_str);
         }
 
-        if let Some(type_str) = feat_data
-            .get("toolscategories")
-            .and_then(|s| s.as_ref())
-        {
+        if let Some(type_str) = feat_data.get("toolscategories").and_then(|s| s.as_ref()) {
             return FeatType::from_string(type_str);
         }
 
@@ -2562,8 +2549,7 @@ impl Character {
             return Self::strip_html_tags(&name);
         }
 
-        row_str(feat_data, "label")
-            .unwrap_or_else(|| "Unknown".to_string())
+        row_str(feat_data, "label").unwrap_or_else(|| "Unknown".to_string())
     }
 
     fn resolve_domain_name(

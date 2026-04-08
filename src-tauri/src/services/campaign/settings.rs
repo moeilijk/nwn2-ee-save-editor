@@ -147,8 +147,8 @@ pub fn update_campaign_settings(
         warn!("Failed to backup campaign file: {}", e);
     }
     // Read existing GFF into memory to preserve fields not in CampaignSettings
-    let file_bytes = fs::read(&campaign_file)
-        .map_err(|e| format!("Failed to read campaign file: {e}"))?;
+    let file_bytes =
+        fs::read(&campaign_file).map_err(|e| format!("Failed to read campaign file: {e}"))?;
     let parser = GffParser::from_bytes(file_bytes)
         .map_err(|e| format!("Failed to parse campaign file for update: {e}"))?;
     let root_fields = parser

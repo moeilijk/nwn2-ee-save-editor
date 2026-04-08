@@ -1,7 +1,7 @@
 use tauri::State;
 
-use crate::character::{AbilitiesState, ClassesState, FeatsState, OverviewState, SpellsState};
 use crate::character::overview::CampaignOverviewInfo;
+use crate::character::{AbilitiesState, ClassesState, FeatsState, OverviewState, SpellsState};
 use crate::commands::{CommandError, CommandResult};
 use crate::services::campaign::CampaignManager;
 use crate::state::AppState;

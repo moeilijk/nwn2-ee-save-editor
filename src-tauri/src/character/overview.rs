@@ -169,8 +169,8 @@ impl Character {
     }
 
     pub fn count_unique_spells(&self) -> i32 {
-        use std::collections::HashSet;
         use crate::parsers::gff::GffValue;
+        use std::collections::HashSet;
 
         let Some(class_list) = self.get_list("ClassList") else {
             return 0;

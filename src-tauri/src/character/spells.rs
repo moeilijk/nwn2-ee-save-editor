@@ -8,8 +8,8 @@ use super::gff_helpers::gff_value_to_i32;
 use super::types::{AbilityIndex, ClassId, DomainId, SpellId};
 use super::{Character, CharacterError};
 use crate::loaders::GameData;
-use crate::utils::parsing::row_bool;
 use crate::parsers::gff::GffValue;
+use crate::utils::parsing::row_bool;
 
 pub const MAX_SPELL_LEVEL: i32 = 9;
 
@@ -1190,7 +1190,14 @@ impl Character {
     }
 
     const LEARNABLE_CLASS_COLUMNS: &[&str] = &[
-        "bard", "cleric", "druid", "paladin", "ranger", "wiz_sorc", "favsoul", "spiritshm",
+        "bard",
+        "cleric",
+        "druid",
+        "paladin",
+        "ranger",
+        "wiz_sorc",
+        "favsoul",
+        "spiritshm",
     ];
 
     fn is_on_learnable_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
@@ -1198,7 +1205,9 @@ impl Character {
             spell_row
                 .get(col)
                 .and_then(|v| v.as_ref())
-                .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+                .is_some_and(|v| {
+                    !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0)
+                })
         })
     }
 
@@ -1543,9 +1552,7 @@ impl Character {
         }
 
         // Fallback based on label
-        let label = class_data
-            .get("label")
-            .and_then(|v| v.as_ref())?;
+        let label = class_data.get("label").and_then(|v| v.as_ref())?;
 
         let l_lower = label.to_lowercase();
         Some(

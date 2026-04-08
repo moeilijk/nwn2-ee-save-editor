@@ -115,7 +115,10 @@ pub struct ModuleSummary {
     pub is_current: bool,
 }
 
-pub fn list_modules(handler: &SaveGameHandler, paths: &NWN2Paths) -> Result<Vec<ModuleSummary>, String> {
+pub fn list_modules(
+    handler: &SaveGameHandler,
+    paths: &NWN2Paths,
+) -> Result<Vec<ModuleSummary>, String> {
     let current_module_id = handler.extract_current_module().unwrap_or_default();
     let save_dir = handler.save_dir();
 
@@ -124,9 +127,18 @@ pub fn list_modules(handler: &SaveGameHandler, paths: &NWN2Paths) -> Result<Vec<
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|e| e == "z") {
-                let file_stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                let file_stem = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
                 let name = match parse_module_z_file(&path, &file_stem, paths) {
-                    Ok((info, _)) => if info.module_name.is_empty() { file_stem.clone() } else { info.module_name },
+                    Ok((info, _)) => {
+                        if info.module_name.is_empty() {
+                            file_stem.clone()
+                        } else {
+                            info.module_name
+                        }
+                    }
                     Err(_) => file_stem.clone(),
                 };
                 modules.push(ModuleSummary {
@@ -139,7 +151,9 @@ pub fn list_modules(handler: &SaveGameHandler, paths: &NWN2Paths) -> Result<Vec<
     }
 
     modules.sort_by(|a, b| {
-        b.is_current.cmp(&a.is_current).then_with(|| a.name.cmp(&b.name))
+        b.is_current
+            .cmp(&a.is_current)
+            .then_with(|| a.name.cmp(&b.name))
     });
 
     Ok(modules)

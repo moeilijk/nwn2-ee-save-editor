@@ -256,14 +256,11 @@ impl ItemPropertyDecoder {
                     continue;
                 }
 
-                let subtype_ref = row_str(&row, "subtyperesref")
-                    .filter(|s| s != "****");
+                let subtype_ref = row_str(&row, "subtyperesref").filter(|s| s != "****");
 
-                let cost_table_ref = row_str(&row, "costtableresref")
-                    .filter(|s| s != "****");
+                let cost_table_ref = row_str(&row, "costtableresref").filter(|s| s != "****");
 
-                let param1_ref = row_str(&row, "param1resref")
-                    .filter(|s| s != "****");
+                let param1_ref = row_str(&row, "param1resref").filter(|s| s != "****");
 
                 let game_str_ref_val = row_int(&row, "gamestrref", -1);
                 let game_str_ref = if game_str_ref_val >= 0 {
@@ -321,14 +318,11 @@ impl ItemPropertyDecoder {
                     continue;
                 }
 
-                let subtype_ref = row_str(&row, "subtyperesref")
-                    .filter(|s| s != "****");
+                let subtype_ref = row_str(&row, "subtyperesref").filter(|s| s != "****");
 
-                let cost_table_ref = row_str(&row, "costtableresref")
-                    .filter(|s| s != "****");
+                let cost_table_ref = row_str(&row, "costtableresref").filter(|s| s != "****");
 
-                let param1_ref = row_str(&row, "param1resref")
-                    .filter(|s| s != "****");
+                let param1_ref = row_str(&row, "param1resref").filter(|s| s != "****");
 
                 let game_str_ref_val = row_int(&row, "gamestrref", -1);
                 let game_str_ref = if game_str_ref_val >= 0 {
@@ -687,9 +681,7 @@ impl ItemPropertyDecoder {
                 }
             });
 
-            let label = game_str.or_else(|| {
-                row_str(&row, "label").filter(|s| s != "****")
-            });
+            let label = game_str.or_else(|| row_str(&row, "label").filter(|s| s != "****"));
 
             if let Some(display_name) = label
                 && !is_invalid_label(&display_name)
@@ -958,9 +950,7 @@ pub fn load_2da_options_from_rm(rm: &ResourceManager, table_name: &str) -> HashM
             }
         });
 
-        let label = game_str.or_else(|| {
-            row_str(&row, "label").filter(|s| s != "****")
-        });
+        let label = game_str.or_else(|| row_str(&row, "label").filter(|s| s != "****"));
 
         if let Some(display_name) = label
             && !is_invalid_label(&display_name)

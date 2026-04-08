@@ -127,9 +127,7 @@ impl Character {
             return (0, 0, 0);
         };
 
-        let save_table_name = class_data
-            .get("savingthrowtable")
-            .and_then(|s| s.as_ref());
+        let save_table_name = class_data.get("savingthrowtable").and_then(|s| s.as_ref());
 
         let Some(save_table_name) = save_table_name else {
             return (0, 0, 0);

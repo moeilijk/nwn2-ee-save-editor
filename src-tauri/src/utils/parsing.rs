@@ -26,7 +26,10 @@ pub fn safe_int(value: Option<&str>, default: i32) -> i32 {
     if trimmed.is_empty() {
         return default;
     }
-    if let Some(hex) = trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X")) {
+    if let Some(hex) = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+    {
         i32::from_str_radix(hex, 16).unwrap_or(default)
     } else {
         trimmed.parse().unwrap_or(default)

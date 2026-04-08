@@ -411,7 +411,9 @@ fn get_classes(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let session_lock = state.session.read();
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
-        Ok(serde_json::to_value(char_ref.get_classes_state(&game_data_lock))?)
+        Ok(serde_json::to_value(
+            char_ref.get_classes_state(&game_data_lock),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
@@ -421,7 +423,9 @@ fn get_feats(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let session_lock = state.session.read();
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
-        Ok(serde_json::to_value(char_ref.get_feats_state(&game_data_lock))?)
+        Ok(serde_json::to_value(
+            char_ref.get_feats_state(&game_data_lock),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
@@ -431,7 +435,9 @@ fn get_spells(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let session_lock = state.session.read();
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
-        Ok(serde_json::to_value(char_ref.get_spells_state(&game_data_lock))?)
+        Ok(serde_json::to_value(
+            char_ref.get_spells_state(&game_data_lock),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
@@ -442,7 +448,9 @@ fn get_skills(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
         let decoder = &session_lock.item_property_decoder;
-        Ok(serde_json::to_value(char_ref.get_skill_summary(&game_data_lock, Some(decoder)))?)
+        Ok(serde_json::to_value(
+            char_ref.get_skill_summary(&game_data_lock, Some(decoder)),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
@@ -453,7 +461,9 @@ fn get_abilities(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
         let decoder = &session_lock.item_property_decoder;
-        Ok(serde_json::to_value(char_ref.get_abilities_state(&game_data_lock, decoder))?)
+        Ok(serde_json::to_value(
+            char_ref.get_abilities_state(&game_data_lock, decoder),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
@@ -464,7 +474,9 @@ fn get_saves(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
         let decoder = &session_lock.item_property_decoder;
-        Ok(serde_json::to_value(char_ref.get_save_summary(&game_data_lock, decoder))?)
+        Ok(serde_json::to_value(
+            char_ref.get_save_summary(&game_data_lock, decoder),
+        )?)
     } else {
         Err(anyhow::anyhow!("No character is currently loaded."))
     }
