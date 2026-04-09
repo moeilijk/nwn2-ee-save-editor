@@ -1218,6 +1218,23 @@ impl Character {
 
         let char_feats: HashSet<i32> = self.feat_ids().iter().map(|f| f.0).collect();
 
+        // Build reverse map: spell_id -> true for spells referenced by character's feats
+        // via feat.2da's spellid column (e.g. racial feats like Aasimar Light)
+        let mut feat_granted_spells: HashSet<i32> = HashSet::new();
+        if let Some(feat_table) = game_data.get_table("feat") {
+            for feat_id in &char_feats {
+                if let Ok(feat_row) = feat_table.get_row(*feat_id as usize) {
+                    if let Some(spell_id) = feat_row
+                        .get("spellid")
+                        .and_then(|v| v.as_ref())
+                        .and_then(|v| v.parse::<i32>().ok())
+                    {
+                        feat_granted_spells.insert(spell_id);
+                    }
+                }
+            }
+        }
+
         let mut known_spell_ids: HashSet<i32> = HashSet::new();
         for class_entry in self.class_entries() {
             for level in 0..=9 {
@@ -1260,10 +1277,11 @@ impl Character {
             let on_caster_list = Self::is_on_learnable_caster_list(&spell_row);
 
             let has_feat = feat_id.is_some_and(|fid| char_feats.contains(&fid));
+            let has_feat_granted = feat_granted_spells.contains(&spell_id_val);
             let is_known_ability = known_spell_ids.contains(&spell_id_val)
                 && (user_type != 1 || is_spellability || !on_caster_list);
 
-            if !has_feat && !is_known_ability {
+            if !has_feat && !has_feat_granted && !is_known_ability {
                 continue;
             }
             if !seen.insert(spell_id_val) {

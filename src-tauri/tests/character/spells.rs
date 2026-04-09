@@ -1,4 +1,4 @@
-use super::super::common::{create_test_context, fixtures_path};
+use super::super::common::{create_test_context, fixtures_path, load_test_gff};
 use app_lib::character::{Character, ClassId};
 use app_lib::parsers::gff::GffParser;
 
@@ -222,4 +222,119 @@ async fn test_wizard_slots_modification() {
         "Wizard 10 should have at least 2 L5 slots"
     );
     assert_eq!(new_slots[6], 0, "Wizard 10 should not have L6 slots");
+}
+
+#[tokio::test]
+async fn test_aasimar_ability_spells() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    // Load player.bic (Aasimar - Planetouched race with subrace index 13)
+    let data = load_test_gff("player.bic");
+    let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
+    let character = Character::from_gff(gff);
+
+    // Verify this is an Aasimar
+    let race_name = character.race_name(game_data);
+    println!("Race: {}", race_name);
+    assert_eq!(race_name, "Aasimar", "Fixture should be an Aasimar");
+
+    // Get ability spells - Aasimar should have racial spell-like abilities
+    let ability_spells = character.get_ability_spells(game_data);
+    println!(
+        "Ability spells ({}): {:#?}",
+        ability_spells.len(),
+        ability_spells
+    );
+    assert!(
+        !ability_spells.is_empty(),
+        "Aasimar should have at least one racial spell-like ability"
+    );
+
+    // Aasimar racial spell: Light (spell 942, granted via feat 1086 FEAT_AASIMAR_LIGHT)
+    // This tests the feat.2da -> spellid reverse lookup path
+    assert!(
+        ability_spells.iter().any(|s| s.spell_id == 942),
+        "Aasimar should have Racial Spell (Light) - spell ID 942"
+    );
+
+    // Verify ability spell entries have required fields populated
+    for spell in &ability_spells {
+        assert!(!spell.name.is_empty(), "Ability spell should have a name");
+        assert!(
+            !spell.icon.is_empty(),
+            "Ability spell '{}' should have an icon",
+            spell.name
+        );
+        assert!(
+            spell.innate_level >= 0,
+            "Ability spell '{}' should have non-negative innate level",
+            spell.name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_ability_spells_via_spells_state() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    // Load player.bic (Aasimar)
+    let data = load_test_gff("player.bic");
+    let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
+    let character = Character::from_gff(gff);
+
+    // Verify ability spells come through the full SpellsState pipeline
+    let spells_state = character.get_spells_state(game_data);
+    assert!(
+        !spells_state.ability_spells.is_empty(),
+        "SpellsState should include ability spells for Aasimar"
+    );
+
+    // Should match direct call
+    let direct = character.get_ability_spells(game_data);
+    assert_eq!(
+        spells_state.ability_spells.len(),
+        direct.len(),
+        "SpellsState ability_spells should match direct get_ability_spells()"
+    );
+}
+
+#[tokio::test]
+async fn test_non_caster_has_no_class_ability_spells_overlap() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+
+    // Load Ryath Strongarm (Human) - should have no racial spell-like abilities
+    // but may have feat-granted abilities from class features
+    let path = fixtures_path().join("gff/ryathstrongarm/ryathstrongarm4.bic");
+    let data = std::fs::read(&path).expect("Failed to read fixture");
+    let parser = GffParser::from_bytes(data).expect("Failed to parse GFF");
+    let gff = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
+    let character = Character::from_gff(gff);
+
+    let race_name = character.race_name(game_data);
+    println!("Race: {}", race_name);
+
+    let ability_spells = character.get_ability_spells(game_data);
+    println!(
+        "Ability spells for {} ({}): {:?}",
+        race_name,
+        ability_spells.len(),
+        ability_spells.iter().map(|s| &s.name).collect::<Vec<_>>()
+    );
+
+    // Human has no racial spell-like abilities, but may have class-granted ones
+    // Just verify the function doesn't crash and returns valid data
+    for spell in &ability_spells {
+        assert!(!spell.name.is_empty());
+    }
 }
