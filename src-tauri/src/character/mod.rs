@@ -8,6 +8,7 @@ use indexmap::IndexMap;
 use tracing::{debug, instrument};
 
 pub mod abilities;
+mod appearance;
 pub mod classes;
 pub mod combat;
 pub mod combat_summary;
@@ -25,6 +26,9 @@ mod spells;
 pub mod types;
 
 pub use abilities::{AbilitiesState, AbilityIncrease, AbilityPointsSummary};
+pub use appearance::{
+    AppearanceOption, AppearanceState, CharacterModelParts, TintChannel, TintChannels,
+};
 pub use classes::ClassesState;
 pub use classes::{
     AlignmentRestriction, BabType, ClassEntry, ClassInfo, ClassSummaryEntry, LevelHistoryEntry,
