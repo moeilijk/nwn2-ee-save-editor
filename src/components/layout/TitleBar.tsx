@@ -45,13 +45,7 @@ export function TitleBar({ onAboutClick }: TitleBarProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 16, height: 16, borderRadius: 3,
-          background: `linear-gradient(135deg, ${T.accent}, ${T.accentLight})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 10 }}>N</span>
-        </div>
+        <img src="/logo.svg" alt="Logo" style={{ height: 18 }} />
         <span style={{ color: T.sidebarText, fontSize: 12, fontWeight: 500 }}>{appName}</span>
       </div>
 
