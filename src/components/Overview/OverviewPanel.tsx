@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Card, Elevation, H4, Icon, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
+import { Button, ButtonGroup, Card, Elevation, H4, Icon, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { T } from '../theme';
@@ -58,6 +58,9 @@ export function OverviewPanel() {
   const [maxHp, setMaxHp] = useState(1);
   const [hpSaving, setHpSaving] = useState(false);
 
+  const [age, setAge] = useState(0);
+  const [ageSaving, setAgeSaving] = useState(false);
+
   const [lawChaos, setLawChaos] = useState(50);
   const [goodEvil, setGoodEvil] = useState(50);
   const [alignmentSaving, setAlignmentSaving] = useState(false);
@@ -79,6 +82,12 @@ export function OverviewPanel() {
     setMaxHp(character.maxHitPoints ?? 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.hitPoints, character?.maxHitPoints]);
+
+  useEffect(() => {
+    if (!character) return;
+    setAge(character.age ?? 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.id]);
 
   useEffect(() => {
     if (!character?.alignmentValues) return;
@@ -143,6 +152,30 @@ export function OverviewPanel() {
       handleError(err);
     }
   }, [characterId, refreshAll, handleError]);
+
+  const handleGenderChange = useCallback(async (genderId: number) => {
+    if (!characterId) return;
+    try {
+      await CharacterAPI.updateCharacter(characterId, { gender: genderId });
+      const genderStr = genderId === 0 ? 'Male' : 'Female';
+      updateCharacterPartial({ gender: genderStr, gender_id: genderId });
+    } catch (err) {
+      handleError(err);
+    }
+  }, [characterId, updateCharacterPartial, handleError]);
+
+  const handleAgeChange = useCallback(async (newAge: number) => {
+    if (!characterId || ageSaving) return;
+    setAge(newAge);
+    setAgeSaving(true);
+    try {
+      await CharacterAPI.updateCharacter(characterId, { age: newAge });
+      updateCharacterPartial({ age: newAge });
+    } catch (err) {
+      handleError(err);
+    }
+    setAgeSaving(false);
+  }, [characterId, ageSaving, updateCharacterPartial, handleError]);
 
   const handleHpChange = useCallback(async (newCurrent: number, newMax: number) => {
     if (!characterId || hpSaving) return;
@@ -263,7 +296,15 @@ export function OverviewPanel() {
                 <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
               </span>
             } />
-            <KVRow label="Gender / Age" value={`${display(character.gender)}, ${display(character.age)} yrs`} />
+            <KVRow label={t('character.gender')} value={
+              <ButtonGroup minimal>
+                <Button small active={character.gender_id === 0} intent={character.gender_id === 0 ? 'primary' : 'none'} onClick={() => handleGenderChange(0)}>{t('character.male')}</Button>
+                <Button small active={character.gender_id === 1} intent={character.gender_id === 1 ? 'primary' : 'none'} onClick={() => handleGenderChange(1)}>{t('character.female')}</Button>
+              </ButtonGroup>
+            } />
+            <KVRow label={t('character.age')} value={
+              <StepInput value={age} onValueChange={handleAgeChange} min={0} max={9999} width={88} />
+            } />
             <KVRow label={t('character.alignment')} value={ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.name ?? display(character.alignment)} />
             <KVRow label="Deity" value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsDeityOpen(true)}>

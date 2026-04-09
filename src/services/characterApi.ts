@@ -367,6 +367,7 @@ export interface CharacterData {
   race: string;
   subrace?: string;
   gender: string;
+  gender_id: number;
   age: number;
   alignment: string;
   alignmentValues?: { law_chaos: number; good_evil: number };
@@ -511,6 +512,7 @@ export class CharacterAPI {
         race_name: string;
         subrace: string | null;
         gender: string;
+        gender_id: number;
         age: number;
         deity: string;
         alignment: { law_chaos: number; good_evil: number };
@@ -561,6 +563,7 @@ export class CharacterAPI {
         race_id: overview.race_id,
         subrace: overview.subrace || undefined,
         gender: overview.gender,
+        gender_id: overview.gender_id,
         age: overview.age,
         alignment: overview.alignment_string,
         alignmentValues: { law_chaos: overview.alignment.law_chaos, good_evil: overview.alignment.good_evil },
@@ -669,7 +672,7 @@ export class CharacterAPI {
       }
   }
 
-  static async updateCharacter(characterId: number, updates: Partial<{ first_name: string; last_name: string; age: number; deity: string; description: string; alignment: [number, number]; experience: number; [key: string]: unknown }>): Promise<CharacterData> {
+  static async updateCharacter(characterId: number, updates: Partial<{ first_name: string; last_name: string; age: number; gender: number; deity: string; description: string; alignment: [number, number]; experience: number; [key: string]: unknown }>): Promise<CharacterData> {
     try {
       // Use the batch update command
       const updatePayload: Record<string, unknown> = {};
@@ -677,6 +680,7 @@ export class CharacterAPI {
       if (updates.first_name !== undefined) updatePayload.first_name = updates.first_name;
       if (updates.last_name !== undefined) updatePayload.last_name = updates.last_name;
       if (updates.age !== undefined) updatePayload.age = updates.age;
+      if (updates.gender !== undefined) updatePayload.gender = updates.gender;
       if (updates.deity !== undefined) updatePayload.deity = updates.deity;
       if (updates.description !== undefined) updatePayload.description = updates.description;
       if (updates.alignment !== undefined) updatePayload.alignment = updates.alignment;

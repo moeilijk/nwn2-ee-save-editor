@@ -8,6 +8,7 @@ pub struct CharacterUpdates {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub age: Option<i32>,
+    pub gender: Option<i32>,
     pub deity: Option<String>,
     pub description: Option<String>,
     #[serde(default)]

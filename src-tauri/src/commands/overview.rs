@@ -69,6 +69,9 @@ pub async fn update_character(
     if let Some(age) = updates.age {
         character.set_age(age)?;
     }
+    if let Some(gender) = updates.gender {
+        character.set_gender(gender)?;
+    }
     if let Some(deity) = updates.deity {
         character.set_deity(deity);
     }

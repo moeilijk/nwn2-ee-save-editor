@@ -71,6 +71,51 @@ export interface Alignment {
 }
 
 // =============================================================================
+// Appearance State
+// =============================================================================
+
+export interface AppearanceState {
+  race_id: number;
+  race_name: string;
+  gender: number;
+  gender_name: string;
+  appearance_head: number;
+  appearance_hair: number;
+  color_skin: number;
+  color_hair: number;
+  color_tattoo1: number;
+  color_tattoo2: number;
+  soundset: number;
+  phenotype: number;
+  phenotype_name: string;
+  wings: number;
+  wings_name: string;
+  tail: number;
+  tail_name: string;
+  available_heads: number[];
+  available_hairs: number[];
+  is_parts_based: boolean;
+}
+
+export interface AppearanceOption {
+  id: number;
+  name: string;
+}
+
+export interface AppearanceUpdates {
+  appearance_head?: number;
+  appearance_hair?: number;
+  color_skin?: number;
+  color_hair?: number;
+  color_tattoo1?: number;
+  color_tattoo2?: number;
+  soundset?: number;
+  phenotype?: number;
+  wings?: number;
+  tail?: number;
+}
+
+// =============================================================================
 // Overview State (Aggregated)
 // =============================================================================
 
@@ -83,6 +128,7 @@ export interface OverviewState {
   race_name: string;
   subrace: string | null;
   gender: string;
+  gender_id: number;
   age: number;
   deity: string;
   alignment: Alignment;
@@ -675,6 +721,7 @@ export interface CharacterUpdates {
   first_name?: string;
   last_name?: string;
   age?: number;
+  gender?: number;
   deity?: string;
   description?: string;
   alignment?: [number, number]; // [law_chaos, good_evil]
