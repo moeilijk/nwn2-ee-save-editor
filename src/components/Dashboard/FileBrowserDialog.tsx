@@ -79,6 +79,11 @@ export function FileBrowserDialog({
 
   const [containerHeight, setContainerHeight] = useState(400);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [backupRootPath, setBackupRootPath] = useState('');
+
+  const isBackupRoot = mode === 'manage-backups' && (
+    backupRootPath === '' || currentPath === backupRootPath
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -119,12 +124,16 @@ export function FileBrowserDialog({
           save_name: string | null;
         }
         const backups = await invoke<BrowseBackupEntry[]>('browse_backups', { path: currentPath });
+        if (backupRootPath === '') {
+          setBackupRootPath(currentPath);
+        }
+        const isSaveFolder = !currentPath.replace(/\\/g, '/').replace(/\/$/, '').endsWith('/backups');
         const fileInfos: FileInfo[] = backups.map(b => ({
           name: b.name,
           path: b.path,
           size: b.size,
           modified: String(b.created_at),
-          is_directory: true,
+          is_directory: !isSaveFolder,
           save_name: b.save_name ?? (b.timestamp ? `Backup ${b.timestamp}` : undefined),
           character_name: b.character_name ?? undefined,
         }));
@@ -194,7 +203,7 @@ export function FileBrowserDialog({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [mode, currentPath, onPathChange, files.length]);
+  }, [mode, currentPath, onPathChange, files.length, backupRootPath]);
 
   useEffect(() => {
     if (isOpen) {
@@ -202,9 +211,11 @@ export function FileBrowserDialog({
       const refreshRequested = previousRefreshKey.current !== refreshKey;
 
       if (pathChanged || refreshRequested || files.length === 0) {
-        if (pathChanged && currentPath !== '') {
+        if (pathChanged) {
           setFiles([]);
           setTotalFiles(0);
+          setSelectedFile(null);
+          lastPath.current = currentPath;
         }
         previousRefreshKey.current = refreshKey;
         loadFiles(true);
@@ -261,7 +272,13 @@ export function FileBrowserDialog({
   const handleFileClick = (file: FileInfo) => setSelectedFile(file);
 
   const handleConfirm = () => {
-    if (!selectedFile || !onSelectFile) return;
+    if (!selectedFile) return;
+    if (mode === 'manage-backups' && selectedFile.is_directory) {
+      setSelectedFile(null);
+      onPathChange?.(selectedFile.path);
+      return;
+    }
+    if (!onSelectFile) return;
     if (mode === 'manage-backups') {
       setShowRestoreConfirm(true);
     } else {
@@ -332,7 +349,7 @@ export function FileBrowserDialog({
 
   const footerActions = (
     <>
-      {mode === 'manage-backups' && selectedFile && onDeleteBackup && (
+      {mode === 'manage-backups' && !isBackupRoot && selectedFile && onDeleteBackup && (
         <Button
           intent="danger"
           minimal
@@ -345,7 +362,16 @@ export function FileBrowserDialog({
           }}
         />
       )}
-      {(mode === 'load-saves' || (mode === 'manage-backups' && canRestore)) && (
+      {mode === 'manage-backups' && isBackupRoot && (
+        <Button
+          intent="primary"
+          text={t('fileBrowser.open')}
+          disabled={!selectedFile}
+          onClick={handleConfirm}
+          style={{ background: T.accent }}
+        />
+      )}
+      {(mode === 'load-saves' || (mode === 'manage-backups' && !isBackupRoot && canRestore)) && (
         <Button
           intent="primary"
           text={actionLabel}
@@ -364,7 +390,7 @@ export function FileBrowserDialog({
         onClose={onClose}
         title={title}
         className="bp-app"
-        style={{ width: 1200, height: 700, paddingBottom: 0, background: T.surface }}
+        style={{ width: 1200, height: '80vh', paddingBottom: 0, background: T.surface, display: 'flex', flexDirection: 'column' as const }}
         canOutsideClickClose
       >
         <DialogBody style={{ padding: 0, margin: 0, background: T.surface, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, minHeight: 0 }}>
@@ -388,6 +414,18 @@ export function FileBrowserDialog({
             }}>
               {display(currentPath) || t('fileBrowser.defaultLocation')}
             </span>
+            {mode === 'manage-backups' && !isBackupRoot && (
+              <Button
+                minimal
+                small
+                icon="arrow-left"
+                text={t('fileBrowser.back')}
+                onClick={() => {
+                  setSelectedFile(null);
+                  onPathChange?.(backupRootPath);
+                }}
+              />
+            )}
             {mode !== 'manage-backups' && (
               <Button
                 minimal
@@ -469,7 +507,7 @@ export function FileBrowserDialog({
               <InfiniteLoader
                 key={currentPath}
                 isItemLoaded={isItemLoaded}
-                itemCount={totalFiles}
+                itemCount={mode === 'load-saves' ? totalFiles : sortedFiles.length}
                 loadMoreItems={loadMoreItems}
                 threshold={5}
               >
@@ -478,7 +516,7 @@ export function FileBrowserDialog({
                     key={`list-${currentPath}`}
                     ref={(node) => { listRef.current = node; ref(node); }}
                     height={containerHeight}
-                    itemCount={totalFiles}
+                    itemCount={mode === 'load-saves' ? totalFiles : sortedFiles.length}
                     itemSize={ROW_HEIGHT}
                     onItemsRendered={onItemsRendered}
                     width="100%"
@@ -514,8 +552,11 @@ export function FileBrowserDialog({
                           }}
                           onClick={() => handleFileClick(file)}
                           onDoubleClick={() => {
-                            setSelectedFile(file);
-                            if (onSelectFile) {
+                            if (mode === 'manage-backups' && file.is_directory) {
+                              setSelectedFile(null);
+                              onPathChange?.(file.path);
+                            } else if (onSelectFile) {
+                              setSelectedFile(file);
                               if (mode === 'manage-backups') {
                                 setShowRestoreConfirm(true);
                               } else {
