@@ -53,7 +53,7 @@ export class BackupAPI {
             count: mappedBackups.length
         };
     } catch (e) {
-        throw new Error(String(e));
+        throw e;
     }
   }
 
@@ -76,7 +76,7 @@ export class BackupAPI {
             backups_cleaned_up: 0
         };
     } catch (e) {
-        throw new Error(String(e));
+        throw e;
     }
   }
 
@@ -92,8 +92,16 @@ export class BackupAPI {
               errors: result.errors || []
           };
       } catch (e) {
-          throw new Error(String(e));
+          throw e;
       }
+  }
+
+  static async deleteBackup(backupPath: string): Promise<boolean> {
+    try {
+      return await invoke<boolean>('delete_backup', { backupPath });
+    } catch (e) {
+      throw e;
+    }
   }
 
   static formatTimestamp(timestamp: string): string {

@@ -31,13 +31,30 @@ pub async fn restore_backup(
     backup_path: String,
     create_pre_restore_backup: bool,
 ) -> CommandResult<RestoreResult> {
-    let mut session = state.session.write();
-    let handler = session
-        .savegame_handler
-        .as_mut()
-        .ok_or(CommandError::NoCharacterLoaded)?;
+    let backup = PathBuf::from(&backup_path);
 
-    Ok(handler.restore_from_backup(&PathBuf::from(backup_path), create_pre_restore_backup)?)
+    // If a character is loaded, use its save_dir directly
+    let save_dir = {
+        let session = state.session.read();
+        session
+            .savegame_handler
+            .as_ref()
+            .map(|h| h.save_dir().to_path_buf())
+    };
+
+    let save_dir = save_dir
+        .or_else(|| crate::services::savegame_handler::backup::infer_save_path_from_backup(&backup))
+        .ok_or(CommandError::NotFound {
+            item: format!("Could not determine save directory for backup: {backup_path}"),
+        })?;
+
+    Ok(
+        crate::services::savegame_handler::backup::restore_from_backup(
+            &backup,
+            &save_dir,
+            create_pre_restore_backup,
+        )?,
+    )
 }
 
 #[tauri::command]

@@ -4,6 +4,7 @@ import { Button, Spinner } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useToast } from '@/contexts/ToastContext';
 import { TauriAPI, type SaveFile } from '@/lib/tauri-api';
 import { T, PATTERN_BG } from '../theme';
 import '../blueprint.css';
@@ -15,8 +16,9 @@ import { SettingsDialog } from '../Settings/SettingsPanel';
 
 export default function DashboardPanel() {
   const t = useTranslations();
-  const { importCharacter } = useCharacterContext();
+  const { importCharacter, refreshAll } = useCharacterContext();
   const { handleError } = useErrorHandler();
+  const { showToast } = useToast();
 
   const [saves, setSaves] = useState<SaveEntryData[]>([]);
   const [savePaths, setSavePaths] = useState<string[]>([]);
@@ -245,13 +247,36 @@ export default function DashboardPanel() {
         onPathChange={setBackupPath}
         refreshKey={backupRefreshKey}
         canRestore
-        onSelectFile={(file) => {
-          console.log('Restore backup:', file.path);
-          setShowBackupBrowser(false);
+        onSelectFile={async (file) => {
+          console.log('[backup] restore starting, path:', file.path);
+          try {
+            const result = await invoke('restore_backup', {
+              backupPath: file.path,
+              createPreRestoreBackup: true,
+            });
+            console.log('[backup] restore result:', result);
+            setShowBackupBrowser(false);
+            console.log('[backup] showing toast');
+            showToast(t('fileBrowser.restoreSuccess'), 'success');
+            console.log('[backup] refreshing all');
+            await refreshAll();
+            console.log('[backup] restore complete');
+          } catch (error) {
+            console.error('[backup] restore error:', error);
+            handleError(error);
+          }
         }}
         onDeleteBackup={async (file) => {
-          console.log('Delete backup:', file.path);
-          setBackupRefreshKey(prev => prev + 1);
+          console.log('[backup] delete starting, path:', file.path);
+          try {
+            const result = await invoke('delete_backup', { backupPath: file.path });
+            console.log('[backup] delete result:', result);
+            showToast(t('fileBrowser.backupDeleted'), 'success');
+            setBackupRefreshKey(prev => prev + 1);
+          } catch (error) {
+            console.error('[backup] delete error:', error);
+            handleError(error);
+          }
         }}
       />
 

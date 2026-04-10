@@ -89,7 +89,7 @@ pub fn create_backup(save_dir: &Path) -> SaveGameResult<PathBuf> {
     let backup_name = format!("backup_{timestamp}");
     let backup_path = backup_dir.join(&backup_name);
 
-    copy_directory(save_dir, &backup_path)?;
+    copy_directory_filtered(save_dir, &backup_path, &["backups"])?;
 
     mark_backup_created(save_dir);
 
@@ -109,7 +109,7 @@ pub fn create_pre_restore_backup(save_dir: &Path) -> SaveGameResult<PathBuf> {
     let backup_name = format!("pre_restore_{timestamp}");
     let backup_path = backup_dir.join(&backup_name);
 
-    copy_directory(save_dir, &backup_path)?;
+    copy_directory_filtered(save_dir, &backup_path, &["backups"])?;
 
     info!(
         "Created pre-restore backup: {} -> {}",
@@ -188,7 +188,22 @@ pub fn restore_from_backup(
     };
 
     if save_dir.exists() {
-        fs::remove_dir_all(save_dir)?;
+        // Clear save dir contents but preserve the inner backups/ folder
+        // (module/globals backups live there)
+        for entry in fs::read_dir(save_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|n| n == "backups") {
+                    continue;
+                }
+                fs::remove_dir_all(&path)?;
+            } else {
+                fs::remove_file(&path)?;
+            }
+        }
+    } else {
+        fs::create_dir_all(save_dir)?;
     }
 
     let files_restored = copy_directory(backup_path, save_dir)?;
@@ -313,6 +328,10 @@ pub fn infer_save_path_from_backup(backup_path: &Path) -> Option<PathBuf> {
 }
 
 fn copy_directory(src: &Path, dst: &Path) -> SaveGameResult<usize> {
+    copy_directory_filtered(src, dst, &[])
+}
+
+fn copy_directory_filtered(src: &Path, dst: &Path, skip_dirs: &[&str]) -> SaveGameResult<usize> {
     fs::create_dir_all(dst)?;
 
     let mut count = 0;
@@ -323,7 +342,10 @@ fn copy_directory(src: &Path, dst: &Path) -> SaveGameResult<usize> {
         let dst_path = dst.join(entry.file_name());
 
         if src_path.is_dir() {
-            count += copy_directory(&src_path, &dst_path)?;
+            if skip_dirs.iter().any(|&s| entry.file_name() == s) {
+                continue;
+            }
+            count += copy_directory_filtered(&src_path, &dst_path, skip_dirs)?;
         } else {
             fs::copy(&src_path, &dst_path)?;
             count += 1;
