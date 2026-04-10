@@ -118,6 +118,14 @@ export interface AppearanceOption {
   name: string;
 }
 
+export interface VoiceSetInfo {
+  id: number;
+  name: string;
+  gender: number;
+  resref: string;
+  voice_type: number;
+}
+
 export interface AppearanceUpdates {
   appearance_head?: number;
   appearance_hair?: number;

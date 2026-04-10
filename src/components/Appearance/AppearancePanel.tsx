@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Elevation, HTMLSelect, NonIdealState, Slider, Spinner, Switch, Tag, NumericInput } from '@blueprintjs/core';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Button, Card, Elevation, HTMLSelect, InputGroup, NonIdealState, Slider, Spinner, Switch } from '@blueprintjs/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterStateAPI } from '@/lib/api/character-state';
 import { T } from '../theme';
 import { KVRow } from '../shared';
-import { display } from '@/utils/dataHelpers';
-import type { AppearanceOption, AppearanceUpdates, TintChannel, TintChannels } from '@/lib/bindings';
+import type { AppearanceOption, AppearanceUpdates, TintChannel, TintChannels, VoiceSetInfo } from '@/lib/bindings';
 import { CharacterViewer3D } from './CharacterViewer3D';
 import { VariantStepper } from './VariantStepper';
 import { ColorPicker } from './ColorPicker';
@@ -34,6 +33,12 @@ export function AppearancePanel() {
   const [partRefresh, setPartRefresh] = useState<{ parts: PartType[]; key: number } | null>(null);
   const [liveHeight, setLiveHeight] = useState(0.95);
   const [liveGirth, setLiveGirth] = useState(0.95);
+  const [voicesets, setVoicesets] = useState<VoiceSetInfo[]>([]);
+  const [voiceFilter, setVoiceFilter] = useState('');
+  const [playingResref, setPlayingResref] = useState<string | null>(null);
+  const [pendingVoiceId, setPendingVoiceId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const sizeDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -49,12 +54,14 @@ export function AppearancePanel() {
   useEffect(() => {
     async function loadOptions() {
       try {
-        const [wings, tails] = await Promise.all([
+        const [wings, tails, voices] = await Promise.all([
           CharacterStateAPI.getAvailableWings(),
           CharacterStateAPI.getAvailableTails(),
+          CharacterStateAPI.getAvailableVoicesets(),
         ]);
         setWingOptions(wings);
         setTailOptions(tails);
+        setVoicesets(voices);
       } catch (err) {
         handleError(err);
       }
@@ -92,6 +99,66 @@ export function AppearancePanel() {
       },
     [appearanceSubsystem.data, updateField]
   );
+
+  const cleanupAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+  }, []);
+
+  const playVoicePreview = useCallback(async (resref: string) => {
+    try {
+      cleanupAudio();
+      setPlayingResref(resref);
+
+      const audioBytes = await CharacterStateAPI.previewVoiceset(resref);
+      const blob = new Blob([new Uint8Array(audioBytes)], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+
+      const audio = new Audio(url);
+      audio.volume = 0.5;
+      audioRef.current = audio;
+      audio.onended = () => {
+        setPlayingResref(null);
+        URL.revokeObjectURL(url);
+        blobUrlRef.current = null;
+      };
+      audio.onerror = () => {
+        setPlayingResref(null);
+        URL.revokeObjectURL(url);
+        blobUrlRef.current = null;
+      };
+      await audio.play();
+    } catch {
+      setPlayingResref(null);
+    }
+  }, [cleanupAudio]);
+
+  useEffect(() => {
+    return () => { cleanupAudio(); };
+  }, [cleanupAudio]);
+
+  const groupedVoicesets = useMemo(() => {
+    const filtered = voicesets.filter(v =>
+      voiceFilter === '' || v.name.toLowerCase().includes(voiceFilter.toLowerCase())
+    );
+    const grouped = filtered.reduce((acc, v) => {
+      const key = v.voice_type;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(v);
+      return acc;
+    }, {} as Record<number, VoiceSetInfo[]>);
+    return Object.keys(grouped).map(Number).sort((a, b) => a - b).map(typeKey => ({
+      typeKey,
+      voices: grouped[typeKey],
+    }));
+  }, [voicesets, voiceFilter]);
 
   const dataHeight = appearanceSubsystem.data?.height;
   const dataGirth = appearanceSubsystem.data?.girth;
@@ -197,17 +264,142 @@ export function AppearancePanel() {
 
         {/* Voice */}
         <Card elevation={Elevation.ONE} style={{ padding: '12px 16px', background: T.surface }}>
-          <SectionHeader label={t('appearance.voice')} />
-          <KVRow
-            label={t('appearance.soundset')}
-            value={
-              <NumericInput
-                value={data.soundset}
-                onValueChange={(v) => { if (!isNaN(v) && v >= 0 && v <= 65535) updateField({ soundset: v }); }}
-                min={0} max={65535} small style={{ width: 80 }} buttonPosition="none"
-              />
-            }
+          <SectionHeader label={t('appearance.voiceSet')} />
+          {(() => {
+            const currentVoice = voicesets.find(v => v.id === data.soundset);
+            const currentName = currentVoice?.name ?? `#${data.soundset}`;
+            return (
+              <div style={{ fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: T.textMuted }}>{t('appearance.voiceCurrent')}:</span>
+                <span style={{ fontWeight: 600 }}>{currentName}</span>
+                {currentVoice && (
+                  <Button
+                    icon={playingResref === currentVoice.resref ? 'stop' : 'volume-up'}
+                    minimal
+                    small
+                    onClick={() => {
+                      if (playingResref === currentVoice.resref) {
+                        if (audioRef.current) audioRef.current.pause();
+                        setPlayingResref(null);
+                      } else {
+                        playVoicePreview(currentVoice.resref);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })()}
+          <InputGroup
+            placeholder={t('appearance.voiceSearch')}
+            value={voiceFilter}
+            onValueChange={setVoiceFilter}
+            small
+            leftIcon="search"
+            style={{ marginBottom: 8 }}
           />
+          <div style={{ maxHeight: 300, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 3 }}>
+            {voicesets.length === 0 ? (
+              <div style={{ padding: 12, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
+                {t('appearance.voiceNone')}
+              </div>
+            ) : (
+              (() => {
+                const typeLabels: Record<number, string> = {
+                  0: t('appearance.voiceTypePlayer'),
+                  1: t('appearance.voiceTypeHenchman'),
+                  2: t('appearance.voiceTypeNPC'),
+                  3: t('appearance.voiceTypeNPC'),
+                  4: t('appearance.voiceTypeCreature'),
+                };
+
+                return groupedVoicesets.map(({ typeKey, voices }) => (
+                  <div key={typeKey}>
+                    <div style={{
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: T.accent,
+                      background: T.surface,
+                      borderBottom: `1px solid ${T.border}`,
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 1,
+                    }}>
+                      {typeLabels[typeKey] ?? `Type ${typeKey}`}
+                    </div>
+                    {voices.map(v => {
+                      const isCurrent = v.id === data.soundset;
+                      const isPending = pendingVoiceId === v.id;
+                      const isHighlighted = isPending || (isCurrent && pendingVoiceId === null);
+                      const isPlaying = playingResref === v.resref;
+                      return (
+                        <div
+                          key={v.id}
+                          onClick={() => setPendingVoiceId(v.id === data.soundset ? null : v.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            background: isHighlighted ? T.accent + '22' : 'transparent',
+                            borderBottom: `1px solid ${T.border}`,
+                            fontSize: 12,
+                            gap: 6,
+                          }}
+                        >
+                          <span style={{
+                            flex: 1,
+                            fontWeight: isHighlighted ? 600 : 400,
+                            color: isHighlighted ? T.accent : T.text,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {v.name}
+                          </span>
+                          <Button
+                            icon={isPlaying ? 'stop' : 'play'}
+                            minimal
+                            small
+                            loading={isPlaying}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              if (isPlaying) {
+                                if (audioRef.current) audioRef.current.pause();
+                                setPlayingResref(null);
+                              } else {
+                                playVoicePreview(v.resref);
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ));
+              })()
+            )}
+          </div>
+          {pendingVoiceId !== null && (
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <Button
+                small
+                text={t('common.cancel')}
+                onClick={() => setPendingVoiceId(null)}
+              />
+              <Button
+                small
+                intent="primary"
+                text={t('appearance.voiceConfirm')}
+                onClick={() => {
+                  updateField({ soundset: pendingVoiceId });
+                  setPendingVoiceId(null);
+                }}
+              />
+            </div>
+          )}
         </Card>
 
         {/* Equipment Display */}

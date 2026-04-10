@@ -27,7 +27,8 @@ tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
-image = { version = "0.25", default-features = false, features = ["tga", "webp"] }
+image = { version = "0.25", default-features = false, features = ["tga", "webp", "png"] }
+texture2ddecoder = "0.1"
 base64 = "0.22"
 webp = "0.3"
 dotenvy = "0.15"
@@ -80,6 +81,7 @@ hex = "0.4"
 axum = "0.8.8"
 tower-http = { version = "0.6.8", features = ["cors"] }
 tokio-stream = "0.1.18"
+rand = "0.10.0"
 
 
 [dev-dependencies]

@@ -305,6 +305,8 @@ pub fn run() {
             crate::commands::appearance::get_available_tails,
             crate::commands::appearance::load_character_model,
             crate::commands::appearance::load_character_part,
+            crate::commands::appearance::get_available_voicesets,
+            crate::commands::appearance::preview_voiceset,
             // Overview (Aggregated State Commands)
             crate::commands::overview::get_overview_state,
             crate::commands::overview::update_character,
@@ -320,6 +322,7 @@ pub fn run() {
             // Models
             crate::commands::models::load_model,
             crate::commands::models::get_texture_bytes,
+            crate::commands::models::get_icon_png,
             crate::commands::models::list_available_models,
         ])
         .run(tauri::generate_context!())

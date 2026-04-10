@@ -14,6 +14,7 @@ import type {
   AppearanceState,
   AppearanceOption,
   AppearanceUpdates,
+  VoiceSetInfo,
   ClassesState,
   FeatsState,
   SpellsState,
@@ -139,6 +140,10 @@ export const CharacterStateAPI = {
    * Get available tail options from tailmodel.2da.
    */
   getAvailableTails: () => invoke<AppearanceOption[]>('get_available_tails'),
+
+  getAvailableVoicesets: () => invoke<VoiceSetInfo[]>('get_available_voicesets'),
+
+  previewVoiceset: (resref: string) => invoke<number[]>('preview_voiceset', { resref }),
 
   // ===========================================================================
   // Session Management

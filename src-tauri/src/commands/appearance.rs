@@ -1,3 +1,6 @@
+use std::path::{Path, PathBuf};
+
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
@@ -23,6 +26,15 @@ pub struct AppearanceUpdates {
     pub wings: Option<i32>,
     pub tail: Option<i32>,
     pub never_draw_helmet: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct VoiceSetInfo {
+    pub id: u32,
+    pub name: String,
+    pub gender: u8,
+    pub resref: String,
+    pub voice_type: u8,
 }
 
 #[tauri::command]
@@ -465,4 +477,174 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         helm: Vec::new(),
         skeleton: None,
     })
+}
+
+fn soundset_zips(game_folder: &Path) -> Vec<PathBuf> {
+    let data_dir = game_folder.join("Data");
+    [
+        data_dir.join("soundsets.zip"),
+        data_dir.join("soundsets_x1.zip"),
+        data_dir.join("soundsets_x2.zip"),
+    ]
+    .into_iter()
+    .filter(|p| p.exists())
+    .collect()
+}
+
+fn voice_audio_zips(game_folder: &Path) -> Vec<PathBuf> {
+    let data_dir = game_folder.join("Data");
+    let vo_dir = game_folder.join("localization/english/data");
+    [
+        data_dir.join("sounds.zip"),
+        data_dir.join("sounds_x1.zip"),
+        data_dir.join("sounds_x2.zip"),
+        vo_dir.join("vo.zip"),
+        vo_dir.join("vo_x1.zip"),
+        vo_dir.join("vo_x2.zip"),
+    ]
+    .into_iter()
+    .filter(|p| p.exists())
+    .collect()
+}
+
+fn find_in_zips(
+    reader: &mut crate::utils::zip_content_reader::ZipContentReader,
+    zips: &[PathBuf],
+    filename: &str,
+) -> Option<Vec<u8>> {
+    zips.iter().find_map(|zip_path| {
+        let zip_str = zip_path.to_string_lossy().to_string();
+        reader.find_file_by_name(&zip_str, filename).ok()?
+    })
+}
+
+#[tauri::command]
+pub async fn get_available_voicesets(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<VoiceSetInfo>> {
+    let game_data = state.game_data.read();
+    let soundset_table = game_data
+        .get_table("soundset")
+        .ok_or_else(|| CommandError::Internal("soundset.2da not loaded".to_string()))?;
+
+    let paths = state.paths.read();
+    let game_folder = paths.game_folder().cloned();
+    drop(paths);
+
+    let ssf_zips = game_folder
+        .as_deref()
+        .map(soundset_zips)
+        .unwrap_or_default();
+    let wav_zips = game_folder
+        .as_deref()
+        .map(voice_audio_zips)
+        .unwrap_or_default();
+
+    let mut reader = crate::utils::zip_content_reader::ZipContentReader::new();
+    let mut voicesets = Vec::new();
+
+    for i in 0..soundset_table.row_count() {
+        let id = i as i32;
+        let Some(row) = soundset_table.get_by_id(id) else {
+            continue;
+        };
+
+        let Some(resref) = crate::utils::parsing::row_str(&row, "resref") else {
+            continue;
+        };
+
+        if resref.eq_ignore_ascii_case("none") {
+            continue;
+        }
+
+        let ssf_filename = format!("{}.ssf", resref.to_lowercase());
+
+        let Some(ssf_data) = find_in_zips(&mut reader, &ssf_zips, &ssf_filename) else {
+            continue;
+        };
+
+        let has_audio = crate::parsers::ssf::parse_ssf(&ssf_data)
+            .map(|wav_resrefs| {
+                wav_resrefs.iter().any(|wr| {
+                    let wav_filename = format!("{}.wav", wr.to_lowercase());
+                    find_in_zips(&mut reader, &wav_zips, &wav_filename).is_some()
+                })
+            })
+            .unwrap_or(false);
+        if !has_audio {
+            continue;
+        }
+
+        let type_val = crate::utils::parsing::row_int(&row, "type", -1) as u8;
+
+        let strref = crate::utils::parsing::row_int(&row, "strref", -1);
+        let name = if strref >= 0 {
+            game_data.get_string(strref).unwrap_or_else(|| {
+                crate::utils::parsing::row_str(&row, "label")
+                    .unwrap_or_else(|| format!("Voice {id}"))
+            })
+        } else {
+            crate::utils::parsing::row_str(&row, "label").unwrap_or_else(|| format!("Voice {id}"))
+        };
+
+        let gender = crate::utils::parsing::row_int(&row, "gender", 0) as u8;
+
+        voicesets.push(VoiceSetInfo {
+            id: id as u32,
+            name,
+            gender,
+            resref,
+            voice_type: type_val,
+        });
+    }
+
+    voicesets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+    Ok(voicesets)
+}
+
+#[tauri::command]
+pub async fn preview_voiceset(
+    state: State<'_, AppState>,
+    resref: String,
+) -> CommandResult<Vec<u8>> {
+    let paths = state.paths.read();
+    let game_folder = paths
+        .game_folder()
+        .ok_or_else(|| CommandError::Internal("NWN2 game folder not found".to_string()))?
+        .clone();
+    drop(paths);
+
+    let ssf_zips = soundset_zips(&game_folder);
+    let wav_zips = voice_audio_zips(&game_folder);
+
+    let ssf_filename = format!("{}.ssf", resref.to_lowercase());
+    let mut reader = crate::utils::zip_content_reader::ZipContentReader::new();
+
+    let ssf_data = find_in_zips(&mut reader, &ssf_zips, &ssf_filename)
+        .ok_or_else(|| CommandError::Internal(format!("SSF file not found: {ssf_filename}")))?;
+
+    let wav_resrefs = crate::parsers::ssf::parse_ssf(&ssf_data)
+        .map_err(|e| CommandError::Internal(format!("Failed to parse SSF: {e}")))?;
+
+    if wav_resrefs.is_empty() {
+        return Err(CommandError::Internal(
+            "No voice lines found in SSF".to_string(),
+        ));
+    }
+
+    let mut rng = rand::rng();
+    let mut shuffled = wav_resrefs;
+    shuffled.shuffle(&mut rng);
+
+    for wav_resref in &shuffled {
+        let wav_filename = format!("{}.wav", wav_resref.to_lowercase());
+        if let Some(data) = find_in_zips(&mut reader, &wav_zips, &wav_filename) {
+            return Ok(data);
+        }
+    }
+
+    Err(CommandError::Internal(format!(
+        "No WAV files found for voiceset: {resref}"
+    )))
 }

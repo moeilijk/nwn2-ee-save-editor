@@ -2,6 +2,7 @@ pub mod erf;
 pub mod gff;
 pub mod gr2;
 pub mod mdb;
+pub mod ssf;
 pub mod tda;
 pub mod tlk;
 pub mod xml;
