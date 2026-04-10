@@ -672,6 +672,7 @@ function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: num
 }
 
 function ModuleVariablesSection({ characterId, moduleId }: { characterId: number; moduleId?: string | null }) {
+  const t = useTranslations();
   const [vars, setVars] = useState<ModuleVariablesResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -718,6 +719,7 @@ function ModuleVariablesSection({ characterId, moduleId }: { characterId: number
         integers={integers}
         strings={strings}
         floats={floats}
+        warningText={t('gameState.warnings.moduleVariables')}
         onRestoreClick={backupDialog.open}
         {...varEdits}
       />
@@ -928,6 +930,7 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
 }
 
 function CampaignVariablesSection({ characterId }: { characterId: number }) {
+  const t = useTranslations();
   const [vars, setVars] = useState<CampaignVariablesResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -974,7 +977,7 @@ function CampaignVariablesSection({ characterId }: { characterId: number }) {
         integers={integers}
         strings={strings}
         floats={floats}
-        warningText="Changes to campaign variables are saved directly to this save file."
+        warningText={t('gameState.warnings.campaignVariables')}
         onRestoreClick={backupDialog.open}
         {...varEdits}
       />

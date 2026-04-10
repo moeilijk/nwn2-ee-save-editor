@@ -74,6 +74,19 @@ export interface Alignment {
 // Appearance State
 // =============================================================================
 
+export interface TintChannel {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+export interface TintChannels {
+  channel1: TintChannel;
+  channel2: TintChannel;
+  channel3: TintChannel;
+}
+
 export interface AppearanceState {
   race_id: number;
   race_name: string;
@@ -81,13 +94,14 @@ export interface AppearanceState {
   gender_name: string;
   appearance_head: number;
   appearance_hair: number;
-  color_skin: number;
-  color_hair: number;
+  appearance_fhair: number;
+  tint_head: TintChannels;
+  tint_hair: TintChannels;
   color_tattoo1: number;
   color_tattoo2: number;
+  height: number;
+  girth: number;
   soundset: number;
-  phenotype: number;
-  phenotype_name: string;
   wings: number;
   wings_name: string;
   tail: number;
@@ -95,6 +109,8 @@ export interface AppearanceState {
   available_heads: number[];
   available_hairs: number[];
   is_parts_based: boolean;
+  has_fhair_meshes: boolean;
+  never_draw_helmet: boolean;
 }
 
 export interface AppearanceOption {
@@ -105,14 +121,17 @@ export interface AppearanceOption {
 export interface AppearanceUpdates {
   appearance_head?: number;
   appearance_hair?: number;
-  color_skin?: number;
-  color_hair?: number;
+  appearance_fhair?: number;
+  tint_head?: TintChannels;
+  tint_hair?: TintChannels;
   color_tattoo1?: number;
   color_tattoo2?: number;
+  height?: number;
+  girth?: number;
   soundset?: number;
-  phenotype?: number;
   wings?: number;
   tail?: number;
+  never_draw_helmet?: boolean;
 }
 
 // =============================================================================

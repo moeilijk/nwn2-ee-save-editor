@@ -4,6 +4,7 @@ import { useTranslations } from '@/hooks/useTranslations';
 
 const NAV_ITEMS: { id: string; icon: IconName; labelKey: string }[] = [
   { id: 'overview', icon: 'person', labelKey: 'navigation.overview' },
+  { id: 'appearance', icon: 'style', labelKey: 'navigation.appearance' },
   { id: 'abilities', icon: 'properties', labelKey: 'navigation.abilityScores' },
   { id: 'classes', icon: 'layers', labelKey: 'navigation.classes' },
   { id: 'skills', icon: 'build', labelKey: 'navigation.skills' },
@@ -11,6 +12,7 @@ const NAV_ITEMS: { id: string; icon: IconName; labelKey: string }[] = [
   { id: 'spells', icon: 'flash', labelKey: 'navigation.spells' },
   { id: 'inventory', icon: 'box', labelKey: 'navigation.inventory' },
   { id: 'gamestate', icon: 'globe', labelKey: 'navigation.gameState' },
+  { id: 'models', icon: 'cube', labelKey: 'navigation.models' },
 ];
 
 interface SidebarProps {

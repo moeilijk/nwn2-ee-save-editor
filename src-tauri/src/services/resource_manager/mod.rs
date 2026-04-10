@@ -1277,6 +1277,38 @@ impl ResourceManager {
         results.sort_by(|a, b| a.0.cmp(&b.0));
         results
     }
+
+    pub fn list_resources_by_prefix(&self, prefix: &str, extension: &str) -> Vec<String> {
+        let mut results = Vec::new();
+        let mut zip_reader = self.zip_reader.lock();
+
+        for path in &self.data_zip_paths {
+            if let Ok(files) =
+                zip_reader.list_files_by_prefix(&path.to_string_lossy(), prefix, extension)
+            {
+                results.extend(files);
+            }
+        }
+
+        drop(zip_reader);
+
+        // Also scan override dirs (already indexed at init)
+        // override_file_paths keys are file stems without extension (e.g. "p_hhm_head01")
+        let prefix_lower = prefix.to_lowercase();
+        let ext_lower = extension.to_lowercase();
+        for (name, path) in &self.override_file_paths {
+            let has_matching_ext = path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case(&ext_lower));
+            if name.starts_with(&prefix_lower) && has_matching_ext {
+                results.push(format!("{name}.{ext_lower}"));
+            }
+        }
+
+        results.sort();
+        results.dedup();
+        results
+    }
 }
 
 fn gff_value_to_json(value: &crate::parsers::gff::GffValue<'_>) -> serde_json::Value {

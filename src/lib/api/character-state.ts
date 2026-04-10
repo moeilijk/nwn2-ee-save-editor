@@ -11,6 +11,9 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   OverviewState,
   AbilitiesState,
+  AppearanceState,
+  AppearanceOption,
+  AppearanceUpdates,
   ClassesState,
   FeatsState,
   SpellsState,
@@ -55,6 +58,11 @@ export const CharacterStateAPI = {
    * Get abilities state including base/effective scores, modifiers, HP, encumbrance.
    */
   getAbilities: () => invoke<AbilitiesState>('get_abilities_state'),
+
+  /**
+   * Get appearance state (head, colors, phenotype, wings, tail, soundset).
+   */
+  getAppearance: () => invoke<AppearanceState>('get_appearance_state'),
 
   /**
    * Get classes state including level history (LevelStatList from GFF).
@@ -115,6 +123,22 @@ export const CharacterStateAPI = {
    */
   applyPointBuy: (newScores: import('../bindings').AbilityScores) =>
     invoke<AbilitiesState>('apply_point_buy', { newScores }),
+
+  /**
+   * Update appearance fields. Returns the updated AppearanceState.
+   */
+  updateAppearance: (updates: AppearanceUpdates) =>
+    invoke<AppearanceState>('update_appearance', { updates }),
+
+  /**
+   * Get available wing options from wingmodel.2da.
+   */
+  getAvailableWings: () => invoke<AppearanceOption[]>('get_available_wings'),
+
+  /**
+   * Get available tail options from tailmodel.2da.
+   */
+  getAvailableTails: () => invoke<AppearanceOption[]>('get_available_tails'),
 
   // ===========================================================================
   // Session Management

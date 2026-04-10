@@ -304,6 +304,7 @@ pub fn run() {
             crate::commands::appearance::get_available_wings,
             crate::commands::appearance::get_available_tails,
             crate::commands::appearance::load_character_model,
+            crate::commands::appearance::load_character_part,
             // Overview (Aggregated State Commands)
             crate::commands::overview::get_overview_state,
             crate::commands::overview::update_character,

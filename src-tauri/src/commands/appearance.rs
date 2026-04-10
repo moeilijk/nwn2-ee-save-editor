@@ -17,15 +17,17 @@ pub struct AppearanceUpdates {
     pub tint_hair: Option<TintChannels>,
     pub color_tattoo1: Option<i32>,
     pub color_tattoo2: Option<i32>,
-    pub model_scale: Option<f32>,
+    pub height: Option<f32>,
+    pub girth: Option<f32>,
     pub soundset: Option<i32>,
     pub wings: Option<i32>,
     pub tail: Option<i32>,
+    pub never_draw_helmet: Option<bool>,
 }
 
 #[tauri::command]
-pub async fn get_appearance_state(state: State<'_, AppState>) -> CommandResult<AppearanceState> {
-    let rm = state.resource_manager.read().await;
+pub fn get_appearance_state(state: State<'_, AppState>) -> CommandResult<AppearanceState> {
+    let rm = state.resource_manager.blocking_read();
     let session = state.session.read();
     let character = session
         .character
@@ -37,11 +39,11 @@ pub async fn get_appearance_state(state: State<'_, AppState>) -> CommandResult<A
 }
 
 #[tauri::command]
-pub async fn update_appearance(
+pub fn update_appearance(
     state: State<'_, AppState>,
     updates: AppearanceUpdates,
 ) -> CommandResult<AppearanceState> {
-    let rm = state.resource_manager.read().await;
+    let rm = state.resource_manager.blocking_read();
 
     let mut session = state.session.write();
     let character = session
@@ -70,8 +72,11 @@ pub async fn update_appearance(
     if let Some(v) = updates.color_tattoo2 {
         character.set_color_tattoo2(v);
     }
-    if let Some(v) = updates.model_scale {
-        character.set_model_scale(v);
+    if let Some(v) = updates.height {
+        character.set_height(v);
+    }
+    if let Some(v) = updates.girth {
+        character.set_girth(v);
     }
     if let Some(v) = updates.soundset {
         character.set_soundset(v);
@@ -81,6 +86,9 @@ pub async fn update_appearance(
     }
     if let Some(v) = updates.tail {
         character.set_tail(v);
+    }
+    if let Some(v) = updates.never_draw_helmet {
+        character.set_never_draw_helmet(v);
     }
 
     let game_data = state.game_data.read();
@@ -123,10 +131,11 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         .ok_or_else(|| CommandError::Internal("Failed to resolve character model parts".into()))?;
 
     debug!(
-        "Resolved model parts: {} body parts, head={}, hair={:?}, skel={}",
+        "Resolved model parts: {} body parts, head={}, hair={:?}, helm={:?}, skel={}",
         parts.body_parts.len(),
         parts.head_resref,
         parts.hair_resref,
+        parts.helm_candidates.first().unwrap_or(&String::new()),
         parts.skeleton_resref
     );
 
@@ -135,59 +144,171 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
     let mut all_meshes: Vec<MeshData> = Vec::new();
     let mut skeleton = None;
 
+    // Try body candidates in order, stop at first success
+    let mut body_loaded = false;
     for part_resref in &parts.body_parts {
-        match model_loader::load_model_with_skeleton(&rm, part_resref, &parts.skeleton_resref) {
-            Ok(part_data) => {
-                if skeleton.is_none() {
-                    skeleton = part_data.skeleton;
-                }
-                all_meshes.extend(part_data.meshes);
+        if let Ok(part_data) = model_loader::load_model_with_skeleton(
+            &rm,
+            part_resref,
+            &parts.skeleton_resref,
+            "body",
+            "body",
+        ) {
+            if skeleton.is_none() {
+                skeleton = part_data.skeleton;
             }
-            Err(e) => debug!("Body part '{}' not found: {}", part_resref, e),
+            all_meshes.extend(part_data.meshes);
+            body_loaded = true;
+            break;
+        }
+    }
+    if !body_loaded {
+        if let Ok(part_data) = model_loader::load_model_with_skeleton(
+            &rm,
+            &parts.naked_body_resref,
+            &parts.skeleton_resref,
+            "body",
+            "body",
+        ) {
+            if skeleton.is_none() {
+                skeleton = part_data.skeleton;
+            }
+            all_meshes.extend(part_data.meshes);
         }
     }
 
-    match model_loader::load_model_with_skeleton(&rm, &parts.head_resref, &parts.skeleton_resref) {
+    match model_loader::load_model_with_skeleton(
+        &rm,
+        &parts.head_resref,
+        &parts.skeleton_resref,
+        "head",
+        "head",
+    ) {
         Ok(head_data) => {
             if skeleton.is_none() {
                 skeleton = head_data.skeleton;
             }
-            all_meshes.extend(head_data.meshes);
+            for mut mesh in head_data.meshes {
+                if mesh.name.to_lowercase().contains("_fhair") {
+                    // Facial hair meshes are embedded in head MDB
+                    // Show only if Appearance_FHair > 0
+                    if parts.show_fhair {
+                        mesh.part = "fhair".to_string();
+                        mesh.tint_group = "hair".to_string();
+                        all_meshes.push(mesh);
+                    }
+                } else {
+                    all_meshes.push(mesh);
+                }
+            }
         }
         Err(e) => warn!("Failed to load head model '{}': {}", parts.head_resref, e),
     }
 
     if let Some(ref hair_resref) = parts.hair_resref {
-        match model_loader::load_model_with_skeleton(&rm, hair_resref, &parts.skeleton_resref) {
+        match model_loader::load_model_with_skeleton(
+            &rm,
+            hair_resref,
+            &parts.skeleton_resref,
+            "hair",
+            "hair",
+        ) {
             Ok(hair_data) => all_meshes.extend(hair_data.meshes),
             Err(e) => debug!("Hair model '{}' not found: {}", hair_resref, e),
         }
     }
 
-    if let Some(ref fhair_resref) = parts.fhair_resref {
-        match model_loader::load_model_with_skeleton(&rm, fhair_resref, &parts.skeleton_resref) {
-            Ok(fhair_data) => all_meshes.extend(fhair_data.meshes),
-            Err(e) => debug!("Facial hair model '{}' not found: {}", fhair_resref, e),
-        }
-    }
-
     if let Some(ref wing_resref) = parts.wings_resref {
-        match model_loader::load_model(&rm, wing_resref) {
+        match model_loader::load_model(&rm, wing_resref, "wings", "none") {
             Ok(wing_data) => all_meshes.extend(wing_data.meshes),
             Err(e) => warn!("Failed to load wing model '{}': {}", wing_resref, e),
         }
     }
 
     if let Some(ref tail_resref) = parts.tail_resref {
-        match model_loader::load_model(&rm, tail_resref) {
+        match model_loader::load_model(&rm, tail_resref, "tail", "none") {
             Ok(tail_data) => all_meshes.extend(tail_data.meshes),
             Err(e) => warn!("Failed to load tail model '{}': {}", tail_resref, e),
         }
     }
 
+    if parts.show_helmet {
+        for helm_resref in &parts.helm_candidates {
+            if let Ok(helm_data) = model_loader::load_model_with_skeleton(
+                &rm,
+                helm_resref,
+                &parts.skeleton_resref,
+                "helm",
+                "body",
+            ) {
+                all_meshes.extend(helm_data.meshes);
+                break;
+            }
+        }
+    }
+
+    if !parts.boots_candidates.is_empty() {
+        let mut loaded = false;
+        for boots_resref in &parts.boots_candidates {
+            if let Ok(data) = model_loader::load_model_with_skeleton(
+                &rm,
+                boots_resref,
+                &parts.skeleton_resref,
+                "boots",
+                "body",
+            ) {
+                all_meshes.extend(data.meshes);
+                loaded = true;
+                break;
+            }
+        }
+        if !loaded {
+            warn!(
+                "Failed to load boots from candidates: {:?}",
+                parts.boots_candidates
+            );
+        }
+    }
+
+    if !parts.gloves_candidates.is_empty() {
+        let mut loaded = false;
+        for gloves_resref in &parts.gloves_candidates {
+            if let Ok(data) = model_loader::load_model_with_skeleton(
+                &rm,
+                gloves_resref,
+                &parts.skeleton_resref,
+                "gloves",
+                "body",
+            ) {
+                all_meshes.extend(data.meshes);
+                loaded = true;
+                break;
+            }
+        }
+        if !loaded {
+            warn!(
+                "Failed to load gloves from candidates: {:?}",
+                parts.gloves_candidates
+            );
+        }
+    }
+
+    if let Some(ref cloak_resref) = parts.cloak_resref {
+        match model_loader::load_model_with_skeleton(
+            &rm,
+            cloak_resref,
+            &parts.skeleton_resref,
+            "cloak",
+            "body",
+        ) {
+            Ok(cloak_data) => all_meshes.extend(cloak_data.meshes),
+            Err(e) => warn!("Failed to load cloak model '{}': {}", cloak_resref, e),
+        }
+    }
+
     if all_meshes.is_empty() {
         return Err(CommandError::Internal(
-            "No model meshes could be loaded".into(),
+            "No model meshes could be loaded".to_string(),
         ));
     }
 
@@ -197,5 +318,151 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         hair: Vec::new(),
         helm: Vec::new(),
         skeleton,
+    })
+}
+
+#[tauri::command]
+pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandResult<ModelData> {
+    let session = state.session.read();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    let game_data = state.game_data.read();
+
+    let parts = character.resolve_model_parts(&game_data).ok_or_else(|| {
+        CommandError::Internal("Failed to resolve character model parts".to_string())
+    })?;
+
+    let rm = state.resource_manager.blocking_read();
+    let mut meshes: Vec<MeshData> = Vec::new();
+
+    match part.as_str() {
+        "head" => {
+            if let Ok(data) = model_loader::load_model_with_skeleton(
+                &rm,
+                &parts.head_resref,
+                &parts.skeleton_resref,
+                "head",
+                "head",
+            ) {
+                meshes.extend(
+                    data.meshes
+                        .into_iter()
+                        .filter(|m| !m.name.to_lowercase().contains("_fhair")),
+                );
+            }
+        }
+        "hair" => {
+            if let Some(ref resref) = parts.hair_resref
+                && let Ok(data) = model_loader::load_model_with_skeleton(
+                    &rm,
+                    resref,
+                    &parts.skeleton_resref,
+                    "hair",
+                    "hair",
+                )
+            {
+                meshes.extend(data.meshes);
+            }
+        }
+        "fhair" => {
+            if parts.show_fhair
+                && let Ok(data) = model_loader::load_model_with_skeleton(
+                    &rm,
+                    &parts.head_resref,
+                    &parts.skeleton_resref,
+                    "fhair",
+                    "hair",
+                )
+            {
+                for mesh in data.meshes {
+                    if mesh.name.to_lowercase().contains("_fhair") {
+                        meshes.push(mesh);
+                    }
+                }
+            }
+        }
+        "wings" => {
+            if let Some(ref resref) = parts.wings_resref
+                && let Ok(data) = model_loader::load_model(&rm, resref, "wings", "none")
+            {
+                meshes.extend(data.meshes);
+            }
+        }
+        "tail" => {
+            if let Some(ref resref) = parts.tail_resref
+                && let Ok(data) = model_loader::load_model(&rm, resref, "tail", "none")
+            {
+                meshes.extend(data.meshes);
+            }
+        }
+        "helm" => {
+            if parts.show_helmet {
+                for resref in &parts.helm_candidates {
+                    if let Ok(data) = model_loader::load_model_with_skeleton(
+                        &rm,
+                        resref,
+                        &parts.skeleton_resref,
+                        "helm",
+                        "body",
+                    ) {
+                        meshes.extend(data.meshes);
+                        break;
+                    }
+                }
+            }
+        }
+        "body" => {
+            let mut loaded = false;
+            for part_resref in &parts.body_parts {
+                if let Ok(part_data) = model_loader::load_model_with_skeleton(
+                    &rm,
+                    part_resref,
+                    &parts.skeleton_resref,
+                    "body",
+                    "body",
+                ) {
+                    meshes.extend(part_data.meshes);
+                    loaded = true;
+                    break;
+                }
+            }
+            if !loaded {
+                if let Ok(part_data) = model_loader::load_model_with_skeleton(
+                    &rm,
+                    &parts.naked_body_resref,
+                    &parts.skeleton_resref,
+                    "body",
+                    "body",
+                ) {
+                    meshes.extend(part_data.meshes);
+                }
+            }
+        }
+        "cloak" => {
+            if let Some(ref resref) = parts.cloak_resref
+                && let Ok(data) = model_loader::load_model_with_skeleton(
+                    &rm,
+                    resref,
+                    &parts.skeleton_resref,
+                    "cloak",
+                    "body",
+                )
+            {
+                meshes.extend(data.meshes);
+            }
+        }
+        _ => {
+            return Err(CommandError::Internal(format!("Unknown part type: {part}")));
+        }
+    }
+
+    Ok(ModelData {
+        meshes,
+        hooks: Vec::new(),
+        hair: Vec::new(),
+        helm: Vec::new(),
+        skeleton: None,
     })
 }

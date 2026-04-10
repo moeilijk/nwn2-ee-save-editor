@@ -23,6 +23,7 @@ pub struct ZipReadResult {
 pub struct ZipContentReader {
     open_archives: HashMap<String, ZipArchive<BufReader<File>>>,
     file_indices: HashMap<String, HashMap<String, usize>>,
+    basename_indices: HashMap<String, HashMap<String, String>>,
     files_read: u64,
     bytes_read: u64,
     archives_opened: u64,
@@ -34,6 +35,7 @@ impl ZipContentReader {
         ZipContentReader {
             open_archives: HashMap::new(),
             file_indices: HashMap::new(),
+            basename_indices: HashMap::new(),
             files_read: 0,
             bytes_read: 0,
             archives_opened: 0,
@@ -255,14 +257,9 @@ impl ZipContentReader {
 
         let filename_lower = filename.to_lowercase();
         let internal_path = self
-            .file_indices
+            .basename_indices
             .get(zip_path)
-            .and_then(|indices| {
-                indices.keys().find(|k| {
-                    let name = k.rsplit('/').next().unwrap_or(k);
-                    name.eq_ignore_ascii_case(&filename_lower)
-                })
-            })
+            .and_then(|basenames| basenames.get(&filename_lower))
             .cloned();
 
         if let Some(path) = internal_path {
@@ -296,6 +293,31 @@ impl ZipContentReader {
             .unwrap_or_default())
     }
 
+    pub fn list_files_by_prefix(
+        &mut self,
+        zip_path: &str,
+        prefix: &str,
+        extension: &str,
+    ) -> Result<Vec<String>, String> {
+        if !self.open_archives.contains_key(zip_path) {
+            self.open_archive(zip_path)?;
+        }
+
+        let prefix_lower = prefix.to_lowercase();
+        let ext_lower = format!(".{}", extension.to_lowercase());
+        Ok(self
+            .basename_indices
+            .get(zip_path)
+            .map(|basenames| {
+                basenames
+                    .keys()
+                    .filter(|name| name.starts_with(&prefix_lower) && name.ends_with(&ext_lower))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     fn open_archive(&mut self, zip_path: &str) -> Result<(), String> {
         let path = Path::new(zip_path);
         if !path.exists() {
@@ -312,13 +334,19 @@ impl ZipContentReader {
             .map_err(|e| format!("Failed to read ZIP archive {zip_path}: {e}"))?;
 
         let mut indices = HashMap::new();
+        let mut basenames = HashMap::new();
         for i in 0..archive.len() {
             if let Ok(file) = archive.by_index_raw(i) {
-                indices.insert(file.name().to_string(), i);
+                let name = file.name().to_string();
+                let basename = name.rsplit('/').next().unwrap_or(&name).to_lowercase();
+                basenames.insert(basename, name.clone());
+                indices.insert(name, i);
             }
         }
 
         self.file_indices.insert(zip_path.to_string(), indices);
+        self.basename_indices
+            .insert(zip_path.to_string(), basenames);
         self.open_archives.insert(zip_path.to_string(), archive);
         self.archives_opened += 1;
 

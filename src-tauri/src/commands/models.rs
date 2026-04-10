@@ -24,7 +24,7 @@ fn strip_extension(name: &str) -> &str {
 pub fn load_model(state: State<'_, AppState>, resref: String) -> Result<ModelData, String> {
     info!("Loading model: {}", resref);
     let rm = state.resource_manager.blocking_read();
-    match model_loader::load_model(&rm, &resref) {
+    match model_loader::load_model(&rm, &resref, "none", "none") {
         Ok(data) => {
             info!(
                 "Model loaded: {} meshes, {} hooks, skeleton={}",
@@ -69,6 +69,12 @@ pub fn get_texture_bytes(state: State<'_, AppState>, name: String) -> Result<Vec
 
 #[tauri::command]
 pub fn list_available_models(state: State<'_, AppState>) -> Result<Vec<ModelEntry>, String> {
+    let mut cache = state.model_list_cache.lock();
+    if let Some(cached) = cache.as_ref() {
+        info!("Returning {} cached MDB models", cached.len());
+        return Ok(cached.clone());
+    }
+
     info!("Scanning for available models...");
     let rm = state.resource_manager.blocking_read();
     let files = rm.list_resources_by_extension("mdb");
@@ -86,5 +92,6 @@ pub fn list_available_models(state: State<'_, AppState>) -> Result<Vec<ModelEntr
         })
         .collect();
     info!("Found {} MDB models", count);
+    *cache = Some(result.clone());
     Ok(result)
 }

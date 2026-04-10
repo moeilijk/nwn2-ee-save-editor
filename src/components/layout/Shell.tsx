@@ -17,11 +17,14 @@ import { FeatsPanel } from '../Feats/FeatsPanel';
 import { SpellsPanel } from '../Spells/SpellsPanel';
 import { InventoryPanel } from '../Inventory/InventoryPanel';
 import { GameStatePanel } from '../GameState/GameStatePanel';
+import { ModelBrowser } from '../ModelViewer/ModelBrowser';
+import { AppearancePanel } from '../Appearance/AppearancePanel';
 import DashboardPanel from '../Dashboard/DashboardPanel';
 import { LevelHelper, ErrorBoundary, AboutDialog } from '../shared';
 
 const PANELS: Record<string, React.ComponentType> = {
   overview: OverviewPanel,
+  appearance: AppearancePanel,
   abilities: AbilitiesPanel,
   classes: ClassesPanel,
   skills: SkillsPanel,
@@ -29,6 +32,7 @@ const PANELS: Record<string, React.ComponentType> = {
   spells: SpellsPanel,
   inventory: InventoryPanel,
   gamestate: GameStatePanel,
+  models: ModelBrowser,
 };
 
 function ShellContent() {

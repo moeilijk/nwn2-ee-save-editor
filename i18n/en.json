@@ -43,9 +43,11 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "confirmRestore": "Confirm Restore",
-    "confirmRestoreMessage": "This will restore the save <strong>{name}</strong> to its state before any modifications were made.",
+    "confirmRestoreMessage": "This will restore the save {name} to its state before any modifications were made.",
     "confirmRestoreWarning": "This will permanently replace your current save folder with this backup. Any progress or changes made after this backup was created will be lost and cannot be recovered.",
-    "restoreBackup": "Restore Backup"
+    "restoreBackup": "Restore Backup",
+    "backupDeleted": "Backup deleted successfully",
+    "restoreSuccess": "Save restored successfully"
   },
   "navigation": {
     "overview": "Overview",
@@ -768,6 +770,10 @@
       "restoreBackupDesc": "Select a backup to restore the campaign.cam file to a previous state",
       "noBackups": "No backups available. Backups are created automatically when you save changes.",
       "restoreSuccess": "Campaign restored successfully"
+    },
+    "warnings": {
+      "moduleVariables": "Module variable edits may not take effect. The character's internal module data (visited areas, map progress) is stored separately and not yet synced.",
+      "campaignVariables": "Quest progress and faction reputation changes may not fully apply. The character stores its own copies of journal state and reputation data that are not yet synced with globals.xml."
     }
   },
   "common": {
@@ -1025,7 +1031,21 @@
     "modelsFound": "models",
     "resref": "Model",
     "source": "Source",
-    "selectModel": "Select a model to preview"
+    "selectModel": "Select a model to preview",
+    "category": "Category",
+    "categoryAll": "All Models",
+    "categoryEquipment": "Equipment (Body Parts)",
+    "categoryHeads": "Heads",
+    "categoryHair": "Hair",
+    "categoryCloaks": "Cloaks",
+    "categoryCreatures": "Creatures",
+    "categoryPlaceables": "Placeables",
+    "categoryDoors": "Doors",
+    "categoryWeapons": "Weapons",
+    "categoryArmor": "Armor / Helmets",
+    "categoryEffects": "Effects / VFX",
+    "categoryTerrain": "Terrain / Trees",
+    "categoryOther": "Other"
   },
   "race": {
     "selectTitle": "Select Race",
@@ -1043,33 +1063,31 @@
   "appearance": {
     "title": "Appearance",
     "raceAndGender": "Race & Gender",
+    "headAndHair": "Head & Hair",
     "head": "Head",
-    "headVariation": "Head Variation",
-    "bodyParts": "Body Parts",
-    "torso": "Torso",
-    "pelvis": "Pelvis",
-    "belt": "Belt",
-    "neck": "Neck",
-    "shoulders": "Shoulders",
-    "biceps": "Biceps",
-    "forearms": "Forearms",
-    "hands": "Hands",
-    "thighs": "Thighs",
-    "shins": "Shins",
-    "feet": "Feet",
-    "variant": "Variant {id}",
+    "hairStyle": "Hair Style",
+    "facialHair": "Facial Hair",
     "colors": "Colors",
-    "skinColor": "Skin Color",
-    "hairColor": "Hair Color",
+    "skin": "Skin",
+    "eyes": "Eyes",
+    "eyebrows": "Eyebrows",
+    "hairBase": "Hair Base",
+    "hairHighlight": "Hair Highlight",
+    "hairAccessory": "Hair Accessory",
+    "tattoos": "Tattoos",
     "tattoo1Color": "Tattoo 1 Color",
     "tattoo2Color": "Tattoo 2 Color",
+    "size": "Size",
+    "height": "Height",
+    "girth": "Girth",
     "voice": "Voice",
     "soundset": "Soundset",
-    "build": "Build",
-    "phenotype": "Phenotype",
     "wingsAndTail": "Wings & Tail",
     "wings": "Wings",
     "tail": "Tail",
-    "none": "None"
+    "none": "None",
+    "equipment": "Equipment",
+    "showHelmet": "Show Helmet",
+    "noFacialHair": "No facial hair available for this head"
   }
 }

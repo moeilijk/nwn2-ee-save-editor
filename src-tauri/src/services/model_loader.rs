@@ -3,7 +3,7 @@ use tracing::{debug, warn};
 
 use crate::parsers::gr2::Gr2Parser;
 use crate::parsers::mdb::MdbParser;
-use crate::parsers::mdb::types::{RigidMeshPacket, SkinMeshPacket};
+use crate::parsers::mdb::types::{Material, RigidMeshPacket, SkinMeshPacket};
 use crate::services::resource_manager::ResourceManager;
 
 fn guess_body_skeleton(prefix: &str) -> Option<&'static str> {
@@ -93,6 +93,8 @@ pub struct ModelData {
 pub struct MeshData {
     pub name: String,
     pub mesh_type: String,
+    pub part: String,
+    pub tint_group: String,
     pub positions: Vec<f32>,
     pub normals: Vec<f32>,
     pub uvs: Vec<f32>,
@@ -149,7 +151,64 @@ pub struct HelmData {
     pub orientation: [[f32; 3]; 3],
 }
 
-pub fn load_model(resource_manager: &ResourceManager, resref: &str) -> Result<ModelData, String> {
+pub fn head_has_fhair_meshes(resource_manager: &ResourceManager, head_resref: &str) -> bool {
+    let Ok(mdb_data) = resource_manager.get_resource_bytes(head_resref, "mdb") else {
+        return false;
+    };
+    let Ok(mdb) = MdbParser::parse(&mdb_data) else {
+        return false;
+    };
+    mdb.skin_meshes
+        .iter()
+        .any(|m| m.name.to_lowercase().contains("_fhair"))
+        || mdb
+            .rigid_meshes
+            .iter()
+            .any(|m| m.name.to_lowercase().contains("_fhair"))
+}
+
+pub fn load_model(
+    resource_manager: &ResourceManager,
+    resref: &str,
+    part: &str,
+    tint_group: &str,
+) -> Result<ModelData, String> {
+    let (mut data, mdb) = parse_mdb(resource_manager, resref, part, tint_group)?;
+
+    data.skeleton = mdb.skin_meshes.first().and_then(|sm| {
+        let skeleton_name = resolve_skeleton_name(&sm.name, &sm.skeleton_name);
+        debug!(
+            "Resolving skeleton '{}' for mesh '{}'",
+            skeleton_name, sm.name
+        );
+        load_skeleton(resource_manager, &skeleton_name)
+    });
+
+    Ok(data)
+}
+
+pub fn load_model_with_skeleton(
+    resource_manager: &ResourceManager,
+    resref: &str,
+    skeleton_resref: &str,
+    part: &str,
+    tint_group: &str,
+) -> Result<ModelData, String> {
+    let (mut data, mdb) = parse_mdb(resource_manager, resref, part, tint_group)?;
+
+    if !mdb.skin_meshes.is_empty() {
+        data.skeleton = load_skeleton(resource_manager, skeleton_resref);
+    }
+
+    Ok(data)
+}
+
+fn parse_mdb(
+    resource_manager: &ResourceManager,
+    resref: &str,
+    part: &str,
+    tint_group: &str,
+) -> Result<(ModelData, crate::parsers::mdb::types::MdbFile), String> {
     let mdb_data = resource_manager
         .get_resource_bytes(resref, "mdb")
         .map_err(|e| format!("Failed to load MDB {resref}: {e}"))?;
@@ -158,55 +217,12 @@ pub fn load_model(resource_manager: &ResourceManager, resref: &str) -> Result<Mo
         MdbParser::parse(&mdb_data).map_err(|e| format!("Failed to parse MDB {resref}: {e}"))?;
 
     let mut meshes = Vec::new();
-
     for rm in &mdb.rigid_meshes {
-        meshes.push(flatten_rigid_mesh(rm));
+        meshes.push(flatten_rigid_mesh(rm, part, tint_group));
     }
-
     for sm in &mdb.skin_meshes {
-        meshes.push(flatten_skin_mesh(sm));
+        meshes.push(flatten_skin_mesh(sm, part, tint_group));
     }
-
-    let skeleton = mdb.skin_meshes.first().and_then(|sm| {
-        let skeleton_name = resolve_skeleton_name(&sm.name, &sm.skeleton_name);
-        debug!(
-            "Resolving skeleton '{}' for mesh '{}'",
-            skeleton_name, sm.name
-        );
-
-        match resource_manager.get_resource_bytes(&skeleton_name, "gr2") {
-            Ok(gr2_data) => match Gr2Parser::parse(&gr2_data) {
-                Ok(skel) => {
-                    debug!(
-                        "Loaded skeleton '{}' with {} bones",
-                        skel.name,
-                        skel.bones.len()
-                    );
-                    Some(SkeletonData {
-                        bones: skel
-                            .bones
-                            .iter()
-                            .map(|b| BoneData {
-                                name: b.name.clone(),
-                                parent_index: b.parent_index,
-                                position: b.transform.position,
-                                rotation: b.transform.rotation,
-                                scale: b.transform.scale,
-                            })
-                            .collect(),
-                    })
-                }
-                Err(e) => {
-                    warn!("Failed to parse GR2 {}: {}", skeleton_name, e);
-                    None
-                }
-            },
-            Err(e) => {
-                warn!("Skeleton not found {}: {}", skeleton_name, e);
-                None
-            }
-        }
-    });
 
     let hooks = mdb
         .hooks
@@ -240,16 +256,63 @@ pub fn load_model(resource_manager: &ResourceManager, resref: &str) -> Result<Mo
         })
         .collect();
 
-    Ok(ModelData {
+    let data = ModelData {
         meshes,
         hooks,
         hair,
         helm,
-        skeleton,
-    })
+        skeleton: None,
+    };
+
+    Ok((data, mdb))
 }
 
-fn flatten_rigid_mesh(rm: &RigidMeshPacket) -> MeshData {
+fn load_skeleton(resource_manager: &ResourceManager, skeleton_name: &str) -> Option<SkeletonData> {
+    match resource_manager.get_resource_bytes(skeleton_name, "gr2") {
+        Ok(gr2_data) => match Gr2Parser::parse(&gr2_data) {
+            Ok(skel) => {
+                debug!(
+                    "Loaded skeleton '{}' with {} bones",
+                    skel.name,
+                    skel.bones.len()
+                );
+                Some(SkeletonData {
+                    bones: skel
+                        .bones
+                        .iter()
+                        .map(|b| BoneData {
+                            name: b.name.clone(),
+                            parent_index: b.parent_index,
+                            position: b.transform.position,
+                            rotation: b.transform.rotation,
+                            scale: b.transform.scale,
+                        })
+                        .collect(),
+                })
+            }
+            Err(e) => {
+                warn!("Failed to parse GR2 {}: {}", skeleton_name, e);
+                None
+            }
+        },
+        Err(e) => {
+            warn!("Skeleton not found {}: {}", skeleton_name, e);
+            None
+        }
+    }
+}
+
+fn convert_material(m: &Material) -> MaterialData {
+    MaterialData {
+        diffuse_map: m.diffuse_map_name.clone(),
+        normal_map: m.normal_map_name.clone(),
+        tint_map: m.tint_map_name.clone(),
+        glow_map: m.glow_map_name.clone(),
+        flags: m.flags,
+    }
+}
+
+fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> MeshData {
     let vc = rm.vertices.len();
     let mut positions = Vec::with_capacity(vc * 3);
     let mut normals = Vec::with_capacity(vc * 3);
@@ -264,29 +327,23 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket) -> MeshData {
         uvs.push(v.uvw[1]);
     }
 
-    let indices: Vec<u16> = rm.faces.iter().flat_map(|f| f.indices).collect();
-
     MeshData {
         name: rm.name.clone(),
         mesh_type: "rigid".to_string(),
+        part: part.to_string(),
+        tint_group: tint_group.to_string(),
         positions,
         normals,
         uvs,
         tangents,
-        indices,
+        indices: rm.faces.iter().flat_map(|f| f.indices).collect(),
         bone_weights: None,
         bone_indices: None,
-        material: MaterialData {
-            diffuse_map: rm.material.diffuse_map_name.clone(),
-            normal_map: rm.material.normal_map_name.clone(),
-            tint_map: rm.material.tint_map_name.clone(),
-            glow_map: rm.material.glow_map_name.clone(),
-            flags: rm.material.flags,
-        },
+        material: convert_material(&rm.material),
     }
 }
 
-fn flatten_skin_mesh(sm: &SkinMeshPacket) -> MeshData {
+fn flatten_skin_mesh(sm: &SkinMeshPacket, part: &str, tint_group: &str) -> MeshData {
     let vc = sm.vertices.len();
     let mut positions = Vec::with_capacity(vc * 3);
     let mut normals = Vec::with_capacity(vc * 3);
@@ -305,24 +362,18 @@ fn flatten_skin_mesh(sm: &SkinMeshPacket) -> MeshData {
         bone_indices.extend_from_slice(&v.bone_indices);
     }
 
-    let indices: Vec<u16> = sm.faces.iter().flat_map(|f| f.indices).collect();
-
     MeshData {
         name: sm.name.clone(),
         mesh_type: "skin".to_string(),
+        part: part.to_string(),
+        tint_group: tint_group.to_string(),
         positions,
         normals,
         uvs,
         tangents,
-        indices,
+        indices: sm.faces.iter().flat_map(|f| f.indices).collect(),
         bone_weights: Some(bone_weights),
         bone_indices: Some(bone_indices),
-        material: MaterialData {
-            diffuse_map: sm.material.diffuse_map_name.clone(),
-            normal_map: sm.material.normal_map_name.clone(),
-            tint_map: sm.material.tint_map_name.clone(),
-            glow_map: sm.material.glow_map_name.clone(),
-            flags: sm.material.flags,
-        },
+        material: convert_material(&sm.material),
     }
 }

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use tracing::{debug, info, instrument};
 
+use crate::commands::models::ModelEntry;
 use crate::config::{AppConfig, NWN2Paths};
 use crate::loaders::GameData;
 use crate::services::resource_manager::ResourceManager;
@@ -32,6 +33,7 @@ pub struct AppState {
     pub game_data: Arc<RwLock<GameData>>,
     pub session: Arc<RwLock<SessionState>>,
     pub init_status: Arc<RwLock<InitStatus>>,
+    pub model_list_cache: Mutex<Option<Vec<ModelEntry>>>,
 }
 
 impl AppState {
@@ -75,6 +77,7 @@ impl AppState {
             game_data,
             session: Arc::new(RwLock::new(session)),
             init_status: Arc::new(RwLock::new(InitStatus::default())),
+            model_list_cache: Mutex::new(None),
         }
     }
 }
