@@ -3,6 +3,7 @@ import { Button, InputGroup, Spinner } from '@blueprintjs/core';
 import { T } from '../theme';
 import { ParchmentDialog } from '../shared';
 import { CharacterAPI, type Deity } from '@/services/characterApi';
+import { useIcon } from '@/hooks/useIcon';
 
 interface DeityDialogProps {
   isOpen: boolean;
@@ -121,7 +122,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
         <div style={{ flex: 1, padding: 16 }}>
           {detail ? (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 4 }}>{detail.name}</div>
+              <DeityDetailHeader deity={detail} />
               {detail.alignment && <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 16 }}>{detail.alignment}</div>}
 
               {detail.portfolio && <DetailRow label="Portfolio" value={detail.portfolio} />}
@@ -145,6 +146,16 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
         </div>
       </div>
     </ParchmentDialog>
+  );
+}
+
+function DeityDetailHeader({ deity }: { deity: Deity }) {
+  const iconUrl = useIcon(deity.icon);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+      {iconUrl && <img src={iconUrl} alt="" width={32} height={32} style={{ borderRadius: 4, flexShrink: 0 }} />}
+      <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{deity.name}</div>
+    </div>
   );
 }
 

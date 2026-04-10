@@ -5,6 +5,7 @@ import { T } from '../theme';
 import { ParchmentDialog } from '../shared';
 import { useTranslations } from '@/hooks/useTranslations';
 import { stripNwn2Tags } from '@/utils/nwn2Markup';
+import { useIcon } from '@/hooks/useIcon';
 
 interface AbilityModifiers {
   Str: number;
@@ -18,6 +19,7 @@ interface AbilityModifiers {
 interface RaceInfo {
   id: number;
   name: string;
+  icon: string | null;
   description: string | null;
   ability_adjustments: AbilityModifiers;
   favored_class: string | null;
@@ -28,6 +30,7 @@ interface SubraceInfo {
   id: number;
   name: string;
   label: string;
+  icon: string | null;
   description: string | null;
   ability_adjustments: AbilityModifiers;
   favored_class: string | null;
@@ -280,7 +283,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
         <div style={{ flex: 1, padding: 16, overflowY: 'auto' }}>
           {displayName ? (
             <div>
-              <div style={{ fontWeight: 700, color: T.text, marginBottom: 12 }}>{displayName}</div>
+              <RaceDetailHeader name={displayName} icon={selectedSub?.icon ?? detail?.icon ?? null} />
               <RaceDescription text={displayDescription} />
             </div>
           ) : (
@@ -294,6 +297,16 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
 
       </div>
     </ParchmentDialog>
+  );
+}
+
+function RaceDetailHeader({ name, icon }: { name: string; icon: string | null }) {
+  const iconUrl = useIcon(icon);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      {iconUrl && <img src={iconUrl} alt="" width={32} height={32} style={{ borderRadius: 4, flexShrink: 0 }} />}
+      <div style={{ fontWeight: 700, color: T.text }}>{name}</div>
+    </div>
   );
 }
 

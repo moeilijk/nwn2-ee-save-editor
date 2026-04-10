@@ -14,6 +14,7 @@ import { inventoryAPI } from '@/services/inventoryApi';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import type { FullEquippedItem, FullInventoryItem } from '@/lib/bindings';
 import { resolveEquipSlot } from '@/utils/inventoryUtils';
+import { useIcon } from '@/hooks/useIcon';
 
 const DISPLAY_SLOT_TO_API: Record<string, string> = {
   'Main Hand': 'right_hand',
@@ -74,6 +75,7 @@ interface EquipSlotProps {
 function EquipSlot({ slot, equippedItem, selected, onSelect }: EquipSlotProps) {
   const label = SLOT_LABELS[slot] || slot.charAt(0);
   const hasItem = !!equippedItem;
+  const iconUrl = useIcon(equippedItem?.icon);
 
   return (
     <div
@@ -91,14 +93,18 @@ function EquipSlot({ slot, equippedItem, selected, onSelect }: EquipSlotProps) {
       }}
     >
       {hasItem ? (
-        <div style={{
-          width: 30, height: 30, borderRadius: 3,
-          background: T.sectionBg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, color: T.accent,
-        }}>
-          {equippedItem.name.charAt(0)}
-        </div>
+        iconUrl ? (
+          <img src={iconUrl} alt="" width={36} height={36} style={{ borderRadius: 3 }} />
+        ) : (
+          <div style={{
+            width: 30, height: 30, borderRadius: 3,
+            background: T.sectionBg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, color: T.accent,
+          }}>
+            {equippedItem.name.charAt(0)}
+          </div>
+        )
       ) : (
         <span style={{ fontWeight: 600, color: T.border }}>{label}</span>
       )}

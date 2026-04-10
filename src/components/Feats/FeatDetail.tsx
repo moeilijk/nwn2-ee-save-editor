@@ -6,6 +6,7 @@ import { FEAT_TYPE_LABELS, getFeatTypeLabel } from '@/utils/featUtils';
 import { DetailSection } from '../shared';
 import { display } from '@/utils/dataHelpers';
 import { useTranslations } from '@/hooks/useTranslations';
+import { useIcon } from '@/hooks/useIcon';
 
 interface FeatDetailProps {
   feat: FeatInfo | null;
@@ -24,6 +25,7 @@ function isBackendPrerequisites(prereqs: unknown): prereqs is BackendFeatPrerequ
 export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) {
   const t = useTranslations();
   const [busy, setBusy] = useState(false);
+  const iconUrl = useIcon(feat?.icon);
 
   if (!feat) {
     return (
@@ -61,13 +63,24 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <span style={{ fontWeight: 700, color: T.text }}>{display(feat.name)}</span>
-          <span style={{ color: T.textMuted }}> — </span>
-          <span style={{ color: typeColor, fontWeight: 500 }}>{typeLabel}</span>
-          {feat.protected && (
-            <span style={{ marginLeft: 8, fontSize: 11, color: T.textMuted, fontStyle: 'italic' }}>protected</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {iconUrl && (
+            <img
+              src={iconUrl}
+              alt=""
+              width={32}
+              height={32}
+              style={{ borderRadius: 4, flexShrink: 0 }}
+            />
           )}
+          <div>
+            <span style={{ fontWeight: 700, color: T.text }}>{display(feat.name)}</span>
+            <span style={{ color: T.textMuted }}> — </span>
+            <span style={{ color: typeColor, fontWeight: 500 }}>{typeLabel}</span>
+            {feat.protected && (
+              <span style={{ marginLeft: 8, fontSize: 11, color: T.textMuted, fontStyle: 'italic' }}>protected</span>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           {isOwned && !feat.protected && onRemove && (

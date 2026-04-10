@@ -72,6 +72,7 @@ pub struct ClassInfo {
     pub primary_ability: String,
     pub bab_progression: String,
     pub alignment_restricted: bool,
+    pub icon: Option<String>,
     pub description: Option<String>,
     pub prerequisites: Option<PrestigeRequirements>,
 }
@@ -291,6 +292,8 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             None
         };
 
+        let icon = row_str(&row, "icon");
+
         let class_info = ClassInfo {
             id: row_idx as i32,
             name,
@@ -307,6 +310,7 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             bab_progression: row_str(&row, "attackbonustable")
                 .unwrap_or_else(|| "CLS_ATK_2".to_string()),
             alignment_restricted: align_restrict > 0,
+            icon,
             description,
             prerequisites,
         };

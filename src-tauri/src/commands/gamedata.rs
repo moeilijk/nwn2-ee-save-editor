@@ -211,6 +211,17 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     }
     info!("ResourceManager initialized");
 
+    // Pre-build icon index
+    {
+        let mut icon_index = state.icon_index.lock();
+        if icon_index.is_none() {
+            let paths = state.paths.read();
+            if let Some(game_folder) = paths.game_folder() {
+                *icon_index = Some(super::models::build_icon_index(game_folder));
+            }
+        }
+    }
+
     update_init_status(&state, "initializing", 2.0, "Loading TLK strings...");
     let tlk_parser = {
         let rm = state.resource_manager.read().await;
@@ -342,6 +353,7 @@ pub async fn get_available_spells(
 pub struct AvailableRace {
     pub id: i32,
     pub name: String,
+    pub icon: Option<String>,
     pub description: Option<String>,
     pub ability_adjustments: crate::character::types::AbilityModifiers,
     pub favored_class: Option<String>,
@@ -435,9 +447,12 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
             let default_subrace =
                 row_str(&row, "defaultsubrace").and_then(|s| s.parse::<i32>().ok());
 
+            let icon = row_str(&row, "male_race_icon");
+
             races.push(AvailableRace {
                 id: i as i32,
                 name,
+                icon,
                 description,
                 ability_adjustments,
                 favored_class,
@@ -453,6 +468,7 @@ pub struct AvailableSubrace {
     pub id: i32,
     pub name: String,
     pub label: String,
+    pub icon: Option<String>,
     pub description: Option<String>,
     pub ability_adjustments: crate::character::types::AbilityModifiers,
     pub favored_class: Option<String>,
@@ -524,10 +540,13 @@ pub async fn get_subraces_for_race(
         let appearance_idx = row_int(&row, "appearanceindex", -1);
         let size = resolve_size_from_appearance(appearance_idx, &game_data);
 
+        let icon = row_str(&row, "male_race_icon");
+
         subraces.push(AvailableSubrace {
             id: row_idx as i32,
             name,
             label,
+            icon,
             description,
             ability_adjustments,
             favored_class,

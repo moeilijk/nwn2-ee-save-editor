@@ -19,6 +19,8 @@ pub async fn load_character(
             drop(session);
             tokio::spawn(async move {
                 let state = app.state::<AppState>();
+
+                // Pre-warm feat cache
                 let cache = {
                     let game_data = state.game_data.read();
                     let session = state.session.read();
@@ -37,6 +39,7 @@ pub async fn load_character(
                 if session.feat_cache.is_none() {
                     session.feat_cache = Some(cache);
                 }
+                drop(session);
             });
             Ok(true)
         }

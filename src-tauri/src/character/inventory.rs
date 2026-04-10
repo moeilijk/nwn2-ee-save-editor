@@ -221,6 +221,7 @@ pub struct FullInventoryItem {
     pub base_item: i32,
     pub base_item_name: String,
     pub name: String,
+    pub icon: Option<String>,
     pub description: String,
     pub weight: f32,
     pub value: i32,
@@ -255,6 +256,7 @@ pub struct FullEquippedItem {
     pub base_item_name: String,
     pub custom: bool,
     pub name: String,
+    pub icon: Option<String>,
     pub description: String,
     pub weight: f32,
     pub value: i32,
@@ -762,12 +764,15 @@ impl super::Character {
 
                 let item_data = gff_struct_to_json(item_struct);
 
+                let icon = resolve_item_icon(item_struct, game_data);
+
                 inventory_items.push(FullInventoryItem {
                     index,
                     item: RawItemData(item_data),
                     base_item: base_item_id,
                     base_item_name,
                     name,
+                    icon,
                     description,
                     weight,
                     value,
@@ -856,12 +861,15 @@ impl super::Character {
 
                 let item_data = gff_struct_to_json(item_struct);
 
+                let icon = resolve_item_icon(item_struct, game_data);
+
                 equipped_items.push(FullEquippedItem {
                     slot: slot_name,
                     base_item: base_item_id,
                     base_item_name,
                     custom: is_custom,
                     name,
+                    icon,
                     description,
                     weight,
                     value,
@@ -2524,6 +2532,20 @@ fn gff_to_json_primitive(val: &GffValue) -> Option<JsonValue> {
         GffValue::Void(_) => None,
         _ => None,
     }
+}
+
+fn resolve_item_icon(
+    item_struct: &IndexMap<String, GffValue<'static>>,
+    game_data: &GameData,
+) -> Option<String> {
+    let icon_id = item_struct.get("Icon").and_then(gff_value_to_i32)?;
+    let icons_table = game_data.get_table("nwn2_icons")?;
+    let row = icons_table.get_by_id(icon_id)?;
+    let icon_resref = row.get("icon")?.as_ref()?;
+    if icon_resref == "****" || icon_resref.is_empty() {
+        return None;
+    }
+    Some(icon_resref.to_string())
 }
 
 fn gff_struct_to_json(

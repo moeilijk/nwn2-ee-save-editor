@@ -633,6 +633,7 @@ export interface FullInventoryItem {
   base_item: number;
   base_item_name: string;
   name: string;
+  icon: string | null;
   description: string;
   weight: number;
   value: number;
@@ -657,6 +658,7 @@ export interface FullEquippedItem {
   base_item_name: string;
   custom: boolean;
   name: string;
+  icon: string | null;
   description: string;
   weight: number;
   value: number;

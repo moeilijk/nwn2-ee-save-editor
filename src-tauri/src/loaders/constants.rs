@@ -14,6 +14,7 @@ pub const PRIORITY_TABLES: &[&str] = &[
     "cls_atk_3",
     "backgrounds",
     "domains",
+    "nwn2_icons",
 ];
 
 pub const CHARACTER_PREFIXES: &[&str] = &[
@@ -62,6 +63,7 @@ pub const CHARACTER_PREFIXES: &[&str] = &[
     "nwn2_bloodtypes",
     "nwn2_colors",
     "nwn2_deities",
+    "nwn2_icons",
     "parts_",
     "phenotype",
     "poison",
@@ -136,7 +138,6 @@ pub const IGNORE_PREFIXES: &[&str] = &[
     "nwn2_behaviorparams",
     "nwn2_dmcommands",
     "nwn2_emotes",
-    "nwn2_icons",
     "nwn2_scriptsets",
     "nwn2_tips",
     "nwn2_voicemenu",

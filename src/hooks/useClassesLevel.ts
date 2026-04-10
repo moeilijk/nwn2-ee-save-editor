@@ -37,6 +37,7 @@ export interface ClassInfo {
   primary_ability: string;
   bab_progression: string;
   alignment_restricted: boolean;
+  icon?: string;
   description?: string;
   prerequisites?: {
     base_attack_bonus: number | null;

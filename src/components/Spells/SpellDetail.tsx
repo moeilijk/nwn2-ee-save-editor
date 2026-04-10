@@ -5,6 +5,7 @@ import type { SpellInfo } from '@/components/Spells/types';
 import { DetailSection } from '../shared';
 import { display } from '@/utils/dataHelpers';
 import { useTranslations } from '@/hooks/useTranslations';
+import { useIcon } from '@/hooks/useIcon';
 import type { CasterClassInfo } from '@/utils/spellUtils';
 
 interface SpellDetailProps {
@@ -28,6 +29,7 @@ function InfoRow({ label, value, color }: { label: string; value: string; color?
 export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = [], onAdd, onRemove }: SpellDetailProps) {
   const t = useTranslations();
   const [busy, setBusy] = useState(false);
+  const iconUrl = useIcon(spell?.icon);
 
   if (!spell) {
     return (
@@ -63,14 +65,25 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <span style={{ fontWeight: 700, color: T.text }}>{display(spell.name)}</span>
-          {schoolName && (
-            <>
-              <span style={{ color: T.textMuted }}> — </span>
-              <span style={{ color: schoolColor, fontWeight: 500 }}>{schoolName}</span>
-            </>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {iconUrl && (
+            <img
+              src={iconUrl}
+              alt=""
+              width={32}
+              height={32}
+              style={{ borderRadius: 4, flexShrink: 0 }}
+            />
           )}
+          <div>
+            <span style={{ fontWeight: 700, color: T.text }}>{display(spell.name)}</span>
+            {schoolName && (
+              <>
+                <span style={{ color: T.textMuted }}> — </span>
+                <span style={{ color: schoolColor, fontWeight: 500 }}>{schoolName}</span>
+              </>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           {canRemove && onRemove && (

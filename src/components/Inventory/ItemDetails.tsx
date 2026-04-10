@@ -5,6 +5,7 @@ import { T } from '../theme';
 import { fmtNum } from '../shared';
 import type { FullEquippedItem, FullInventoryItem } from '@/lib/bindings';
 import { display } from '@/utils/dataHelpers';
+import { useIcon } from '@/hooks/useIcon';
 
 export type AnyItem =
   | (FullEquippedItem & { _kind: 'equipped' })
@@ -35,6 +36,7 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
   const t = useTranslations();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [editPlotWarnOpen, setEditPlotWarnOpen] = useState(false);
+  const iconUrl = useIcon(item?.icon);
 
   const isPlot = item && !isEquippedItem(item) && (item as FullInventoryItem).plot;
 
@@ -63,11 +65,22 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
     <div>
       <div style={{ padding: '14px 16px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {iconUrl && (
+              <img
+                src={iconUrl}
+                alt=""
+                width={40}
+                height={40}
+                style={{ borderRadius: 4, flexShrink: 0 }}
+              />
+            )}
+            <div>
             <H4 style={{ margin: 0, color: T.text }}>{name}</H4>
             <span style={{ color: T.textMuted }}>
               {equipped ? `${item.slot} \u00b7 ${baseItemName}` : baseItemName}
             </span>
+            </div>
           </div>
           {equipped && (
             <ButtonGroup minimal>

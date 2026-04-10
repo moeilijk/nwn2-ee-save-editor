@@ -1,19 +1,29 @@
+import { useEffect } from 'react';
 import { Icon, type IconName } from '@blueprintjs/core';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
+import { useIcon, fetchIcon } from '@/hooks/useIcon';
 
-const NAV_ITEMS: { id: string; icon: IconName; labelKey: string }[] = [
-  { id: 'overview', icon: 'person', labelKey: 'navigation.overview' },
-  { id: 'appearance', icon: 'style', labelKey: 'navigation.appearance' },
-  { id: 'abilities', icon: 'properties', labelKey: 'navigation.abilityScores' },
-  { id: 'classes', icon: 'layers', labelKey: 'navigation.classes' },
-  { id: 'skills', icon: 'build', labelKey: 'navigation.skills' },
-  { id: 'feats', icon: 'star', labelKey: 'navigation.feats' },
-  { id: 'spells', icon: 'flash', labelKey: 'navigation.spells' },
-  { id: 'inventory', icon: 'box', labelKey: 'navigation.inventory' },
-  { id: 'gamestate', icon: 'globe', labelKey: 'navigation.gameState' },
-  { id: 'models', icon: 'cube', labelKey: 'navigation.models' },
+const NAV_ITEMS: { id: string; icon: IconName; gameIcon: string | null; labelKey: string }[] = [
+  { id: 'overview', icon: 'person', gameIcon: 'ia_character', labelKey: 'navigation.overview' },
+  { id: 'appearance', icon: 'style', gameIcon: 'ia_appear', labelKey: 'navigation.appearance' },
+  { id: 'abilities', icon: 'properties', gameIcon: 'ife_toughness', labelKey: 'navigation.abilityScores' },
+  { id: 'classes', icon: 'layers', gameIcon: 'ic_b_fighter', labelKey: 'navigation.classes' },
+  { id: 'skills', icon: 'build', gameIcon: 'isk_lore', labelKey: 'navigation.skills' },
+  { id: 'feats', icon: 'star', gameIcon: 'ife_dodge', labelKey: 'navigation.feats' },
+  { id: 'spells', icon: 'flash', gameIcon: 'b_spellbook', labelKey: 'navigation.spells' },
+  { id: 'inventory', icon: 'box', gameIcon: 'ia_inventory', labelKey: 'navigation.inventory' },
+  { id: 'gamestate', icon: 'globe', gameIcon: 'b_journal', labelKey: 'navigation.gameState' },
+  { id: 'models', icon: 'cube', gameIcon: 'is_trueseeing', labelKey: 'navigation.models' },
 ];
+
+function NavIcon({ gameIcon, fallback, size }: { gameIcon: string | null; fallback: IconName; size: number }) {
+  const iconUrl = useIcon(gameIcon);
+  if (iconUrl) {
+    return <img src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 2, flexShrink: 0 }} />;
+  }
+  return <Icon icon={fallback} size={size} />;
+}
 
 interface SidebarProps {
   activeTab: string;
@@ -22,6 +32,12 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const t = useTranslations();
+
+  useEffect(() => {
+    NAV_ITEMS.forEach(item => {
+      if (item.gameIcon) fetchIcon(item.gameIcon);
+    });
+  }, []);
   return (
     <div style={{
       width: 200, flexShrink: 0,
@@ -48,7 +64,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               transition: 'all 0.15s',
             }}
           >
-            <Icon icon={item.icon} size={14} />
+            <NavIcon gameIcon={item.gameIcon} fallback={item.icon} size={24} />
             {t(item.labelKey)}
           </button>
         );

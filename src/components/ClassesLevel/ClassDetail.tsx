@@ -4,6 +4,7 @@ import { T } from '../theme';
 import { display } from '@/utils/dataHelpers';
 import type { ClassInfo } from '@/hooks/useClassesLevel';
 import { useTranslations } from '@/hooks/useTranslations';
+import { useIcon } from '@/hooks/useIcon';
 import { invoke } from '@tauri-apps/api/core';
 
 interface PrerequisiteCheck {
@@ -101,6 +102,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
   const t = useTranslations();
   const [detail, setDetail] = useState<ClassDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const iconUrl = useIcon(cls?.icon);
 
   useEffect(() => {
     if (!cls) {
@@ -147,7 +149,16 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
   return (
     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto', height: '100%' }}>
       {/* Header */}
-      <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {iconUrl && (
+          <img
+            src={iconUrl}
+            alt=""
+            width={32}
+            height={32}
+            style={{ borderRadius: 4, flexShrink: 0 }}
+          />
+        )}
         <span style={{ fontWeight: 700, color: T.text }}>{display(cls.name)}</span>
         {!canSelect && selectReason && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.negative, marginTop: 4 }}>

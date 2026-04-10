@@ -1,6 +1,10 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use image::{ImageBuffer, RgbaImage};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::services::model_loader::{self, ModelData};
 use crate::state::AppState;
@@ -65,6 +69,207 @@ pub fn get_texture_bytes(state: State<'_, AppState>, name: String) -> Result<Vec
             Err(format!("Texture not found {name}: {e}"))
         }
     }
+}
+
+pub fn build_icon_index(game_folder: &std::path::Path) -> HashMap<String, PathBuf> {
+    let mut index = HashMap::new();
+
+    fn walk(dir: &std::path::Path, index: &mut HashMap<String, PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, index);
+            } else if path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("dds") || e.eq_ignore_ascii_case("tga"))
+            {
+                if let Some(stem) = path.file_stem() {
+                    index.insert(stem.to_string_lossy().to_lowercase(), path);
+                }
+            }
+        }
+    }
+
+    // Base game upscaled icons
+    let icons_dir = game_folder.join("ui").join("upscaled").join("icons");
+    if icons_dir.exists() {
+        walk(&icons_dir, &mut index);
+    } else {
+        warn!("Icon directory not found: {}", icons_dir.display());
+    }
+
+    // Steam Workshop mod icons
+    let workshop_dir = game_folder
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|steamapps| steamapps.join("workshop").join("content").join("2738630"));
+    if let Some(workshop) = workshop_dir {
+        if workshop.exists() {
+            if let Ok(mods) = std::fs::read_dir(&workshop) {
+                for mod_entry in mods.flatten() {
+                    let override_dir = mod_entry.path().join("override");
+                    if override_dir.exists() {
+                        walk(&override_dir, &mut index);
+                    }
+                }
+            }
+        }
+    }
+
+    info!("Built icon index: {} icons", index.len());
+    index
+}
+
+#[tauri::command]
+pub fn get_icon_png(state: State<'_, AppState>, name: String) -> Result<String, String> {
+    let mut icon_index = state.icon_index.lock();
+    if icon_index.is_none() {
+        let paths = state.paths.read();
+        let game_folder = paths.game_folder().ok_or("Game folder not configured")?;
+        *icon_index = Some(build_icon_index(game_folder));
+    }
+
+    let name_lower = name.to_lowercase();
+    let index = icon_index.as_ref().unwrap();
+
+    // 1. Upscaled icons index (DDS, base game EE)
+    if let Some(icon_path) = index.get(&name_lower) {
+        let dds_bytes =
+            std::fs::read(icon_path).map_err(|e| format!("Failed to read icon {name}: {e}"))?;
+        let png_bytes = decode_dds_to_png(&dds_bytes)
+            .map_err(|e| format!("Failed to decode icon {name}: {e}"))?;
+        return encode_png_data_url(&png_bytes);
+    }
+
+    drop(icon_index);
+    let rm = state.resource_manager.blocking_read();
+
+    // 2. ResourceManager DDS (HAKs, override, zips)
+    if let Ok(dds_bytes) = rm.get_resource_bytes(&name, "dds") {
+        let png_bytes = decode_dds_to_png(&dds_bytes)
+            .map_err(|e| format!("Failed to decode icon {name}: {e}"))?;
+        return encode_png_data_url(&png_bytes);
+    }
+
+    // 3. ResourceManager TGA (mod icons like Kaedrin's pack)
+    if let Ok(tga_bytes) = rm.get_resource_bytes(&name, "tga") {
+        let png_bytes = decode_tga_to_png(&tga_bytes)
+            .map_err(|e| format!("Failed to decode TGA icon {name}: {e}"))?;
+        return encode_png_data_url(&png_bytes);
+    }
+
+    Err(format!("Icon not found: {name}"))
+}
+
+fn encode_png_data_url(png_bytes: &[u8]) -> Result<String, String> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes);
+    Ok(format!("data:image/png;base64,{b64}"))
+}
+
+fn decode_tga_to_png(tga_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let img = image::load_from_memory_with_format(tga_bytes, image::ImageFormat::Tga)
+        .map_err(|e| format!("TGA decode failed: {e}"))?;
+    let mut png_buf = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut png_buf, image::ImageFormat::Png)
+        .map_err(|e| format!("PNG encode failed: {e}"))?;
+    Ok(png_buf.into_inner())
+}
+
+const DDS_MAGIC: u32 = 0x2053_4444;
+const DDS_HEADER_SIZE: usize = 128;
+const DDS_DX10_HEADER_SIZE: usize = 148;
+const DDPF_FOURCC: u32 = 0x4;
+
+const DXGI_FORMAT_BC1_UNORM: u32 = 71;
+const DXGI_FORMAT_BC1_UNORM_SRGB: u32 = 72;
+const DXGI_FORMAT_BC3_UNORM: u32 = 77;
+const DXGI_FORMAT_BC3_UNORM_SRGB: u32 = 78;
+const DXGI_FORMAT_BC7_UNORM: u32 = 98;
+const DXGI_FORMAT_BC7_UNORM_SRGB: u32 = 99;
+
+macro_rules! decode_bc {
+    ($pixel_data:expr, $w:expr, $h:expr, $decoder:path, $name:literal) => {{
+        let mut buf = vec![0u32; $w * $h];
+        $decoder($pixel_data, $w, $h, &mut buf)
+            .map_err(|e| format!(concat!($name, " decode failed: {}"), e))?;
+        rgba_from_u32(&buf)
+    }};
+}
+
+fn decode_dds_to_png(dds_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    if dds_bytes.len() < DDS_DX10_HEADER_SIZE {
+        return Err("DDS file too small".into());
+    }
+
+    let magic = u32::from_le_bytes(dds_bytes[0..4].try_into().unwrap());
+    if magic != DDS_MAGIC {
+        return Err("Invalid DDS magic".into());
+    }
+
+    let height = u32::from_le_bytes(dds_bytes[12..16].try_into().unwrap()) as usize;
+    let width = u32::from_le_bytes(dds_bytes[16..20].try_into().unwrap()) as usize;
+    let pf_flags = u32::from_le_bytes(dds_bytes[80..84].try_into().unwrap());
+    let fourcc = &dds_bytes[84..88];
+
+    let has_fourcc = pf_flags & DDPF_FOURCC != 0;
+
+    let rgba = if has_fourcc && fourcc == b"DX10" {
+        let dxgi_format = u32::from_le_bytes(dds_bytes[128..132].try_into().unwrap());
+        let pixel_data = &dds_bytes[DDS_DX10_HEADER_SIZE..];
+
+        match dxgi_format {
+            DXGI_FORMAT_BC7_UNORM | DXGI_FORMAT_BC7_UNORM_SRGB => {
+                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc7, "BC7")
+            }
+            DXGI_FORMAT_BC1_UNORM | DXGI_FORMAT_BC1_UNORM_SRGB => {
+                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc1, "BC1")
+            }
+            DXGI_FORMAT_BC3_UNORM | DXGI_FORMAT_BC3_UNORM_SRGB => {
+                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc3, "BC3")
+            }
+            _ => return Err(format!("Unsupported DXGI format: {dxgi_format}")),
+        }
+    } else if has_fourcc {
+        let pixel_data = &dds_bytes[DDS_HEADER_SIZE..];
+
+        match fourcc {
+            b"DXT1" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc1, "DXT1"),
+            b"DXT5" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc3, "DXT5"),
+            b"DXT3" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc2, "DXT3"),
+            _ => {
+                let cc = String::from_utf8_lossy(fourcc);
+                return Err(format!("Unsupported FourCC: {cc}"));
+            }
+        }
+    } else {
+        return Err("Unsupported DDS format: no FourCC".into());
+    };
+
+    let img: RgbaImage = ImageBuffer::from_raw(width as u32, height as u32, rgba)
+        .ok_or("Failed to create image buffer")?;
+
+    let mut png_buf = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut png_buf, image::ImageFormat::Png)
+        .map_err(|e| format!("PNG encode failed: {e}"))?;
+
+    Ok(png_buf.into_inner())
+}
+
+/// texture2ddecoder outputs BGRA packed in u32; convert to RGBA byte array.
+fn rgba_from_u32(buf: &[u32]) -> Vec<u8> {
+    buf.iter()
+        .flat_map(|&pixel| {
+            let b = (pixel & 0xFF) as u8;
+            let g = ((pixel >> 8) & 0xFF) as u8;
+            let r = ((pixel >> 16) & 0xFF) as u8;
+            let a = ((pixel >> 24) & 0xFF) as u8;
+            [r, g, b, a]
+        })
+        .collect()
 }
 
 #[tauri::command]
