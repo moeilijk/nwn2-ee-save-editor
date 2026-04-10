@@ -211,17 +211,6 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     }
     info!("ResourceManager initialized");
 
-    // Pre-build icon index
-    {
-        let mut icon_index = state.icon_index.lock();
-        if icon_index.is_none() {
-            let paths = state.paths.read();
-            if let Some(game_folder) = paths.game_folder() {
-                *icon_index = Some(super::models::build_icon_index(game_folder));
-            }
-        }
-    }
-
     update_init_status(&state, "initializing", 2.0, "Loading TLK strings...");
     let tlk_parser = {
         let rm = state.resource_manager.read().await;

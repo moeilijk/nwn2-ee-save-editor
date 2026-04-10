@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
@@ -36,7 +34,6 @@ pub struct AppState {
     pub session: Arc<RwLock<SessionState>>,
     pub init_status: Arc<RwLock<InitStatus>>,
     pub model_list_cache: Mutex<Option<Vec<ModelEntry>>>,
-    pub icon_index: Mutex<Option<HashMap<String, PathBuf>>>,
 }
 
 impl AppState {
@@ -81,7 +78,6 @@ impl AppState {
             session: Arc::new(RwLock::new(session)),
             init_status: Arc::new(RwLock::new(InitStatus::default())),
             model_list_cache: Mutex::new(None),
-            icon_index: Mutex::new(None),
         }
     }
 }

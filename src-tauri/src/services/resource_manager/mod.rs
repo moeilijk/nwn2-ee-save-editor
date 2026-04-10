@@ -29,6 +29,26 @@ pub use override_chain::{
 
 const BASE_GAME_ZIPS: &[&str] = &["2da.zip", "2da_x1.zip", "2da_x2.zip"];
 const TEMPLATE_ZIPS: &[&str] = &["Templates.zip", "Templates_X1.zip", "Templates_X2.zip"];
+const SOUNDSET_ZIPS: &[&str] = &["soundsets.zip", "soundsets_x1.zip", "soundsets_x2.zip"];
+const SOUND_ZIPS: &[&str] = &["sounds.zip", "sounds_x1.zip", "sounds_x2.zip"];
+const MODEL_ZIPS: &[&str] = &[
+    "nwn2_models.zip",
+    "nwn2_models_x1.zip",
+    "nwn2_models_x2.zip",
+];
+const MATERIAL_ZIPS: &[&str] = &["nwn2_materials.zip"];
+const ACTOR_ZIPS: &[&str] = &["actors.zip", "actors_x1.zip", "actors_x2.zip"];
+const LOD_ZIPS: &[&str] = &[
+    "lod-merged.zip",
+    "lod-merged_x1.zip",
+    "lod-merged_x2.zip",
+    "lod-merged_v101.zip",
+    "lod-merged_v107.zip",
+    "lod-merged_v121.zip",
+    "lod-merged_x1_v121.zip",
+    "lod-merged_x2_v121.zip",
+];
+const VO_ZIPS: &[&str] = &["vo.zip", "vo_x1.zip", "vo_x2.zip"];
 
 pub struct ResourceManager {
     paths: Arc<RwLock<NWN2Paths>>,
@@ -55,7 +75,7 @@ pub struct ResourceManager {
 
     current_module: Option<String>,
     module_path: Option<PathBuf>,
-    // module_parser: Option<Arc<ErfParser>>, // Removing unused field
+
     module_info: Option<ModuleInfo>,
 
     current_campaign_id: Option<String>,
@@ -65,6 +85,9 @@ pub struct ResourceManager {
     file_mod_tracker: FileModificationTracker,
 
     data_zip_paths: Vec<PathBuf>,
+
+    resource_index: HashMap<String, ResourceLocation>,
+    icon_file_paths: HashMap<String, PathBuf>,
 
     cache_hits: AtomicU64,
     cache_misses: AtomicU64,
@@ -93,11 +116,13 @@ impl ResourceManager {
             campaign_override_paths: HashMap::new(),
             current_module: None,
             module_path: None,
-            // module_parser: None,
+
             module_info: None,
             current_campaign_id: None,
             current_campaign_folder: None,
             data_zip_paths: Vec::new(),
+            resource_index: HashMap::new(),
+            icon_file_paths: HashMap::new(),
             module_cache: ModuleLRUCache::new(),
             file_mod_tracker: FileModificationTracker::new(),
             cache_hits: AtomicU64::new(0),
@@ -116,14 +141,17 @@ impl ResourceManager {
         self.scan_base_game_zips().await?;
         self.scan_workshop_directories().await?;
         self.scan_override_directories().await?;
+        self.scan_icon_directories().await?;
         self.load_base_tlk().await?;
         self.cache_data_zip_paths().await;
 
         self.initialized = true;
         info!(
-            "ResourceManager initialized: {} 2DAs indexed, {} templates indexed",
+            "ResourceManager initialized: {} total resources, {} 2DAs, {} templates, {} icons",
+            self.resource_index.len(),
             self.tda_locations.len(),
-            self.template_locations.len()
+            self.template_locations.len(),
+            self.icon_file_paths.len(),
         );
 
         Ok(())
@@ -134,123 +162,107 @@ impl ResourceManager {
         let data_dir = paths
             .data()
             .ok_or_else(|| ResourceManagerError::PathNotConfigured("NWN2 data directory".into()))?;
-
+        let game_folder = paths.game_folder().cloned();
         drop(paths);
 
-        for zip_name in BASE_GAME_ZIPS {
-            let zip_path = data_dir.join(zip_name);
-            if zip_path.exists() {
-                self.index_zip_for_2das(&zip_path, OverrideSource::BaseGame)?;
+        let all_zip_groups: &[&[&str]] = &[
+            BASE_GAME_ZIPS,
+            TEMPLATE_ZIPS,
+            SOUNDSET_ZIPS,
+            SOUND_ZIPS,
+            MODEL_ZIPS,
+            MATERIAL_ZIPS,
+            ACTOR_ZIPS,
+            LOD_ZIPS,
+        ];
+
+        let mut zip_paths: Vec<PathBuf> = Vec::new();
+        for group in all_zip_groups {
+            for name in *group {
+                let p = data_dir.join(name);
+                if p.exists() {
+                    zip_paths.push(p);
+                }
             }
         }
 
-        for zip_name in TEMPLATE_ZIPS {
-            let zip_path = data_dir.join(zip_name);
-            if zip_path.exists() {
-                self.index_zip_for_templates(&zip_path, OverrideSource::BaseGame)?;
+        if let Some(ref gf) = game_folder {
+            let vo_dir = gf.join("localization/english/data");
+            for name in VO_ZIPS {
+                let p = vo_dir.join(name);
+                if p.exists() {
+                    zip_paths.push(p);
+                }
             }
         }
 
-        Ok(())
-    }
+        // Cache mtime per zip path (avoids thousands of redundant stat calls)
+        let zip_mtimes: HashMap<PathBuf, f64> = zip_paths
+            .iter()
+            .map(|p| {
+                let mtime = std::fs::metadata(p)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(0.0, |d| d.as_secs_f64());
+                (p.clone(), mtime)
+            })
+            .collect();
 
-    fn index_zip_for_2das(
-        &mut self,
-        zip_path: &Path,
-        source: OverrideSource,
-    ) -> ResourceManagerResult<()> {
-        let file = std::fs::File::open(zip_path)?;
-        let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-            ResourceManagerError::ZipError(format!("Failed to open {}: {}", zip_path.display(), e))
-        })?;
+        let entries = crate::utils::zip_scanner::scan_zips_parallel(&zip_paths)
+            .map_err(ResourceManagerError::ZipError)?;
 
-        let mtime = std::fs::metadata(zip_path)?
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map_or(0.0, |d| d.as_secs_f64());
+        let zip_count = zip_paths.len();
+        let entry_count = entries.len();
 
-        for i in 0..archive.len() {
-            let entry = archive.by_index(i).map_err(|e| {
-                ResourceManagerError::ZipError(format!("Failed to read entry {i}: {e}"))
-            })?;
+        for entry in entries {
+            let key = resource_key(&entry.stem, &entry.extension);
+            let mtime = zip_mtimes.get(&entry.zip_path).copied().unwrap_or(0.0);
 
-            let name = entry.name().to_string();
-            if name.to_lowercase().ends_with(".2da") {
-                let tda_name = Path::new(&name)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(&name)
-                    .to_lowercase();
+            let location = ResourceLocation::from_zip(
+                OverrideSource::BaseGame,
+                entry.zip_path,
+                entry.internal_path,
+                mtime,
+            );
 
-                let location =
-                    ResourceLocation::from_zip(source.clone(), zip_path.to_path_buf(), name, mtime);
+            self.resource_index.insert(key, location.clone());
 
-                self.tda_locations.insert(tda_name, location);
+            if entry.extension == "2da" {
+                self.tda_locations
+                    .insert(entry.stem.clone(), location.clone());
+            } else if entry.extension == "uti" {
+                self.template_locations.insert(entry.stem, location);
             }
         }
 
-        debug!(
-            "Indexed {} for 2DAs, total: {}",
-            zip_path.display(),
-            self.tda_locations.len()
-        );
-        Ok(())
-    }
-
-    fn index_zip_for_templates(
-        &mut self,
-        zip_path: &Path,
-        source: OverrideSource,
-    ) -> ResourceManagerResult<()> {
-        let file = std::fs::File::open(zip_path)?;
-        let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-            ResourceManagerError::ZipError(format!("Failed to open {}: {}", zip_path.display(), e))
-        })?;
-
-        let mtime = std::fs::metadata(zip_path)?
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map_or(0.0, |d| d.as_secs_f64());
-
-        for i in 0..archive.len() {
-            let entry = archive.by_index(i).map_err(|e| {
-                ResourceManagerError::ZipError(format!("Failed to read entry {i}: {e}"))
-            })?;
-
-            let name = entry.name().to_string();
-            if name.to_lowercase().ends_with(".uti") {
-                let resref = Path::new(&name)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(&name)
-                    .to_lowercase();
-
-                let location =
-                    ResourceLocation::from_zip(source.clone(), zip_path.to_path_buf(), name, mtime);
-
-                self.template_locations.insert(resref, location);
-            }
-        }
-
-        debug!(
-            "Indexed {} for templates, total: {}",
-            zip_path.display(),
+        info!(
+            "Indexed {} zips: {} resources total, {} 2DAs, {} templates",
+            zip_count,
+            entry_count,
+            self.tda_locations.len(),
             self.template_locations.len()
         );
+
         Ok(())
     }
 
     async fn scan_override_directories(&mut self) -> ResourceManagerResult<()> {
         let paths = self.paths.read().await;
+        let override_dir = paths.override_dir();
+        let custom_folders = paths.custom_override_folders().to_vec();
+        drop(paths);
 
-        if let Some(override_dir) = paths.override_dir() {
-            let override_dir = override_dir.clone();
-            drop(paths);
-            let mut new_paths = HashMap::new();
-            self.index_directory_for_2das_internal(&override_dir, &mut new_paths)?;
-            self.override_file_paths.extend(new_paths);
+        if let Some(ref dir) = override_dir {
+            let files = crate::utils::directory_scanner::scan_directory(dir, true);
+            let tdas = self.index_scanned_files(files, OverrideSource::OverrideDir);
+            self.override_file_paths.extend(tdas);
+        }
+
+        for dir in &custom_folders {
+            let files = crate::utils::directory_scanner::scan_directory(dir, true);
+            let tdas = self.index_scanned_files(files, OverrideSource::CustomOverride);
+            self.custom_override_paths.extend(tdas);
         }
 
         Ok(())
@@ -258,94 +270,96 @@ impl ResourceManager {
 
     async fn scan_workshop_directories(&mut self) -> ResourceManagerResult<()> {
         let paths = self.paths.read().await;
-        let workshop_dir = paths.steam_workshop_folder();
+        let workshop_dir = paths.steam_workshop_folder().cloned();
+        drop(paths);
 
-        if let Some(workshop_dir) = workshop_dir {
-            let workshop_dir = workshop_dir.clone();
-            drop(paths);
-
-            if !workshop_dir.exists() {
-                return Ok(());
-            }
-
-            debug!(
-                "Scanning Steam Workshop directory: {}",
-                workshop_dir.display()
-            );
-            let mut new_paths = HashMap::new();
-
-            // Workshop structure: <WorkshopDir>/<ModID>/override/
-            if let Ok(entries) = std::fs::read_dir(&workshop_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        // Check for 'override' folder inside the mod directory
-                        let override_path = path.join("override");
-                        if override_path.exists() && override_path.is_dir() {
-                            self.index_directory_recursive(&override_path, &mut new_paths)?;
-                        }
-
-                        // Some mods might put files directly in the mod ID folder (less common but possible?)
-                        // Standard practice is usually an override folder or just loose files.
-                        // The Python code checked 'override' subdirectory.
-                    }
-                }
-            }
-
-            self.workshop_file_paths.extend(new_paths);
-            info!("Indexed {} workshop 2DAs", self.workshop_file_paths.len());
-        }
-
-        Ok(())
-    }
-
-    fn index_directory_for_2das_internal(
-        &mut self,
-        dir: &Path,
-        target: &mut HashMap<String, PathBuf>,
-    ) -> ResourceManagerResult<()> {
-        self.index_directory_recursive(dir, target)
-    }
-
-    fn index_directory_recursive(
-        &mut self,
-        dir: &Path,
-        target: &mut HashMap<String, PathBuf>,
-    ) -> ResourceManagerResult<()> {
-        if !dir.exists() {
+        let Some(workshop_dir) = workshop_dir else {
+            return Ok(());
+        };
+        if !workshop_dir.exists() {
             return Ok(());
         }
 
-        // Use a stack for iterative recursion to avoid stack overflow on deep structures,
-        // though fs recursion is usually shallow enough. Iterative is safer.
-        let mut stack = vec![dir.to_path_buf()];
+        debug!(
+            "Scanning Steam Workshop directory: {}",
+            workshop_dir.display()
+        );
 
-        while let Some(current_dir) = stack.pop() {
-            if let Ok(entries) = std::fs::read_dir(&current_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        stack.push(path);
-                    } else if path.is_file()
-                        && path
-                            .extension()
-                            .is_some_and(|ext| ext.eq_ignore_ascii_case("2da"))
-                        && let Some(name) = path.file_stem().and_then(|s| s.to_str())
-                    {
-                        let mtime = std::fs::metadata(&path)?
-                            .modified()
-                            .ok()
-                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                            .map_or(0.0, |d| d.as_secs_f64());
+        let files = crate::utils::directory_scanner::scan_workshop(&workshop_dir);
+        let tdas = self.index_scanned_files(files, OverrideSource::Workshop);
+        self.workshop_file_paths.extend(tdas);
 
-                        self.file_mod_tracker.track(path.clone(), mtime);
-                        target.insert(name.to_lowercase(), path);
-                    }
-                }
+        info!(
+            "Indexed {} workshop 2DAs, {} total workshop resources",
+            self.workshop_file_paths.len(),
+            self.resource_index
+                .values()
+                .filter(|l| matches!(l.source, OverrideSource::Workshop))
+                .count()
+        );
+
+        Ok(())
+    }
+
+    async fn scan_icon_directories(&mut self) -> ResourceManagerResult<()> {
+        let paths = self.paths.read().await;
+        let game_folder = paths.game_folder().cloned();
+        drop(paths);
+
+        let Some(game_folder) = game_folder else {
+            return Ok(());
+        };
+
+        let upscaled = game_folder.join("ui").join("upscaled").join("icons");
+        let icon_dir = if upscaled.exists() {
+            upscaled
+        } else {
+            let default = game_folder.join("ui").join("default").join("icons");
+            if default.exists() {
+                default
+            } else {
+                return Ok(());
+            }
+        };
+
+        for file in crate::utils::directory_scanner::scan_directory(&icon_dir, true) {
+            if file.extension == "dds" || file.extension == "tga" || file.extension == "png" {
+                self.icon_file_paths
+                    .insert(file.stem.clone(), file.path.clone());
+
+                let key = resource_key(&file.stem, &file.extension);
+                let location =
+                    ResourceLocation::from_file(OverrideSource::BaseGame, file.path, file.mtime);
+                self.resource_index.insert(key, location);
             }
         }
 
+        info!(
+            "Indexed {} icon files from {}",
+            self.icon_file_paths.len(),
+            icon_dir.display()
+        );
         Ok(())
+    }
+
+    fn index_scanned_files(
+        &mut self,
+        files: Vec<crate::utils::directory_scanner::ScannedFile>,
+        source: OverrideSource,
+    ) -> HashMap<String, PathBuf> {
+        let mut tda_paths = HashMap::new();
+        for file in files {
+            let key = resource_key(&file.stem, &file.extension);
+            self.file_mod_tracker.track(file.path.clone(), file.mtime);
+
+            if file.extension == "2da" {
+                tda_paths.insert(file.stem.clone(), file.path.clone());
+            }
+
+            let location = ResourceLocation::from_file(source.clone(), file.path, file.mtime);
+            self.resource_index.insert(key, location);
+        }
+        tda_paths
     }
 
     async fn load_base_tlk(&mut self) -> ResourceManagerResult<()> {
@@ -795,9 +809,9 @@ impl ResourceManager {
             self.campaign_override_paths.clear();
             self.campaign_overrides.clear();
 
-            let mut new_paths = HashMap::new();
-            self.index_directory_for_2das_internal(&campaign_folder, &mut new_paths)?;
-            self.campaign_override_paths.extend(new_paths);
+            let files = crate::utils::directory_scanner::scan_directory(&campaign_folder, true);
+            let tdas = self.index_scanned_files(files, OverrideSource::Campaign);
+            self.campaign_override_paths.extend(tdas);
 
             info!(
                 "Set campaign: {} with {} 2DA overrides",
@@ -865,9 +879,9 @@ impl ResourceManager {
             return Err(ResourceManagerError::FileNotFound(path.to_path_buf()));
         }
 
-        let mut new_paths = HashMap::new();
-        self.index_directory_for_2das_internal(path, &mut new_paths)?;
-        self.custom_override_paths.extend(new_paths);
+        let files = crate::utils::directory_scanner::scan_directory(path, true);
+        let tdas = self.index_scanned_files(files, OverrideSource::CustomOverride);
+        self.custom_override_paths.extend(tdas);
         self.custom_override_cache.clear();
 
         info!(
@@ -1166,114 +1180,82 @@ impl ResourceManager {
         self.tlk_cache.clone()
     }
 
+    pub fn get_icon_path(&self, resref: &str) -> Option<PathBuf> {
+        self.icon_file_paths.get(&resref.to_lowercase()).cloned()
+    }
+
     pub fn get_resource_bytes(
         &self,
         resref: &str,
         extension: &str,
     ) -> ResourceManagerResult<Vec<u8>> {
-        let filename = format!("{resref}.{extension}");
-        let filename_lower = filename.to_lowercase();
+        let key = resource_key(&resref.to_lowercase(), &extension.to_lowercase());
 
-        tracing::debug!("get_resource_bytes: looking for '{}'", filename_lower);
-
-        let paths = self.paths.blocking_read();
-
-        for override_dir in paths.custom_override_folders() {
-            let file_path = override_dir.join(&filename);
-            if file_path.exists() {
-                tracing::debug!("  Found in custom override: {:?}", file_path);
-                return Ok(std::fs::read(&file_path)?);
-            }
-            let file_path = override_dir.join(&filename_lower);
-            if file_path.exists() {
-                tracing::debug!("  Found in custom override (lowercase): {:?}", file_path);
-                return Ok(std::fs::read(&file_path)?);
-            }
-        }
-
-        if let Some(override_dir) = paths.override_dir() {
-            let file_path = override_dir.join(&filename);
-            if file_path.exists() {
-                tracing::debug!("  Found in override dir: {:?}", file_path);
-                return Ok(std::fs::read(&file_path)?);
-            }
-            let file_path = override_dir.join(&filename_lower);
-            if file_path.exists() {
-                tracing::debug!("  Found in override dir (lowercase): {:?}", file_path);
-                return Ok(std::fs::read(&file_path)?);
-            }
-        }
-
-        drop(paths);
-
-        if self.data_zip_paths.is_empty() {
-            tracing::warn!("  No data zip paths cached");
-        } else {
-            let mut zip_reader = self.zip_reader.lock();
-            for path in &self.data_zip_paths {
-                match zip_reader.find_file_by_name(&path.to_string_lossy(), &filename_lower) {
-                    Ok(Some(bytes)) => {
-                        tracing::debug!(
-                            "  Found '{}' in zip {:?} ({} bytes)",
-                            filename_lower,
-                            path.file_name().unwrap_or_default(),
-                            bytes.len()
-                        );
-                        return Ok(bytes);
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        tracing::warn!(
-                            "  Error searching zip {:?}: {}",
-                            path.file_name().unwrap_or_default(),
-                            e
-                        );
-                    }
+        if let Some(location) = self.resource_index.get(&key) {
+            return match &location.container_type {
+                ContainerType::Directory => Ok(std::fs::read(&location.container_path)?),
+                ContainerType::Zip => {
+                    let internal = location.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
+                    self.zip_reader
+                        .lock()
+                        .read_file_from_zip(
+                            location.container_path.to_string_lossy().to_string(),
+                            internal.clone(),
+                        )
+                        .map_err(ResourceManagerError::ZipError)
                 }
+                ContainerType::Erf => {
+                    let internal = location.internal_path.as_ref().ok_or_else(|| {
+                        ResourceManagerError::Parse("Missing internal path".into())
+                    })?;
+                    let mut erf = ErfParser::new();
+                    erf.read(&location.container_path)
+                        .map_err(|e| ResourceManagerError::InvalidErfFormat(format!("{e}")))?;
+                    erf.resources
+                        .get(internal)
+                        .and_then(|r| r.data.clone())
+                        .ok_or_else(|| ResourceManagerError::ExtractionFailed {
+                            resource: internal.clone(),
+                            container: location.container_path.display().to_string(),
+                        })
+                }
+            };
+        }
+
+        // Fallback: search unindexed zips (should rarely fire)
+        let mut zip_reader = self.zip_reader.lock();
+        for path in &self.data_zip_paths {
+            if let Ok(Some(bytes)) = zip_reader.find_file_by_name(&path.to_string_lossy(), &key) {
+                debug!(
+                    "Resource '{}' found via fallback zip scan (not in index)",
+                    key
+                );
+                return Ok(bytes);
             }
         }
 
-        tracing::debug!("  Not found: {}", filename_lower);
-        Err(ResourceManagerError::FileNotFound(
-            std::path::PathBuf::from(format!("{resref}.{extension}")),
-        ))
+        Err(ResourceManagerError::FileNotFound(PathBuf::from(format!(
+            "{resref}.{extension}"
+        ))))
     }
 
     pub fn list_resources_by_extension(&self, extension: &str) -> Vec<(String, String)> {
-        let mut results = Vec::new();
-        let paths = self.paths.blocking_read();
-
-        if let Some(data_dir) = paths.data() {
-            drop(paths);
-            if data_dir.exists() {
-                if let Ok(entries) = std::fs::read_dir(&data_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path
-                            .extension()
-                            .is_some_and(|e| e.eq_ignore_ascii_case("zip"))
-                        {
-                            let zip_name = path
-                                .file_name()
-                                .map(|n| n.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            if let Ok(files) = self
-                                .zip_reader
-                                .lock()
-                                .list_files_by_extension(&path.to_string_lossy(), extension)
-                            {
-                                for file in files {
-                                    results.push((file, zip_name.clone()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            drop(paths);
-        }
-
+        let ext_suffix = format!(".{}", extension.to_lowercase());
+        let mut results: Vec<(String, String)> = self
+            .resource_index
+            .iter()
+            .filter(|(key, _)| key.ends_with(&ext_suffix))
+            .map(|(key, loc)| {
+                let source = loc
+                    .container_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                (key.clone(), source)
+            })
+            .collect();
         results.sort_by(|a, b| a.0.cmp(&b.0));
         results
     }
@@ -1309,6 +1291,10 @@ impl ResourceManager {
         results.dedup();
         results
     }
+}
+
+fn resource_key(stem: &str, extension: &str) -> String {
+    format!("{stem}.{extension}")
 }
 
 fn gff_value_to_json(value: &crate::parsers::gff::GffValue<'_>) -> serde_json::Value {
@@ -1395,39 +1381,5 @@ fn gff_value_to_json(value: &crate::parsers::gff::GffValue<'_>) -> serde_json::V
         }
         GffValue::StructRef(idx) => serde_json::json!({ "struct_ref": idx }),
         GffValue::ListRef(indices) => serde_json::json!({ "list_ref": indices }),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_recursive_directory_indexing() {
-        use std::fs;
-        use std::io::Write;
-
-        // Create a temp directory structure
-        let temp_dir = std::env::temp_dir().join("nwn2_test_recursive");
-        if temp_dir.exists() {
-            let _ = fs::remove_dir_all(&temp_dir);
-        }
-        fs::create_dir_all(&temp_dir).unwrap();
-
-        let sub_dir = temp_dir.join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
-
-        let file1 = temp_dir.join("test1.2da");
-        let mut f1 = fs::File::create(&file1).unwrap();
-        f1.write_all(b"test").unwrap();
-
-        let file2 = sub_dir.join("test2.2da");
-        let mut f2 = fs::File::create(&file2).unwrap();
-        f2.write_all(b"test").unwrap();
-
-        // Placeholder test to verify compilation
-        assert!(true);
-
-        // Cleanup
-        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

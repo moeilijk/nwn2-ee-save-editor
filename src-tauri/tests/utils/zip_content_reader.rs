@@ -1,18 +1,21 @@
 use app_lib::config::NWN2Paths;
-use app_lib::utils::{ZipContentReader, ZipIndexer, ZipReadRequest};
+use app_lib::utils::zip_scanner;
+use app_lib::utils::{ZipContentReader, ZipReadRequest};
 
 fn get_paths() -> NWN2Paths {
     NWN2Paths::new()
 }
 
 fn get_internal_path_for_file(zip_path: &std::path::Path, filename: &str) -> Option<String> {
-    let mut indexer = ZipIndexer::new();
-    if let Ok(resources) = indexer.index_zip(zip_path) {
-        if let Some(location) = resources.get(filename) {
-            return location.internal_path.clone();
-        }
-    }
-    None
+    let entries = zip_scanner::scan_zip(zip_path).ok()?;
+    let filename_lower = filename.to_lowercase();
+    entries
+        .into_iter()
+        .find(|e| {
+            let full = format!("{}.{}", e.stem, e.extension);
+            full == filename_lower
+        })
+        .map(|e| e.internal_path)
 }
 
 #[test]

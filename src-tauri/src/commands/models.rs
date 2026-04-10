@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-
 use image::{ImageBuffer, RgbaImage};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::services::model_loader::{self, ModelData};
 use crate::state::AppState;
@@ -71,90 +68,38 @@ pub fn get_texture_bytes(state: State<'_, AppState>, name: String) -> Result<Vec
     }
 }
 
-pub fn build_icon_index(game_folder: &std::path::Path) -> HashMap<String, PathBuf> {
-    let mut index = HashMap::new();
-
-    fn walk(dir: &std::path::Path, index: &mut HashMap<String, PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                walk(&path, index);
-            } else if path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("dds") || e.eq_ignore_ascii_case("tga"))
-            {
-                if let Some(stem) = path.file_stem() {
-                    index.insert(stem.to_string_lossy().to_lowercase(), path);
-                }
-            }
-        }
-    }
-
-    // Base game upscaled icons
-    let icons_dir = game_folder.join("ui").join("upscaled").join("icons");
-    if icons_dir.exists() {
-        walk(&icons_dir, &mut index);
-    } else {
-        warn!("Icon directory not found: {}", icons_dir.display());
-    }
-
-    // Steam Workshop mod icons
-    let workshop_dir = game_folder
-        .parent()
-        .and_then(|p| p.parent())
-        .map(|steamapps| steamapps.join("workshop").join("content").join("2738630"));
-    if let Some(workshop) = workshop_dir {
-        if workshop.exists() {
-            if let Ok(mods) = std::fs::read_dir(&workshop) {
-                for mod_entry in mods.flatten() {
-                    let override_dir = mod_entry.path().join("override");
-                    if override_dir.exists() {
-                        walk(&override_dir, &mut index);
-                    }
-                }
-            }
-        }
-    }
-
-    info!("Built icon index: {} icons", index.len());
-    index
-}
-
 #[tauri::command]
 pub fn get_icon_png(state: State<'_, AppState>, name: String) -> Result<String, String> {
-    let mut icon_index = state.icon_index.lock();
-    if icon_index.is_none() {
-        let paths = state.paths.read();
-        let game_folder = paths.game_folder().ok_or("Game folder not configured")?;
-        *icon_index = Some(build_icon_index(game_folder));
-    }
+    let rm = state.resource_manager.blocking_read();
 
-    let name_lower = name.to_lowercase();
-    let index = icon_index.as_ref().unwrap();
+    // 1. Check indexed icon files (upscaled DDS, workshop overrides)
+    if let Some(icon_path) = rm.get_icon_path(&name) {
+        let path: &std::path::Path = &icon_path;
+        let bytes = std::fs::read(path).map_err(|e| format!("Failed to read icon {name}: {e}"))?;
 
-    // 1. Upscaled icons index (DDS, base game EE)
-    if let Some(icon_path) = index.get(&name_lower) {
-        let dds_bytes =
-            std::fs::read(icon_path).map_err(|e| format!("Failed to read icon {name}: {e}"))?;
-        let png_bytes = decode_dds_to_png(&dds_bytes)
-            .map_err(|e| format!("Failed to decode icon {name}: {e}"))?;
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("dds")
+            .to_lowercase();
+
+        let png_bytes = if ext == "tga" {
+            decode_tga_to_png(&bytes)
+                .map_err(|e| format!("Failed to decode TGA icon {name}: {e}"))?
+        } else {
+            decode_dds_to_png(&bytes)
+                .map_err(|e| format!("Failed to decode DDS icon {name}: {e}"))?
+        };
         return encode_png_data_url(&png_bytes);
     }
 
-    drop(icon_index);
-    let rm = state.resource_manager.blocking_read();
-
-    // 2. ResourceManager DDS (HAKs, override, zips)
+    // 2. Fallback to get_resource_bytes (HAKs, override, zips)
     if let Ok(dds_bytes) = rm.get_resource_bytes(&name, "dds") {
         let png_bytes = decode_dds_to_png(&dds_bytes)
             .map_err(|e| format!("Failed to decode icon {name}: {e}"))?;
         return encode_png_data_url(&png_bytes);
     }
 
-    // 3. ResourceManager TGA (mod icons like Kaedrin's pack)
     if let Ok(tga_bytes) = rm.get_resource_bytes(&name, "tga") {
         let png_bytes = decode_tga_to_png(&tga_bytes)
             .map_err(|e| format!("Failed to decode TGA icon {name}: {e}"))?;
@@ -223,13 +168,31 @@ fn decode_dds_to_png(dds_bytes: &[u8]) -> Result<Vec<u8>, String> {
 
         match dxgi_format {
             DXGI_FORMAT_BC7_UNORM | DXGI_FORMAT_BC7_UNORM_SRGB => {
-                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc7, "BC7")
+                decode_bc!(
+                    pixel_data,
+                    width,
+                    height,
+                    texture2ddecoder::decode_bc7,
+                    "BC7"
+                )
             }
             DXGI_FORMAT_BC1_UNORM | DXGI_FORMAT_BC1_UNORM_SRGB => {
-                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc1, "BC1")
+                decode_bc!(
+                    pixel_data,
+                    width,
+                    height,
+                    texture2ddecoder::decode_bc1,
+                    "BC1"
+                )
             }
             DXGI_FORMAT_BC3_UNORM | DXGI_FORMAT_BC3_UNORM_SRGB => {
-                decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc3, "BC3")
+                decode_bc!(
+                    pixel_data,
+                    width,
+                    height,
+                    texture2ddecoder::decode_bc3,
+                    "BC3"
+                )
             }
             _ => return Err(format!("Unsupported DXGI format: {dxgi_format}")),
         }
@@ -237,9 +200,27 @@ fn decode_dds_to_png(dds_bytes: &[u8]) -> Result<Vec<u8>, String> {
         let pixel_data = &dds_bytes[DDS_HEADER_SIZE..];
 
         match fourcc {
-            b"DXT1" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc1, "DXT1"),
-            b"DXT5" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc3, "DXT5"),
-            b"DXT3" => decode_bc!(pixel_data, width, height, texture2ddecoder::decode_bc2, "DXT3"),
+            b"DXT1" => decode_bc!(
+                pixel_data,
+                width,
+                height,
+                texture2ddecoder::decode_bc1,
+                "DXT1"
+            ),
+            b"DXT5" => decode_bc!(
+                pixel_data,
+                width,
+                height,
+                texture2ddecoder::decode_bc3,
+                "DXT5"
+            ),
+            b"DXT3" => decode_bc!(
+                pixel_data,
+                width,
+                height,
+                texture2ddecoder::decode_bc2,
+                "DXT3"
+            ),
             _ => {
                 let cc = String::from_utf8_lossy(fourcc);
                 return Err(format!("Unsupported FourCC: {cc}"));
