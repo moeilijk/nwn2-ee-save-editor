@@ -13,6 +13,7 @@ import type { SaveEntryData } from './SaveEntry';
 import { FileBrowserDialog } from './FileBrowserDialog';
 import type { FileInfo } from './FileBrowserDialog';
 import { SettingsDialog } from '../Settings/SettingsPanel';
+import { BackupAPI } from '@/services/backupApi';
 
 export default function DashboardPanel() {
   const t = useTranslations();
@@ -248,33 +249,25 @@ export default function DashboardPanel() {
         refreshKey={backupRefreshKey}
         canRestore
         onSelectFile={async (file) => {
-          console.log('[backup] restore starting, path:', file.path);
           try {
-            const result = await invoke('restore_backup', {
-              backupPath: file.path,
-              createPreRestoreBackup: true,
+            await BackupAPI.restoreFromBackup(0, {
+              backup_path: file.path,
+              confirm_restore: true,
+              create_pre_restore_backup: true,
             });
-            console.log('[backup] restore result:', result);
             setShowBackupBrowser(false);
-            console.log('[backup] showing toast');
             showToast(t('fileBrowser.restoreSuccess'), 'success');
-            console.log('[backup] refreshing all');
             await refreshAll();
-            console.log('[backup] restore complete');
           } catch (error) {
-            console.error('[backup] restore error:', error);
             handleError(error);
           }
         }}
         onDeleteBackup={async (file) => {
-          console.log('[backup] delete starting, path:', file.path);
           try {
-            const result = await invoke('delete_backup', { backupPath: file.path });
-            console.log('[backup] delete result:', result);
+            await BackupAPI.deleteBackup(file.path);
             showToast(t('fileBrowser.backupDeleted'), 'success');
             setBackupRefreshKey(prev => prev + 1);
           } catch (error) {
-            console.error('[backup] delete error:', error);
             handleError(error);
           }
         }}

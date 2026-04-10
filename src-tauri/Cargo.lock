@@ -107,6 +107,7 @@ dependencies = [
  "lexical",
  "libdeflater",
  "log",
+ "lzma-rs",
  "memmap2",
  "miniz_oxide 0.9.0",
  "once_cell",

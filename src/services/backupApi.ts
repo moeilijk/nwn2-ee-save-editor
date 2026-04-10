@@ -37,81 +37,58 @@ export interface CleanupResponse {
 
 export class BackupAPI {
   static async listBackups(characterId: number): Promise<BackupsResponse> {
-    try {
-        const backups = await invoke<any[]>('list_backups');
-        const mappedBackups: BackupInfo[] = backups.map(b => ({
-            path: b.path,
-            folder_name: b.filename || 'unknown',
-            timestamp: b.created_at || new Date().toISOString(),
-            display_name: b.filename || 'Backup',
-            size_bytes: b.size_bytes || 0,
-            original_save: "unknown" // Rust doesn't return this yet?
-        }));
-        
-        return {
-            backups: mappedBackups,
-            count: mappedBackups.length
-        };
-    } catch (e) {
-        throw e;
-    }
+    const backups = await invoke<any[]>('list_backups');
+    const mappedBackups: BackupInfo[] = backups.map(b => ({
+      path: b.path,
+      folder_name: b.filename || 'unknown',
+      timestamp: b.created_at || new Date().toISOString(),
+      display_name: b.filename || 'Backup',
+      size_bytes: b.size_bytes || 0,
+      original_save: "unknown"
+    }));
+
+    return {
+      backups: mappedBackups,
+      count: mappedBackups.length
+    };
   }
 
   static async restoreFromBackup(
-    characterId: number, 
+    characterId: number,
     request: RestoreRequest
   ): Promise<RestoreResponse> {
-    try {
-        const result = await invoke<any>('restore_backup', { 
-            backupPath: request.backup_path, 
-            createPreRestoreBackup: request.create_pre_restore_backup 
-        });
-        
-        return {
-            success: result.success,
-            restored_from: request.backup_path,
-            files_restored: result.files_restored || [],
-            pre_restore_backup: result.pre_restore_backup_path,
-            restore_timestamp: new Date().toISOString(),
-            backups_cleaned_up: 0
-        };
-    } catch (e) {
-        throw e;
-    }
+    const result = await invoke<any>('restore_backup', {
+      backupPath: request.backup_path,
+      createPreRestoreBackup: request.create_pre_restore_backup
+    });
+
+    return {
+      success: result.success,
+      restored_from: request.backup_path,
+      files_restored: result.files_restored || [],
+      pre_restore_backup: result.pre_restore_backup_path,
+      restore_timestamp: new Date().toISOString(),
+      backups_cleaned_up: 0
+    };
   }
 
   static async cleanupBackups(
-    characterId: number, 
+    characterId: number,
     keepCount: number = 10
   ): Promise<CleanupResponse> {
-      try {
-          const result = await invoke<any>('cleanup_backups', { keepCount: keepCount });
-          return {
-              cleaned_up: result.deleted_count || 0,
-              kept: result.remaining_count || 0,
-              errors: result.errors || []
-          };
-      } catch (e) {
-          throw e;
-      }
+    const result = await invoke<any>('cleanup_backups', { keepCount: keepCount });
+    return {
+      cleaned_up: result.deleted_count || 0,
+      kept: result.remaining_count || 0,
+      errors: result.errors || []
+    };
   }
 
   static async deleteBackup(backupPath: string): Promise<boolean> {
-    try {
-      return await invoke<boolean>('delete_backup', { backupPath });
-    } catch (e) {
-      throw e;
-    }
+    return await invoke<boolean>('delete_backup', { backupPath });
   }
 
   static formatTimestamp(timestamp: string): string {
     return new Date(timestamp).toLocaleString();
-  }
-
-  static formatSize(sizeBytes: number): string {
-    if (sizeBytes < 1024) return `${sizeBytes} B`;
-    if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
-    if (sizeBytes < 1024 * 1024 * 1024) return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(sizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
 }

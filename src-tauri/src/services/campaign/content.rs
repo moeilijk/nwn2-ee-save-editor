@@ -3,12 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
 use xz2::read::XzDecoder;
-use xz2::stream::{LzmaOptions, Stream};
-use xz2::write::XzEncoder;
+use xz2::stream::Stream;
 
 use crate::parsers::erf::ErfParser;
 use crate::parsers::gff::{GffParser, GffValue, GffWriter};
@@ -214,14 +213,7 @@ pub fn extract_journal(
 }
 
 fn parse_journal_from_z(path: &Path) -> Result<HashMap<String, QuestDefinition>, String> {
-    let file = fs::File::open(path).map_err(|e| format!("Failed to open .z file: {e}"))?;
-    let stream = Stream::new_lzma_decoder(u64::MAX)
-        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
-    let mut decoder = XzDecoder::new_stream(file, stream);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+    let decompressed = decompress_z_file(path)?;
 
     let mut erf_parser = ErfParser::new();
     erf_parser
@@ -240,17 +232,7 @@ fn parse_module_z_file(
     module_id: &str,
     nwn2_paths: &NWN2Paths,
 ) -> Result<(ModuleInfo, ModuleVariables), String> {
-    // Open file
-    let file = fs::File::open(path).map_err(|e| format!("Failed to open .z file: {e}"))?;
-
-    // Decompress LZMA
-    let stream = Stream::new_lzma_decoder(u64::MAX)
-        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
-    let mut decoder = XzDecoder::new_stream(file, stream);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+    let decompressed = decompress_z_file(path)?;
 
     // Parse ERF
     let mut erf_parser = ErfParser::new();
@@ -423,14 +405,7 @@ fn update_module_variable_inner(
         var_name, var_type, z_path
     );
 
-    let file = fs::File::open(&z_path).map_err(|e| format!("Failed to open .z file: {e}"))?;
-    let stream = Stream::new_lzma_decoder(u64::MAX)
-        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
-    let mut decoder = XzDecoder::new_stream(file, stream);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+    let decompressed = decompress_z_file(&z_path)?;
 
     info!("Decompressed {} bytes from .z file", decompressed.len());
 
@@ -527,25 +502,11 @@ fn update_module_variable_inner(
         .to_bytes()
         .map_err(|e| format!("Failed to serialize ERF: {e}"))?;
 
-    info!(
-        "Serialized ERF ({} bytes), compressing with LZMA",
-        erf_bytes.len()
-    );
-
-    let lzma_opts =
-        LzmaOptions::new_preset(1).map_err(|e| format!("Failed to create LZMA options: {e}"))?;
-    let lzma_stream = Stream::new_lzma_encoder(&lzma_opts)
-        .map_err(|e| format!("Failed to create LZMA encoder stream: {e}"))?;
-    let mut encoder = XzEncoder::new_stream(Vec::new(), lzma_stream);
-    encoder
-        .write_all(&erf_bytes)
-        .map_err(|e| format!("Failed to compress ERF: {e}"))?;
-    let compressed = encoder
-        .finish()
-        .map_err(|e| format!("Failed to finish LZMA compression: {e}"))?;
+    let compressed = compress_lzma_for_nwn2(&erf_bytes)?;
 
     info!(
-        "Compressed to {} bytes, writing to {:?}",
+        "Compressed {} -> {} bytes, writing to {:?}",
+        erf_bytes.len(),
         compressed.len(),
         z_path
     );
@@ -584,14 +545,7 @@ pub fn batch_update_module_variables(
         z_path
     );
 
-    let file = fs::File::open(&z_path).map_err(|e| format!("Failed to open .z file: {e}"))?;
-    let stream = Stream::new_lzma_decoder(u64::MAX)
-        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
-    let mut decoder = XzDecoder::new_stream(file, stream);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+    let decompressed = decompress_z_file(&z_path)?;
 
     info!("Decompressed {} bytes from .z file", decompressed.len());
 
@@ -690,25 +644,11 @@ pub fn batch_update_module_variables(
         .to_bytes()
         .map_err(|e| format!("Failed to serialize ERF: {e}"))?;
 
-    info!(
-        "Serialized ERF ({} bytes), compressing with LZMA",
-        erf_bytes.len()
-    );
-
-    let lzma_opts =
-        LzmaOptions::new_preset(1).map_err(|e| format!("Failed to create LZMA options: {e}"))?;
-    let lzma_stream = Stream::new_lzma_encoder(&lzma_opts)
-        .map_err(|e| format!("Failed to create LZMA encoder stream: {e}"))?;
-    let mut encoder = XzEncoder::new_stream(Vec::new(), lzma_stream);
-    encoder
-        .write_all(&erf_bytes)
-        .map_err(|e| format!("Failed to compress ERF: {e}"))?;
-    let compressed = encoder
-        .finish()
-        .map_err(|e| format!("Failed to finish LZMA compression: {e}"))?;
+    let compressed = compress_lzma_for_nwn2(&erf_bytes)?;
 
     info!(
-        "Compressed to {} bytes, writing to {:?}",
+        "Compressed {} -> {} bytes, writing to {:?}",
+        erf_bytes.len(),
         compressed.len(),
         z_path
     );
@@ -725,6 +665,34 @@ pub fn batch_update_module_variables(
         z_path
     );
     Ok(())
+}
+
+fn decompress_z_file(path: &Path) -> Result<Vec<u8>, String> {
+    let file = fs::File::open(path).map_err(|e| format!("Failed to open .z file: {e}"))?;
+    let stream = Stream::new_lzma_decoder(u64::MAX)
+        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
+    let mut decoder = XzDecoder::new_stream(file, stream);
+    let mut decompressed = Vec::new();
+    decoder
+        .read_to_end(&mut decompressed)
+        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+    Ok(decompressed)
+}
+
+fn compress_lzma_for_nwn2(data: &[u8]) -> Result<Vec<u8>, String> {
+    // NWN2 .z files use LZMA alone format with known uncompressed size and 4MB dictionary.
+    // The lzma-rs crate produces the correct header with uncompressed_size set.
+    let mut output = Vec::new();
+    lzma_rs::lzma_compress_with_options(
+        &mut &data[..],
+        &mut output,
+        &lzma_rs::compress::Options {
+            unpacked_size: lzma_rs::compress::UnpackedSize::WriteToHeader(Some(data.len() as u64)),
+        },
+    )
+    .map_err(|e| format!("LZMA compression failed: {e}"))?;
+
+    Ok(output)
 }
 
 fn find_module_z_file(save_dir: &Path, module_id: &str) -> Result<PathBuf, String> {
