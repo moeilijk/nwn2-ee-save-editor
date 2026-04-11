@@ -8,62 +8,52 @@ use crate::character::feats::FeatSource;
 use crate::character::types::{AbilityIndex, AbilityModifiers, ClassId, FeatId, RaceId};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
+use crate::utils::parsing::{row_int, row_str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[repr(i32)]
+/// NWN2 creature size IDs matching creaturesize.2da rows
 pub enum SizeCategory {
-    Fine = 0,
-    Diminutive = 1,
-    Tiny = 2,
-    Small = 3,
-    Medium = 4,
-    Large = 5,
-    Huge = 6,
-    Gargantuan = 7,
-    Colossal = 8,
+    Invalid = 0,
+    Tiny = 1,
+    Small = 2,
+    Medium = 3,
+    Large = 4,
+    Huge = 5,
 }
 
 impl SizeCategory {
     pub fn from_id(id: i32) -> Self {
         match id {
-            0 => Self::Fine,
-            1 => Self::Diminutive,
-            2 => Self::Tiny,
-            3 => Self::Small,
-            4 => Self::Medium,
-            5 => Self::Large,
-            6 => Self::Huge,
-            7 => Self::Gargantuan,
-            8 => Self::Colossal,
+            0 => Self::Invalid,
+            1 => Self::Tiny,
+            2 => Self::Small,
+            3 => Self::Medium,
+            4 => Self::Large,
+            5 => Self::Huge,
             _ => Self::Medium,
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Fine => "Fine",
-            Self::Diminutive => "Diminutive",
+            Self::Invalid => "Invalid",
             Self::Tiny => "Tiny",
             Self::Small => "Small",
             Self::Medium => "Medium",
             Self::Large => "Large",
             Self::Huge => "Huge",
-            Self::Gargantuan => "Gargantuan",
-            Self::Colossal => "Colossal",
         }
     }
 
     pub fn ac_modifier_default(&self) -> i32 {
         match self {
-            Self::Fine => 8,
-            Self::Diminutive => 4,
+            Self::Invalid => 0,
             Self::Tiny => 2,
             Self::Small => 1,
             Self::Medium => 0,
             Self::Large => -1,
             Self::Huge => -2,
-            Self::Gargantuan => -4,
-            Self::Colossal => -8,
         }
     }
 }
@@ -208,14 +198,14 @@ impl Character {
         let subrace_table = game_data.get_table("racialsubtypes")?;
         let row = subrace_table.get_by_id(index)?;
 
-        if let Some(Some(strref_str)) = row.get("Name")
+        if let Some(Some(strref_str)) = row.get("name")
             && let Ok(strref) = strref_str.parse::<i32>()
             && let Some(name) = game_data.get_string(strref)
         {
             return Some(name);
         }
 
-        row.get("Label").and_then(|v| v.clone())
+        row.get("label").and_then(|v| v.clone())
     }
 
     pub fn set_subrace(&mut self, subrace: Option<String>) {
@@ -316,14 +306,14 @@ impl Character {
             return format!("Race {race_id}");
         };
 
-        if let Some(Some(strref_str)) = row.get("Name")
+        if let Some(Some(strref_str)) = row.get("name")
             && let Ok(strref) = strref_str.parse::<i32>()
             && let Some(name) = game_data.get_string(strref)
         {
             return name;
         }
 
-        if let Some(label) = row.get("Label").and_then(std::clone::Clone::clone) {
+        if let Some(label) = row.get("label").and_then(std::clone::Clone::clone) {
             return label;
         }
 
@@ -350,23 +340,13 @@ impl Character {
                 continue;
             };
 
-            let base_race_id = row_data
-                .get("BaseRace")
-                .or_else(|| row_data.get("base_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(-1);
+            let base_race_id = row_int(&row_data, "baserace", -1);
 
             if base_race_id != race_id {
                 continue;
             }
 
-            let player_race = row_data
-                .get("PlayerRace")
-                .or_else(|| row_data.get("player_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1);
+            let player_race = row_int(&row_data, "playerrace", 1);
 
             if player_race == 0 {
                 continue;
@@ -433,7 +413,7 @@ impl Character {
                 .get("Label")
                 .or_else(|| row_data.get("label"))
                 .and_then(std::clone::Clone::clone)
-                .unwrap_or_else(|| name.clone());
+                .unwrap_or_else(|| resolved_name.clone().unwrap_or_else(|| name.clone()));
 
             let matches_resolved_name = resolved_name
                 .as_ref()
@@ -446,49 +426,25 @@ impl Character {
                 continue;
             }
 
-            let base_race = row_data
-                .get("BaseRace")
-                .or_else(|| row_data.get("base_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(-1);
-
-            let player_race = row_data
-                .get("PlayerRace")
-                .or_else(|| row_data.get("player_race"))
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1)
-                == 1;
+            let base_race = row_int(&row_data, "baserace", -1);
+            let player_race = row_int(&row_data, "playerrace", 1) == 1;
 
             let favored_class = row_data
-                .get("FavoredClass")
-                .or_else(|| row_data.get("favored_class"))
+                .get("favoredclass")
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .filter(|&v| v >= 0);
 
-            let feats_table = row_data
-                .get("FeatsTable")
-                .or_else(|| row_data.get("feats_table"))
-                .and_then(std::clone::Clone::clone)
-                .filter(|s| !s.is_empty() && s != "****");
-
-            let get_mod = |field: &str| -> i32 {
-                row_data
-                    .get(field)
-                    .and_then(|v| v.as_ref())
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0)
-            };
+            let feats_table = row_str(&row_data, "featstable")
+                .filter(|s| s != "****");
 
             let ability_modifiers = AbilityModifiers::new(
-                get_mod("StrAdjust"),
-                get_mod("DexAdjust"),
-                get_mod("ConAdjust"),
-                get_mod("IntAdjust"),
-                get_mod("WisAdjust"),
-                get_mod("ChaAdjust"),
+                row_int(&row_data, "stradjust", 0),
+                row_int(&row_data, "dexadjust", 0),
+                row_int(&row_data, "conadjust", 0),
+                row_int(&row_data, "intadjust", 0),
+                row_int(&row_data, "wisadjust", 0),
+                row_int(&row_data, "chaadjust", 0),
             );
 
             return Some(SubraceData {
@@ -524,21 +480,13 @@ impl Character {
             return AbilityModifiers::default();
         };
 
-        let get_modifier = |field_name: &str| -> i32 {
-            row_data
-                .get(field_name)
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
-        };
-
         AbilityModifiers::new(
-            get_modifier("StrAdjust"),
-            get_modifier("DexAdjust"),
-            get_modifier("ConAdjust"),
-            get_modifier("IntAdjust"),
-            get_modifier("WisAdjust"),
-            get_modifier("ChaAdjust"),
+            row_int(&row_data, "stradjust", 0),
+            row_int(&row_data, "dexadjust", 0),
+            row_int(&row_data, "conadjust", 0),
+            row_int(&row_data, "intadjust", 0),
+            row_int(&row_data, "wisadjust", 0),
+            row_int(&row_data, "chaadjust", 0),
         )
     }
 
@@ -546,8 +494,7 @@ impl Character {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
 
-        row.get("Size")
-            .or_else(|| row.get("size"))
+        row.get("size")
             .and_then(std::clone::Clone::clone)
             .and_then(|s| s.parse::<i32>().ok())
     }
@@ -565,11 +512,7 @@ impl Character {
             return 30;
         };
 
-        row.get("MovementRate")
-            .or_else(|| row.get("movement_rate"))
-            .and_then(std::clone::Clone::clone)
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(30)
+        row_int(&row, "movementrate", 30)
     }
 
     pub fn get_favored_class(&self, game_data: &GameData) -> Option<ClassId> {
@@ -584,8 +527,7 @@ impl Character {
         let races = game_data.get_table("racialtypes")?;
         let row = races.get_by_id(race_id)?;
 
-        row.get("FavoredClass")
-            .or_else(|| row.get("favored_class"))
+        row.get("favoredclass")
             .and_then(std::clone::Clone::clone)
             .and_then(|s| s.parse::<i32>().ok())
             .filter(|&v| v >= 0)
@@ -604,8 +546,7 @@ impl Character {
         };
 
         if let Some(feats_table_name) = row
-            .get("FeatsTable")
-            .or_else(|| row.get("feats_table"))
+            .get("featstable")
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "****")
             && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
@@ -613,8 +554,7 @@ impl Character {
             for row_idx in 0..feats_table.row_count() {
                 if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
                     && let Some(feat_id) = feat_row
-                        .get("FeatIndex")
-                        .or_else(|| feat_row.get("feat_index"))
+                        .get("featindex")
                         .and_then(|v| v.as_ref())
                         .and_then(|s| s.parse::<i32>().ok())
                         .filter(|&v| v >= 0)
@@ -1040,12 +980,7 @@ impl Character {
             return SizeCategory::from_id(size_id).ac_modifier_default();
         };
 
-        row.get("ACAttackMod")
-            .or_else(|| row.get("ACATTACKMOD"))
-            .or_else(|| row.get("ac_attack_mod"))
-            .and_then(std::clone::Clone::clone)
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or_else(|| SizeCategory::from_id(size_id).ac_modifier_default())
+        row_int(&row, "acattackmod", SizeCategory::from_id(size_id).ac_modifier_default())
     }
 
     pub fn get_size_name_from_2da(&self, size_id: i32, game_data: &GameData) -> String {
@@ -1060,7 +995,6 @@ impl Character {
 
         if let Some(label) = row
             .get("Label")
-            .or_else(|| row.get("LABEL"))
             .or_else(|| row.get("label"))
             .and_then(std::clone::Clone::clone)
             .filter(|s| !s.is_empty() && s != "INVALID")
@@ -1116,56 +1050,31 @@ impl Character {
             .parse::<i32>()
             .ok()
             .and_then(|strref| game_data.get_string(strref));
-
         let label = row_data
             .get("Label")
             .or_else(|| row_data.get("label"))
             .and_then(std::clone::Clone::clone)
-            .unwrap_or_else(|| name.clone());
+            .unwrap_or_else(|| resolved_name.clone().unwrap_or_else(|| name.clone()));
 
-        let base_race = row_data
-            .get("BaseRace")
-            .or_else(|| row_data.get("base_race"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(-1);
-
-        let player_race = row_data
-            .get("PlayerRace")
-            .or_else(|| row_data.get("player_race"))
-            .and_then(|v| v.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(1)
-            == 1;
+        let base_race = row_int(&row_data, "baserace", -1);
+        let player_race = row_int(&row_data, "playerrace", 1) == 1;
 
         let favored_class = row_data
-            .get("FavoredClass")
-            .or_else(|| row_data.get("favored_class"))
+            .get("favoredclass")
             .and_then(|v| v.as_ref())
             .and_then(|s| s.parse::<i32>().ok())
             .filter(|&v| v >= 0);
 
-        let feats_table = row_data
-            .get("FeatsTable")
-            .or_else(|| row_data.get("feats_table"))
-            .and_then(std::clone::Clone::clone)
-            .filter(|s| !s.is_empty() && s != "****");
-
-        let get_mod = |field: &str| -> i32 {
-            row_data
-                .get(field)
-                .and_then(|v| v.as_ref())
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0)
-        };
+        let feats_table = row_str(&row_data, "featstable")
+            .filter(|s| s != "****");
 
         let ability_modifiers = AbilityModifiers::new(
-            get_mod("StrAdjust"),
-            get_mod("DexAdjust"),
-            get_mod("ConAdjust"),
-            get_mod("IntAdjust"),
-            get_mod("WisAdjust"),
-            get_mod("ChaAdjust"),
+            row_int(&row_data, "stradjust", 0),
+            row_int(&row_data, "dexadjust", 0),
+            row_int(&row_data, "conadjust", 0),
+            row_int(&row_data, "intadjust", 0),
+            row_int(&row_data, "wisadjust", 0),
+            row_int(&row_data, "chaadjust", 0),
         );
 
         Some(SubraceData {
@@ -1232,7 +1141,7 @@ mod tests {
             "Subrace".to_string(),
             GffValue::String(Cow::Owned("Moon Elf".to_string())),
         );
-        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3)); // 3 = Medium in NWN2
         Character::from_gff(fields)
     }
 
@@ -1306,14 +1215,14 @@ mod tests {
     #[test]
     fn test_creature_size() {
         let character = create_test_character();
-        assert_eq!(character.creature_size(), 4);
+        assert_eq!(character.creature_size(), 3);
     }
 
     #[test]
     fn test_set_creature_size() {
         let mut character = create_test_character();
-        character.set_creature_size(3);
-        assert_eq!(character.creature_size(), 3);
+        character.set_creature_size(2);
+        assert_eq!(character.creature_size(), 2);
         assert!(character.is_modified());
     }
 
@@ -1325,19 +1234,23 @@ mod tests {
 
     #[test]
     fn test_size_category_from_id() {
-        assert_eq!(SizeCategory::from_id(0), SizeCategory::Fine);
-        assert_eq!(SizeCategory::from_id(4), SizeCategory::Medium);
-        assert_eq!(SizeCategory::from_id(8), SizeCategory::Colossal);
+        // NWN2 creaturesize.2da: 0=Invalid, 1=Tiny, 2=Small, 3=Medium, 4=Large, 5=Huge
+        assert_eq!(SizeCategory::from_id(0), SizeCategory::Invalid);
+        assert_eq!(SizeCategory::from_id(1), SizeCategory::Tiny);
+        assert_eq!(SizeCategory::from_id(2), SizeCategory::Small);
+        assert_eq!(SizeCategory::from_id(3), SizeCategory::Medium);
+        assert_eq!(SizeCategory::from_id(4), SizeCategory::Large);
+        assert_eq!(SizeCategory::from_id(5), SizeCategory::Huge);
         assert_eq!(SizeCategory::from_id(100), SizeCategory::Medium);
     }
 
     #[test]
     fn test_size_category_modifiers() {
-        assert_eq!(SizeCategory::Fine.ac_modifier_default(), 8);
+        assert_eq!(SizeCategory::Tiny.ac_modifier_default(), 2);
         assert_eq!(SizeCategory::Small.ac_modifier_default(), 1);
         assert_eq!(SizeCategory::Medium.ac_modifier_default(), 0);
         assert_eq!(SizeCategory::Large.ac_modifier_default(), -1);
-        assert_eq!(SizeCategory::Colossal.ac_modifier_default(), -8);
+        assert_eq!(SizeCategory::Huge.ac_modifier_default(), -2);
     }
 
     #[test]

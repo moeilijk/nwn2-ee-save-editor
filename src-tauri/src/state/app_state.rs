@@ -5,7 +5,6 @@ use tracing::{debug, info, instrument};
 
 use crate::config::{AppConfig, NWN2Paths};
 use crate::loaders::GameData;
-use crate::services::FieldMapper;
 use crate::services::resource_manager::ResourceManager;
 use crate::state::session_state::SessionState;
 
@@ -29,7 +28,6 @@ impl Default for InitStatus {
 pub struct AppState {
     pub paths: RwLock<NWN2Paths>,
     pub config: RwLock<AppConfig>,
-    pub field_mapper: FieldMapper,
     pub resource_manager: Arc<tokio::sync::RwLock<ResourceManager>>,
     pub game_data: Arc<RwLock<GameData>>,
     pub session: Arc<RwLock<SessionState>>,
@@ -48,10 +46,6 @@ impl AppState {
         debug!("Loading AppConfig");
         let config = AppConfig::load();
         debug!("AppConfig loaded");
-
-        debug!("Creating FieldMapper");
-        let field_mapper = FieldMapper::new();
-        debug!("FieldMapper created");
 
         debug!("Creating ResourceManager");
         let paths_arc = Arc::new(tokio::sync::RwLock::new(paths.clone()));
@@ -77,7 +71,6 @@ impl AppState {
         Self {
             paths: RwLock::new(paths),
             config: RwLock::new(config),
-            field_mapper,
             resource_manager,
             game_data,
             session: Arc::new(RwLock::new(session)),

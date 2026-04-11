@@ -193,7 +193,7 @@ impl TDAParser {
             let value = cell
                 .as_str(&self.interner)
                 .map(std::string::ToString::to_string);
-            result.insert(col_name.to_string(), value);
+            result.insert(col_name.to_lowercase(), value);
         }
 
         Ok(result)
@@ -203,7 +203,7 @@ impl TDAParser {
         let col_names: Vec<String> = self
             .columns
             .iter()
-            .map(|col_info| self.interner.resolve(&col_info.name).to_string())
+            .map(|col_info| self.interner.resolve(&col_info.name).to_lowercase())
             .collect();
 
         self.rows

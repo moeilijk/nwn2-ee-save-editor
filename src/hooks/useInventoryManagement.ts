@@ -13,7 +13,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.equipItem(character.id, request);
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
       await invalidateSubsystems([...EQUIP_DEPENDENT_SUBSYSTEMS]);
     }
     return response;
@@ -24,7 +24,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.unequipItem(character.id, request);
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
       await invalidateSubsystems([...EQUIP_DEPENDENT_SUBSYSTEMS]);
     }
     return response;
@@ -35,7 +35,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.deleteItem(character.id, itemIndex);
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
     }
     return response;
   }, [character?.id, inventoryData]);
@@ -45,7 +45,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.addItemByBaseType(character.id, { base_item_id: baseItemId });
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
     }
     return response;
   }, [character?.id, inventoryData]);
@@ -55,7 +55,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.updateItem(character.id, request);
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
       await invalidateSubsystems([...EQUIP_DEPENDENT_SUBSYSTEMS]);
     }
     return response;
@@ -66,7 +66,7 @@ export function useInventoryManagement() {
 
     const response = await inventoryAPI.addItemFromTemplate(character.id, resref);
     if (response.success) {
-      await inventoryData.load();
+      await inventoryData.load({ silent: true });
       await invalidateSubsystems([...EQUIP_DEPENDENT_SUBSYSTEMS]);
     }
     return response;

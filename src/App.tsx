@@ -2,22 +2,18 @@ import { Routes, Route } from 'react-router-dom';
 import { LocaleProvider } from '@/providers/LocaleProvider';
 import { TauriProvider } from '@/providers/TauriProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { SettingsProvider } from '@/contexts/SettingsContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import ClientOnlyApp from '@/components/ClientOnlyApp';
-import SettingsPage from '@/pages/SettingsPage';
+import Shell from '@/components/layout/Shell';
 
 function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <TauriProvider>
       <ThemeProvider>
-        <SettingsProvider>
-          <LocaleProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-          </LocaleProvider>
-        </SettingsProvider>
+        <LocaleProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </LocaleProvider>
       </ThemeProvider>
     </TauriProvider>
   );
@@ -27,8 +23,7 @@ export default function App() {
   return (
     <AppProviders>
       <Routes>
-        <Route path="/" element={<ClientOnlyApp />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/" element={<Shell />} />
       </Routes>
     </AppProviders>
   );

@@ -98,7 +98,7 @@ pub async fn select_save_file(app: tauri::AppHandle) -> Result<SaveFile, String>
         .map(|time| {
             time.duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis() as i64
+                .as_secs() as i64
         });
 
     let character_name = read_save_character_name(&save_path);
@@ -200,7 +200,7 @@ pub async fn find_nwn2_saves(
                 .map(|time| {
                     time.duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_millis() as i64
+                        .as_secs() as i64
                 });
 
             let character_name = read_save_character_name(&entry.path());
@@ -598,6 +598,16 @@ pub async fn get_default_saves_path(save_mode: Option<String>) -> Result<String,
         base_saves_path
     };
     Ok(saves_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn get_default_backups_path() -> Result<String, String> {
+    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
+    let saves_path = nwn2_paths
+        .saves()
+        .ok_or("Could not determine NWN2 saves path")?;
+    let backups_path = saves_path.join("backups");
+    Ok(backups_path.to_string_lossy().to_string())
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

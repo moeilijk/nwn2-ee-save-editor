@@ -14,6 +14,7 @@ use crate::parsers::erf::ErfParser;
 use crate::parsers::gff::{GffParser, GffValue, GffWriter};
 
 use crate::config::NWN2Paths;
+use crate::services::campaign::backup::backup_module_z;
 use crate::services::campaign::journal::{QuestDefinition, parse_journal_gff};
 use crate::services::savegame_handler::SaveGameHandler;
 
@@ -28,6 +29,10 @@ pub struct ModuleInfo {
     pub current_module: String,
     pub hak_list: Vec<String>,
     pub custom_tlk: String,
+    pub game_year: u32,
+    pub game_month: u8,
+    pub game_day: u8,
+    pub game_hour: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -98,10 +103,56 @@ pub fn extract_module_info(
         }
     }
 
-    Ok((
-        found_module_info.unwrap_or_default(),
-        found_module_vars.unwrap_or_default(),
-    ))
+    let info = found_module_info.unwrap_or_default();
+
+    Ok((info, found_module_vars.unwrap_or_default()))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleSummary {
+    pub id: String,
+    pub name: String,
+    pub is_current: bool,
+}
+
+pub fn list_modules(handler: &SaveGameHandler, paths: &NWN2Paths) -> Result<Vec<ModuleSummary>, String> {
+    let current_module_id = handler.extract_current_module().unwrap_or_default();
+    let save_dir = handler.save_dir();
+
+    let mut modules = Vec::new();
+    if let Ok(entries) = fs::read_dir(save_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().is_some_and(|e| e == "z") {
+                let file_stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                let name = match parse_module_z_file(&path, &file_stem, paths) {
+                    Ok((info, _)) => if info.module_name.is_empty() { file_stem.clone() } else { info.module_name },
+                    Err(_) => file_stem.clone(),
+                };
+                modules.push(ModuleSummary {
+                    is_current: file_stem == current_module_id,
+                    id: file_stem,
+                    name,
+                });
+            }
+        }
+    }
+
+    modules.sort_by(|a, b| {
+        b.is_current.cmp(&a.is_current).then_with(|| a.name.cmp(&b.name))
+    });
+
+    Ok(modules)
+}
+
+pub fn extract_module_info_by_id(
+    handler: &SaveGameHandler,
+    paths: &NWN2Paths,
+    module_id: &str,
+) -> Result<(ModuleInfo, ModuleVariables), String> {
+    let save_dir = handler.save_dir();
+    let z_path = find_module_z_file(save_dir, module_id)?;
+    parse_module_z_file(&z_path, module_id, paths)
 }
 
 pub fn extract_journal(
@@ -218,6 +269,13 @@ fn parse_module_z_file(
             _ => String::new(),
         }
     };
+    let get_u32 = |key: &str| -> u32 {
+        match root.get(key) {
+            Some(GffValue::Dword(v)) => *v,
+            Some(GffValue::Int(v)) => *v as u32,
+            _ => 0,
+        }
+    };
 
     // Process Module Info
     let module_name = get_string("Mod_Name");
@@ -252,13 +310,22 @@ fn parse_module_z_file(
         }
     }
 
+    let get_byte = |key: &str| -> u8 {
+        match root.get(key) {
+            Some(GffValue::Byte(v)) => *v,
+            Some(GffValue::Dword(v)) => *v as u8,
+            Some(GffValue::Int(v)) => *v as u8,
+            _ => 0,
+        }
+    };
+
     let info = ModuleInfo {
         module_name: if module_name.is_empty() {
             module_id.to_string()
         } else {
             module_name
         },
-        area_name: entry_area.clone(), // Rough approx
+        area_name: entry_area.clone(),
         campaign,
         entry_area,
         module_description,
@@ -266,6 +333,10 @@ fn parse_module_z_file(
         current_module: module_id.to_string(),
         hak_list,
         custom_tlk,
+        game_year: get_u32("Mod_StartYear"),
+        game_month: get_byte("Mod_StartMonth"),
+        game_day: get_byte("Mod_StartDay"),
+        game_hour: get_byte("Mod_StartHour"),
     };
 
     // Process Variables (VarTable)
@@ -448,7 +519,7 @@ fn update_module_variable_inner(
     );
 
     let lzma_opts =
-        LzmaOptions::new_preset(6).map_err(|e| format!("Failed to create LZMA options: {e}"))?;
+        LzmaOptions::new_preset(1).map_err(|e| format!("Failed to create LZMA options: {e}"))?;
     let lzma_stream = Stream::new_lzma_encoder(&lzma_opts)
         .map_err(|e| format!("Failed to create LZMA encoder stream: {e}"))?;
     let mut encoder = XzEncoder::new_stream(Vec::new(), lzma_stream);
@@ -465,11 +536,179 @@ fn update_module_variable_inner(
         z_path
     );
 
+    if let Err(e) = backup_module_z(handler, target_module) {
+        warn!("Failed to backup {}.z: {}", target_module, e);
+    }
+
     fs::write(&z_path, compressed).map_err(|e| format!("Failed to write .z file: {e}"))?;
 
     info!(
         "Successfully updated module variable '{}' in {:?}",
         var_name, z_path
+    );
+    Ok(())
+}
+
+pub fn batch_update_module_variables(
+    handler: &SaveGameHandler,
+    updates: &[(String, String, String)],
+    module_id: Option<&str>,
+) -> Result<(), String> {
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    let current_module_id = handler.extract_current_module().unwrap_or_default();
+    let target_module = module_id.unwrap_or(&current_module_id);
+    let save_dir = handler.save_dir();
+
+    let z_path = find_module_z_file(save_dir, target_module)?;
+
+    info!(
+        "Batch updating {} module variables in {:?}",
+        updates.len(),
+        z_path
+    );
+
+    let file = fs::File::open(&z_path).map_err(|e| format!("Failed to open .z file: {e}"))?;
+    let stream = Stream::new_lzma_decoder(u64::MAX)
+        .map_err(|e| format!("Failed to create LZMA decoder: {e}"))?;
+    let mut decoder = XzDecoder::new_stream(file, stream);
+    let mut decompressed = Vec::new();
+    decoder
+        .read_to_end(&mut decompressed)
+        .map_err(|e| format!("Failed to decompress .z file: {e}"))?;
+
+    info!("Decompressed {} bytes from .z file", decompressed.len());
+
+    let mut erf_parser = ErfParser::new();
+    erf_parser
+        .parse_from_bytes(&decompressed)
+        .map_err(|e| format!("Failed to parse ERF: {e}"))?;
+    erf_parser
+        .load_all_resources()
+        .map_err(|e| format!("Failed to load ERF resources: {e}"))?;
+
+    let module_ifo_bytes = erf_parser
+        .extract_resource("module.ifo")
+        .map_err(|e| format!("module.ifo not found: {e}"))?;
+
+    info!("Extracted module.ifo ({} bytes)", module_ifo_bytes.len());
+
+    let gff = GffParser::from_bytes(module_ifo_bytes)
+        .map_err(|e| format!("Failed to parse module.ifo GFF: {e}"))?;
+    let root = gff
+        .read_struct_fields(0)
+        .map_err(|e| format!("Failed to read root struct: {e}"))?;
+
+    let mut owned_fields: IndexMap<String, GffValue<'static>> = root
+        .into_iter()
+        .map(|(k, v)| (k, v.force_owned()))
+        .collect();
+
+    let var_table = owned_fields
+        .entry("VarTable".to_string())
+        .or_insert_with(|| GffValue::ListOwned(Vec::new()));
+
+    let GffValue::ListOwned(entries) = var_table else {
+        return Err(format!(
+            "VarTable is not a ListOwned, got: {:?}",
+            std::mem::discriminant(var_table)
+        ));
+    };
+
+    for (var_name, value, var_type) in updates {
+        let (type_id, gff_value): (u32, GffValue<'static>) = match var_type.as_str() {
+            "int" => {
+                let v: i32 = value
+                    .parse()
+                    .map_err(|e| format!("Invalid int value for '{var_name}': {e}"))?;
+                (1, GffValue::Int(v))
+            }
+            "float" => {
+                let v: f32 = value
+                    .parse()
+                    .map_err(|e| format!("Invalid float value for '{var_name}': {e}"))?;
+                (2, GffValue::Float(v))
+            }
+            "string" => (3, GffValue::String(Cow::Owned(value.clone()))),
+            _ => return Err(format!("Unknown variable type: {var_type}")),
+        };
+
+        let mut found = false;
+        for entry in entries.iter_mut() {
+            let name_matches = matches!(
+                entry.get("Name"),
+                Some(GffValue::String(s)) if s.as_ref() == var_name.as_str()
+            );
+            if name_matches {
+                entry.insert("Type".to_string(), GffValue::Dword(type_id));
+                entry.insert("Value".to_string(), gff_value.clone());
+                found = true;
+                info!("Updated existing VarTable entry '{}'", var_name);
+                break;
+            }
+        }
+        if !found {
+            let mut new_entry = IndexMap::new();
+            new_entry.insert(
+                "Name".to_string(),
+                GffValue::String(Cow::Owned(var_name.clone())),
+            );
+            new_entry.insert("Type".to_string(), GffValue::Dword(type_id));
+            new_entry.insert("Value".to_string(), gff_value);
+            entries.push(new_entry);
+            info!("Added new VarTable entry '{}'", var_name);
+        }
+    }
+
+    let new_ifo_bytes = GffWriter::new("IFO ", "V3.2")
+        .write(owned_fields)
+        .map_err(|e| format!("Failed to serialize module.ifo: {e:?}"))?;
+
+    info!("Serialized module.ifo ({} bytes)", new_ifo_bytes.len());
+
+    erf_parser
+        .update_resource("module.ifo", new_ifo_bytes)
+        .map_err(|e| format!("Failed to update module.ifo in ERF: {e}"))?;
+
+    let erf_bytes = erf_parser
+        .to_bytes()
+        .map_err(|e| format!("Failed to serialize ERF: {e}"))?;
+
+    info!(
+        "Serialized ERF ({} bytes), compressing with LZMA",
+        erf_bytes.len()
+    );
+
+    let lzma_opts =
+        LzmaOptions::new_preset(1).map_err(|e| format!("Failed to create LZMA options: {e}"))?;
+    let lzma_stream = Stream::new_lzma_encoder(&lzma_opts)
+        .map_err(|e| format!("Failed to create LZMA encoder stream: {e}"))?;
+    let mut encoder = XzEncoder::new_stream(Vec::new(), lzma_stream);
+    encoder
+        .write_all(&erf_bytes)
+        .map_err(|e| format!("Failed to compress ERF: {e}"))?;
+    let compressed = encoder
+        .finish()
+        .map_err(|e| format!("Failed to finish LZMA compression: {e}"))?;
+
+    info!(
+        "Compressed to {} bytes, writing to {:?}",
+        compressed.len(),
+        z_path
+    );
+
+    if let Err(e) = backup_module_z(handler, target_module) {
+        warn!("Failed to backup {}.z: {}", target_module, e);
+    }
+
+    fs::write(&z_path, compressed).map_err(|e| format!("Failed to write .z file: {e}"))?;
+
+    info!(
+        "Successfully batch-updated {} module variables in {:?}",
+        updates.len(),
+        z_path
     );
     Ok(())
 }

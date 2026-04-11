@@ -4,6 +4,7 @@ use tracing::{trace, warn};
 use crate::character::gff_helpers::gff_value_to_i32;
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
+use crate::utils::parsing::row_str;
 
 /// NWN2 cost tables use multipliers that represent thousands of gold.
 const GOLD_MULTIPLIER: f64 = 1000.0;
@@ -55,15 +56,11 @@ impl ItemCostCalculator {
         let baseitems = game_data.get_table("baseitems")?;
         let row = baseitems.get_by_id(base_item_id)?;
 
-        let base_cost = row
-            .get("BaseCost")
-            .and_then(|v| v.as_ref())
+        let base_cost = row_str(&row, "basecost")
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        let item_multiplier = row
-            .get("ItemMultiplier")
-            .and_then(|v| v.as_ref())
+        let item_multiplier = row_str(&row, "itemmultiplier")
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(1.0);
 
@@ -103,15 +100,11 @@ impl ItemCostCalculator {
         let itempropdef = game_data.get_table("itempropdef")?;
         let prop_def_row = itempropdef.get_by_id(property_type as i32)?;
 
-        let prop_def_cost = prop_def_row
-            .get("Cost")
-            .and_then(|v| v.as_ref())
+        let prop_def_cost = row_str(&prop_def_row, "cost")
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(1.0);
 
-        let cost_table_ref = prop_def_row
-            .get("CostTableResRef")
-            .and_then(|v| v.as_ref())
+        let cost_table_ref = row_str(&prop_def_row, "costtableresref")
             .and_then(|s| s.parse::<u32>().ok());
 
         let cost_multiplier = cost_table_ref
@@ -131,11 +124,11 @@ impl ItemCostCalculator {
             return 0.0;
         };
 
-        let Some(name) = table_row.get("Name").and_then(|v| v.as_ref()) else {
+        let Some(name) = row_str(&table_row, "name") else {
             return 0.0;
         };
 
-        if name.is_empty() || name == "****" {
+        if name == "****" {
             return 0.0;
         }
 
@@ -150,8 +143,7 @@ impl ItemCostCalculator {
             return 0.0;
         };
 
-        row.get("Cost")
-            .and_then(|v| v.as_ref())
+        row_str(&row, "cost")
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(0.0)
     }

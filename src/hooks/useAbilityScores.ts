@@ -586,6 +586,7 @@ export function useAbilityScores(
     calculateModifier,
     updateAlignment,
 
+    updateStats,
     pointSummary,
     startingSummary,
     resetAbilityOverrides: () => {

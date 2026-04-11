@@ -6,7 +6,6 @@ use std::collections::HashSet;
 
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
-
 pub const ALIGNMENT_MIN: i32 = 0;
 pub const ALIGNMENT_MAX: i32 = 100;
 
@@ -221,30 +220,56 @@ impl Character {
         Ok(())
     }
 
-    fn background_row_i32(row: &AHashMap<String, Option<String>>, keys: &[&str]) -> Option<i32> {
+    fn canonical_background_2da_key(name: &str) -> String {
+        name.chars()
+            .filter(|ch| ch.is_ascii_alphanumeric())
+            .map(|ch| ch.to_ascii_lowercase())
+            .collect()
+    }
+
+    fn background_row_value(
+        row: &AHashMap<String, Option<String>>,
+        keys: &[&str],
+    ) -> Option<String> {
         keys.iter()
             .find_map(|key| row.get(*key).and_then(std::clone::Clone::clone))
-            .and_then(|value| value.parse::<i32>().ok())
+            .or_else(|| {
+                let canonical_keys: HashSet<String> =
+                    keys.iter().map(|key| Self::canonical_background_2da_key(key)).collect();
+                row.iter().find_map(|(key, value)| {
+                    canonical_keys
+                        .contains(&Self::canonical_background_2da_key(key))
+                        .then(|| value.clone())
+                        .flatten()
+                })
+            })
+    }
+
+    fn background_row_i32(row: &AHashMap<String, Option<String>>, keys: &[&str]) -> Option<i32> {
+        Self::background_row_value(row, keys).and_then(|value| value.parse::<i32>().ok())
     }
 
     fn background_row_removed(row: &AHashMap<String, Option<String>>) -> bool {
-        Self::background_row_i32(row, &["REMOVED", "Removed"]).unwrap_or(0) != 0
+        Self::background_row_i32(row, &["REMOVED", "Removed", "removed"]).unwrap_or(0) != 0
     }
 
     fn background_row_name(row: &AHashMap<String, Option<String>>, game_data: &GameData) -> String {
-        row.get("label")
-            .or_else(|| row.get("Label"))
-            .and_then(std::clone::Clone::clone)
+        Self::background_row_value(row, &["label", "Label"])
             .filter(|value| !value.trim().is_empty())
             .or_else(|| {
-                row.get("name")
-                    .or_else(|| row.get("Name"))
-                    .and_then(std::clone::Clone::clone)
-                    .and_then(|value| value.parse::<i32>().ok())
-                    .and_then(|str_ref| game_data.get_string(str_ref))
-                    .filter(|value| !value.trim().is_empty())
+                Self::background_row_value(row, &["name", "Name"]).and_then(|value| {
+                    value
+                        .parse::<i32>()
+                        .ok()
+                        .and_then(|str_ref| game_data.get_string(str_ref))
+                        .filter(|value| !value.trim().is_empty())
+                        .or_else(|| {
+                            let trimmed = value.trim();
+                            (!trimmed.is_empty() && trimmed != "****" && trimmed != "-1")
+                                .then(|| trimmed.to_string())
+                        })
+                })
             })
-            .or_else(|| row.get("Label").and_then(std::clone::Clone::clone))
             .unwrap_or_else(|| "Background".to_string())
     }
 
@@ -252,9 +277,14 @@ impl Character {
         let mut feat_ids = Vec::new();
 
         for keys in [
-            ["DisplayFeat", "display_feat"].as_slice(),
-            ["FeatGained", "feat_gained"].as_slice(),
-            ["MasterFeatGained", "master_feat_gained"].as_slice(),
+            ["DisplayFeat", "display_feat", "displayfeat"].as_slice(),
+            ["FeatGained", "feat_gained", "featgained"].as_slice(),
+            [
+                "MasterFeatGained",
+                "master_feat_gained",
+                "masterfeatgained",
+            ]
+            .as_slice(),
         ] {
             if let Some(feat_id) =
                 Self::background_row_i32(row, keys).filter(|feat_id| *feat_id >= 0)

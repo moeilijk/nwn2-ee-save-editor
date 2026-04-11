@@ -54,8 +54,8 @@ pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveTy
 pub use saves::SaveBonuses;
 pub use skills::{ABLE_LEARNER_FEAT_ID, SkillPointsSummary, SkillSummaryEntry};
 pub use spells::{
-    CasterClassSummary, KnownSpellEntry, MAX_SPELL_LEVEL, MemorizedSpellEntry, MemorizedSpellRaw,
-    MetamagicFeat, SpellDetails, SpellSummary, SpellcastingClass, SpellsState,
+    AbilitySpellEntry, CasterClassSummary, KnownSpellEntry, MAX_SPELL_LEVEL, MemorizedSpellEntry,
+    MemorizedSpellRaw, MetamagicFeat, SpellDetails, SpellSummary, SpellcastingClass, SpellsState,
     is_displayable_spell, is_mod_prefixed_name,
 };
 pub use types::*;

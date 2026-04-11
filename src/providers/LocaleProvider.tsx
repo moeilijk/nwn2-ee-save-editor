@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { IntlProvider } from 'react-intl';
 
 type LocaleContextType = {
@@ -35,13 +36,16 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedLocale = localStorage.getItem('locale') || 'en';
-    setLocaleState(savedLocale);
-    
-    loadMessages(savedLocale).then((msgs) => {
-      setMessages(msgs);
-      setIsLoading(false);
-    });
+    invoke<{ language: string }>('get_app_config')
+      .then((config) => {
+        setLocaleState(config.language);
+        return loadMessages(config.language);
+      })
+      .catch(() => loadMessages('en'))
+      .then((msgs) => {
+        setMessages(msgs);
+        setIsLoading(false);
+      });
   }, []);
 
   const setLocale = async (newLocale: string) => {
@@ -49,7 +53,6 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     const newMessages = await loadMessages(newLocale);
     setMessages(newMessages);
     setLocaleState(newLocale);
-    localStorage.setItem('locale', newLocale);
     setIsLoading(false);
   };
 

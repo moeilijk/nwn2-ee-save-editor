@@ -1,6 +1,7 @@
 use crate::character::types::{AbilityIndex, ClassId};
 use crate::character::{Character, CharacterError};
 use crate::loaders::GameData;
+use crate::utils::parsing::row_int;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -91,9 +92,7 @@ impl Character {
         };
 
         let bab_table_name = class_data
-            .get("AttackBonusTable")
-            .or_else(|| class_data.get("attackbonustable"))
-            .or_else(|| class_data.get("attack_bonus_table"))
+            .get("attackbonustable")
             .and_then(|s| s.as_ref());
 
         let Some(bab_table_name) = bab_table_name else {
@@ -138,15 +137,7 @@ impl Character {
     }
 
     pub fn size_modifier(&self) -> i32 {
-        let size = self.creature_size();
-        match size {
-            2 => 2,
-            3 => 1,
-            4 => 0,
-            5 => -1,
-            6 => -2,
-            _ => 0,
-        }
+        self.size_category().ac_modifier_default()
     }
 
     pub fn get_melee_attack_bonus(&self, game_data: &GameData) -> i32 {
@@ -305,14 +296,12 @@ impl Character {
             return 0;
         };
 
-        race_data
-            .get("SR")
-            .or_else(|| race_data.get("sr"))
-            .or_else(|| race_data.get("SpellResistance"))
-            .or_else(|| race_data.get("spellresistance"))
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0)
+        let sr = row_int(&race_data, "sr", -1);
+        if sr >= 0 {
+            sr
+        } else {
+            row_int(&race_data, "spellresistance", 0)
+        }
     }
 
     pub fn get_total_spell_resistance(&self, game_data: &GameData) -> i32 {
@@ -522,23 +511,24 @@ mod tests {
     fn test_size_modifier() {
         let mut fields = IndexMap::new();
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(2));
+        // NWN2 creaturesize.2da: 1=Tiny(+2), 2=Small(+1), 3=Medium(0), 4=Large(-1), 5=Huge(-2)
+        fields.insert("CreatureSize".to_string(), GffValue::Int(1));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 2);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(3));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(2));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 1);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(3));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), 0);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(5));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), -1);
 
-        fields.insert("CreatureSize".to_string(), GffValue::Int(6));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(5));
         let character = Character::from_gff(fields.clone());
         assert_eq!(character.size_modifier(), -2);
     }

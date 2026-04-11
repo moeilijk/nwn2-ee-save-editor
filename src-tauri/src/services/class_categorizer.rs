@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::loaders::GameData;
-use crate::services::field_mapper::FIELD_PATTERNS;
+use crate::utils::parsing::{row_bool, row_int, row_str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -96,56 +96,9 @@ pub struct CategorizedClasses {
     pub total_classes: i32,
 }
 
-fn get_field_value(row: &AHashMap<String, Option<String>>, field: &str) -> Option<String> {
-    if let Some(patterns) = FIELD_PATTERNS.get(field) {
-        for pattern in patterns {
-            let pattern_lower = pattern.to_lowercase();
-            for (key, value) in row {
-                if key.to_lowercase() == pattern_lower
-                    && let Some(v) = value
-                    && !v.is_empty()
-                    && v != "****"
-                {
-                    return Some(v.clone());
-                }
-            }
-        }
-    }
-
-    let field_lower = field.to_lowercase();
-    for (key, value) in row {
-        if key.to_lowercase() == field_lower
-            && let Some(v) = value
-            && !v.is_empty()
-            && v != "****"
-        {
-            return Some(v.clone());
-        }
-    }
-
-    None
-}
-
-fn get_field_int(row: &AHashMap<String, Option<String>>, field: &str, default: i32) -> i32 {
-    get_field_value(row, field)
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
-fn get_field_bool(row: &AHashMap<String, Option<String>>, field: &str) -> bool {
-    get_field_value(row, field)
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or(false)
-}
-
 fn determine_class_type(row: &AHashMap<String, Option<String>>) -> ClassType {
-    let player_class = get_field_value(row, "player_class")
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(1);
-
-    let max_level = get_field_value(row, "max_level")
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(0);
+    let player_class = row_int(row, "playerclass", 1);
+    let max_level = row_int(row, "maxlevel", 0);
 
     if player_class == 0 && max_level == 0 {
         return ClassType::Npc;
@@ -159,10 +112,10 @@ fn determine_class_type(row: &AHashMap<String, Option<String>>) -> ClassType {
 }
 
 fn determine_class_focus(row: &AHashMap<String, Option<String>>) -> ClassFocus {
-    let has_arcane = get_field_bool(row, "has_arcane");
-    let has_divine = get_field_bool(row, "has_divine");
-    let skill_points = get_field_int(row, "skill_point_base", 2);
-    let hit_die = get_field_int(row, "hit_die", 8);
+    let has_arcane = row_bool(row, "hasarcane", false);
+    let has_divine = row_bool(row, "hasdivine", false);
+    let skill_points = row_int(row, "skillpointbase", 2);
+    let hit_die = row_int(row, "hitdie", 8);
 
     if has_arcane {
         ClassFocus::ArcaneCaster
@@ -178,12 +131,8 @@ fn determine_class_focus(row: &AHashMap<String, Option<String>>) -> ClassFocus {
 }
 
 fn is_placeholder_class(row: &AHashMap<String, Option<String>>) -> bool {
-    let name = get_field_value(row, "name")
-        .unwrap_or_default()
-        .to_lowercase();
-    let label = get_field_value(row, "label")
-        .unwrap_or_default()
-        .to_lowercase();
+    let name = row_str(row, "name").unwrap_or_default().to_lowercase();
+    let label = row_str(row, "label").unwrap_or_default().to_lowercase();
 
     name == "padding"
         || name == "****"
@@ -305,35 +254,30 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
         let class_type = determine_class_type(&row);
         let class_focus = determine_class_focus(&row);
 
-        let name_strref = get_field_value(&row, "name").and_then(|v| v.parse::<i32>().ok());
+        let name_strref = row_int(&row, "name", -1);
+        let name = if name_strref >= 0 {
+            game_data.get_string(name_strref).filter(|n| !n.is_empty())
+        } else {
+            None
+        }
+        .or_else(|| row_str(&row, "label"))
+        .unwrap_or_else(|| format!("Class{row_idx}"));
 
-        let name = name_strref
-            .and_then(|strref| game_data.get_string(strref))
-            .filter(|n| !n.is_empty())
-            .or_else(|| get_field_value(&row, "label"))
-            .unwrap_or_else(|| format!("Class{row_idx}"));
+        let label = row_str(&row, "label").unwrap_or_else(|| format!("Class{row_idx}"));
 
-        let label = get_field_value(&row, "label").unwrap_or_else(|| format!("Class{row_idx}"));
+        let has_arcane = row_bool(&row, "hasarcane", false);
+        let has_divine = row_bool(&row, "hasdivine", false);
 
-        let has_arcane = get_field_bool(&row, "has_arcane");
-        let has_divine = get_field_bool(&row, "has_divine");
+        let align_restrict = row_int(&row, "alignrestrict", 0);
 
-        let align_restrict = get_field_value(&row, "align_restrict")
-            .and_then(|v| {
-                if let Some(hex) = v.strip_prefix("0x") {
-                    i32::from_str_radix(hex, 16).ok()
-                } else {
-                    v.parse().ok()
-                }
-            })
-            .unwrap_or(0);
-
-        let description_strref =
-            get_field_value(&row, "description").and_then(|v| v.parse::<i32>().ok());
-
-        let description = description_strref
-            .and_then(|strref| game_data.get_string(strref))
-            .filter(|d| !d.is_empty());
+        let description_strref = row_int(&row, "description", -1);
+        let description = if description_strref >= 0 {
+            game_data
+                .get_string(description_strref)
+                .filter(|d| !d.is_empty())
+        } else {
+            None
+        };
 
         let class_info = ClassInfo {
             id: row_idx as i32,
@@ -341,15 +285,14 @@ pub fn get_categorized_classes(game_data: &GameData) -> CategorizedClasses {
             label,
             class_type: class_type.as_str().to_string(),
             focus: class_focus.as_str().to_string(),
-            max_level: get_field_int(&row, "max_level", 0),
-            hit_die: get_field_int(&row, "hit_die", 8),
-            skill_points: get_field_int(&row, "skill_point_base", 2),
+            max_level: row_int(&row, "maxlevel", 0),
+            hit_die: row_int(&row, "hitdie", 8),
+            skill_points: row_int(&row, "skillpointbase", 2),
             is_spellcaster: has_arcane || has_divine,
             has_arcane,
             has_divine,
-            primary_ability: get_field_value(&row, "primary_ability")
-                .unwrap_or_else(|| "STR".to_string()),
-            bab_progression: get_field_value(&row, "attack_bonus_table")
+            primary_ability: row_str(&row, "primaryabil").unwrap_or_else(|| "STR".to_string()),
+            bab_progression: row_str(&row, "attackbonustable")
                 .unwrap_or_else(|| "CLS_ATK_2".to_string()),
             alignment_restricted: align_restrict > 0,
             description,

@@ -1,21 +1,50 @@
 use tauri::State;
 
 use crate::character::{AbilitiesState, ClassesState, FeatsState, OverviewState, SpellsState};
+use crate::character::overview::CampaignOverviewInfo;
 use crate::commands::{CommandError, CommandResult};
+use crate::services::campaign::CampaignManager;
 use crate::state::AppState;
 
 use super::types::{AbilitiesUpdates, CharacterUpdates};
 
 #[tauri::command]
 pub async fn get_overview_state(state: State<'_, AppState>) -> CommandResult<OverviewState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
     let session = state.session.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     let game_data = state.game_data.read();
+    let decoder = &session.item_property_decoder;
 
-    Ok(character.get_overview_state(&game_data))
+    let mut overview = character.get_overview_state(&game_data, decoder);
+    let paths = state.paths.read();
+
+    if let Some(handler) = session.savegame_handler.as_ref() {
+        let mut info = CampaignOverviewInfo::default();
+
+        if let Ok((module_info, _)) = CampaignManager::get_module_info(handler, &paths) {
+            info.campaign_name = Some(module_info.campaign);
+            info.module_name = Some(module_info.module_name);
+            info.area_name = Some(module_info.area_name);
+            info.game_year = Some(module_info.game_year);
+            info.game_month = Some(module_info.game_month);
+            info.game_day = Some(module_info.game_day);
+            info.game_hour = Some(module_info.game_hour);
+        }
+
+        if let Ok(summary) = CampaignManager::get_summary(handler) {
+            info.game_act = summary.general_info.get("game_act").cloned().flatten();
+            info.last_saved = summary.general_info.get("last_saved").cloned().flatten();
+            info.difficulty = summary.general_info.get("difficulty").cloned().flatten();
+        }
+
+        overview.campaign_info = Some(info);
+    }
+
+    Ok(overview)
 }
 
 #[tauri::command]
@@ -23,6 +52,8 @@ pub async fn update_character(
     state: State<'_, AppState>,
     updates: CharacterUpdates,
 ) -> CommandResult<OverviewState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
+
     let mut session = state.session.write();
     let character = session
         .character
@@ -52,7 +83,12 @@ pub async fn update_character(
     }
 
     let game_data = state.game_data.read();
-    Ok(character.get_overview_state(&game_data))
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    let decoder = &session.item_property_decoder;
+    Ok(character.get_overview_state(&game_data, decoder))
 }
 
 #[tauri::command]

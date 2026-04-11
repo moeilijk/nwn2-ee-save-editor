@@ -8,6 +8,7 @@ use super::gff_helpers::gff_value_to_i32;
 use super::types::{AbilityIndex, ClassId, DomainId, SpellId};
 use super::{Character, CharacterError};
 use crate::loaders::GameData;
+use crate::utils::parsing::row_bool;
 use crate::parsers::gff::GffValue;
 
 pub const MAX_SPELL_LEVEL: i32 = 9;
@@ -20,42 +21,42 @@ pub fn is_mod_prefixed_name(name: &str) -> bool {
 
 pub fn is_displayable_spell(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
     if spell_row
-        .get("REMOVED")
+        .get("removed")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| v == "1")
     {
         return false;
     }
     if spell_row
-        .get("DELETED")
+        .get("deleted")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| !v.is_empty() && v != "****")
     {
         return false;
     }
     if spell_row
-        .get("Master")
+        .get("master")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
     {
         return false;
     }
     if spell_row
-        .get("UserType")
+        .get("usertype")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| v != "1")
     {
         return false;
     }
     if spell_row
-        .get("FeatID")
+        .get("featid")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok())
     {
         return false;
     }
     if spell_row
-        .get("Label")
+        .get("label")
         .and_then(|v| v.as_ref())
         .is_some_and(|v| v.starts_with("SPELLABILITY_"))
     {
@@ -451,7 +452,7 @@ impl Character {
             return false;
         };
 
-        if let Some(spell_caster_str) = class_data.get("SpellCaster")
+        if let Some(spell_caster_str) = class_data.get("spellcaster")
             && let Some(spell_caster_value) = spell_caster_str
             && spell_caster_value != "0"
             && spell_caster_value != "****"
@@ -474,15 +475,7 @@ impl Character {
             return false;
         };
 
-        if let Some(memorizes_str) = class_data.get("MemorizesSpells")
-            && let Some(memorizes_value) = memorizes_str
-            && memorizes_value != "****"
-            && let Ok(val) = memorizes_value.parse::<i32>()
-        {
-            return val != 0;
-        }
-
-        false
+        row_bool(&class_data, "memorizesspells", false)
     }
 
     /// Check if a class uses "all spells known" mode (like Clerics/Druids).
@@ -497,10 +490,7 @@ impl Character {
             return false;
         };
 
-        class_data
-            .get("AllSpellsKnown")
-            .and_then(|v| v.as_ref())
-            .is_some_and(|v| v == "1")
+        row_bool(&class_data, "allspellsknown", false)
     }
 
     /// Check if a class is a divine caster (has domains).
@@ -514,15 +504,11 @@ impl Character {
             return false;
         };
 
-        if class_data
-            .get("HasDomains")
-            .and_then(|v| v.as_ref())
-            .is_some_and(|v| v == "1")
-        {
+        if row_bool(&class_data, "hasdomains", false) {
             return true;
         }
 
-        if let Some(max_domains_str) = class_data.get("MaxDomains").and_then(|v| v.as_ref())
+        if let Some(max_domains_str) = class_data.get("maxdomains").and_then(|v| v.as_ref())
             && let Ok(max_domains) = max_domains_str.parse::<i32>()
             && max_domains > 0
         {
@@ -546,14 +532,15 @@ impl Character {
         let class_data = classes_table.get_by_id(class_id.0)?;
 
         let spell_column = class_data
-            .get("SpellTableColumn")
+            .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
+            .map(|s| s.to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****")?;
 
         let spells_table = game_data.get_table("spells")?;
         let spell_data = spells_table.get_by_id(spell_id.0)?;
 
-        let level_str = spell_data.get(spell_column).and_then(|v| v.as_ref())?;
+        let level_str = spell_data.get(&spell_column).and_then(|v| v.as_ref())?;
         let level = level_str.parse::<i32>().ok()?;
 
         if (0..=MAX_SPELL_LEVEL).contains(&level) {
@@ -627,22 +614,13 @@ impl Character {
                 continue;
             };
 
-            // Check if spellcaster
-            let is_spellcaster = class_data
-                .get("SpellCaster")
-                .or_else(|| class_data.get("spell_caster"))
-                .or_else(|| class_data.get("spellcaster"))
-                .and_then(|v| v.as_ref())
-                .is_some_and(|s| matches!(s.trim().to_lowercase().as_str(), "1" | "true" | "yes"));
-
-            if !is_spellcaster {
+            if !row_bool(&class_data, "spellcaster", false) {
                 continue;
             }
 
             // Get spell gain table
             let spell_table_name = class_data
-                .get("SpellGainTable")
-                .or_else(|| class_data.get("spell_gain_table"))
+                .get("spellgaintable")
                 .and_then(|v| v.as_ref())
                 .filter(|s| !s.is_empty() && *s != "****");
 
@@ -684,7 +662,7 @@ impl Character {
 
             // Calculate slots for each spell level (0-9)
             for spell_level in 0..=MAX_SPELL_LEVEL {
-                let column_name = format!("SpellLevel{spell_level}");
+                let column_name = format!("spelllevel{spell_level}");
 
                 let base_slots = spell_table
                     .get_cell(table_row_idx, &column_name)
@@ -730,9 +708,9 @@ impl Character {
 
         // Try different field names for the primary ability
         let ability_str = class_data
-            .get("PrimaryAbil")
-            .or_else(|| class_data.get("SpellAbility"))
-            .or_else(|| class_data.get("SpellcastingAbil"))
+            .get("primaryabil")
+            .or_else(|| class_data.get("spellability"))
+            .or_else(|| class_data.get("spellcastingabil"))
             .and_then(|v| v.as_ref())
             .filter(|s| !s.is_empty() && *s != "****")?;
 
@@ -797,8 +775,9 @@ impl Character {
         };
 
         let Some(spell_column) = class_data
-            .get("SpellTableColumn")
+            .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
+            .map(|s| s.to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****")
         else {
             return Ok(());
@@ -813,7 +792,7 @@ impl Character {
                 continue;
             };
 
-            let level_str = spell_row.get(spell_column).and_then(|v| v.as_ref());
+            let level_str = spell_row.get(&spell_column).and_then(|v| v.as_ref());
             if let Some(level_str) = level_str
                 && let Ok(level) = level_str.parse::<i32>()
                 && level == 0
@@ -844,7 +823,7 @@ impl Character {
             return slots;
         };
 
-        let Some(spell_gain_table_name) = class_data.get("SpellGainTable").and_then(|v| v.as_ref())
+        let Some(spell_gain_table_name) = class_data.get("spellgaintable").and_then(|v| v.as_ref())
         else {
             return slots;
         };
@@ -873,7 +852,7 @@ impl Character {
         };
 
         for spell_level in 0..=MAX_SPELL_LEVEL {
-            let field_name = format!("SpellLevel{spell_level}");
+            let field_name = format!("spelllevel{spell_level}");
             if let Some(slot_value_str) = row_data.get(&field_name).and_then(|v| v.as_ref())
                 && let Ok(base_slots) = slot_value_str.parse::<i32>()
             {
@@ -934,10 +913,10 @@ impl Character {
         let class_data = classes_table.get_by_id(class_id.0)?;
 
         let ability_str = class_data
-            .get("PrimaryAbil")
+            .get("primaryabil")
             .and_then(|v| v.as_ref())
-            .or_else(|| class_data.get("SpellAbility").and_then(|v| v.as_ref()))
-            .or_else(|| class_data.get("SpellcastingAbil").and_then(|v| v.as_ref()))?;
+            .or_else(|| class_data.get("spellability").and_then(|v| v.as_ref()))
+            .or_else(|| class_data.get("spellcastingabil").and_then(|v| v.as_ref()))?;
 
         if ability_str.is_empty() || ability_str == "****" {
             return None;
@@ -989,7 +968,7 @@ impl Character {
             return 0;
         }
 
-        if let Some(spell_caster_type_str) = class_data.get("SpellCaster").and_then(|v| v.as_ref())
+        if let Some(spell_caster_type_str) = class_data.get("spellcaster").and_then(|v| v.as_ref())
             && let Ok(sct) = spell_caster_type_str.parse::<i32>()
         {
             return match sct {
@@ -1014,7 +993,7 @@ impl Character {
         let class_data = classes_table.get_by_id(class_id.0)?;
 
         class_data
-            .get("SpellKnownTable")
+            .get("spellknowntable")
             .and_then(|v| v.as_ref())
             .filter(|s| !s.is_empty() && *s != "****")
             .map(|s| s.to_lowercase())
@@ -1048,7 +1027,7 @@ impl Character {
         };
 
         for spell_level in 0..=MAX_SPELL_LEVEL {
-            let column_name = format!("SpellLevel{spell_level}");
+            let column_name = format!("spelllevel{spell_level}");
             if let Some(count_str) = row_data.get(&column_name).and_then(|v| v.as_ref())
                 && let Ok(count) = count_str.parse::<i32>()
                 && count > 0
@@ -1098,6 +1077,11 @@ impl Character {
         class_id: ClassId,
         game_data: &GameData,
     ) -> Option<PendingSpellLearning> {
+        // AllSpellsKnown classes (Cleric, Druid) auto-know all spells — nothing to learn
+        if self.uses_all_spells_known(class_id, game_data) {
+            return None;
+        }
+
         let class_name = self.get_class_name(class_id, game_data);
 
         // Spellbook casters (Wizard): 2 spells per level
@@ -1203,6 +1187,103 @@ impl Character {
         }
 
         classes
+    }
+
+    const LEARNABLE_CLASS_COLUMNS: &[&str] = &[
+        "bard", "cleric", "druid", "paladin", "ranger", "wiz_sorc", "favsoul", "spiritshm",
+    ];
+
+    fn is_on_learnable_caster_list(spell_row: &ahash::AHashMap<String, Option<String>>) -> bool {
+        Self::LEARNABLE_CLASS_COLUMNS.iter().any(|&col| {
+            spell_row
+                .get(col)
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| !v.is_empty() && v != "****" && v.parse::<i32>().is_ok_and(|n| n >= 0))
+        })
+    }
+
+    pub fn get_ability_spells(&self, game_data: &GameData) -> Vec<AbilitySpellEntry> {
+        let Some(spells_table) = game_data.get_table("spells") else {
+            return Vec::new();
+        };
+
+        let char_feats: HashSet<i32> = self.feat_ids().iter().map(|f| f.0).collect();
+
+        let mut known_spell_ids: HashSet<i32> = HashSet::new();
+        for class_entry in self.class_entries() {
+            for level in 0..=9 {
+                for spell_id in self.known_spells(class_entry.class_id, level) {
+                    known_spell_ids.insert(spell_id.0);
+                }
+            }
+        }
+
+        let mut ability_spells = Vec::new();
+        let mut seen = HashSet::new();
+
+        for row_id in 0..spells_table.row_count() {
+            let Ok(spell_row) = spells_table.get_row(row_id) else {
+                continue;
+            };
+
+            if spell_row
+                .get("removed")
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| v == "1")
+            {
+                continue;
+            }
+
+            let spell_id_val = row_id as i32;
+            let user_type = spell_row
+                .get("usertype")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(1);
+            let feat_id = spell_row
+                .get("featid")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok());
+            let is_spellability = spell_row
+                .get("label")
+                .and_then(|v| v.as_ref())
+                .is_some_and(|v| v.starts_with("SPELLABILITY_"));
+            let on_caster_list = Self::is_on_learnable_caster_list(&spell_row);
+
+            let has_feat = feat_id.is_some_and(|fid| char_feats.contains(&fid));
+            let is_known_ability = known_spell_ids.contains(&spell_id_val)
+                && (user_type != 1 || is_spellability || !on_caster_list);
+
+            if !has_feat && !is_known_ability {
+                continue;
+            }
+            if !seen.insert(spell_id_val) {
+                continue;
+            }
+
+            let spell_id = SpellId(spell_id_val);
+            let Some(details) = self.get_spell_details(spell_id, game_data) else {
+                continue;
+            };
+
+            let innate_level = spell_row
+                .get("innate")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(0);
+
+            ability_spells.push(AbilitySpellEntry {
+                spell_id: spell_id_val,
+                name: details.name,
+                icon: details.icon,
+                description: details.description,
+                school_name: details.school_name,
+                innate_level,
+            });
+        }
+
+        ability_spells.sort_by(|a, b| a.name.cmp(&b.name));
+        ability_spells
     }
 
     pub fn get_spells_state(&self, game_data: &GameData) -> SpellsState {
@@ -1426,6 +1507,8 @@ impl Character {
             .filter_map(|ce| self.get_pending_spells_to_learn(ce.class_id, game_data))
             .collect();
 
+        let ability_spells = self.get_ability_spells(game_data);
+
         SpellsState {
             spellcasting_classes,
             spell_summary: SpellSummary {
@@ -1437,6 +1520,7 @@ impl Character {
             memorized_spells,
             known_spells,
             pending_spell_learning,
+            ability_spells,
         }
     }
 
@@ -1449,9 +1533,9 @@ impl Character {
         let class_data = classes_table.get_by_id(class_id.0)?;
 
         let spell_col = class_data
-            .get("SpellTableColumn")
+            .get("spelltablecolumn")
             .and_then(|v| v.as_ref())
-            .map(|s| s.trim().to_string())
+            .map(|s| s.trim().to_lowercase())
             .filter(|v| !v.is_empty() && *v != "****");
 
         if spell_col.is_some() {
@@ -1460,26 +1544,25 @@ impl Character {
 
         // Fallback based on label
         let label = class_data
-            .get("Label")
-            .or_else(|| class_data.get("label"))
+            .get("label")
             .and_then(|v| v.as_ref())?;
 
         let l_lower = label.to_lowercase();
         Some(
             if l_lower.contains("wizard") || l_lower.contains("sorcerer") {
-                "Wiz_Sorc".to_string()
+                "wiz_sorc".to_string()
             } else if l_lower.contains("cleric") || l_lower.contains("favored") {
-                "Cleric".to_string()
+                "cleric".to_string()
             } else if l_lower.contains("druid") || l_lower.contains("spirit") {
-                "Druid".to_string()
+                "druid".to_string()
             } else if l_lower.contains("bard") {
-                "Bard".to_string()
+                "bard".to_string()
             } else if l_lower.contains("paladin") {
-                "Paladin".to_string()
+                "paladin".to_string()
             } else if l_lower.contains("ranger") {
-                "Ranger".to_string()
+                "ranger".to_string()
             } else {
-                label.clone()
+                l_lower
             },
         )
     }
@@ -1490,7 +1573,7 @@ impl Character {
         spell_id: SpellId,
         game_data: &GameData,
     ) -> Option<SpellDetails> {
-        let name = if let Some(name_raw) = spell_row.get("Name").and_then(|v| v.as_ref()) {
+        let name = if let Some(name_raw) = spell_row.get("name").and_then(|v| v.as_ref()) {
             if let Ok(strref) = name_raw.parse::<i32>() {
                 game_data
                     .get_string(strref)
@@ -1505,7 +1588,7 @@ impl Character {
         };
 
         let icon = spell_row
-            .get("IconResRef")
+            .get("iconresref")
             .and_then(|v| v.as_ref())
             .map(std::string::ToString::to_string)
             .unwrap_or_else(|| "io_unknown".to_string());
@@ -1513,7 +1596,7 @@ impl Character {
         let (school_id, school_name) = self.resolve_school(spell_row, game_data);
 
         let description = spell_row
-            .get("SpellDesc")
+            .get("spelldesc")
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
@@ -1533,23 +1616,23 @@ impl Character {
             school_name,
             description,
             spell_range: spell_row
-                .get("Range")
+                .get("range")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             cast_time: spell_row
-                .get("CastTime")
+                .get("casttime")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             conjuration_time: spell_row
-                .get("ConjTime")
+                .get("conjtime")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             components: spell_row
-                .get("VS")
+                .get("vs")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             target_type: spell_row
-                .get("TargetType")
+                .get("targettype")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
         })
@@ -1582,7 +1665,7 @@ impl Character {
                 continue;
             };
 
-            let Some(bit_str) = feat_data.get("MetamagicBit").and_then(|v| v.as_ref()) else {
+            let Some(bit_str) = feat_data.get("metamagicbit").and_then(|v| v.as_ref()) else {
                 continue;
             };
 
@@ -1591,15 +1674,15 @@ impl Character {
             }
 
             let name = feat_data
-                .get("FEAT")
+                .get("feat")
                 .and_then(|v| v.as_ref())
                 .and_then(|strref| strref.parse::<i32>().ok())
                 .and_then(|strref| game_data.get_string(strref))
                 .unwrap_or_else(|| format!("Feat {}", feat_id.0));
 
             let level_cost = feat_data
-                .get("MetamagicLevelCost")
-                .or_else(|| feat_data.get("SpellLevelCost"))
+                .get("metamagiclevelcost")
+                .or_else(|| feat_data.get("spelllevelcost"))
                 .and_then(|v| v.as_ref())
                 .and_then(|s| s.parse::<i32>().ok())
                 .unwrap_or(0);
@@ -1658,7 +1741,7 @@ impl Character {
             };
 
             for spell_level in 1..=MAX_SPELL_LEVEL {
-                let field_name = format!("Level_{spell_level}");
+                let field_name = format!("level_{spell_level}");
                 if let Some(spell_id_str) = domain_data.get(&field_name).and_then(|v| v.as_ref())
                     && let Ok(spell_id) = spell_id_str.parse::<i32>()
                     && spell_id >= 0
@@ -1692,7 +1775,7 @@ impl Character {
         };
 
         for spell_level in 1..=MAX_SPELL_LEVEL {
-            let field_name = format!("Level_{spell_level}");
+            let field_name = format!("level_{spell_level}");
             if let Some(spell_id_str) = domain_data.get(&field_name).and_then(|v| v.as_ref())
                 && let Ok(spell_id) = spell_id_str.parse::<i32>()
                 && spell_id >= 0
@@ -1792,7 +1875,7 @@ impl Character {
         let spells_table = game_data.get_table("spells")?;
         let spell_data = spells_table.get_by_id(spell_id.0)?;
 
-        let name = if let Some(name_raw) = spell_data.get("Name").and_then(|v| v.as_ref()) {
+        let name = if let Some(name_raw) = spell_data.get("name").and_then(|v| v.as_ref()) {
             if let Ok(strref) = name_raw.parse::<i32>() {
                 game_data
                     .get_string(strref)
@@ -1807,7 +1890,7 @@ impl Character {
         };
 
         let icon = spell_data
-            .get("IconResRef")
+            .get("iconresref")
             .and_then(|v| v.as_ref())
             .map(std::string::ToString::to_string)
             .unwrap_or_else(|| "io_unknown".to_string());
@@ -1815,7 +1898,7 @@ impl Character {
         let (school_id, school_name) = self.resolve_school(&spell_data, game_data);
 
         let description = spell_data
-            .get("SpellDesc")
+            .get("spelldesc")
             .and_then(|v| v.as_ref())
             .and_then(|desc_raw| {
                 if let Ok(strref) = desc_raw.parse::<i32>() {
@@ -1835,23 +1918,23 @@ impl Character {
             school_name,
             description,
             spell_range: spell_data
-                .get("Range")
+                .get("range")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             cast_time: spell_data
-                .get("CastTime")
+                .get("casttime")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             conjuration_time: spell_data
-                .get("ConjTime")
+                .get("conjtime")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             components: spell_data
-                .get("VS")
+                .get("vs")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
             target_type: spell_data
-                .get("TargetType")
+                .get("targettype")
                 .and_then(|v| v.as_ref())
                 .map(std::string::ToString::to_string),
         })
@@ -1866,7 +1949,7 @@ impl Character {
         spell_data: &ahash::AHashMap<String, Option<String>>,
         game_data: &GameData,
     ) -> (Option<i32>, Option<String>) {
-        let Some(school_raw) = spell_data.get("School").and_then(|v| v.as_ref()) else {
+        let Some(school_raw) = spell_data.get("school").and_then(|v| v.as_ref()) else {
             return (None, None);
         };
         if school_raw.is_empty() || school_raw == "****" {
@@ -1884,7 +1967,7 @@ impl Character {
                 .get_table("spellschools")
                 .and_then(|t| t.get_by_id(id))
                 .and_then(|row| {
-                    row.get("Label")
+                    row.get("label")
                         .and_then(|v| v.as_ref())
                         .map(std::string::ToString::to_string)
                 })
@@ -1947,86 +2030,25 @@ impl Character {
     ) -> Vec<SpellId> {
         let mut available = Vec::new();
 
-        let Some(classes_table) = game_data.get_table("classes") else {
+        let Some(target_col) = self.get_spell_table_column_for_class(class_id, game_data) else {
             return available;
-        };
-        let Some(class_data) = classes_table.get_by_id(class_id.0) else {
-            return available;
-        };
-
-        // e.g., "Bard", "Cleric", "Druid"
-        let spell_col_opt = class_data
-            .get("SpellTableColumn")
-            .and_then(|v| v.as_ref())
-            .map(|s| s.trim().to_string())
-            .filter(|v| !v.is_empty() && *v != "****");
-
-        let spell_col = if let Some(col) = spell_col_opt {
-            col
-        } else {
-            // Fallback: Use Class Label to guess column
-            // Common NWN2 columns: Wiz_Sorc, Cleric, Druid, Bard, Paladin, Ranger, Warlock
-            let label_opt = class_data
-                .get("Label")
-                .or_else(|| class_data.get("label"))
-                .or_else(|| class_data.get("LABEL"))
-                .and_then(|v| v.as_ref());
-
-            match label_opt {
-                Some(l) => {
-                    let l_lower = l.to_lowercase();
-                    if l_lower.contains("wizard") || l_lower.contains("sorcerer") {
-                        "Wiz_Sorc".to_string()
-                    } else if l_lower.contains("spirit") && l_lower.contains("shaman") {
-                        "Druid".to_string()
-                    } else if l_lower.contains("favored") && l_lower.contains("soul") {
-                        "Cleric".to_string()
-                    } else {
-                        l.clone()
-                    }
-                }
-                None => return available,
-            }
         };
 
         let Some(spells_table) = game_data.get_table("spells") else {
             return available;
         };
 
-        // Determine actual column name (handle case mismatch)
-        let mut target_col = spell_col.clone();
-        if let Ok(first_row) = spells_table.get_row(0)
-            && !first_row.contains_key(&target_col)
-        {
-            for k in first_row.keys() {
-                if k.eq_ignore_ascii_case(&spell_col) {
-                    target_col = k.clone();
-                    break;
-                }
-            }
-        }
-
-        // Final check: if target_col doesn't exist in keys, we can't do anything
-        if let Ok(first_row) = spells_table.get_row(0)
-            && !first_row.contains_key(&target_col)
-        {
-            return available;
-        }
-
-        // Scan all spells
         for row_id in 0..spells_table.row_count() {
             let Ok(spell_row) = spells_table.get_row(row_id) else {
                 continue;
             };
 
-            // Check if spell is removed or deleted
-            if let Some(removed) = spell_row.get("REMOVED").and_then(|v| v.as_ref())
+            if let Some(removed) = spell_row.get("removed").and_then(|v| v.as_ref())
                 && removed == "1"
             {
                 continue;
             }
 
-            // Check level for this class
             if let Some(level_str) = spell_row.get(&target_col).and_then(|v| v.as_ref())
                 && let Ok(lvl) = level_str.parse::<i32>()
                 && lvl == spell_level
@@ -2079,7 +2101,7 @@ impl Character {
             };
 
             // Check if it's a metamagic feat by checking MetamagicBit
-            let Some(bit_str) = feat_data.get("MetamagicBit").and_then(|v| v.as_ref()) else {
+            let Some(bit_str) = feat_data.get("metamagicbit").and_then(|v| v.as_ref()) else {
                 continue;
             };
 
@@ -2096,9 +2118,9 @@ impl Character {
                 // Get cost
                 // Try MetamagicLevelCost first, then SpellLevelCost
                 let cost_str = feat_data
-                    .get("MetamagicLevelCost")
+                    .get("metamagiclevelcost")
                     .and_then(|v| v.as_ref())
-                    .or_else(|| feat_data.get("SpellLevelCost").and_then(|v| v.as_ref()));
+                    .or_else(|| feat_data.get("spelllevelcost").and_then(|v| v.as_ref()));
 
                 if let Some(cost) = cost_str.and_then(|s| s.parse::<i32>().ok()) {
                     total_cost += cost;
@@ -2179,6 +2201,16 @@ pub struct PendingSpellLearning {
     pub total: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AbilitySpellEntry {
+    pub spell_id: i32,
+    pub name: String,
+    pub icon: String,
+    pub description: Option<String>,
+    pub school_name: Option<String>,
+    pub innate_level: i32,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct SpellsState {
     pub spellcasting_classes: Vec<SpellcastingClass>,
@@ -2186,6 +2218,7 @@ pub struct SpellsState {
     pub memorized_spells: Vec<MemorizedSpellEntry>,
     pub known_spells: Vec<KnownSpellEntry>,
     pub pending_spell_learning: Vec<PendingSpellLearning>,
+    pub ability_spells: Vec<AbilitySpellEntry>,
 }
 
 #[cfg(test)]

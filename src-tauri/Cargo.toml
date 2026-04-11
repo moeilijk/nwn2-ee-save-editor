@@ -36,7 +36,7 @@ dotenvy = "0.15"
 # Error handling & logging
 thiserror = "2.0"
 anyhow = "1.0"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_info"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Type-safe IPC
@@ -80,6 +80,7 @@ sha2 = "0.10"
 hex = "0.4"
 axum = "0.8.8"
 tower-http = { version = "0.6.8", features = ["cors"] }
+tokio-stream = "0.1.18"
 
 
 [dev-dependencies]
