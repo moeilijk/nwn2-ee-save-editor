@@ -189,23 +189,46 @@ function AppContent() {
     return Boolean(paths.game_folder.path && paths.game_folder.exists);
   }, []);
 
-  const hasSaveLocationPath = useCallback((paths: PathConfig) => {
+  const hasDocumentsPath = useCallback((paths: PathConfig) => {
     return Boolean(paths.documents_folder.path && paths.documents_folder.exists);
   }, []);
+
+  const hasLocalVaultPath = useCallback((paths: PathConfig) => {
+    return Boolean(paths.localvault_folder.path && paths.localvault_folder.exists);
+  }, []);
+
+  const missingRequiredPaths = useCallback((paths: PathConfig) => {
+    const missing: string[] = [];
+    if (!hasGameInstallPath(paths)) {
+      missing.push('game installation folder');
+    }
+    if (!hasDocumentsPath(paths)) {
+      missing.push('documents folder');
+    }
+    return missing;
+  }, [hasDocumentsPath, hasGameInstallPath]);
+
+  const formatMissingPathError = useCallback((paths: PathConfig, prefix: string) => {
+    const missing = missingRequiredPaths(paths);
+    if (missing.length === 0) {
+      return null;
+    }
+    return `${prefix} Missing required path(s): ${missing.join(', ')}.`;
+  }, [missingRequiredPaths]);
 
   const autoDiscoverMissingStartupPaths = useCallback(async (paths: PathConfig) => {
     if (paths.setup_mode !== 'auto') {
       return paths;
     }
 
-    if (hasGameInstallPath(paths) && hasSaveLocationPath(paths)) {
+    if (missingRequiredPaths(paths).length === 0) {
       return paths;
     }
 
     const response = await pathService.autoDetect();
     setStartupPaths(response.current_paths);
     return response.current_paths;
-  }, [hasGameInstallPath, hasSaveLocationPath]);
+  }, [missingRequiredPaths]);
 
   const handleStartAutoSetup = useCallback(async () => {
     try {
@@ -214,20 +237,25 @@ function AppContent() {
       const response = await pathService.autoDetect();
       setStartupPaths(response.current_paths);
 
-      if (response.current_paths.game_folder.path && response.current_paths.game_folder.exists) {
+      const missingError = formatMissingPathError(
+        response.current_paths,
+        'Auto-discovery did not resolve all required NWN2 folders.'
+      );
+
+      if (!missingError) {
         beginBackendInitialization();
       } else {
-        setStartupError('Auto-discovery did not find a valid NWN2 installation. Set the game folder manually.');
+        setStartupError(missingError);
         setStartupPhase('manual-setup');
       }
     } catch (err) {
       console.error('Failed to auto-discover NWN2 paths:', err);
-      setStartupError('Auto-discovery failed. Set the game folder manually.');
+      setStartupError('Auto-discovery failed. Set the game and documents paths manually.');
       setStartupPhase('manual-setup');
     } finally {
       setStartupBusy(false);
     }
-  }, [beginBackendInitialization]);
+  }, [beginBackendInitialization, formatMissingPathError]);
 
   const handleStartManualSetup = useCallback(async () => {
     try {
@@ -249,19 +277,23 @@ function AppContent() {
       setStartupBusy(true);
       const paths = await refreshStartupPaths();
       const resolvedPaths = await autoDiscoverMissingStartupPaths(paths);
-      if (hasGameInstallPath(resolvedPaths)) {
+      const missingError = formatMissingPathError(
+        resolvedPaths,
+        'Set all required NWN2 folders before continuing.'
+      );
+      if (!missingError) {
         beginBackendInitialization();
         return;
       }
 
-      setStartupError('Set a valid NWN2 game installation folder before continuing.');
+      setStartupError(missingError);
     } catch (err) {
       console.error('Failed to refresh NWN2 paths:', err);
       setStartupError('Failed to validate your configured paths.');
     } finally {
       setStartupBusy(false);
     }
-  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, hasGameInstallPath, refreshStartupPaths]);
+  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, formatMissingPathError, refreshStartupPaths]);
 
   const handleSaveCharacter = async () => {
     if (!characterId) return;
@@ -417,11 +449,17 @@ function AppContent() {
 
         const resolvedPaths = await autoDiscoverMissingStartupPaths(initialPaths);
 
-        if (hasGameInstallPath(resolvedPaths)) {
+        const missingError = formatMissingPathError(
+          resolvedPaths,
+          'Missing required NWN2 folders.'
+        );
+
+        if (!missingError) {
           beginBackendInitialization();
           return;
         }
 
+        setStartupError(missingError);
         setStartupPhase('manual-setup');
       } catch (err) {
         console.error('Failed to bootstrap startup path setup:', err);
@@ -431,7 +469,7 @@ function AppContent() {
     };
 
     bootstrap();
-  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, hasGameInstallPath, refreshStartupPaths]);
+  }, [autoDiscoverMissingStartupPaths, beginBackendInitialization, formatMissingPathError, refreshStartupPaths]);
 
   if (startupPhase === 'choose-path-mode') {
     return (
@@ -442,7 +480,7 @@ function AppContent() {
             <CardHeader className="space-y-3">
               <CardTitle className="text-3xl">Choose How To Configure NWN2 Folders</CardTitle>
               <CardDescription>
-                On first start, decide whether the editor should keep auto-discovering missing NWN2 install and save folders or wait for you to set them manually.
+                On first start, decide whether the editor should keep auto-discovering missing NWN2 folders or wait for you to set them manually. Game and documents paths are required.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
@@ -450,7 +488,7 @@ function AppContent() {
                 <div className="space-y-2">
                   <h3 className="text-xl font-semibold text-[rgb(var(--color-text-primary))]">Auto-Discover</h3>
                   <p className="text-sm text-[rgb(var(--color-text-secondary))]">
-                    Use detected install and documents folders now, and retry discovery later if either one goes missing. You can still override individual paths in Settings.
+                    Detect required game and documents paths now, and retry discovery later if one goes missing. You can still override individual paths in Settings.
                   </p>
                 </div>
                 <Button onClick={handleStartAutoSetup} loading={startupBusy}>
@@ -486,7 +524,7 @@ function AppContent() {
               <CardHeader className="space-y-3">
                 <CardTitle className="text-3xl">Manual NWN2 Path Setup</CardTitle>
                 <CardDescription>
-                  Set the NWN2 game folder to continue. You can also switch back to auto-discover from the path settings below.
+                    Set the required NWN2 folders to continue: game installation and documents. Localvault status is shown but does not block startup. You can also switch back to auto-discover from the path settings below.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -495,10 +533,17 @@ function AppContent() {
                     {startupError}
                   </div>
                 )}
+                {startupPaths && (
+                  <div className="rounded-md border border-[rgb(var(--color-surface-border))] bg-[rgb(var(--color-surface-1))] px-4 py-3 text-sm text-[rgb(var(--color-text-secondary))] space-y-1">
+                    <div>Game installation: {hasGameInstallPath(startupPaths) ? 'OK' : 'Missing'}</div>
+                    <div>Documents folder: {hasDocumentsPath(startupPaths) ? 'OK' : 'Missing'}</div>
+                    <div>Localvault folder: {hasLocalVaultPath(startupPaths) ? 'OK' : 'Missing'}</div>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={handleContinueAfterManualSetup}
-                    disabled={!startupPaths?.game_folder.path || !startupPaths.game_folder.exists}
+                    disabled={!startupPaths || missingRequiredPaths(startupPaths).length > 0}
                     loading={startupBusy}
                   >
                     Continue To App

@@ -1698,12 +1698,13 @@ impl Character {
             missing.push(format!("Requires: {prereq_name}"));
         }
 
-        let str_score = self.get_i32("Str").unwrap_or(10);
-        let dex_score = self.get_i32("Dex").unwrap_or(10);
-        let con_score = self.get_i32("Con").unwrap_or(10);
-        let int_score = self.get_i32("Int").unwrap_or(10);
-        let wis_score = self.get_i32("Wis").unwrap_or(10);
-        let cha_score = self.get_i32("Cha").unwrap_or(10);
+        let effective = self.get_effective_abilities(game_data);
+        let str_score = effective.str_;
+        let dex_score = effective.dex;
+        let con_score = effective.con;
+        let int_score = effective.int;
+        let wis_score = effective.wis;
+        let cha_score = effective.cha;
 
         if let Some(min_str) = feat_data
             .get("MINSTR")

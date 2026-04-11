@@ -21,7 +21,9 @@ use super::{Character, CharacterError};
 use crate::character::feats::FeatSource;
 use crate::character::gff_helpers::gff_value_to_i32;
 use crate::character::identity::Alignment;
-use crate::character::types::{AbilityIndex, ClassId, FeatId, RaceId, SkillId};
+use crate::character::types::{
+    AbilityIndex, ClassId, FeatId, RaceId, SaveLegalityDomain, SaveLegalityReport, SkillId,
+};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
 use crate::services::field_mapper::FieldMapper;
@@ -2823,6 +2825,166 @@ impl Character {
             current_unspent,
             mismatch,
         }
+    }
+
+    /// Validate that current skill point usage is internally consistent.
+    pub fn validate_skill_budget_consistency(&self, game_data: &GameData) -> SaveLegalityReport {
+        let mut report = SaveLegalityReport::ok();
+        let summary = self.get_skill_points_summary(game_data);
+
+        if summary.current_unspent < 0 {
+            report.add_error(
+                SaveLegalityDomain::Skills,
+                "skill_points_negative_unspent",
+                format!(
+                    "Available skill points are negative ({})",
+                    summary.current_unspent
+                ),
+                Some("SkillPoints".to_string()),
+            );
+        }
+
+        if summary.mismatch != 0 {
+            report.add_error(
+                SaveLegalityDomain::Skills,
+                "skill_points_budget_mismatch",
+                format!(
+                    "Skill points mismatch: theoretical={}, spent={}, unspent={}, mismatch={}",
+                    summary.theoretical_total,
+                    summary.actual_spent,
+                    summary.current_unspent,
+                    summary.mismatch
+                ),
+                Some("SkillPoints".to_string()),
+            );
+        }
+
+        report
+    }
+
+    /// Validate that level history aligns with top-level class/skill state.
+    pub fn validate_level_history_consistency(&self) -> SaveLegalityReport {
+        let mut report = SaveLegalityReport::ok();
+        let class_entries = self.class_entries();
+        let total_class_levels: i32 = class_entries.iter().map(|entry| entry.level).sum();
+
+        let Some(history) = self.get_list("LvlStatList") else {
+            if total_class_levels > 1 {
+                report.add_warning(
+                    SaveLegalityDomain::History,
+                    "history_missing",
+                    "LvlStatList is missing for a multi-level character",
+                    Some("LvlStatList".to_string()),
+                );
+            }
+            return report;
+        };
+
+        if history.len() as i32 != total_class_levels {
+            report.add_warning(
+                SaveLegalityDomain::History,
+                "history_level_count_mismatch",
+                format!(
+                    "LvlStatList contains {} entries while ClassList totals {} levels",
+                    history.len(),
+                    total_class_levels
+                ),
+                Some("LvlStatList".to_string()),
+            );
+        }
+
+        let mut aggregated_ranks: Vec<i32> = Vec::new();
+        let mut saw_history_skills = false;
+
+        for (idx, entry) in history.iter().enumerate() {
+            let class_path = format!("LvlStatList[{idx}].LvlStatClass");
+            match entry.get("LvlStatClass").and_then(gff_value_to_i32) {
+                Some(class_id) if class_id >= 0 => {
+                    if !class_entries.iter().any(|class_entry| class_entry.class_id.0 == class_id) {
+                        report.add_error(
+                            SaveLegalityDomain::History,
+                            "history_unknown_class",
+                            format!(
+                                "History entry {} references class {} not present in ClassList",
+                                idx + 1,
+                                class_id
+                            ),
+                            Some(class_path),
+                        );
+                    }
+                }
+                _ => {
+                    report.add_error(
+                        SaveLegalityDomain::History,
+                        "history_missing_class",
+                        format!("History entry {} has invalid or missing class", idx + 1),
+                        Some(class_path),
+                    );
+                }
+            }
+
+            if let Some(points) = entry.get("SkillPoints").and_then(gff_value_to_i32)
+                && points < 0
+            {
+                report.add_error(
+                    SaveLegalityDomain::History,
+                    "history_negative_skill_points",
+                    format!("History entry {} has negative SkillPoints ({points})", idx + 1),
+                    Some(format!("LvlStatList[{idx}].SkillPoints")),
+                );
+            }
+
+            let Some(GffValue::ListOwned(skill_list)) = entry.get("SkillList") else {
+                continue;
+            };
+
+            saw_history_skills = true;
+            if skill_list.len() > aggregated_ranks.len() {
+                aggregated_ranks.resize(skill_list.len(), 0);
+            }
+
+            for (skill_idx, skill) in skill_list.iter().enumerate() {
+                let ranks = skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+                if ranks < 0 {
+                    report.add_error(
+                        SaveLegalityDomain::History,
+                        "history_negative_skill_rank",
+                        format!(
+                            "History entry {} skill {} has negative rank ({ranks})",
+                            idx + 1,
+                            skill_idx
+                        ),
+                        Some(format!("LvlStatList[{idx}].SkillList[{skill_idx}].Rank")),
+                    );
+                    continue;
+                }
+                aggregated_ranks[skill_idx] += ranks;
+            }
+        }
+
+        if saw_history_skills {
+            let history_matches_top_level = self.get_list("SkillList").is_some_and(|top_skill_list| {
+                if aggregated_ranks.len() < top_skill_list.len() {
+                    aggregated_ranks.resize(top_skill_list.len(), 0);
+                }
+
+                top_skill_list.iter().enumerate().all(|(skill_idx, skill)| {
+                    let top_rank = skill.get("Rank").and_then(gff_value_to_i32).unwrap_or(0);
+                    aggregated_ranks.get(skill_idx).copied().unwrap_or(0) == top_rank
+                })
+            });
+
+            if !history_matches_top_level {
+                report.add_error(
+                    SaveLegalityDomain::History,
+                    "history_skill_totals_mismatch",
+                    "Summed history SkillList ranks do not match top-level SkillList ranks",
+                    Some("LvlStatList[].SkillList".to_string()),
+                );
+            }
+        }
+
+        report
     }
 
     /// Reconcile unspent skill points with theoretical gains.

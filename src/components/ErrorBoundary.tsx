@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { invoke } from '@tauri-apps/api/core';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -22,15 +23,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }) {
-    import('@/lib/errorLogging').then(({ setupErrorLogging: _ }) => {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke('log_js_error', {
-          message: error.message,
-          source: 'ErrorBoundary',
-          stack: (error.stack ?? '') + '\nComponent:' + info.componentStack,
-        }).catch(() => {});
-      });
-    });
+    invoke('log_js_error', {
+      message: error.message,
+      source: 'ErrorBoundary',
+      stack: (error.stack ?? '') + '\nComponent:' + info.componentStack,
+    }).catch(() => {});
   }
 
   handleRetry = () => {

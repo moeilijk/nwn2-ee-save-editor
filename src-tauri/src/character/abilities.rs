@@ -1126,6 +1126,17 @@ mod tests {
         fields.insert("CurrentHitPoints".to_string(), GffValue::Int(80));
         fields.insert("HitPoints".to_string(), GffValue::Int(100));
 
+        let mut lvl_stat_list = Vec::new();
+        for i in 0..10 {
+            let mut entry = IndexMap::new();
+            // Ability increase slots at character levels 4 and 8.
+            if i == 3 || i == 7 {
+                entry.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+            }
+            lvl_stat_list.push(entry);
+        }
+        fields.insert("LvlStatList".to_string(), GffValue::ListOwned(lvl_stat_list));
+
         let mut character = Character::from_gff(fields);
 
         let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
@@ -1140,12 +1151,12 @@ mod tests {
         assert_eq!(character.base_hp(), 110);
         assert_eq!(character.current_hp(), 90);
 
-        let result = character.set_ability_with_cascades(AbilityIndex::CON, 12, &game_data);
+        let result = character.set_ability_with_cascades(AbilityIndex::CON, 14, &game_data);
 
         assert!(result.is_ok());
-        assert_eq!(character.base_ability(AbilityIndex::CON), 12);
-        assert_eq!(character.max_hp(), 90);
-        assert_eq!(character.current_hp(), 70);
+        assert_eq!(character.base_ability(AbilityIndex::CON), 14);
+        assert_eq!(character.max_hp(), 100);
+        assert_eq!(character.current_hp(), 80);
     }
 
     #[test]

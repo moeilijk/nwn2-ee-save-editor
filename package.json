@@ -8,10 +8,10 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "tauri": "tauri",
-    "tauri:dev": "cross-env RUST_LOG=debug tauri dev",
-    "tauri:dev:quiet": "cross-env RUST_LOG=warn tauri dev",
-    "tauri:build": "cross-env RUST_LOG=info tauri build",
-    "tauri:build:debug": "cross-env RUST_LOG=debug tauri build",
+    "tauri:dev": ". $NVM_DIR/nvm.sh && nvm use && cross-env RUST_LOG=debug tauri dev",
+    "tauri:dev:quiet": ". $NVM_DIR/nvm.sh && nvm use && cross-env RUST_LOG=warn tauri dev",
+    "tauri:build": ". $NVM_DIR/nvm.sh && nvm use && cross-env RUST_LOG=info tauri build",
+    "tauri:build:debug": ". $NVM_DIR/nvm.sh && nvm use && cross-env RUST_LOG=debug tauri build",
     "build:all": "npm run tauri:build"
   },
   "dependencies": {

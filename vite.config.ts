@@ -12,6 +12,7 @@ export default defineConfig({
   build: {
     outDir: 'out',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1200,
   },
   optimizeDeps: {
     include: [

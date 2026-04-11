@@ -294,19 +294,42 @@ impl NWN2Paths {
 
         #[cfg(not(windows))]
         {
-            if let Some(home) = dirs::home_dir() {
-                let docs = home.join("Documents").join("Neverwinter Nights 2");
-                if docs.exists() {
-                    return Some(docs);
-                }
-                let local = home.join(".local/share/Neverwinter Nights 2");
-                if local.exists() {
-                    return Some(local);
+            for candidate in Self::non_windows_documents_candidates() {
+                if candidate.exists() {
+                    return Some(candidate);
                 }
             }
         }
 
         None
+    }
+
+    #[cfg(not(windows))]
+    fn non_windows_documents_candidates() -> Vec<PathBuf> {
+        let mut candidates = Vec::new();
+
+        if let Some(home) = dirs::home_dir() {
+            candidates.push(home.join("Documents").join("Neverwinter Nights 2"));
+            candidates.push(home.join(".local/share/Neverwinter Nights 2"));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(userprofile) = std::env::var("USERPROFILE")
+                && let Some(wsl_home) = windows_profile_to_wsl_home(&userprofile)
+            {
+                candidates.push(wsl_home.join("Documents").join("Neverwinter Nights 2"));
+                candidates.push(wsl_home.join("My Documents").join("Neverwinter Nights 2"));
+            }
+
+            if let Ok(username) = std::env::var("USER") {
+                let wsl_home = PathBuf::from("/mnt/c/Users").join(username);
+                candidates.push(wsl_home.join("Documents").join("Neverwinter Nights 2"));
+                candidates.push(wsl_home.join("My Documents").join("Neverwinter Nights 2"));
+            }
+        }
+
+        candidates
     }
 
     fn find_steam_workshop() -> Option<PathBuf> {
@@ -626,6 +649,30 @@ impl NWN2Paths {
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
+}
+
+#[cfg(all(target_os = "linux", not(windows)))]
+fn windows_profile_to_wsl_home(userprofile: &str) -> Option<PathBuf> {
+    let normalized = userprofile.replace('\\', "/");
+    let mut chars = normalized.chars();
+
+    let drive = chars.next()?;
+    if chars.next()? != ':' {
+        return None;
+    }
+
+    let mut remainder = chars.as_str().trim_start_matches('/').to_string();
+    if remainder.is_empty() {
+        return None;
+    }
+
+    remainder = remainder.trim_end_matches('/').to_string();
+
+    Some(PathBuf::from(format!(
+        "/mnt/{}/{}",
+        drive.to_ascii_lowercase(),
+        remainder
+    )))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

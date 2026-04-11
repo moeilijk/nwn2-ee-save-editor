@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { useTauri } from '@/providers/TauriProvider';
+import { pathService } from '@/lib/api/paths';
 
 interface GameLaunchSettings {
   nwn2_installation_path?: string;
@@ -79,7 +80,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const detectedPath = await api.detectNWN2Installation();
+      const response = await pathService.autoDetect();
+      const detectedPath = response.current_paths.game_folder.exists
+        ? response.current_paths.game_folder.path
+        : null;
       
       if (detectedPath) {
         await updateGameSettings({ nwn2_installation_path: detectedPath });

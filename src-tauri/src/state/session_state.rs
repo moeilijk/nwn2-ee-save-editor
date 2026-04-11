@@ -24,6 +24,61 @@ pub struct SessionState {
 }
 
 impl SessionState {
+    fn is_blocking_save_legality_issue(issue: &crate::character::SaveLegalityIssue) -> bool {
+        match issue.code.as_str() {
+            "race_invalid" => !issue.message.contains("Could not load racialtypes table"),
+            "feat_prerequisites_not_met" => !issue.message.contains("Feat table not loaded"),
+            "core_invalid" => {
+                !issue.message.contains("Character level is less than 1")
+                    && !issue.message.contains("Invalid race ID")
+            }
+            "history_level_count_mismatch" => false,
+            _ => true,
+        }
+    }
+
+    fn ensure_character_save_legal(character: &Character, game_data: &GameData) -> Result<(), String> {
+        let report = character.validate_for_save(game_data);
+        let blocking_errors = report
+            .errors
+            .iter()
+            .filter(|issue| Self::is_blocking_save_legality_issue(issue))
+            .collect::<Vec<_>>();
+
+        if blocking_errors.is_empty() {
+            return Ok(());
+        }
+
+        let mut summary = format!(
+            "Save blocked by legality validation ({} errors)",
+            blocking_errors.len()
+        );
+
+        for issue in blocking_errors.iter().take(8) {
+            let path_suffix = issue
+                .field_path
+                .as_ref()
+                .map(|path| format!(" [{}]", path))
+                .unwrap_or_default();
+            summary.push_str(&format!(
+                "\n- {}.{}: {}{}",
+                format!("{:?}", issue.domain).to_lowercase(),
+                issue.code,
+                issue.message,
+                path_suffix
+            ));
+        }
+
+        if blocking_errors.len() > 8 {
+            summary.push_str(&format!(
+                "\n- ... and {} more legality errors",
+                blocking_errors.len() - 8
+            ));
+        }
+
+        Err(summary)
+    }
+
     #[instrument(name = "SessionState::new", skip_all)]
     pub fn new(resource_manager: Arc<tokio::sync::RwLock<ResourceManager>>) -> Self {
         debug!("Creating SessionState");
@@ -181,6 +236,7 @@ impl SessionState {
             character.normalize_level_one_feat_history_for_save();
             character.normalize_single_level_skill_history_for_save();
             character.normalize_level_one_skill_history_for_save(game_data);
+            Self::ensure_character_save_legal(character, game_data)?;
             character.clone_gff()
         } else if let Some(player_bic_data) = player_bic_data.as_ref() {
             let mut character = Character::from_gff(read_player_bic_entry(player_bic_data.clone())?);
@@ -194,6 +250,7 @@ impl SessionState {
             character.normalize_level_one_feat_history_for_save();
             character.normalize_single_level_skill_history_for_save();
             character.normalize_level_one_skill_history_for_save(game_data);
+            Self::ensure_character_save_legal(&character, game_data)?;
             character.clone_gff()
         } else {
             return Ok(false);
@@ -215,7 +272,6 @@ impl SessionState {
         let primary_character = Character::from_gff(authoritative_fields);
         let save_dir = self.current_save_dir()?;
         write_playerinfo_for_character(&save_dir, &primary_character, game_data)?;
-        sync_primary_localvault_mirror(&primary_character.clone_gff(), Some(player_bic_bytes))?;
 
         if self.selected_player_index == primary_player_index
             && let Some(character) = self.character.as_mut()
@@ -251,6 +307,7 @@ impl SessionState {
             character.normalize_level_one_feat_history_for_save();
             character.normalize_single_level_skill_history_for_save();
             character.normalize_level_one_skill_history_for_save(game_data);
+            Self::ensure_character_save_legal(character, game_data)?;
             character.clone_gff()
         };
 
@@ -283,7 +340,6 @@ impl SessionState {
 
         if update_primary_player_files {
             self.write_playerinfo(game_data)?;
-            sync_primary_localvault_mirror(&char_fields, player_bic_bytes)?;
         }
 
         // Clear modified flag
@@ -665,6 +721,17 @@ fn serialize_playerlist_bytes(
         .map(|(k, v)| (k, v.force_owned()))
         .collect();
 
+    fn merge_player_entry_fields(
+        existing: &IndexMap<String, GffValue<'static>>,
+        updated_character_fields: &IndexMap<String, GffValue<'static>>,
+    ) -> IndexMap<String, GffValue<'static>> {
+        let mut merged = existing.clone();
+        for (key, value) in updated_character_fields {
+            merged.insert(key.clone(), value.clone());
+        }
+        merged
+    }
+
     match root_fields.get_mut("Mod_PlayerList") {
         Some(GffValue::ListOwned(players)) => {
             if players.is_empty() {
@@ -682,7 +749,7 @@ fn serialize_playerlist_bytes(
                         players.len()
                     ));
                 };
-                *player_entry = character_fields.clone();
+                *player_entry = merge_player_entry_fields(player_entry, character_fields);
             }
         }
         Some(_) => {
@@ -1160,6 +1227,25 @@ mod tests {
             .and_then(crate::character::gff_helpers::gff_value_to_i32)
     }
 
+    fn read_playerlist_entry_i32_field(
+        save_dir: &Path,
+        player_index: usize,
+        field_name: &str,
+    ) -> Option<i32> {
+        let handler =
+            SaveGameHandler::new(save_dir, false, false).expect("Failed to open saved test save");
+        let playerlist_data = handler
+            .extract_player_data()
+            .expect("Failed to read playerlist.ifo");
+        let parser = GffParser::from_bytes(playerlist_data).expect("Failed to parse playerlist.ifo");
+        let entries = read_playerlist_entries(parser).expect("Failed to read playerlist entries");
+
+        entries
+            .get(player_index)
+            .and_then(|fields| fields.get(field_name))
+            .and_then(crate::character::gff_helpers::gff_value_to_i32)
+    }
+
     fn read_playerinfo_classes(save_dir: &Path) -> Vec<PlayerClassEntry> {
         PlayerInfo::load(save_dir.join("playerinfo.bin"))
             .expect("Failed to load playerinfo.bin")
@@ -1221,57 +1307,101 @@ mod tests {
 
     #[test]
     fn test_save_character_updates_playerlist_and_player_bic() {
-        let player_one = create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
-        let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
-        let (_temp_dir, save_dir) = create_test_save(
-            vec![player_one, player_two],
-            create_named_test_character_fields("Garrick", "Ironheart", 20, 1000),
-            None,
-        );
-        let game_data = create_empty_game_data();
-
-        let mut session = create_session_state();
-        session
-            .load_character(
-                save_dir
-                    .to_str()
-                    .expect("Test save path should be valid UTF-8"),
+        with_temp_documents_folder(|_| {
+            let player_one = create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
+            let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
+            let (_temp_dir, save_dir) = create_test_save(
+                vec![player_one, player_two],
+                create_named_test_character_fields("Garrick", "Ironheart", 20, 1000),
                 None,
-            )
-            .expect("Failed to load test save");
+            );
+            let game_data = create_empty_game_data();
 
-        session
-            .character_mut()
-            .expect("Character should be loaded")
-            .set_age(42)
-            .expect("Failed to update age");
-        session
-            .save_character(&game_data)
-            .expect("Failed to save test character");
+            let mut session = create_session_state();
+            session
+                .load_character(
+                    save_dir
+                        .to_str()
+                        .expect("Test save path should be valid UTF-8"),
+                    None,
+                )
+                .expect("Failed to load test save");
 
-        assert_eq!(read_playerlist_entry_ages(&save_dir), vec![42, 33]);
-        assert_eq!(read_player_bic_age(&save_dir), 42);
+            session
+                .character_mut()
+                .expect("Character should be loaded")
+                .set_age(42)
+                .expect("Failed to update age");
+            session
+                .save_character(&game_data)
+                .expect("Failed to save test character");
 
-        let mut reloaded = create_session_state();
-        reloaded
-            .load_character(
-                save_dir
-                    .to_str()
-                    .expect("Test save path should be valid UTF-8"),
-                None,
-            )
-            .expect("Failed to reload saved character");
-        assert_eq!(
+            assert_eq!(read_playerlist_entry_ages(&save_dir), vec![42, 33]);
+            assert_eq!(read_player_bic_age(&save_dir), 42);
+
+            let mut reloaded = create_session_state();
             reloaded
-                .character()
-                .expect("Reloaded character should exist")
-                .age(),
-            42
-        );
+                .load_character(
+                    save_dir
+                        .to_str()
+                        .expect("Test save path should be valid UTF-8"),
+                    None,
+                )
+                .expect("Failed to reload saved character");
+            assert_eq!(
+                reloaded
+                    .character()
+                    .expect("Reloaded character should exist")
+                    .age(),
+                42
+            );
+        });
     }
 
     #[test]
-    fn test_save_character_syncs_primary_localvault_with_canonical_filename() {
+    fn test_save_character_preserves_playerlist_only_fields() {
+        with_temp_documents_folder(|_| {
+            let mut player_one =
+                create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
+            // Simulate save-specific state that may exist in playerlist only (e.g. module/journal data).
+            player_one.insert("QuestStateMarker".to_string(), GffValue::Int(777));
+
+            let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
+            let (_temp_dir, save_dir) = create_test_save(
+                vec![player_one.clone(), player_two],
+                create_named_test_character_fields("Garrick", "Ironheart", 20, 1000),
+                None,
+            );
+            let game_data = create_empty_game_data();
+
+            let mut session = create_session_state();
+            session
+                .load_character(
+                    save_dir
+                        .to_str()
+                        .expect("Test save path should be valid UTF-8"),
+                    None,
+                )
+                .expect("Failed to load test save");
+
+            session
+                .character_mut()
+                .expect("Character should be loaded")
+                .set_age(42)
+                .expect("Failed to update age");
+            session
+                .save_character(&game_data)
+                .expect("Failed to save test character");
+
+            assert_eq!(
+                read_playerlist_entry_i32_field(&save_dir, 0, "QuestStateMarker"),
+                Some(777)
+            );
+        });
+    }
+
+    #[test]
+    fn test_export_to_localvault_writes_canonical_filename_and_quarantines_duplicates() {
         with_temp_documents_folder(|docs_dir| {
             let player_one = create_named_test_character_fields("Garrick", "Ironheart", 20, 1000);
             let player_two = create_named_test_character_fields("Craven", "Tyrell", 33, 2000);
@@ -1311,6 +1441,17 @@ mod tests {
                 .expect("Failed to save test character");
 
             let canonical_path = docs_dir.join("localvault").join("garrickironheart.bic");
+            assert!(
+                !canonical_path.exists(),
+                "save_character should not write localvault automatically"
+            );
+
+            let exported_path = session
+                .export_to_localvault()
+                .expect("Failed to export to localvault");
+            let exported_path = PathBuf::from(exported_path);
+            assert_eq!(exported_path, canonical_path);
+
             assert!(canonical_path.exists(), "canonical localvault BIC should be written");
             assert!(
                 !legacy_path.exists(),

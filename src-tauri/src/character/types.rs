@@ -435,6 +435,93 @@ impl Default for ValidationResult {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SaveLegalityDomain {
+    Core,
+    Skills,
+    History,
+    Class,
+    Feat,
+    Spells,
+    Inventory,
+    Race,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct SaveLegalityIssue {
+    pub domain: SaveLegalityDomain,
+    pub code: String,
+    pub message: String,
+    pub field_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SaveLegalityReport {
+    pub valid: bool,
+    pub errors: Vec<SaveLegalityIssue>,
+    pub warnings: Vec<SaveLegalityIssue>,
+}
+
+impl SaveLegalityReport {
+    pub fn ok() -> Self {
+        Self {
+            valid: true,
+            errors: vec![],
+            warnings: vec![],
+        }
+    }
+
+    pub fn add_error(
+        &mut self,
+        domain: SaveLegalityDomain,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        field_path: Option<String>,
+    ) {
+        self.valid = false;
+        self.errors.push(SaveLegalityIssue {
+            domain,
+            code: code.into(),
+            message: message.into(),
+            field_path,
+        });
+    }
+
+    pub fn add_warning(
+        &mut self,
+        domain: SaveLegalityDomain,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        field_path: Option<String>,
+    ) {
+        self.warnings.push(SaveLegalityIssue {
+            domain,
+            code: code.into(),
+            message: message.into(),
+            field_path,
+        });
+    }
+
+    pub fn merge(&mut self, other: SaveLegalityReport) {
+        if !other.valid {
+            self.valid = false;
+        }
+        self.errors.extend(other.errors);
+        self.warnings.extend(other.warnings);
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.valid
+    }
+}
+
+impl Default for SaveLegalityReport {
+    fn default() -> Self {
+        Self::ok()
+    }
+}
+
 pub const ABILITY_MIN: i32 = 3;
 pub const ABILITY_MAX: i32 = 50;
 pub const NATURAL_AC_MIN: i32 = 0;

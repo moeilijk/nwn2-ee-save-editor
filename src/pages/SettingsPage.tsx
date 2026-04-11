@@ -254,8 +254,19 @@ export default function SettingsPage({
       setError(null);
       const response = await pathService.autoDetect();
       applyPaths(response.current_paths);
+
+      const missing: string[] = [];
+      if (!response.current_paths.game_folder.exists) {
+        missing.push('game installation folder');
+      }
+      if (!response.current_paths.documents_folder.exists) {
+        missing.push('documents folder');
+      }
+      if (missing.length > 0) {
+        setError(`Auto-discovery did not resolve all required paths: ${missing.join(', ')}.`);
+      }
     } catch (err) {
-      setError('Failed to auto-discover game folders');
+      setError('Failed to auto-discover required NWN2 folders');
       console.error('Error auto-detecting paths:', err);
     } finally {
       setSaving(false);
@@ -499,7 +510,7 @@ export default function SettingsPage({
         <CardHeader>
           <CardTitle>Startup Path Mode</CardTitle>
           <CardDescription>
-            Choose whether the app should auto-discover missing NWN2 install and save folders on startup or wait for manual paths.
+            Choose whether the app should auto-discover missing NWN2 folders on startup or wait for manual paths. Game and documents paths are required.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

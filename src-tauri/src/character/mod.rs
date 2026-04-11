@@ -182,6 +182,125 @@ impl Character {
 
         result
     }
+
+    /// Comprehensive pre-save legality validation across all character domains.
+    pub fn validate_for_save(&self, game_data: &crate::loaders::GameData) -> SaveLegalityReport {
+        let mut report = SaveLegalityReport::ok();
+
+        let core = self.validate(game_data);
+        for warning in core.warnings {
+            report.add_warning(SaveLegalityDomain::Core, "core_warning", warning, None);
+        }
+        for error in core.errors {
+            report.add_error(SaveLegalityDomain::Core, "core_invalid", error, None);
+        }
+
+        let race_validation = self.validate_race(game_data);
+        for error in race_validation.errors {
+            report.add_error(SaveLegalityDomain::Race, "race_invalid", error, Some("Race".to_string()));
+        }
+
+        let class_entries = self.class_entries();
+        if class_entries.len() > types::MAX_CLASSES {
+            report.add_error(
+                SaveLegalityDomain::Class,
+                "class_count_exceeded",
+                format!(
+                    "Character has {} classes; maximum allowed is {}",
+                    class_entries.len(),
+                    types::MAX_CLASSES
+                ),
+                Some("ClassList".to_string()),
+            );
+        }
+
+        let total_level: i32 = class_entries.iter().map(|entry| entry.level).sum();
+        if total_level > types::MAX_TOTAL_LEVEL {
+            report.add_error(
+                SaveLegalityDomain::Class,
+                "total_level_exceeded",
+                format!(
+                    "Character level {} exceeds maximum {}",
+                    total_level,
+                    types::MAX_TOTAL_LEVEL
+                ),
+                Some("ClassList".to_string()),
+            );
+        }
+
+        for class_entry in &class_entries {
+            let prestige = self.validate_prestige_class_requirements(class_entry.class_id, game_data);
+            if !prestige.can_take && !prestige.missing_requirements.is_empty() {
+                report.add_error(
+                    SaveLegalityDomain::Class,
+                    "prestige_requirements_not_met",
+                    format!(
+                        "Class {} fails prerequisites: {}",
+                        class_entry.class_id.0,
+                        prestige.missing_requirements.join(", ")
+                    ),
+                    Some("ClassList".to_string()),
+                );
+            }
+        }
+
+        for feat_id in self.feat_ids() {
+            let prereq = self.validate_feat_prerequisites(feat_id, game_data);
+            if !prereq.can_take {
+                report.add_error(
+                    SaveLegalityDomain::Feat,
+                    "feat_prerequisites_not_met",
+                    format!(
+                        "Feat {} is invalid: {}",
+                        feat_id.0,
+                        prereq.missing_requirements.join(", ")
+                    ),
+                    Some("FeatList".to_string()),
+                );
+            }
+        }
+
+        for error in self.validate_skills() {
+            report.add_error(
+                SaveLegalityDomain::Skills,
+                "skill_structure_invalid",
+                error,
+                Some("SkillList".to_string()),
+            );
+        }
+
+        report.merge(self.validate_level_history_consistency());
+        report.merge(self.validate_skill_budget_consistency(game_data));
+
+        for error in self.validate_spells(game_data) {
+            report.add_error(
+                SaveLegalityDomain::Spells,
+                "spell_invalid",
+                error,
+                Some("ClassList[].KnownList".to_string()),
+            );
+        }
+
+        let inventory = self.validate_inventory();
+        for error in inventory.errors {
+            report.add_error(
+                SaveLegalityDomain::Inventory,
+                "inventory_invalid",
+                error,
+                Some("ItemList".to_string()),
+            );
+        }
+        for warning in inventory.warnings {
+            report.add_warning(
+                SaveLegalityDomain::Inventory,
+                "inventory_warning",
+                warning,
+                Some("ItemList".to_string()),
+            );
+        }
+
+        report
+    }
 }
 
 impl std::fmt::Debug for Character {

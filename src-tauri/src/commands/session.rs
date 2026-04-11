@@ -26,13 +26,9 @@ pub async fn load_character(
                 let game_data = state.game_data.read();
                 let mut session = state.session.write();
                 session.normalize_loaded_skill_points(&game_data);
-                session.sync_primary_mirrors(&game_data).map_err(|e| {
-                    error!("Failed to synchronize save mirrors after load: {e}");
-                    CommandError::FileError {
-                        message: e,
-                        path: Some(file_path.clone()),
-                    }
-                })?;
+                if let Err(e) = session.sync_primary_mirrors(&game_data) {
+                    warn!("Could not synchronize save mirrors after load (non-fatal): {e}");
+                }
             }
             tokio::spawn(async move {
                 let state = app.state::<AppState>();
