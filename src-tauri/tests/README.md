@@ -6,30 +6,35 @@ This directory contains integration tests organized by domain.
 
 | Suite | Command | Purpose |
 |-------|---------|---------|
-| **character** | `cargo test --test character` | Character business logic (leveling, feats, skills, etc.) |
-| **parsing** | `cargo test --test parsing` | File format parsing (GFF, TLK, 2DA, ERF, XML) |
-| **gamedata** | `cargo test --test gamedata` | Game data inspection and validation |
-| **services** | `cargo test --test services` | Service layer (ResourceManager, SavegameHandler, etc.) |
-| **utils** | `cargo test --test utils` | Utility functions (zip, caching, path discovery) |
+| **character** | `cargo test --features integration-tests --test character` | Character business logic (leveling, feats, skills, etc.) |
+| **parsing** | `cargo test --features integration-tests --test parsing` | File format parsing (GFF, TLK, 2DA, ERF, XML) |
+| **gamedata** | `cargo test --features integration-tests --test gamedata` | Game data inspection and validation |
+| **services** | `cargo test --features integration-tests --test services` | Service layer (ResourceManager, SavegameHandler, etc.) |
+| **utils** | `cargo test --features integration-tests --test utils` | Utility functions (zip, caching, path discovery) |
 
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run the default test suite on a clean checkout
 cargo test
 
+# Compile and run all integration tests (requires local fixture data)
+cargo test --features integration-tests
+
 # Run a specific suite
-cargo test --test character
+cargo test --features integration-tests --test character
 
 # Run a specific test file within a suite
-cargo test --test character classes
+cargo test --features integration-tests --test character classes
 
 # Run with output visible (for gamedata inspection tests)
-cargo test --test gamedata player -- --nocapture
+cargo test --features integration-tests --test gamedata player -- --nocapture
 
 # Run a single test by name
-cargo test --test character test_abilities_and_cascades
+cargo test --features integration-tests --test character test_abilities_and_cascades
 ```
+
+By default, the integration test targets are disabled on clean checkouts because they depend on local NWN2 data and fixture files under `tests/fixtures/`.
 
 ## Directory Structure
 
@@ -117,6 +122,7 @@ Utility function behavior. "Does path discovery find the NWN2 install?"
 1. Add your test function to the appropriate file in the subdirectory
 2. Use `super::super::common::create_test_context` for full context
 3. Use `super::super::common::load_test_gff` for fixture loading
+4. Run the target with `--features integration-tests`
 
 ```rust
 use super::super::common::create_test_context;
