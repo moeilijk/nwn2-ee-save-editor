@@ -7,10 +7,10 @@ use crate::character::{Character, FeatInfo};
 use crate::loaders::GameData;
 use crate::parsers::gff::{GffParser, GffValue, GffWriter};
 use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
+use crate::services::PlayerInfo;
 use crate::services::item_property_decoder::ItemPropertyDecoder;
 use crate::services::resource_manager::ResourceManager;
 use crate::services::savegame_handler::SaveGameHandler;
-use crate::services::PlayerInfo;
 
 pub struct SessionState {
     pub current_file_path: Option<PathBuf>,
@@ -286,7 +286,8 @@ impl SessionState {
             .extract_player_bic()
             .map_err(|e| format!("Failed to extract player.bic: {e}"))?;
         let current_character_fields = character.clone_gff();
-        let player_bic_bytes = serialize_player_bic_bytes(player_bic_data, &current_character_fields)?;
+        let player_bic_bytes =
+            serialize_player_bic_bytes(player_bic_data, &current_character_fields)?;
 
         let first_name = character.first_name();
         let last_name = character.last_name();
@@ -487,9 +488,7 @@ pub(crate) fn resolve_primary_player_index(
         return Some(0);
     }
 
-    let Some(player_bic_fields) = player_bic_fields else {
-        return None;
-    };
+    let player_bic_fields = player_bic_fields?;
 
     let player_bic_name = Character::from_gff(player_bic_fields.clone()).full_name();
     if player_bic_name.trim().is_empty() {
