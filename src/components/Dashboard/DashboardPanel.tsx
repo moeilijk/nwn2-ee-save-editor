@@ -7,7 +7,7 @@ import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useToast } from '@/contexts/ToastContext';
-import { TauriAPI, type SaveFile } from '@/lib/tauri-api';
+import { TauriAPI } from '@/lib/tauri-api';
 import { CharacterAPI, type SaveCharacterOption } from '@/services/characterApi';
 import { T, PATTERN_BG } from '../theme';
 import '../blueprint.css';
