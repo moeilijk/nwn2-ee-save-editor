@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Alert, Button, Card, Elevation, HTMLTable, InputGroup, NonIdealState, Spinner, Tag } from '@blueprintjs/core';
+import { GiBrokenShield, GiVisoredHelm, GiAnticlockwiseRotation, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { T } from '../theme';
 import { ModCell, mod, StepInput } from '../shared';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
@@ -147,7 +149,7 @@ export function SkillsPanel() {
   if (error) {
     return (
       <div style={{ padding: 16 }}>
-        <NonIdealState icon="error" title="Failed to load skills" description={error} />
+        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load skills" description={error} />
       </div>
     );
   }
@@ -155,7 +157,7 @@ export function SkillsPanel() {
   if (!character || !skillsData) {
     return (
       <div style={{ padding: 16 }}>
-        <NonIdealState icon="person" title="No character loaded" description="Import a save file to begin editing." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Import a save file to begin editing." />
       </div>
     );
   }
@@ -175,7 +177,7 @@ export function SkillsPanel() {
             rightElement={filter ? <Button icon="cross" minimal small onClick={() => setFilter('')} /> : undefined}
             style={{ maxWidth: 240 }}
           />
-          <Button icon="reset" text={t('skills.reset')} minimal style={{ color: T.textMuted }}
+          <Button icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} text={t('skills.reset')} minimal style={{ color: T.textMuted }}
             onClick={() => setShowResetConfirm(true)} disabled={isResetting} />
         </div>
 
@@ -256,7 +258,7 @@ export function SkillsPanel() {
         cancelButtonText={t('skills.cancel')}
         confirmButtonText={t('skills.reset')}
         intent="danger"
-        icon="reset"
+        icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />}
       >
         <p>{t('skills.resetConfirmMessage')}</p>
       </Alert>

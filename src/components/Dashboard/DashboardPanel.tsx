@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button, Spinner } from '@blueprintjs/core';
+import { GiOpenFolder, GiScrollUnfurled, GiBackwardTime, GiCog } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
@@ -168,20 +170,20 @@ export default function DashboardPanel() {
               <Button
                 small
                 intent="primary"
-                icon="folder-open"
+                icon={<GameIcon icon={GiOpenFolder} size={14} />}
                 loading={isImporting}
                 onClick={handleOpenSave}
               >
                 {t('dashboard.openSave')}
               </Button>
             )}
-            <Button minimal small icon="import" onClick={() => setShowVaultBrowser(true)}>
+            <Button minimal small icon={<GameIcon icon={GiScrollUnfurled} size={14} />} onClick={() => setShowVaultBrowser(true)}>
               {t('actions.importCharacter')}
             </Button>
             <Button
               minimal
               small
-              icon="folder-open"
+              icon={<GameIcon icon={GiOpenFolder} size={14} />}
               onClick={async () => {
                 try {
                   const config = await TauriAPI.getPathsConfig();
@@ -197,7 +199,7 @@ export default function DashboardPanel() {
             <Button
               minimal
               small
-              icon="history"
+              icon={<GameIcon icon={GiBackwardTime} size={14} />}
               onClick={async () => {
                 try {
                   const path = await invoke<string>('get_default_backups_path');
@@ -210,7 +212,7 @@ export default function DashboardPanel() {
             >
               {t('actions.manageBackups')}
             </Button>
-            <Button minimal small icon="cog" onClick={() => setShowSettings(true)}>
+            <Button minimal small icon={<GameIcon icon={GiCog} size={14} />} onClick={() => setShowSettings(true)}>
               {t('navigation.settings')}
             </Button>
           </div>

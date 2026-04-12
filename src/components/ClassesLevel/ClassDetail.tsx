@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Icon, Spinner } from '@blueprintjs/core';
+import { Spinner } from '@blueprintjs/core';
+import { GiCancel, GiCheckMark, GiHazardSign } from 'react-icons/gi';
 import { T } from '../theme';
+import { GameIcon } from '../shared/GameIcon';
 import { display } from '@/utils/dataHelpers';
 import type { ClassInfo } from '@/hooks/useClassesLevel';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -162,7 +164,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
         <span style={{ fontWeight: 700, color: T.text }}>{display(cls.name)}</span>
         {!canSelect && selectReason && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.negative, marginTop: 4 }}>
-            <Icon icon="warning-sign" size={12} />
+            <GameIcon icon={GiHazardSign} size={12} />
             {selectReason}
           </div>
         )}
@@ -177,8 +179,8 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {detail?.prerequisite_status.map((check, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-                <Icon
-                  icon={check.met ? 'tick' : 'cross'}
+                <GameIcon
+                  icon={check.met ? GiCheckMark : GiCancel}
                   size={14}
                   style={{ color: check.met ? T.positive : T.negative, flexShrink: 0 }}
                 />

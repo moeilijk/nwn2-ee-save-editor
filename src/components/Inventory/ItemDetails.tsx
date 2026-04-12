@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Alert, Button, ButtonGroup, H4, Icon } from '@blueprintjs/core';
+import { Alert, Button, ButtonGroup, H4 } from '@blueprintjs/core';
+import { GiPointing, GiQuillInk, GiArmorUpgrade, GiHazardSign } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
+import { GameIcon } from '../shared/GameIcon';
 import { T } from '../theme';
 import { fmtNum } from '../shared';
 import type { FullEquippedItem, FullInventoryItem } from '@/lib/bindings';
@@ -44,7 +46,7 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <div style={{ textAlign: 'center' }}>
-          <Icon icon="hand-right" size={36} style={{ color: T.border }} />
+          <GameIcon icon={GiPointing} size={36} style={{ color: T.border }} />
           <p style={{ marginTop: 10, color: T.textMuted }}>Select an item</p>
           <p style={{ marginTop: 2, color: T.border }}>Choose from equipped or backpack</p>
         </div>
@@ -84,9 +86,9 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
           </div>
           {equipped && (
             <ButtonGroup minimal>
-              <Button icon="edit" small text={t('common.edit')} style={{ color: T.textMuted }} onClick={onEdit} />
+              <Button icon={<GameIcon icon={GiQuillInk} size={14} />} small text={t('common.edit')} style={{ color: T.textMuted }} onClick={onEdit} />
               <Button
-                icon="swap-horizontal"
+                icon={<GameIcon icon={GiArmorUpgrade} size={14} />}
                 small
                 text="Unequip"
                 style={{ color: T.textMuted }}
@@ -97,12 +99,12 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
           )}
           {!equipped && (
             <ButtonGroup minimal>
-              <Button icon="edit" small text={t('common.edit')} style={{ color: T.textMuted }}
+              <Button icon={<GameIcon icon={GiQuillInk} size={14} />} small text={t('common.edit')} style={{ color: T.textMuted }}
                 onClick={() => isPlot ? setEditPlotWarnOpen(true) : onEdit?.()}
               />
               {canEquip && (
                 <Button
-                  icon="hand-up"
+                  icon={<GameIcon icon={GiArmorUpgrade} size={14} />}
                   small
                   text={t('inventory.equip')}
                   style={{ color: T.textMuted }}
@@ -223,7 +225,7 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
         onClose={() => setEditPlotWarnOpen(false)}
         onConfirm={() => { setEditPlotWarnOpen(false); onEdit?.(); }}
         intent="warning"
-        icon="warning-sign"
+        icon={<GameIcon icon={GiHazardSign} size={40} />}
         confirmButtonText={t('common.edit')}
         cancelButtonText={t('actions.cancel')}
       >

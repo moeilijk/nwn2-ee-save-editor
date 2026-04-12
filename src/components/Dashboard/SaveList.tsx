@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Button, Icon } from '@blueprintjs/core';
+import { Button } from '@blueprintjs/core';
+import { GiMagnifyingGlass, GiOpenFolder } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
+import { GameIcon } from '../shared/GameIcon';
 import { SectionBar } from '../shared';
 import { T } from '../theme';
 import { SaveEntry } from './SaveEntry';
@@ -45,7 +47,7 @@ export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrow
             padding: '48px 16px',
             gap: 12,
           }}>
-            <Icon icon="search" size={32} color={T.border} />
+            <GameIcon icon={GiMagnifyingGlass} size={32} color={T.border} />
             <span style={{ fontSize: 13, color: T.textMuted }}>
               {t('dashboard.noSaves')}
             </span>
@@ -61,7 +63,7 @@ export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrow
             borderBottom: `1px solid ${T.borderLight}`,
           }}
         >
-          <Button minimal icon="folder-open" intent="primary" onClick={() => setShowBrowser(true)}>
+          <Button minimal icon={<GameIcon icon={GiOpenFolder} size={16} />} intent="primary" onClick={() => setShowBrowser(true)}>
             {t('dashboard.browse')}
           </Button>
         </div>

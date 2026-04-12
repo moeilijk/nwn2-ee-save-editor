@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button, Callout, Checkbox, Dialog, DialogBody, DialogFooter } from '@blueprintjs/core';
+import { GiHazardSign, GiPlayButton } from 'react-icons/gi';
+import { GameIcon } from './GameIcon';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
 
@@ -50,7 +52,7 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
         </div>
 
         {!gamePathDetected && (
-          <Callout intent="warning" icon="warning-sign" style={{ marginBottom: 12, fontSize: 12 }}>
+          <Callout intent="warning" icon={<GameIcon icon={GiHazardSign} size={16} />} style={{ marginBottom: 12, fontSize: 12 }}>
             {t('gameLaunch.gamePathWarning')}
           </Callout>
         )}
@@ -73,7 +75,7 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
               intent="primary"
               loading={isLaunching}
               onClick={handleLaunch}
-              icon="play"
+              icon={<GameIcon icon={GiPlayButton} size={14} />}
             />
           </>
         }

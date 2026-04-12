@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { Button, Card, Elevation, HTMLTable, NonIdealState, Spinner } from '@blueprintjs/core';
+import { GiVisoredHelm, GiBrokenShield, GiAnticlockwiseRotation } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { T } from '../theme';
 import { ModCell, mod, StepInput } from '../shared';
 import { RespecDialog } from './RespecDialog';
@@ -60,7 +62,7 @@ export function AbilitiesPanel() {
     return (
       <div style={{ padding: 32 }}>
         <NonIdealState
-          icon="person"
+          icon={<GameIcon icon={GiVisoredHelm} size={40} />}
           title="No character loaded"
           description="Load a save file to view ability scores."
         />
@@ -80,7 +82,7 @@ export function AbilitiesPanel() {
     return (
       <div style={{ padding: 32 }}>
         <NonIdealState
-          icon="error"
+          icon={<GameIcon icon={GiBrokenShield} size={40} />}
           title="Failed to load ability scores"
           description={abilitiesSubsystem.error ?? savesSubsystem.error ?? combatSubsystem.error ?? undefined}
         />
@@ -183,7 +185,7 @@ export function AbilitiesPanel() {
           <span style={{ color: T.textMuted, fontSize: 14 }}>
             {t('abilityScores.availablePoints')}: <strong style={{ color: T.accent }}>{available}</strong>
           </span>
-          <Button icon="reset" text={t('abilityScores.pointBuy.button')} small minimal style={{ color: T.textMuted }} onClick={() => setIsRespecOpen(true)} />
+          <Button icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} text={t('abilityScores.pointBuy.button')} small minimal style={{ color: T.textMuted }} onClick={() => setIsRespecOpen(true)} />
         </div>
         <div style={{ padding: '12px 16px 16px' }}>
           <SectionLabel>{t('abilityScores.abilityScores')}</SectionLabel>

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnchorButton, Button, Classes, Dialog, DialogBody, DialogFooter, Icon, Tab, Tabs, Tooltip } from '@blueprintjs/core';
+import { GiCheckMark } from 'react-icons/gi';
+import { GameIcon } from './GameIcon';
 import { getName, getVersion } from '@tauri-apps/api/app';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -37,7 +39,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
       <Tooltip content={t('about.copyVersion')} placement="bottom">
         <button className="about-version-btn" onClick={handleCopyVersion}>
           <code>v{appVersion}</code>
-          <Icon icon={copied ? 'tick' : 'duplicate'} size={12} color={copied ? T.positive : undefined} />
+          {copied ? <GameIcon icon={GiCheckMark} size={12} color={T.positive} /> : <Icon icon="duplicate" size={12} />}
         </button>
       </Tooltip>
       <p className="about-description">{t('about.description')}</p>

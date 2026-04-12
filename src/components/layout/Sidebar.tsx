@@ -1,28 +1,30 @@
 import { useEffect } from 'react';
-import { Icon, type IconName } from '@blueprintjs/core';
+import type { IconType } from 'react-icons';
+import { GiVisoredHelm, GiMirrorMirror, GiFist, GiLayeredArmor, GiSkills, GiStarMedal, GiSpellBook, GiSwapBag, GiEarthAmerica, GiCube } from 'react-icons/gi';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useIcon, fetchIcon } from '@/hooks/useIcon';
+import { GameIcon } from '../shared/GameIcon';
 
-const NAV_ITEMS: { id: string; icon: IconName; gameIcon: string | null; labelKey: string }[] = [
-  { id: 'overview', icon: 'person', gameIcon: 'ia_character', labelKey: 'navigation.overview' },
-  { id: 'appearance', icon: 'style', gameIcon: 'ia_appear', labelKey: 'navigation.appearance' },
-  { id: 'abilities', icon: 'properties', gameIcon: 'ife_toughness', labelKey: 'navigation.abilityScores' },
-  { id: 'classes', icon: 'layers', gameIcon: 'ic_b_fighter', labelKey: 'navigation.classes' },
-  { id: 'skills', icon: 'build', gameIcon: 'isk_lore', labelKey: 'navigation.skills' },
-  { id: 'feats', icon: 'star', gameIcon: 'ife_dodge', labelKey: 'navigation.feats' },
-  { id: 'spells', icon: 'flash', gameIcon: 'b_spellbook', labelKey: 'navigation.spells' },
-  { id: 'inventory', icon: 'box', gameIcon: 'ia_inventory', labelKey: 'navigation.inventory' },
-  { id: 'gamestate', icon: 'globe', gameIcon: 'b_journal', labelKey: 'navigation.gameState' },
-  { id: 'models', icon: 'cube', gameIcon: 'is_trueseeing', labelKey: 'navigation.models' },
+const NAV_ITEMS: { id: string; icon: IconType; gameIcon: string | null; labelKey: string }[] = [
+  { id: 'overview', icon: GiVisoredHelm, gameIcon: 'ia_character', labelKey: 'navigation.overview' },
+  { id: 'appearance', icon: GiMirrorMirror, gameIcon: 'ia_appear', labelKey: 'navigation.appearance' },
+  { id: 'abilities', icon: GiFist, gameIcon: 'ife_toughness', labelKey: 'navigation.abilityScores' },
+  { id: 'classes', icon: GiLayeredArmor, gameIcon: 'ic_b_fighter', labelKey: 'navigation.classes' },
+  { id: 'skills', icon: GiSkills, gameIcon: 'isk_lore', labelKey: 'navigation.skills' },
+  { id: 'feats', icon: GiStarMedal, gameIcon: 'ife_dodge', labelKey: 'navigation.feats' },
+  { id: 'spells', icon: GiSpellBook, gameIcon: 'b_spellbook', labelKey: 'navigation.spells' },
+  { id: 'inventory', icon: GiSwapBag, gameIcon: 'ia_inventory', labelKey: 'navigation.inventory' },
+  { id: 'gamestate', icon: GiEarthAmerica, gameIcon: 'b_journal', labelKey: 'navigation.gameState' },
+  { id: 'models', icon: GiCube, gameIcon: 'is_trueseeing', labelKey: 'navigation.models' },
 ];
 
-function NavIcon({ gameIcon, fallback, size }: { gameIcon: string | null; fallback: IconName; size: number }) {
+function NavIcon({ gameIcon, fallback, size }: { gameIcon: string | null; fallback: IconType; size: number }) {
   const iconUrl = useIcon(gameIcon);
   if (iconUrl) {
     return <img src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 2, flexShrink: 0 }} />;
   }
-  return <Icon icon={fallback} size={size} />;
+  return <GameIcon icon={fallback} size={size} />;
 }
 
 interface SidebarProps {

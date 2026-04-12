@@ -4,6 +4,8 @@ import {
   NonIdealState, Spinner, Switch, Tab, Tabs,
 } from '@blueprintjs/core';
 import { Popover } from '@blueprintjs/core';
+import { GiBrokenShield, GiVisoredHelm, GiAnticlockwiseRotation, GiBackwardTime, GiInfo, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { T, formatBytes } from '../theme';
 import { KVRow, ParchmentDialog, StepInput } from '../shared';
 import { useCharacterContext } from '@/contexts/CharacterContext';
@@ -225,7 +227,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
   if (error) {
     return (
       <div style={{ padding: 24 }}>
-        <NonIdealState icon="error" title="Failed to load companions" description={error} />
+        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load companions" description={error} />
       </div>
     );
   }
@@ -235,7 +237,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
   if (companionEntries.length === 0) {
     return (
       <div style={{ padding: 24 }}>
-        <NonIdealState icon="person" title="No companion data" description="No companion influence data found for this save." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No companion data" description="No companion influence data found for this save." />
       </div>
     );
   }
@@ -244,7 +246,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
     <>
       {(hasChanges || isSaving) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
-          <Button small minimal icon="undo" onClick={handleRevertAll} style={{ color: MODIFIED }} disabled={isSaving}>Revert All</Button>
+          <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={handleRevertAll} style={{ color: MODIFIED }} disabled={isSaving}>Revert All</Button>
           <Button small intent="primary" loading={isSaving} onClick={handleSave}>Save</Button>
         </div>
       )}
@@ -292,7 +294,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
                 />
                 {isModified && (
                   <Button
-                    small minimal icon="undo"
+                    small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />}
                     style={{ color: MODIFIED }}
                     onClick={() => setInfluences(prev => ({ ...prev, [companionId]: initial }))}
                   />
@@ -356,7 +358,7 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
               </td>
               <td style={{ textAlign: 'center' }}>
                 {isModified && (
-                  <Button small minimal icon="undo" style={{ color: MODIFIED }} onClick={() => onRevert(v.name)} />
+                  <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} style={{ color: MODIFIED }} onClick={() => onRevert(v.name)} />
                 )}
               </td>
             </tr>
@@ -394,14 +396,14 @@ function VariableSection({
           {changeCount > 0 && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ fontWeight: 600, color: MODIFIED }}>{changeCount} modified</span>
-              <Button small minimal icon="undo" onClick={onRevertAll} style={{ color: MODIFIED }}>Revert All</Button>
+              <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }}>Revert All</Button>
               <Button small intent="primary" onClick={onSave}>Save</Button>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {onRestoreClick && (
-            <Button small minimal icon="history" style={{ color: T.textMuted }} onClick={onRestoreClick}>Restore Backup</Button>
+            <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={onRestoreClick}>Restore Backup</Button>
           )}
           <InputGroup
             small
@@ -831,11 +833,11 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
   }
 
   if (error && !settings) {
-    return <div style={{ padding: 16 }}><NonIdealState icon="error" title="Failed to load campaign settings" description={error} /></div>;
+    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load campaign settings" description={error} /></div>;
   }
 
   if (!settings) {
-    return <div style={{ padding: 16 }}><NonIdealState icon="info-sign" title="No campaign" description="No campaign is associated with this save." /></div>;
+    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiInfo} size={40} />} title="No campaign" description="No campaign is associated with this save." /></div>;
   }
 
   return (
@@ -893,7 +895,7 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
         )}
 
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button small minimal icon="history" style={{ color: T.textMuted }} onClick={backupDialog.open}>Restore Backup</Button>
+          <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={backupDialog.open}>Restore Backup</Button>
           {hasChanges && (
             <div style={{ display: 'flex', gap: 8 }}>
               <Button minimal onClick={handleRevert}>{t('gameState.campaign.revertSettings')}</Button>
@@ -1011,7 +1013,7 @@ export function GameStatePanel() {
   if (!characterId) {
     return (
       <div style={{ padding: 48 }}>
-        <NonIdealState icon="person" title="No character loaded" description="Load a save file to view game state." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view game state." />
       </div>
     );
   }

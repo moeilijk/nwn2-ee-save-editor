@@ -1,6 +1,8 @@
-import { Icon, Tag } from '@blueprintjs/core';
+import { Tag } from '@blueprintjs/core';
+import { GiScrollQuill } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
 import { T } from '../theme';
+import { GameIcon } from '../shared/GameIcon';
 
 export interface SaveEntryData {
   characterName: string;
@@ -67,7 +69,7 @@ export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntr
           justifyContent: 'center',
           flexShrink: 0,
         }}>
-          <Icon icon="media" size={32} color={T.border} />
+          <GameIcon icon={GiScrollQuill} size={32} color={T.border} />
         </div>
       )}
 

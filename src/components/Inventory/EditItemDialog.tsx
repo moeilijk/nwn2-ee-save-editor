@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Checkbox, Menu, MenuItem, Popover, Spinner, Tab, Tabs } from '@blueprintjs/core';
+import { GiTiedScroll } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { ParchmentDialog, StepInput } from '../shared';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -252,7 +254,7 @@ export function EditItemDialog({
       footerActions={
         <Button
           intent="primary"
-          icon="floppy-disk"
+          icon={<GameIcon icon={GiTiedScroll} size={14} />}
           text={isSaving ? t('inventory.addingItem') : t('inventory.save')}
           onClick={handleSave}
           loading={isSaving}

@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem, Spinner, NonIdealState } from '@blueprintjs/core';
+import { GiVisoredHelm, GiFunnel, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { T, SPELL_SCHOOL_COLORS } from '../theme';
 import { SplitPane, GroupedList } from '../shared';
@@ -310,7 +312,7 @@ export function SpellsPanel() {
         rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
         style={{ maxWidth: 220 }}
       />
-      <Button minimal icon="filter-remove" text="Clear" onClick={clearFilters} disabled={!hasFilters} />
+      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text="Clear" onClick={clearFilters} disabled={!hasFilters} />
       <div style={{ flex: 1 }} />
     </>
   );
@@ -329,7 +331,7 @@ export function SpellsPanel() {
     if (!character) {
       return (
         <NonIdealState
-          icon="person"
+          icon={<GameIcon icon={GiVisoredHelm} size={40} />}
           title="No character loaded"
           description="Load a save file to view spells."
         />

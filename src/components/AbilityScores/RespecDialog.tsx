@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button, ProgressBar } from '@blueprintjs/core';
+import { GiAnticlockwiseRotation } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { T } from '../theme';
 import { mod, ParchmentDialog } from '../shared';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -101,7 +103,7 @@ export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: Respec
         />
       }
       footerLeft={
-        <Button text={t('abilityScores.pointBuy.reset')} icon="reset" minimal onClick={reset} style={{ color: T.textMuted }} />
+        <Button text={t('abilityScores.pointBuy.reset')} icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} minimal onClick={reset} style={{ color: T.textMuted }} />
       }
     >
       <div style={{

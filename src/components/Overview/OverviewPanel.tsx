@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Button, ButtonGroup, Card, Elevation, H4, Icon, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
+import { Button, ButtonGroup, Card, Elevation, H4, InputGroup, NonIdealState, ProgressBar, Spinner, TextArea } from '@blueprintjs/core';
+import { GiQuillInk, GiVisoredHelm } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
+import { GameIcon } from '../shared/GameIcon';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { T } from '../theme';
 import { KVRow, mod, StepInput } from '../shared';
@@ -220,7 +222,7 @@ export function OverviewPanel() {
   if (!character) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-        <NonIdealState icon="person" title="No character loaded" description="Load a save file to view the overview." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view the overview." />
       </div>
     );
   }
@@ -280,7 +282,7 @@ export function OverviewPanel() {
             <div style={{ marginBottom: 4 }}>
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, cursor: 'pointer' }} onClick={() => setIsEditingName(true)}>
                 <H4 style={{ margin: 0, color: T.text }}>{display(firstName)} {display(lastName)}</H4>
-                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+                <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               </span>
             </div>
           )}
@@ -293,7 +295,7 @@ export function OverviewPanel() {
             <KVRow label={t('character.race')} value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsRaceOpen(true)}>
                 {display(character.race)}
-                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+                <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               </span>
             } />
             <KVRow label={t('character.gender')} value={
@@ -309,7 +311,7 @@ export function OverviewPanel() {
             <KVRow label="Deity" value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsDeityOpen(true)}>
                 {display(character.deity, 'None')}
-                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+                <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               </span>
             } />
             <KVRow label="Background" value={display(character.background?.name)} />
@@ -338,7 +340,7 @@ export function OverviewPanel() {
             <span className={isEditingBio ? undefined : 'editable-row'} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isEditingBio ? undefined : 'pointer' }} onClick={() => !isEditingBio && setIsEditingBio(true)}>
               <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>Biography</span>
               {!isEditingBio && (
-                <Icon icon="edit" size={12} style={{ color: T.textMuted }} />
+                <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               )}
             </span>
           </div>

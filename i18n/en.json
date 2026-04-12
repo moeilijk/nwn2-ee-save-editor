@@ -67,7 +67,8 @@
     "quickAccess": "Quick Access",
     "settings": "Settings",
     "gameState": "Game State",
-    "models": "3D Models"
+    "models": "3D Models",
+    "icons": "Icons"
   },
   "actions": {
     "openSave": "Open Save",

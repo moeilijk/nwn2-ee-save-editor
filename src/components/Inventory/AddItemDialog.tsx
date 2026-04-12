@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Button, InputGroup, Menu, MenuItem, Popover, Spinner, Tab, Tabs } from '@blueprintjs/core';
+import { GiFunnel, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { FixedSizeList as List } from 'react-window';
 import { ParchmentDialog } from '../shared';
 import { T } from '../theme';
@@ -293,7 +295,7 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
             rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
             style={{ maxWidth: 220 }}
           />
-          <Button minimal icon="filter-remove" text={t('inventory.filterClear')} onClick={clearFilters} disabled={!hasFilters} />
+          <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text={t('inventory.filterClear')} onClick={clearFilters} disabled={!hasFilters} />
         </div>
 
         {activeSubCategories.length > 1 && (

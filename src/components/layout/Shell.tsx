@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Elevation, Icon, ProgressBar } from '@blueprintjs/core';
+import { Button, Card, Elevation, ProgressBar } from '@blueprintjs/core';
+import { GiAnvil } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { invoke } from '@tauri-apps/api/core';
 import { TauriAPI } from '@/lib/tauri-api';
 import { CharacterProvider, useCharacterContext } from '@/contexts/CharacterContext';
@@ -18,6 +20,7 @@ import { SpellsPanel } from '../Spells/SpellsPanel';
 import { InventoryPanel } from '../Inventory/InventoryPanel';
 import { GameStatePanel } from '../GameState/GameStatePanel';
 import { ModelBrowser } from '../ModelViewer/ModelBrowser';
+import { IconShowcasePanel } from '../IconShowcase/IconShowcasePanel';
 import { AppearancePanel } from '../Appearance/AppearancePanel';
 import DashboardPanel from '../Dashboard/DashboardPanel';
 import { LevelHelper, ErrorBoundary, AboutDialog } from '../shared';
@@ -33,6 +36,7 @@ const PANELS: Record<string, React.ComponentType> = {
   inventory: InventoryPanel,
   gamestate: GameStatePanel,
   models: ModelBrowser,
+  icons: IconShowcasePanel,
 };
 
 function ShellContent() {
@@ -101,7 +105,7 @@ function ShellContent() {
               {Panel ? <Panel /> : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <Icon icon="build" size={40} style={{ color: T.border }} />
+                    <GameIcon icon={GiAnvil} size={40} style={{ color: T.border }} />
                     <p style={{ marginTop: 12, fontSize: 14, color: T.textMuted }}>Coming soon</p>
                   </div>
                 </div>

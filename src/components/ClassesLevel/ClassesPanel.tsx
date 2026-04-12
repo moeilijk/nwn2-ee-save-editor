@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button, Card, Elevation, HTMLTable, NonIdealState, ProgressBar, Spinner, Tag } from '@blueprintjs/core';
+import { GiBrokenShield, GiVisoredHelm, GiHazardSign } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { T } from '../theme';
 import { StepInput } from '../shared';
 import { ClassSelectorDialog } from './ClassSelectorDialog';
@@ -169,7 +171,7 @@ export function ClassesPanel() {
     return (
       <div style={{ padding: 16 }}>
         <NonIdealState
-          icon="error"
+          icon={<GameIcon icon={GiBrokenShield} size={40} />}
           title="Failed to load class data"
           description={classesSubsystem.error}
           action={
@@ -187,7 +189,7 @@ export function ClassesPanel() {
     return (
       <div style={{ padding: 16 }}>
         <NonIdealState
-          icon="person"
+          icon={<GameIcon icon={GiVisoredHelm} size={40} />}
           title="No character loaded"
           description="Load a save file to view class data."
         />
@@ -239,7 +241,7 @@ export function ClassesPanel() {
             {t('classes.lvl')} {xpProgress?.current_level ?? '-'} | {formatNumber(xpProgress?.xp_remaining)} {t('classes.xpToNextLevel')}
           </span>
           {levelMismatch && xpProgress && (
-            <Tag minimal round intent="warning" icon="warning-sign" style={{ fontSize: 'inherit' }}>
+            <Tag minimal round intent="warning" icon={<GameIcon icon={GiHazardSign} size={12} />} style={{ fontSize: 'inherit' }}>
               {t('classes.xpLevelMismatchWarning', {
                 xpLevel: String(xpProgress.current_level),
                 classLevel: String(totalLevel),

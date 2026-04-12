@@ -7,7 +7,9 @@ import {
   Button, Dialog, DialogBody, DialogFooter,
   Icon, Spinner, NonIdealState,
 } from '@blueprintjs/core';
+import { GiOpenFolder, GiExitDoor, GiFullFolder, GiFoldedPaper, GiBrokenShield, GiMagnifyingGlass } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
+import { GameIcon } from '../shared/GameIcon';
 import { display, formatNumber } from '@/utils/dataHelpers';
 import { T, formatBytes } from '../theme';
 
@@ -402,7 +404,7 @@ export function FileBrowserDialog({
             borderBottom: `1px solid ${T.borderLight}`,
             background: T.surfaceAlt,
           }}>
-            <Icon icon="folder-open" size={14} color={T.textMuted} />
+            <GameIcon icon={GiOpenFolder} size={14} color={T.textMuted} />
             <span style={{ color: T.textMuted }}>{locationLabel}</span>
             <span style={{
               fontFamily: 'monospace',
@@ -418,7 +420,7 @@ export function FileBrowserDialog({
               <Button
                 minimal
                 small
-                icon="arrow-left"
+                icon={<GameIcon icon={GiExitDoor} size={14} />}
                 text={t('fileBrowser.back')}
                 onClick={() => {
                   setSelectedFile(null);
@@ -430,7 +432,7 @@ export function FileBrowserDialog({
               <Button
                 minimal
                 small
-                icon="folder-open"
+                icon={<GameIcon icon={GiOpenFolder} size={14} />}
                 text={t('fileBrowser.changeLocation')}
                 onClick={handleChangeLocation}
               />
@@ -500,9 +502,9 @@ export function FileBrowserDialog({
                 description={t('fileBrowser.loading')}
               />
             ) : error ? (
-              <NonIdealState icon="error" description={error} />
+              <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} description={error} />
             ) : sortedFiles.length === 0 ? (
-              <NonIdealState icon="search" description={t('fileBrowser.noFiles')} />
+              <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} description={t('fileBrowser.noFiles')} />
             ) : (
               <InfiniteLoader
                 key={currentPath}
@@ -567,8 +569,8 @@ export function FileBrowserDialog({
                           }}
                         >
                           <div style={{ flex: isVault ? 3 : 1, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                            <Icon
-                              icon={file.is_directory ? 'folder-close' : 'document'}
+                            <GameIcon
+                              icon={file.is_directory ? GiFullFolder : GiFoldedPaper}
                               size={14}
                               color={T.textMuted}
                             />

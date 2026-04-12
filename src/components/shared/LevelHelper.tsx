@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Button, Icon, Popover, Tag, type IconName } from '@blueprintjs/core';
+import { Button, Icon, Popover, Tag } from '@blueprintjs/core';
+import type { IconType } from 'react-icons';
+import { GiSkills, GiStarMedal, GiMuscleUp, GiSpellBook, GiUpgrade } from 'react-icons/gi';
 import { T } from '../theme';
+import { GameIcon } from './GameIcon';
 import { useSubsystem } from '@/contexts/CharacterContext';
 import { useTranslations } from '@/hooks/useTranslations';
 
 interface PendingGain {
   label: string;
   count: number;
-  icon: IconName;
+  icon: IconType;
   color: string;
   tagIntent: 'success' | 'primary' | 'warning' | 'none';
   tabId: string;
@@ -56,7 +59,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
     remainingSkillPoints > 0 && {
       label: t('levelHelper.skillPoints'),
       count: remainingSkillPoints,
-      icon: 'build' as IconName,
+      icon: GiSkills,
       color: T.positive,
       tagIntent: 'success' as const,
       tabId: 'skills',
@@ -64,7 +67,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
     openFeatSlots > 0 && {
       label: t('levelHelper.featSlots'),
       count: openFeatSlots,
-      icon: 'star' as IconName,
+      icon: GiStarMedal,
       color: T.accent,
       tagIntent: 'primary' as const,
       tabId: 'feats',
@@ -72,7 +75,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
     pendingAbilityIncreases > 0 && {
       label: t('levelHelper.abilityScoreIncrease'),
       count: pendingAbilityIncreases,
-      icon: 'properties' as IconName,
+      icon: GiMuscleUp,
       color: T.gold,
       tagIntent: 'warning' as const,
       tabId: 'abilities',
@@ -146,7 +149,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
               {...hoverHandlers}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={gain.icon} size={14} style={{ color: gain.color }} />
+                <GameIcon icon={gain.icon} size={14} style={{ color: gain.color }} />
                 <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{gain.label}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -165,7 +168,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
                   style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}
                   onClick={() => handleRowClick('spells')}
                 >
-                  <Icon icon="flash" size={14} style={{ color: SPELL_COLOR }} />
+                  <GameIcon icon={GiSpellBook} size={14} style={{ color: SPELL_COLOR }} />
                   <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{t('levelHelper.spellsToLearn')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -234,7 +237,7 @@ export function LevelHelper({ onNavigate }: LevelHelperProps) {
       >
         <Button
           intent="primary"
-          icon="warning-sign"
+          icon={<GameIcon icon={GiUpgrade} size={20} />}
           onClick={() => setIsOpen(!isOpen)}
           style={{
             width: 48,

@@ -1,6 +1,8 @@
-import { Button, Divider, Icon } from '@blueprintjs/core';
+import { Button, Divider } from '@blueprintjs/core';
+import { GiVisoredHelm, GiScrollUnfurled, GiOpenFolder, GiBackwardTime, GiCog, GiQuillInk } from 'react-icons/gi';
 import { useTranslations } from '@/hooks/useTranslations';
 import { T } from '../theme';
+import { GameIcon } from '../shared/GameIcon';
 import type { SaveEntryData } from './SaveEntry';
 
 interface ContextPanelProps {
@@ -24,16 +26,16 @@ function DefaultContent() {
       <Divider style={{ borderColor: T.borderLight, margin: '0 0 16px 0' }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Button minimal icon="import" alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
+        <Button minimal icon={<GameIcon icon={GiScrollUnfurled} size={16} color={T.text} />} alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
           {t('actions.importCharacter')}
         </Button>
-        <Button minimal icon="folder-open" alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
+        <Button minimal icon={<GameIcon icon={GiOpenFolder} size={16} color={T.text} />} alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
           {t('actions.openDocumentsFolder')}
         </Button>
-        <Button minimal icon="history" alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
+        <Button minimal icon={<GameIcon icon={GiBackwardTime} size={16} color={T.text} />} alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
           {t('actions.manageBackups')}
         </Button>
-        <Button minimal icon="cog" alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
+        <Button minimal icon={<GameIcon icon={GiCog} size={16} color={T.text} />} alignText="left" style={{ color: T.text, justifyContent: 'flex-start' }}>
           {t('navigation.settings')}
         </Button>
       </div>
@@ -57,7 +59,7 @@ function SelectedContent({ save }: { save: SaveEntryData }) {
         justifyContent: 'center',
         marginBottom: 16,
       }}>
-        <Icon icon="person" size={40} color={T.border} />
+        <GameIcon icon={GiVisoredHelm} size={40} color={T.border} />
       </div>
 
       <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 4 }}>
@@ -72,7 +74,7 @@ function SelectedContent({ save }: { save: SaveEntryData }) {
 
       {save.isActive ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Button intent="primary" icon="edit" fill>
+          <Button intent="primary" icon={<GameIcon icon={GiQuillInk} size={16} />} fill>
             {t('dashboard.continueEditing')}
           </Button>
           <Button minimal intent="danger" icon="cross">
@@ -80,7 +82,7 @@ function SelectedContent({ save }: { save: SaveEntryData }) {
           </Button>
         </div>
       ) : (
-        <Button intent="primary" icon="import" fill>
+        <Button intent="primary" icon={<GameIcon icon={GiScrollUnfurled} size={16} />} fill>
           {t('dashboard.loadSave')}
         </Button>
       )}

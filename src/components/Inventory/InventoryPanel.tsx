@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Elevation, NonIdealState, ProgressBar, Spinner } from '@blueprintjs/core';
+import { GiBrokenShield, GiVisoredHelm } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { T } from '../theme';
@@ -248,7 +250,7 @@ export function InventoryPanel() {
     return (
       <div style={{ padding: 16, height: '100%' }}>
         <NonIdealState
-          icon="error"
+          icon={<GameIcon icon={GiBrokenShield} size={40} />}
           title="Failed to load inventory"
           description={inventorySubsystem.error}
           action={<Button onClick={() => inventorySubsystem.load()}>Retry</Button>}
@@ -260,7 +262,7 @@ export function InventoryPanel() {
   if (!inventoryData) {
     return (
       <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <NonIdealState icon="person" title="No character loaded" description="Load a character to view inventory." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a character to view inventory." />
       </div>
     );
   }

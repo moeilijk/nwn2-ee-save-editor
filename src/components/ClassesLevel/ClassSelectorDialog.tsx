@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Button, InputGroup, Tabs, Tab, NonIdealState, Spinner } from '@blueprintjs/core';
+import { GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { ParchmentDialog, GroupedList } from '../shared';
 import type { ListSection } from '../shared';
 import { T } from '../theme';
@@ -134,7 +136,7 @@ export function ClassSelectorDialog({
       return <NonIdealState icon={<Spinner size={30} />} title="Loading..." />;
     }
     if (sections.length === 0) {
-      return <NonIdealState icon="search" title="No classes found" />;
+      return <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No classes found" />;
     }
     return (
       <GroupedList

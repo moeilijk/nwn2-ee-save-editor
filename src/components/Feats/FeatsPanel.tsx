@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button, InputGroup, Tabs, Tab, Popover, Menu, MenuItem, NonIdealState, Spinner } from '@blueprintjs/core';
+import { GiBrokenShield, GiVisoredHelm, GiMagnifyingGlass, GiFunnel } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { T, FEAT_TYPE_COLORS } from '../theme';
 import { SplitPane, GroupedList } from '../shared';
@@ -259,7 +261,7 @@ export function FeatsPanel() {
         rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
         style={{ maxWidth: 220 }}
       />
-      <Button minimal icon="filter-remove" text="Clear" onClick={clearFilters} disabled={!hasFilters} />
+      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text="Clear" onClick={clearFilters} disabled={!hasFilters} />
       <div style={{ flex: 1 }} />
     </>
   );
@@ -273,17 +275,17 @@ export function FeatsPanel() {
       }
       if (loadError) {
         return (
-          <NonIdealState icon="error" title="Failed to load feats" description={loadError} />
+          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load feats" description={loadError} />
         );
       }
       if (!character || !featsData) {
         return (
-          <NonIdealState icon="person" title="No character loaded" description="Load a save file to view feats." />
+          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view feats." />
         );
       }
       if (sections.length === 0) {
         return (
-          <NonIdealState icon="search" title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
+          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
         );
       }
     }
@@ -291,7 +293,7 @@ export function FeatsPanel() {
     if (tab === 'all') {
       if (!character) {
         return (
-          <NonIdealState icon="person" title="No character loaded" description="Load a save file to browse feats." />
+          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to browse feats." />
         );
       }
       if (allFeatsLoading) {
@@ -301,12 +303,12 @@ export function FeatsPanel() {
       }
       if (allFeatsError) {
         return (
-          <NonIdealState icon="error" title="Failed to load feats" description={allFeatsError} />
+          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load feats" description={allFeatsError} />
         );
       }
       if (sections.length === 0) {
         return (
-          <NonIdealState icon="search" title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
+          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
         );
       }
     }

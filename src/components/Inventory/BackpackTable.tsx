@@ -1,4 +1,6 @@
 import { HTMLTable, NonIdealState } from '@blueprintjs/core';
+import { GiSwapBag } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { fmtNum } from '../shared';
 import { T } from '../theme';
 import type { FullInventoryItem } from '@/lib/bindings';
@@ -14,7 +16,7 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
   if (items.length === 0) {
     return (
       <NonIdealState
-        icon="box"
+        icon={<GameIcon icon={GiSwapBag} size={40} />}
         title="Backpack is empty"
         description="No items in backpack."
       />

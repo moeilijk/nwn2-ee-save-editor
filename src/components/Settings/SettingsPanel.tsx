@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  Button, Icon, Menu, MenuItem, Popover, Switch, Tab, Tabs, Tag,
+  Button, Menu, MenuItem, Popover, Switch, Tab, Tabs, Tag,
 } from '@blueprintjs/core';
+import { GiFullFolder, GiCheckMark, GiBrokenShield } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -34,7 +36,7 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon icon="folder-close" size={16} color={T.textMuted} />
+          <GameIcon icon={GiFullFolder} size={16} color={T.textMuted} />
           <span style={{ fontWeight: 600, color: T.text }}>{label}</span>
           <Tag minimal round intent={autoDetected ? 'primary' : 'warning'} style={{ background: autoDetected ? 'rgba(45, 114, 210, 0.1)' : 'rgba(184, 149, 47, 0.1)' }}>
             {autoDetected ? t('settings.paths.autoDetected') : t('settings.paths.manuallySet')}
@@ -45,7 +47,7 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
             {path || t('settings.paths.notConfigured')}
           </span>
           {path && (
-            <Icon icon={exists ? 'tick-circle' : 'error'} size={14} color={exists ? T.positive : T.negative} />
+            <GameIcon icon={exists ? GiCheckMark : GiBrokenShield} size={14} color={exists ? T.positive : T.negative} />
           )}
         </div>
       </div>
@@ -79,11 +81,11 @@ function CustomFolderList({ folders, addLabel, onAdd, onRemove }: {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-            <Icon icon="folder-close" size={14} color={T.textMuted} />
+            <GameIcon icon={GiFullFolder} size={14} color={T.textMuted} />
             <span style={{ fontFamily: 'monospace', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {folder.path}
             </span>
-            <Icon icon={folder.exists ? 'tick-circle' : 'error'} size={14} color={folder.exists ? T.positive : T.negative} />
+            <GameIcon icon={folder.exists ? GiCheckMark : GiBrokenShield} size={14} color={folder.exists ? T.positive : T.negative} />
           </div>
           <Button small minimal icon="trash" onClick={() => onRemove(folder.path)} style={{ color: T.textMuted }} />
         </div>

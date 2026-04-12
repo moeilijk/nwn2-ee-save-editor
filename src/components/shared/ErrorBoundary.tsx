@@ -1,6 +1,8 @@
 import { Component, type ReactNode } from 'react';
-import { Button, Icon, NonIdealState } from '@blueprintjs/core';
+import { Button, NonIdealState } from '@blueprintjs/core';
+import { GiBrokenShield } from 'react-icons/gi';
 import { T } from '../theme';
+import { GameIcon } from './GameIcon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -28,7 +30,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.state.hasError) {
       return (
         <NonIdealState
-          icon={<Icon icon="error" size={40} color={T.negative} />}
+          icon={<GameIcon icon={GiBrokenShield} size={40} color={T.negative} />}
           title={this.props.fallbackTitle ?? 'Something went wrong'}
           description={this.props.fallbackMessage ?? 'This section encountered an error and cannot be displayed.'}
           action={

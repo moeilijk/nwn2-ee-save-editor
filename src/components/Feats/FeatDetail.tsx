@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Button, Icon } from '@blueprintjs/core';
+import { Button } from '@blueprintjs/core';
+import { GiCancel, GiCheckMark } from 'react-icons/gi';
 import { T, FEAT_TYPE_COLORS } from '../theme';
+import { GameIcon } from '../shared/GameIcon';
 import type { FeatInfo, BackendFeatPrerequisites } from '@/components/Feats/types';
 import { FEAT_TYPE_LABELS, getFeatTypeLabel } from '@/utils/featUtils';
 import { DetailSection } from '../shared';
@@ -119,7 +121,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {feat.missing_requirements.map((req, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon="cross" size={14} style={{ color: T.negative }} />
+                <GameIcon icon={GiCancel} size={14} style={{ color: T.negative }} />
                 <span style={{ color: T.text }}>{req}</span>
               </div>
             ))}
@@ -132,34 +134,34 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {prereqs.feats?.map(p => (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={p.met ? 'tick' : 'cross'} size={14} style={{ color: p.met ? T.positive : T.negative }} />
+                <GameIcon icon={p.met ? GiCheckMark : GiCancel} size={14} style={{ color: p.met ? T.positive : T.negative }} />
                 <span style={{ color: T.text }}>{p.name}</span>
               </div>
             ))}
             {prereqs.abilities?.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={p.met ? 'tick' : 'cross'} size={14} style={{ color: p.met ? T.positive : T.negative }} />
+                <GameIcon icon={p.met ? GiCheckMark : GiCancel} size={14} style={{ color: p.met ? T.positive : T.negative }} />
                 <span style={{ color: T.text }}>{p.ability} {p.required}</span>
                 <span style={{ color: T.textMuted }}>({p.current}/{p.required})</span>
               </div>
             ))}
             {prereqs.bab && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={prereqs.bab.met ? 'tick' : 'cross'} size={14} style={{ color: prereqs.bab.met ? T.positive : T.negative }} />
+                <GameIcon icon={prereqs.bab.met ? GiCheckMark : GiCancel} size={14} style={{ color: prereqs.bab.met ? T.positive : T.negative }} />
                 <span style={{ color: T.text }}>BAB +{prereqs.bab.required}</span>
                 <span style={{ color: T.textMuted }}>({prereqs.bab.current}/{prereqs.bab.required})</span>
               </div>
             )}
             {prereqs.level && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={prereqs.level.met ? 'tick' : 'cross'} size={14} style={{ color: prereqs.level.met ? T.positive : T.negative }} />
+                <GameIcon icon={prereqs.level.met ? GiCheckMark : GiCancel} size={14} style={{ color: prereqs.level.met ? T.positive : T.negative }} />
                 <span style={{ color: T.text }}>Level {prereqs.level.required}</span>
                 <span style={{ color: T.textMuted }}>({prereqs.level.current}/{prereqs.level.required})</span>
               </div>
             )}
             {prereqs.skills?.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icon icon={p.met ? 'tick' : 'cross'} size={14} style={{ color: p.met ? T.positive : T.negative }} />
+                <GameIcon icon={p.met ? GiCheckMark : GiCancel} size={14} style={{ color: p.met ? T.positive : T.negative }} />
                 <span style={{ color: T.text }}>{p.skill} {p.required} ranks</span>
                 <span style={{ color: T.textMuted }}>({p.current}/{p.required})</span>
               </div>

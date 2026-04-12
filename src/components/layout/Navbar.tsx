@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  Button, Navbar as BPNavbar, NavbarGroup, NavbarDivider,
+  Button, Navbar as BPNavbar, NavbarGroup,
 } from '@blueprintjs/core';
+import { GiCog, GiExitDoor, GiScrollUnfurled, GiTiedScroll } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { invoke } from '@tauri-apps/api/core';
 import { T } from '../theme';
 import { SettingsDialog } from '../Settings/SettingsPanel';
@@ -78,12 +80,12 @@ export function Navbar({ onBack }: NavbarProps) {
     <>
       <BPNavbar className="bp5-dark" style={{ background: T.navbar, paddingLeft: 12, paddingRight: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.15)', position: 'relative', zIndex: 10 }}>
         <NavbarGroup align="left">
-          <Button icon="cog" text={t('common.settings')} small minimal style={{ color: T.sidebarText }} onClick={() => setShowSettings(true)} />
-          <Button icon="arrow-left" text={t('common.back')} small minimal style={{ color: T.sidebarText }} onClick={onBack} />
+          <Button icon={<GameIcon icon={GiCog} size={14} color={T.sidebarText} />} text={t('common.settings')} small minimal style={{ color: T.sidebarText }} onClick={() => setShowSettings(true)} />
+          <Button icon={<GameIcon icon={GiExitDoor} size={14} color={T.sidebarText} />} text={t('common.back')} small minimal style={{ color: T.sidebarText }} onClick={onBack} />
         </NavbarGroup>
         <NavbarGroup align="right">
-          <Button icon="export" text={t('actions.exportCharacter')} small minimal loading={isExporting} style={{ color: T.sidebarText }} onClick={handleExport} />
-          <Button icon="floppy-disk" text={isSaving ? t('actions.saving') : t('actions.save')} small minimal loading={isSaving} style={{ color: T.sidebarText }} onClick={handleSave} />
+          <Button icon={<GameIcon icon={GiScrollUnfurled} size={14} color={T.sidebarText} />} text={t('actions.exportCharacter')} small minimal loading={isExporting} style={{ color: T.sidebarText }} onClick={handleExport} />
+          <Button icon={<GameIcon icon={GiTiedScroll} size={14} color={T.sidebarText} />} text={isSaving ? t('actions.saving') : t('actions.save')} small minimal loading={isSaving} style={{ color: T.sidebarText }} onClick={handleSave} />
         </NavbarGroup>
       </BPNavbar>
       {showSettings && <SettingsDialog isOpen onClose={() => setShowSettings(false)} />}
