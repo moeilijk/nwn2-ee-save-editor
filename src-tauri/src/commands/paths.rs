@@ -96,6 +96,11 @@ fn build_path_config(paths: &crate::config::NWN2Paths) -> PathConfig {
     }
 }
 
+async fn sync_resource_manager_paths(state: &AppState, snapshot: crate::config::NWN2Paths) {
+    let mut resource_manager = state.resource_manager.write().await;
+    resource_manager.update_paths(snapshot).await;
+}
+
 #[tauri::command]
 #[instrument(name = "get_paths_config", skip(state))]
 pub async fn get_paths_config(state: State<'_, AppState>) -> CommandResult<PathConfig> {
@@ -111,25 +116,29 @@ pub async fn set_game_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Setting game folder to: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths.set_game_folder(&path).map_err(|e| {
-        if e.contains("does not exist") {
-            CommandError::NotFound {
-                item: format!("Path: {path}"),
+        paths.set_game_folder(&path).map_err(|e| {
+            if e.contains("does not exist") {
+                CommandError::NotFound {
+                    item: format!("Path: {path}"),
+                }
+            } else {
+                CommandError::OperationFailed {
+                    operation: "set_game_folder".to_string(),
+                    reason: e,
+                }
             }
-        } else {
-            CommandError::OperationFailed {
-                operation: "set_game_folder".to_string(),
-                reason: e,
-            }
-        }
-    })?;
+        })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("Game folder set to: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -140,25 +149,29 @@ pub async fn set_documents_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Setting documents folder to: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths.set_documents_folder(&path).map_err(|e| {
-        if e.contains("does not exist") {
-            CommandError::NotFound {
-                item: format!("Path: {path}"),
+        paths.set_documents_folder(&path).map_err(|e| {
+            if e.contains("does not exist") {
+                CommandError::NotFound {
+                    item: format!("Path: {path}"),
+                }
+            } else {
+                CommandError::OperationFailed {
+                    operation: "set_documents_folder".to_string(),
+                    reason: e,
+                }
             }
-        } else {
-            CommandError::OperationFailed {
-                operation: "set_documents_folder".to_string(),
-                reason: e,
-            }
-        }
-    })?;
+        })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("Documents folder set to: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -169,25 +182,29 @@ pub async fn set_steam_workshop_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Setting Steam workshop folder to: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths.set_steam_workshop_folder(&path).map_err(|e| {
-        if e.contains("does not exist") {
-            CommandError::NotFound {
-                item: format!("Path: {path}"),
+        paths.set_steam_workshop_folder(&path).map_err(|e| {
+            if e.contains("does not exist") {
+                CommandError::NotFound {
+                    item: format!("Path: {path}"),
+                }
+            } else {
+                CommandError::OperationFailed {
+                    operation: "set_steam_workshop_folder".to_string(),
+                    reason: e,
+                }
             }
-        } else {
-            CommandError::OperationFailed {
-                operation: "set_steam_workshop_folder".to_string(),
-                reason: e,
-            }
-        }
-    })?;
+        })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("Steam workshop folder set to: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -198,25 +215,29 @@ pub async fn add_override_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Adding override folder: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths.add_custom_override_folder(&path).map_err(|e| {
-        if e.contains("does not exist") {
-            CommandError::NotFound {
-                item: format!("Path: {path}"),
+        paths.add_custom_override_folder(&path).map_err(|e| {
+            if e.contains("does not exist") {
+                CommandError::NotFound {
+                    item: format!("Path: {path}"),
+                }
+            } else {
+                CommandError::OperationFailed {
+                    operation: "add_override_folder".to_string(),
+                    reason: e,
+                }
             }
-        } else {
-            CommandError::OperationFailed {
-                operation: "add_override_folder".to_string(),
-                reason: e,
-            }
-        }
-    })?;
+        })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("Override folder added: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -227,19 +248,23 @@ pub async fn remove_override_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Removing override folder: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths
-        .remove_custom_override_folder(&path)
-        .map_err(|e| CommandError::OperationFailed {
-            operation: "remove_override_folder".to_string(),
-            reason: e,
-        })?;
+        paths
+            .remove_custom_override_folder(&path)
+            .map_err(|e| CommandError::OperationFailed {
+                operation: "remove_override_folder".to_string(),
+                reason: e,
+            })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("Override folder removed: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -250,25 +275,29 @@ pub async fn add_hak_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Adding HAK folder: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths.add_custom_hak_folder(&path).map_err(|e| {
-        if e.contains("does not exist") {
-            CommandError::NotFound {
-                item: format!("Path: {path}"),
+        paths.add_custom_hak_folder(&path).map_err(|e| {
+            if e.contains("does not exist") {
+                CommandError::NotFound {
+                    item: format!("Path: {path}"),
+                }
+            } else {
+                CommandError::OperationFailed {
+                    operation: "add_hak_folder".to_string(),
+                    reason: e,
+                }
             }
-        } else {
-            CommandError::OperationFailed {
-                operation: "add_hak_folder".to_string(),
-                reason: e,
-            }
-        }
-    })?;
+        })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("HAK folder added: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -279,19 +308,23 @@ pub async fn remove_hak_folder(
     path: String,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Removing HAK folder: {}", path);
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths
-        .remove_custom_hak_folder(&path)
-        .map_err(|e| CommandError::OperationFailed {
-            operation: "remove_hak_folder".to_string(),
-            reason: e,
-        })?;
+        paths
+            .remove_custom_hak_folder(&path)
+            .map_err(|e| CommandError::OperationFailed {
+                operation: "remove_hak_folder".to_string(),
+                reason: e,
+            })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: format!("HAK folder removed: {path}"),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -299,19 +332,23 @@ pub async fn remove_hak_folder(
 #[instrument(name = "reset_game_folder", skip(state))]
 pub async fn reset_game_folder(state: State<'_, AppState>) -> CommandResult<PathUpdateResponse> {
     debug!("Resetting game folder to auto-detected");
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths
-        .reset_game_folder()
-        .map_err(|e| CommandError::OperationFailed {
-            operation: "reset_game_folder".to_string(),
-            reason: e,
-        })?;
+        paths
+            .reset_game_folder()
+            .map_err(|e| CommandError::OperationFailed {
+                operation: "reset_game_folder".to_string(),
+                reason: e,
+            })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: "Game folder reset to auto-detected".to_string(),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -321,19 +358,23 @@ pub async fn reset_documents_folder(
     state: State<'_, AppState>,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Resetting documents folder to auto-detected");
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths
-        .reset_documents_folder()
-        .map_err(|e| CommandError::OperationFailed {
-            operation: "reset_documents_folder".to_string(),
-            reason: e,
-        })?;
+        paths
+            .reset_documents_folder()
+            .map_err(|e| CommandError::OperationFailed {
+                operation: "reset_documents_folder".to_string(),
+                reason: e,
+            })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: "Documents folder reset to auto-detected".to_string(),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -343,19 +384,23 @@ pub async fn reset_steam_workshop_folder(
     state: State<'_, AppState>,
 ) -> CommandResult<PathUpdateResponse> {
     debug!("Resetting Steam workshop folder to auto-detected");
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    paths
-        .reset_steam_workshop_folder()
-        .map_err(|e| CommandError::OperationFailed {
-            operation: "reset_steam_workshop_folder".to_string(),
-            reason: e,
-        })?;
+        paths
+            .reset_steam_workshop_folder()
+            .map_err(|e| CommandError::OperationFailed {
+                operation: "reset_steam_workshop_folder".to_string(),
+                reason: e,
+            })?;
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
     Ok(PathUpdateResponse {
         success: true,
         message: "Steam workshop folder reset to auto-detected".to_string(),
-        paths: build_path_config(&paths),
+        paths: build_path_config(&snapshot),
     })
 }
 
@@ -371,25 +416,29 @@ pub struct AutoDetectResponse {
 #[instrument(name = "auto_detect_paths", skip(state))]
 pub async fn auto_detect_paths(state: State<'_, AppState>) -> CommandResult<AutoDetectResponse> {
     debug!("Auto-detecting all paths");
-    let mut paths = state.paths.write();
+    let snapshot = {
+        let mut paths = state.paths.write();
 
-    let _ = paths.reset_game_folder();
-    let _ = paths.reset_documents_folder();
-    let _ = paths.reset_steam_workshop_folder();
+        let _ = paths.reset_game_folder();
+        let _ = paths.reset_documents_folder();
+        let _ = paths.reset_steam_workshop_folder();
+        paths.clone()
+    };
+    sync_resource_manager_paths(&state, snapshot.clone()).await;
 
-    let game_installations = paths
+    let game_installations = snapshot
         .game_folder()
         .map(|p| vec![p.to_string_lossy().to_string()])
         .unwrap_or_default();
 
     Ok(AutoDetectResponse {
         game_installations,
-        documents_folder: paths
+        documents_folder: snapshot
             .documents_folder()
             .map(|p| p.to_string_lossy().to_string()),
-        steam_workshop: paths
+        steam_workshop: snapshot
             .steam_workshop_folder()
             .map(|p| p.to_string_lossy().to_string()),
-        current_paths: build_path_config(&paths),
+        current_paths: build_path_config(&snapshot),
     })
 }
