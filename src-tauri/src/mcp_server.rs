@@ -19,7 +19,7 @@ use axum::{
 };
 use parking_lot::RwLock;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use tokio::sync::{Mutex, mpsc::UnboundedSender};
 use tokio_stream::{StreamExt as _, wrappers::UnboundedReceiverStream};
 
@@ -115,13 +115,10 @@ fn handle_jsonrpc(state: McpState, request: Value) -> Option<Value> {
     let params = request
         .get("params")
         .cloned()
-        .unwrap_or(Value::Object(Default::default()));
+        .unwrap_or(Value::Object(Map::default()));
 
     // Notifications have no id — no response required
-    if id.is_none() {
-        return None;
-    }
-    let id = id.unwrap();
+    let id = id?;
 
     let result = match method {
         "initialize" => Ok(json!({
@@ -135,7 +132,7 @@ fn handle_jsonrpc(state: McpState, request: Value) -> Option<Value> {
             let arguments = params
                 .get("arguments")
                 .cloned()
-                .unwrap_or(Value::Object(Default::default()));
+                .unwrap_or(Value::Object(Map::default()));
             match dispatch_tool(state, tool_name, arguments) {
                 Ok(value) => Ok(json!({
                     "content": [{ "type": "text", "text": serde_json::to_string_pretty(&value).unwrap_or_default() }],
