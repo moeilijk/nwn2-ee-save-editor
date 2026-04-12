@@ -12,6 +12,7 @@ pub mod utils;
 mod window_manager;
 
 use std::sync::Arc;
+use tauri::image::Image;
 use tauri::Manager;
 use tracing::{debug, info};
 
@@ -56,6 +57,16 @@ pub fn run() {
 
             app.manage(app_state);
             info!("AppState initialized successfully");
+
+            if let Some(window) = app.get_webview_window("main") {
+                let icon_bytes = include_bytes!("../icons/icon.png");
+                let img = image::load_from_memory(icon_bytes)
+                    .expect("Failed to decode icon")
+                    .into_rgba8();
+                let (w, h) = img.dimensions();
+                let icon = Image::new_owned(img.into_raw(), w, h);
+                window.set_icon(icon)?;
+            }
 
             debug!("Tauri setup completed");
 
