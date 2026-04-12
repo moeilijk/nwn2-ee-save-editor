@@ -1,8 +1,8 @@
 pub mod campaign;
 pub mod character;
-pub mod config;
 pub mod classes;
 pub mod combat;
+pub mod config;
 pub mod debug;
 pub mod error;
 pub mod feats;

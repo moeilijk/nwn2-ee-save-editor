@@ -91,9 +91,7 @@ impl Character {
             return level / 2;
         };
 
-        let bab_table_name = class_data
-            .get("attackbonustable")
-            .and_then(|s| s.as_ref());
+        let bab_table_name = class_data.get("attackbonustable").and_then(|s| s.as_ref());
 
         let Some(bab_table_name) = bab_table_name else {
             return level / 2;

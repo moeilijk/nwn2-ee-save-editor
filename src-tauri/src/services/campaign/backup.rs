@@ -55,8 +55,7 @@ pub fn restore_campaign_variable_backup(
     }
 
     let dest = handler.save_dir().join("globals.xml");
-    fs::copy(&backup, &dest)
-        .map_err(|e| format!("Failed to restore globals.xml backup: {e}"))?;
+    fs::copy(&backup, &dest).map_err(|e| format!("Failed to restore globals.xml backup: {e}"))?;
     info!("Restored globals.xml from backup: {}", backup.display());
     Ok(())
 }
@@ -91,10 +90,7 @@ pub fn list_module_backups(handler: &SaveGameHandler) -> Result<Vec<CampaignBack
     collect_backups(&backup_dir, "z")
 }
 
-pub fn restore_module_backup(
-    handler: &SaveGameHandler,
-    backup_path: &str,
-) -> Result<(), String> {
+pub fn restore_module_backup(handler: &SaveGameHandler, backup_path: &str) -> Result<(), String> {
     let backup = PathBuf::from(backup_path);
     if !backup.exists() {
         return Err(format!("Backup file not found: {backup_path}"));
@@ -111,17 +107,14 @@ pub fn restore_module_backup(
     let module_id = if parts.len() == 3 {
         parts[2]
     } else {
-        return Err(format!("Cannot determine module ID from backup filename: {filename}"));
+        return Err(format!(
+            "Cannot determine module ID from backup filename: {filename}"
+        ));
     };
 
     let dest = handler.save_dir().join(format!("{module_id}.z"));
-    fs::copy(&backup, &dest)
-        .map_err(|e| format!("Failed to restore {module_id}.z backup: {e}"))?;
-    info!(
-        "Restored {}.z from backup: {}",
-        module_id,
-        backup.display()
-    );
+    fs::copy(&backup, &dest).map_err(|e| format!("Failed to restore {module_id}.z backup: {e}"))?;
+    info!("Restored {}.z from backup: {}", module_id, backup.display());
     Ok(())
 }
 

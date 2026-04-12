@@ -339,8 +339,7 @@ impl Character {
                 .and_then(|s| s.parse::<i32>().ok())
                 .filter(|&v| v >= 0);
 
-            let feats_table = row_str(&row_data, "featstable")
-                .filter(|s| s != "****");
+            let feats_table = row_str(&row_data, "featstable").filter(|s| s != "****");
 
             let ability_modifiers = AbilityModifiers::new(
                 row_int(&row_data, "stradjust", 0),
@@ -806,7 +805,11 @@ impl Character {
             return SizeCategory::from_id(size_id).ac_modifier_default();
         };
 
-        row_int(&row, "acattackmod", SizeCategory::from_id(size_id).ac_modifier_default())
+        row_int(
+            &row,
+            "acattackmod",
+            SizeCategory::from_id(size_id).ac_modifier_default(),
+        )
     }
 
     pub fn get_size_name_from_2da(&self, size_id: i32, game_data: &GameData) -> String {
@@ -877,8 +880,7 @@ impl Character {
             .and_then(|s| s.parse::<i32>().ok())
             .filter(|&v| v >= 0);
 
-        let feats_table = row_str(&row_data, "featstable")
-            .filter(|s| s != "****");
+        let feats_table = row_str(&row_data, "featstable").filter(|s| s != "****");
 
         let ability_modifiers = AbilityModifiers::new(
             row_int(&row_data, "stradjust", 0),

@@ -18,9 +18,8 @@ use tracing::{debug, info};
 use file_operations::{
     browse_backups, browse_localvault, browse_saves, detect_nwn2_installation, find_nwn2_saves,
     get_default_backups_path, get_default_localvault_path, get_default_saves_path,
-    get_save_thumbnail,
-    get_steam_workshop_path, launch_nwn2_game, open_folder_in_explorer, select_nwn2_directory,
-    select_save_file, validate_nwn2_installation,
+    get_save_thumbnail, get_steam_workshop_path, launch_nwn2_game, open_folder_in_explorer,
+    select_nwn2_directory, select_save_file, validate_nwn2_installation,
 };
 use window_manager::{close_settings_window, open_settings_window, show_main_window};
 

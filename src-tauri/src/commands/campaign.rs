@@ -42,9 +42,7 @@ pub async fn get_module_info(
 }
 
 #[tauri::command]
-pub async fn list_modules(
-    state: State<'_, AppState>,
-) -> CommandResult<Vec<ModuleSummary>> {
+pub async fn list_modules(state: State<'_, AppState>) -> CommandResult<Vec<ModuleSummary>> {
     let paths = state.paths.read();
     let session = state.session.read();
     let handler = session
@@ -201,12 +199,8 @@ pub async fn batch_update_module_variables(
         .savegame_handler
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    CampaignManager::batch_update_module_variables(
-        handler,
-        &updates,
-        module_id.as_deref(),
-    )
-    .map_err(CommandError::from)
+    CampaignManager::batch_update_module_variables(handler, &updates, module_id.as_deref())
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -306,6 +300,5 @@ pub async fn restore_module_backup(
         .savegame_handler
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    CampaignManager::restore_module_backup(handler, &backup_path)
-        .map_err(CommandError::from)
+    CampaignManager::restore_module_backup(handler, &backup_path).map_err(CommandError::from)
 }

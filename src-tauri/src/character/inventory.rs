@@ -1634,8 +1634,8 @@ impl super::Character {
                     && let Some(stats) = game_data
                         .get_table("armorrulestats")
                         .and_then(|t| t.get_by_id(armor_rules_type))
-                    && let Some(max_dex) = row_str(&stats, "maxdexbonus")
-                        .and_then(|s| s.parse::<i32>().ok())
+                    && let Some(max_dex) =
+                        row_str(&stats, "maxdexbonus").and_then(|s| s.parse::<i32>().ok())
                 {
                     return max_dex;
                 }

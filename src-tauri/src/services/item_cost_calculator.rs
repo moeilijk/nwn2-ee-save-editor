@@ -104,8 +104,8 @@ impl ItemCostCalculator {
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(1.0);
 
-        let cost_table_ref = row_str(&prop_def_row, "costtableresref")
-            .and_then(|s| s.parse::<u32>().ok());
+        let cost_table_ref =
+            row_str(&prop_def_row, "costtableresref").and_then(|s| s.parse::<u32>().ok());
 
         let cost_multiplier = cost_table_ref
             .map(|table_id| self.lookup_cost_table_value(table_id, cost_value, game_data))

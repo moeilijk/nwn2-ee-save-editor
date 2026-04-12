@@ -149,7 +149,11 @@ pub async fn get_available_feats(state: State<'_, AppState>) -> CommandResult<Ve
         if let Some(row) = table.get_by_id(i as i32) {
             let name = row_str(&row, "label");
             let description = row_int(&row, "description", -1);
-            let description = if description >= 0 { Some(description) } else { None };
+            let description = if description >= 0 {
+                Some(description)
+            } else {
+                None
+            };
             feats.push(AvailableFeat {
                 id: i as i32,
                 name,
@@ -693,7 +697,11 @@ pub async fn get_all_domains(state: State<'_, AppState>) -> CommandResult<Vec<Av
             .or_else(|| row_str(&row, "label"))
             .unwrap_or_else(|| format!("Domain {i}"));
             let granted_feat = row_int(&row, "grantedfeat", -1);
-            let granted_feat = if granted_feat >= 0 { Some(granted_feat) } else { None };
+            let granted_feat = if granted_feat >= 0 {
+                Some(granted_feat)
+            } else {
+                None
+            };
             domains.push(AvailableDomain {
                 id: i as i32,
                 name,
@@ -733,7 +741,11 @@ pub async fn get_available_backgrounds(
             .or_else(|| row_str(&row, "label"))
             .unwrap_or_else(|| format!("Background {i}"));
             let desc_ref = row_int(&row, "description", -1);
-            let description = if desc_ref >= 0 { game_data.get_string(desc_ref) } else { None };
+            let description = if desc_ref >= 0 {
+                game_data.get_string(desc_ref)
+            } else {
+                None
+            };
             backgrounds.push(AvailableBackground {
                 id: i as i32,
                 name,
@@ -830,9 +842,15 @@ pub async fn get_available_base_items(
             let store_panel = row_int(&row, "storepanel", 4);
             let label = row_str(&row, "label").unwrap_or_default();
             let sub_category = compute_sub_category(store_panel, &label, item_class.as_deref());
-            let weight = row_str(&row, "tenthlbs").and_then(|s| s.parse::<f32>().ok()).map(|w| w / 10.0);
+            let weight = row_str(&row, "tenthlbs")
+                .and_then(|s| s.parse::<f32>().ok())
+                .map(|w| w / 10.0);
             let base_cost = row_int(&row, "basecost", -1);
-            let base_cost = if base_cost >= 0 { Some(base_cost) } else { None };
+            let base_cost = if base_cost >= 0 {
+                Some(base_cost)
+            } else {
+                None
+            };
             items.push(AvailableBaseItem {
                 id: i as i32,
                 name,
@@ -877,7 +895,11 @@ pub async fn get_available_spell_schools(
             .or_else(|| row_str(&row, "label"))
             .unwrap_or_else(|| format!("School {i}"));
             let opposition_school = row_int(&row, "oppositionschool", -1);
-            let opposition_school = if opposition_school >= 0 { Some(opposition_school) } else { None };
+            let opposition_school = if opposition_school >= 0 {
+                Some(opposition_school)
+            } else {
+                None
+            };
             schools.push(AvailableSpellSchool {
                 id: i as i32,
                 name,
@@ -918,7 +940,11 @@ pub async fn get_available_item_properties(
             .or_else(|| row_str(&row, "label"))
             .unwrap_or_else(|| format!("Property {i}"));
             let cost_table = row_int(&row, "costtableresref", -1);
-            let cost_table = if cost_table >= 0 { Some(cost_table) } else { None };
+            let cost_table = if cost_table >= 0 {
+                Some(cost_table)
+            } else {
+                None
+            };
             props.push(AvailableItemProperty {
                 id: i as i32,
                 name,
