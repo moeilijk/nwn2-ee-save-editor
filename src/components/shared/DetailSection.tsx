@@ -8,8 +8,8 @@ interface DetailSectionProps {
 export function DetailSection({ title, children }: DetailSectionProps) {
   return (
     <div style={{ marginBottom: 4 }}>
-      <div style={{
-        fontWeight: 600, color: T.accent,
+      <div className="t-semibold" style={{
+        color: T.accent,
         paddingBottom: 6,
         borderBottom: `1px solid ${T.borderLight}`,
         marginBottom: 8,

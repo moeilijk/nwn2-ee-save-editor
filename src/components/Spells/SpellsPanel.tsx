@@ -254,21 +254,20 @@ export function SpellsPanel() {
     const schoolColor = SPELL_SCHOOL_COLORS[schoolName || ''] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{
+        <span className={selected ? 't-semibold' : undefined} style={{
           color: T.text,
-          fontWeight: selected ? 600 : 400,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {display(spell.name)}
         </span>
         {spell.is_domain_spell && (
-          <span style={{ color: '#c62828', fontWeight: 500, flexShrink: 0 }}>Domain</span>
+          <span className="t-medium" style={{ color: '#c62828', flexShrink: 0 }}>Domain</span>
         )}
         {spell.memorized_count !== undefined && spell.memorized_count > 0 && (
-          <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>{spell.memorized_count}x</span>
+          <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>{spell.memorized_count}x</span>
         )}
         {schoolName && (
-          <span style={{ color: schoolColor, fontWeight: 500, flexShrink: 0 }}>
+          <span className="t-medium" style={{ color: schoolColor, flexShrink: 0 }}>
             {schoolName}
           </span>
         )}
@@ -386,7 +385,7 @@ export function SpellsPanel() {
             <span style={{ color: T.accent, width: 10 }}>
               {abilitiesOpen ? '\u25BC' : '\u25B6'}
             </span>
-            <span style={{ fontWeight: 700, color: T.accent, flex: 1 }}>Special Abilities</span>
+            <span className="t-bold" style={{ color: T.accent, flex: 1 }}>Special Abilities</span>
             <span style={{ color: T.textMuted }}>{abilitySpells.length}</span>
           </div>
           {abilitiesOpen && abilitySpells.map(a => (
@@ -399,7 +398,7 @@ export function SpellsPanel() {
               {a.school_name && (
                 <span style={{ color: T.textMuted, flexShrink: 0 }}>{a.school_name}</span>
               )}
-              <span style={{ color: T.accent, fontWeight: 500, flexShrink: 0 }}>Lv {a.innate_level}</span>
+              <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>Lv {a.innate_level}</span>
             </div>
           ))}
         </>

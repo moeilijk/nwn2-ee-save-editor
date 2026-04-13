@@ -16,7 +16,7 @@ type SortDir = 'asc' | 'desc';
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   if (!active) return null;
   return (
-    <span style={{ marginLeft: 4, fontSize: 10 }}>
+    <span className="t-xs" style={{ marginLeft: 4 }}>
       {dir === 'asc' ? '\u25B2' : '\u25BC'}
     </span>
   );
@@ -217,10 +217,10 @@ export function SkillsPanel() {
                         <strong style={{ color: T.text }}>{s.name}</strong>
                         <span style={{ color: T.textMuted, display: 'inline-block', width: 28 }}>{s.ability}</span>
                         {s.armor_check_penalty && (
-                          <Tag minimal style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.accent }}>ACP</Tag>
+                          <Tag minimal className="t-xs" style={{ padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.accent }}>ACP</Tag>
                         )}
                         {!s.is_class_skill && (
-                          <Tag minimal style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.textMuted }}>2pt</Tag>
+                          <Tag minimal className="t-xs" style={{ padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.textMuted }}>2pt</Tag>
                         )}
                       </span>
                     </td>
@@ -233,10 +233,10 @@ export function SkillsPanel() {
                     </td>
                     <td style={{ textAlign: 'center' }}><ModCell value={s.modifier} /></td>
                     <td style={{ textAlign: 'center', color: T.textMuted }}>{misc ? mod(misc) : '-'}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{mod(s.total)}</td>
+                    <td className="t-medium" style={{ textAlign: 'center' }}>{mod(s.total)}</td>
                     <td style={{ textAlign: 'center' }}>
                       {s.is_class_skill
-                        ? <span style={{ color: T.positive, fontWeight: 500 }}>Class</span>
+                        ? <span className="t-medium" style={{ color: T.positive }}>Class</span>
                         : <span style={{ color: T.textMuted }}>Cross</span>}
                     </td>
                   </tr>
@@ -244,9 +244,9 @@ export function SkillsPanel() {
               })}
             </tbody>
           </HTMLTable>
-          <div style={{ marginTop: 8, display: 'flex', gap: 16, color: T.textMuted, fontSize: 12 }}>
-            <span><Tag minimal style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.accent }}>ACP</Tag> {t('skills.armorCheck')}</span>
-            <span><Tag minimal style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.textMuted }}>2pt</Tag> Cross-class skill (costs 2 points per rank)</span>
+          <div className="t-base" style={{ marginTop: 8, display: 'flex', gap: 16, color: T.textMuted }}>
+            <span><Tag minimal className="t-xs" style={{ padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.accent }}>ACP</Tag> {t('skills.armorCheck')}</span>
+            <span><Tag minimal className="t-xs" style={{ padding: '0 4px', lineHeight: '16px', background: T.sectionBg, color: T.textMuted }}>2pt</Tag> Cross-class skill (costs 2 points per rank)</span>
           </div>
         </div>
       </Card>

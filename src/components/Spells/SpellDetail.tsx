@@ -21,7 +21,7 @@ function InfoRow({ label, value, color }: { label: string; value: string; color?
   return (
     <div style={{ display: 'flex' }}>
       <span style={{ color: T.textMuted, minWidth: 180, marginRight: 16 }}>{label}</span>
-      <span style={{ color: color || T.text, fontWeight: 500 }}>{value}</span>
+      <span className="t-medium" style={{ color: color || T.text }}>{value}</span>
     </div>
   );
 }
@@ -76,11 +76,11 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
             />
           )}
           <div>
-            <span style={{ fontWeight: 700, color: T.text }}>{display(spell.name)}</span>
+            <span className="t-bold" style={{ color: T.text }}>{display(spell.name)}</span>
             {schoolName && (
               <>
                 <span style={{ color: T.textMuted }}> — </span>
-                <span style={{ color: schoolColor, fontWeight: 500 }}>{schoolName}</span>
+                <span className="t-medium" style={{ color: schoolColor }}>{schoolName}</span>
               </>
             )}
           </div>
@@ -157,7 +157,7 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
 
       {spell.description && (
         <DetailSection title="Description">
-          <div style={{ color: T.text, lineHeight: 1.6 }}>
+          <div className="t-body" style={{ color: T.text }}>
             {spell.description}
           </div>
         </DetailSection>

@@ -89,15 +89,14 @@ export function ClassSelectorDialog({
     const { ok, reason } = checkCanSelect(cls, currentClassIds, isChanging, totalLevel, maxLevel, maxClasses, currentClassCount);
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: ok ? 1 : 0.5 }}>
-        <span style={{
+        <span className={selected ? 't-semibold' : undefined} style={{
           color: T.text,
-          fontWeight: selected ? 600 : 400,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {display(cls.name)}
         </span>
         {!ok && reason && (
-          <span style={{ fontSize: 10, color: T.negative, flexShrink: 0 }}>{reason}</span>
+          <span className="t-xs" style={{ color: T.negative, flexShrink: 0 }}>{reason}</span>
         )}
       </div>
     );
@@ -125,7 +124,7 @@ export function ClassSelectorDialog({
         style={{ maxWidth: 200 }}
       />
       <div style={{ flex: 1 }} />
-      <span style={{ fontSize: 11, color: T.textMuted }}>
+      <span className="t-sm" style={{ color: T.textMuted }}>
         {totalClasses} classes | {currentClassCount}/{maxClasses} slots
       </span>
     </>

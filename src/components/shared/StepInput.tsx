@@ -46,12 +46,11 @@ export function StepInput({
         value={value}
         onChange={handleChange}
         disabled={disabled}
+        className="t-lg t-semibold"
         style={{
           flex: 1,
           minWidth: 0,
           textAlign: 'center',
-          fontSize: 14,
-          fontWeight: 600,
           fontFamily: 'inherit',
           color: T.text,
           background: T.surface,

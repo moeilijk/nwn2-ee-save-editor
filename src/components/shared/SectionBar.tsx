@@ -12,7 +12,7 @@ export function SectionBar({ title, right }: { title: string; right?: React.Reac
       borderBottom: `1px solid ${T.sectionBorder}`,
       marginBottom: 0,
     }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{title}</span>
+      <span className="t-section">{title}</span>
       {right}
     </div>
   );

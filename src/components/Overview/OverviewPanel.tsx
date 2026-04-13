@@ -291,7 +291,7 @@ export function OverviewPanel() {
             {classes.length > 0 && <span style={{ color: T.textMuted }}>&mdash; {t('character.level')} {character.level}</span>}
           </div>
 
-          <div style={{ fontSize: 13 }}>
+          <div className="t-md">
             <KVRow label={t('character.race')} value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsRaceOpen(true)}>
                 {display(character.race)}
@@ -327,8 +327,8 @@ export function OverviewPanel() {
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Progression</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>Progression</div>
+          <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('character.skillPoints')} value={display(totalSkillPoints)} />
             <KVRow label={t('character.totalFeats')} value={display(totalFeats)} />
             <KVRow label={t('character.knownSpells')} value={display(knownSpells)} />
@@ -338,7 +338,7 @@ export function OverviewPanel() {
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px' }}>
           <div style={{ marginBottom: 8 }}>
             <span className={isEditingBio ? undefined : 'editable-row'} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isEditingBio ? undefined : 'pointer' }} onClick={() => !isEditingBio && setIsEditingBio(true)}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>Biography</span>
+              <span className="t-section">Biography</span>
               {!isEditingBio && (
                 <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               )}
@@ -347,22 +347,23 @@ export function OverviewPanel() {
           {isEditingBio ? (
             <div>
               <TextArea fill value={biography} onChange={e => setBiography(e.target.value)} rows={4}
-                style={{ background: T.surface, borderColor: T.border, color: T.text, fontSize: 13, resize: 'vertical' }} />
+                className="t-md"
+              style={{ background: T.surface, borderColor: T.border, color: T.text, resize: 'vertical' }} />
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <Button small intent="primary" text={t('actions.save')} onClick={handleBioSave} />
                 <Button small minimal text={t('actions.cancel')} onClick={handleBioCancel} />
               </div>
             </div>
           ) : (
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: T.textMuted }}>
+            <p className="t-md t-body" style={{ margin: 0, color: T.textMuted }}>
               {biography || 'No biography written'}
             </p>
           )}
         </div>
 
-        <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px', fontSize: 13 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Campaign</div>
-          <div style={{ fontSize: 13, marginBottom: 4 }}>
+        <div className="t-md" style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>Campaign</div>
+          <div style={{ marginBottom: 4 }}>
             <KVRow label="Campaign Name" value={display(campaignName)} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
@@ -376,8 +377,8 @@ export function OverviewPanel() {
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>Quest Progress</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>Quest Progress</div>
+          <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('character.questsCompleted')} value={display(completedQuests)} />
             <KVRow label={t('character.activeQuests')} value={display(activeQuests)} />
             {completionRate != null && (
@@ -390,31 +391,31 @@ export function OverviewPanel() {
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
 
         <div style={{ padding: '12px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('abilityScores.health')}</div>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('abilityScores.health')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <div style={{ flex: 1 }}>
               <ProgressBar value={hpPct} intent={hpPct >= 0.7 ? 'success' : hpPct >= 0.3 ? 'warning' : 'danger'} stripes={false} animate={false} style={{ height: 4 }} />
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
+            <span className="t-md t-bold" style={{ color: T.text, whiteSpace: 'nowrap' }}>
               {hp} / {maxHp}
-              <span style={{ fontSize: 11, fontWeight: 400, color: T.textMuted, marginLeft: 4 }}>({Math.round(hpPct * 100)}%)</span>
+              <span className="t-sm" style={{ color: T.textMuted, marginLeft: 4 }}>({Math.round(hpPct * 100)}%)</span>
             </span>
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Current</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Current</div>
               <StepInput value={hp} onValueChange={v => { setHp(v); handleHpChange(v, maxHp); }} min={-10} max={maxHp} width={88} />
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Max</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Max</div>
               <StepInput value={maxHp} onValueChange={v => { setMaxHp(v); handleHpChange(hp, v); }} min={1} max={9999} width={88} />
             </div>
           </div>
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('character.combatStats')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('character.combatStats')}</div>
+          <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('character.armorClass')} value={display(ac)} />
             <KVRow label={t('character.speed')} value={character.movementSpeed != null ? `${character.movementSpeed} ft` : '-'} />
             <KVRow label={t('character.baseAttackBonus')} value={formatModifier(bab)} />
@@ -426,8 +427,8 @@ export function OverviewPanel() {
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('abilityScores.savingThrows')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('abilityScores.savingThrows')}</div>
+          <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('abilityScores.fortitude')} value={formatModifier(fort)} />
             <KVRow label={t('abilityScores.reflex')} value={formatModifier(reflex)} />
             <KVRow label={t('abilityScores.will')} value={formatModifier(will)} />
@@ -435,8 +436,8 @@ export function OverviewPanel() {
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('abilityScores.abilityScores')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px', fontSize: 13 }}>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('abilityScores.abilityScores')}</div>
+          <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             {ABILITY_DEFS.map(a => {
               const score = character.abilities?.[a.fallbackKey];
               const modVal = character.abilityModifiers?.[a.key] ?? (score != null ? Math.floor((score - 10) / 2) : null);
@@ -457,7 +458,7 @@ export function OverviewPanel() {
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('character.alignment')}</div>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('character.alignment')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, marginBottom: 10 }}>
             {ALIGNMENT_GRID.map((a, i) => {
               const active = getAlignmentIndex(lawChaos, goodEvil) === i;
@@ -466,9 +467,9 @@ export function OverviewPanel() {
                   key={a.name}
                   onClick={() => handleAlignmentSelect(a.lc, a.ge)}
                   disabled={alignmentSaving}
+                  className={`t-sm t-center ${active ? 't-bold' : 't-medium'}`}
                   style={{
-                    padding: '6px 4px', fontSize: 11, fontWeight: active ? 700 : 500,
-                    lineHeight: 1.2, textAlign: 'center',
+                    padding: '6px 4px', lineHeight: 1.2,
                     border: `2px solid ${active ? a.color : T.borderLight}`,
                     borderRadius: 4,
                     background: active ? `${a.color}20` : T.surface,
@@ -483,11 +484,11 @@ export function OverviewPanel() {
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Law - Chaos</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Law - Chaos</div>
               <StepInput value={lawChaos} onValueChange={v => handleAlignmentStep('lc', v)} min={0} max={100} width={88} />
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, marginBottom: 3 }}>Good - Evil</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Good - Evil</div>
               <StepInput value={goodEvil} onValueChange={v => handleAlignmentStep('ge', v)} min={0} max={100} width={88} />
             </div>
           </div>

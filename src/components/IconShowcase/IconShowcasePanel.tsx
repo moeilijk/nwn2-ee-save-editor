@@ -94,8 +94,8 @@ function IconCard({ icon, name, usage }: IconEntry) {
       border: `1px solid ${T.borderLight}`, minWidth: 140,
     }}>
       <GameIcon icon={icon} size={32} color={T.accent} />
-      <code style={{ fontSize: 10, color: T.text, textAlign: 'center', wordBreak: 'break-all' }}>{name}</code>
-      <span style={{ fontSize: 11, color: T.textMuted, textAlign: 'center' }}>{usage}</span>
+      <code className="t-xs t-center" style={{ color: T.text, wordBreak: 'break-all' }}>{name}</code>
+      <span className="t-sm t-center" style={{ color: T.textMuted }}>{usage}</span>
     </div>
   );
 }
@@ -104,8 +104,8 @@ export function IconShowcasePanel() {
   return (
     <div style={{ padding: 16, overflow: 'auto', height: '100%' }}>
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, color: T.accent, fontSize: 18 }}>Icon Showcase</h2>
-        <p style={{ color: T.textMuted, fontSize: 13, marginTop: 4 }}>
+        <h2 className="t-2xl" style={{ margin: 0, color: T.accent }}>Icon Showcase</h2>
+        <p className="t-md" style={{ color: T.textMuted, marginTop: 4 }}>
           All game-icons.net icons used in this application, via react-icons/gi.
         </p>
       </div>
@@ -113,7 +113,7 @@ export function IconShowcasePanel() {
         <Card key={group.title} elevation={Elevation.ONE} style={{
           marginBottom: 16, padding: 16, background: T.surface,
         }}>
-          <h3 style={{ margin: '0 0 12px', color: T.text, fontSize: 14, fontWeight: 700 }}>{group.title}</h3>
+          <h3 className="t-lg t-bold" style={{ margin: '0 0 12px', color: T.text }}>{group.title}</h3>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',

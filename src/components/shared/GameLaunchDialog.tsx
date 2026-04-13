@@ -38,7 +38,7 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
       isCloseButtonShown={!isLaunching}
     >
       <DialogBody style={{ padding: 16, margin: 0, background: T.surface }}>
-        <p style={{ color: T.textMuted, fontSize: 13, marginBottom: 12 }}>
+        <p className="t-md" style={{ color: T.textMuted, marginBottom: 12 }}>
           <strong style={{ color: T.text }}>{saveName || 'Character'}</strong>{' '}
           {t('gameLaunch.savedSuccessfully', { name: '' }).replace(/ $/, '')}
         </p>
@@ -47,12 +47,12 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
           background: T.sectionBg, border: `1px solid ${T.sectionBorder}`,
           borderRadius: 4, padding: 12, marginBottom: 12,
         }}>
-          <div style={{ fontWeight: 500, color: T.text, fontSize: 13 }}>{t('gameLaunch.readyToVerify')}</div>
-          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>{t('gameLaunch.readyToVerifyDesc')}</div>
+          <div className="t-md t-medium" style={{ color: T.text }}>{t('gameLaunch.readyToVerify')}</div>
+          <div className="t-base" style={{ color: T.textMuted, marginTop: 4 }}>{t('gameLaunch.readyToVerifyDesc')}</div>
         </div>
 
         {!gamePathDetected && (
-          <Callout intent="warning" icon={<GameIcon icon={GiHazardSign} size={16} />} style={{ marginBottom: 12, fontSize: 12 }}>
+          <Callout intent="warning" icon={<GameIcon icon={GiHazardSign} size={16} />} className="t-base" style={{ marginBottom: 12 }}>
             {t('gameLaunch.gamePathWarning')}
           </Callout>
         )}
@@ -62,7 +62,8 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
           onChange={e => setCloseEditor((e.target as HTMLInputElement).checked)}
           label={t('actions.closeEditorAfterLaunch')}
           disabled={isLaunching}
-          style={{ fontSize: 13, color: T.textMuted }}
+          className="t-md"
+          style={{ color: T.textMuted }}
         />
       </DialogBody>
       <DialogFooter

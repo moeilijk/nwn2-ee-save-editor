@@ -95,7 +95,6 @@ function formatDescription(raw: string, className: string): string {
 // --- END COMMENTED OUT ---
 
 const sectionTitle: React.CSSProperties = {
-  fontWeight: 600,
   color: T.textMuted,
   marginBottom: 6,
 };
@@ -161,7 +160,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
             style={{ borderRadius: 4, flexShrink: 0 }}
           />
         )}
-        <span style={{ fontWeight: 700, color: T.text }}>{display(cls.name)}</span>
+        <span className="t-bold" style={{ color: T.text }}>{display(cls.name)}</span>
         {!canSelect && selectReason && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.negative, marginTop: 4 }}>
             <GameIcon icon={GiHazardSign} size={12} />
@@ -173,7 +172,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
       {/* Prerequisites (real backend validation) */}
       {hasPrereqs && (
         <div style={{ borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 10 }}>
-          <div style={sectionTitle}>
+          <div className="t-semibold" style={sectionTitle}>
             {t('classes.prerequisites')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -213,27 +212,27 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
         <div style={{ background: T.surfaceAlt, borderRadius: 4, padding: '6px 10px' }}>
           <div style={statRow}>
             <span style={{ color: T.textMuted }}>{t('classes.hitDie')}</span>
-            <span style={{ color: T.text, fontWeight: 500 }}>d{detail?.hit_die ?? cls.hit_die}</span>
+            <span className="t-medium" style={{ color: T.text }}>d{detail?.hit_die ?? cls.hit_die}</span>
           </div>
           <div style={statRow}>
             <span style={{ color: T.textMuted }}>{t('classes.skillPoints')}</span>
-            <span style={{ color: T.text, fontWeight: 500 }}>{detail?.skill_points ?? cls.skill_points}{t('classes.perLevel')}</span>
+            <span className="t-medium" style={{ color: T.text }}>{detail?.skill_points ?? cls.skill_points}{t('classes.perLevel')}</span>
           </div>
           <div style={statRow}>
             <span style={{ color: T.textMuted }}>{t('classes.bab')}</span>
-            <span style={{ color: T.text, fontWeight: 500 }}>{formatBabProgression(detail?.bab_progression ?? cls.bab_progression)}</span>
+            <span className="t-medium" style={{ color: T.text }}>{formatBabProgression(detail?.bab_progression ?? cls.bab_progression)}</span>
           </div>
           {detail?.save_progression && (
             <div style={statRow}>
               <span style={{ color: T.textMuted }}>{t('classes.savingThrows')}</span>
-              <span style={{ color: T.text, fontWeight: 500 }}>
+              <span className="t-medium" style={{ color: T.text }}>
                 {t('classes.fortitude')}: {detail.save_progression.fortitude}, {t('classes.reflex')}: {detail.save_progression.reflex}, {t('classes.will')}: {detail.save_progression.will}
               </span>
             </div>
           )}
           <div style={statRow}>
             <span style={{ color: T.textMuted }}>{t('classes.spellcasting')}</span>
-            <span style={{ color: T.text, fontWeight: 500 }}>
+            <span className="t-medium" style={{ color: T.text }}>
               {detail?.is_spellcaster
                 ? (detail.spell_type === 'arcane' ? t('classes.arcane') : t('classes.divine'))
                 : t('classes.none')}
@@ -242,7 +241,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
           {(detail?.max_level ?? 0) > 0 && (
             <div style={statRow}>
               <span style={{ color: T.textMuted }}>{t('classes.level')}</span>
-              <span style={{ color: T.text, fontWeight: 500 }}>Max {detail!.max_level}</span>
+              <span className="t-medium" style={{ color: T.text }}>Max {detail!.max_level}</span>
             </div>
           )}
         </div>
@@ -252,7 +251,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
       {detail?.class_skills && detail.class_skills.length > 0 && (
         <div>
           <div style={sectionTitle}>{t('classes.classSkills')}</div>
-          <div style={{ color: T.text, lineHeight: '1.6' }}>
+          <div className="t-body" style={{ color: T.text }}>
             {detail.class_skills.join(', ')}
           </div>
         </div>
@@ -293,7 +292,7 @@ export function ClassDetail({ cls, canSelect, selectReason }: ClassDetailProps) 
       {parsed?.abilities && (
         <div>
           <div style={sectionTitle}>{t('classes.classAbilities')}</div>
-          <div style={{ color: T.text, lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+          <div className="t-body" style={{ color: T.text, whiteSpace: 'pre-line' }}>
             {parsed.abilities}
           </div>
         </div>

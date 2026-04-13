@@ -127,13 +127,13 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
       </div>
 
       <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-        <div style={{ fontWeight: 700, color: T.accent, marginBottom: 6 }}>{t('inventory.itemDetails')}</div>
+        <div className="t-bold" style={{ color: T.accent, marginBottom: 6 }}>{t('inventory.itemDetails')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 4 }}>
           <span style={{ color: T.textMuted }}>{t('inventory.baseItem')}</span>
-          <span style={{ fontWeight: 600 }}>{display(baseItemName)}</span>
+          <span className="t-semibold">{display(baseItemName)}</span>
 
           <span style={{ color: T.textMuted }}>{t('inventory.weight')}</span>
-          <span style={{ fontWeight: 600 }}>{weight > 0 ? `${weight.toFixed(1)} lbs` : '-'}</span>
+          <span className="t-semibold">{weight > 0 ? `${weight.toFixed(1)} lbs` : '-'}</span>
 
           <span style={{ color: T.textMuted }}>{t('inventory.value')}</span>
           <span>{value > 0 ? `${fmtNum(value)} gp` : '-'}</span>
@@ -141,7 +141,7 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
           {baseAc !== null && baseAc !== undefined && (
             <>
               <span style={{ color: T.textMuted }}>{t('inventory.baseArmorClass')}</span>
-              <span style={{ fontWeight: 600 }}>{baseAc}</span>
+              <span className="t-semibold">{baseAc}</span>
             </>
           )}
 
@@ -152,35 +152,35 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
                 {inv.stack_size > 1 && (
                   <>
                     <span style={{ color: T.textMuted }}>{t('inventory.stack')}</span>
-                    <span style={{ fontWeight: 600 }}>{inv.stack_size}</span>
+                    <span className="t-semibold">{inv.stack_size}</span>
                   </>
                 )}
                 {inv.charges !== null && inv.charges !== undefined && (
                   <>
                     <span style={{ color: T.textMuted }}>{t('inventory.charges')}</span>
-                    <span style={{ fontWeight: 600 }}>{inv.charges}</span>
+                    <span className="t-semibold">{inv.charges}</span>
                   </>
                 )}
                 <span style={{ color: T.textMuted }}>{t('inventory.identified')}</span>
-                <span style={{ fontWeight: 600, color: inv.identified ? T.text : T.negative }}>
+                <span className="t-semibold" style={{ color: inv.identified ? T.text : T.negative }}>
                   {inv.identified ? t('inventory.identified') : t('inventory.unidentified')}
                 </span>
                 {inv.plot && (
                   <>
                     <span style={{ color: T.textMuted }}>{t('inventory.plotItem')}</span>
-                    <span style={{ fontWeight: 600, color: T.gold }}>{t('inventory.plotItem')}</span>
+                    <span className="t-semibold" style={{ color: T.gold }}>{t('inventory.plotItem')}</span>
                   </>
                 )}
                 {inv.cursed && (
                   <>
                     <span style={{ color: T.textMuted }}>{t('inventory.cursedItem')}</span>
-                    <span style={{ fontWeight: 600, color: T.negative }}>{t('inventory.cursedItem')}</span>
+                    <span className="t-semibold" style={{ color: T.negative }}>{t('inventory.cursedItem')}</span>
                   </>
                 )}
                 {inv.stolen && (
                   <>
                     <span style={{ color: T.textMuted }}>{t('inventory.stolenItem')}</span>
-                    <span style={{ fontWeight: 600, color: T.gold }}>{t('inventory.stolenItem')}</span>
+                    <span className="t-semibold" style={{ color: T.gold }}>{t('inventory.stolenItem')}</span>
                   </>
                 )}
               </>
@@ -191,14 +191,14 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
 
       {description && (
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('inventory.description')}</div>
-          <p style={{ margin: 0, lineHeight: 1.6, color: T.textMuted }}>{description}</p>
+          <div className="t-bold" style={{ color: T.accent, marginBottom: 8 }}>{t('inventory.description')}</div>
+          <p className="t-body" style={{ margin: 0, color: T.textMuted }}>{description}</p>
         </div>
       )}
 
       {properties && properties.length > 0 && (
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div style={{ fontWeight: 700, color: T.accent, marginBottom: 8 }}>{t('inventory.properties')}</div>
+          <div className="t-bold" style={{ color: T.accent, marginBottom: 8 }}>{t('inventory.properties')}</div>
           <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {properties.map((prop, i) => (
               <li key={i} style={{ color: T.text }}>{prop.display_string}</li>

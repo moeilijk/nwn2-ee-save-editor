@@ -44,7 +44,7 @@ function DropdownSelect({ label, value, items, onChange, disabled }: {
   );
   return (
     <div style={{ opacity: disabled ? 0.35 : 1, pointerEvents: disabled ? 'none' : undefined }}>
-      <div style={{ fontWeight: 600, color: T.textMuted, marginBottom: 3, fontSize: 11 }}>{label}</div>
+      <div className="t-semibold t-sm" style={{ color: T.textMuted, marginBottom: 3 }}>{label}</div>
       <Popover content={menu} placement="bottom-start" minimal fill disabled={disabled}>
         <Button minimal rightIcon="caret-down" text={value} fill
           style={{ textAlign: 'left', border: `1px solid ${T.border}`, background: T.surface }}
@@ -276,7 +276,7 @@ export function EditItemDialog({
           <Tab id="basic" title={t('inventory.basicInfoTab')} panel={
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
               <div>
-                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.name')}</label>
+                <label className="t-semibold" style={{ color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.name')}</label>
                 <div
                   ref={nameRef}
                   contentEditable
@@ -296,7 +296,7 @@ export function EditItemDialog({
               </div>
 
               <div>
-                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.description')}</label>
+                <label className="t-semibold" style={{ color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.editor.description')}</label>
                 <div
                   ref={descRef}
                   contentEditable
@@ -319,7 +319,7 @@ export function EditItemDialog({
                 padding: '10px 12px', background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 4,
               }}>
                 <div>
-                  <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.stackSize')}</label>
+                  <label className="t-semibold" style={{ color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.stackSize')}</label>
                   <StepInput
                     value={(localData.StackSize as number | undefined) ?? 1}
                     onValueChange={(v) => handleBasicChange('StackSize', v)}
@@ -327,7 +327,7 @@ export function EditItemDialog({
                   />
                 </div>
                 <div>
-                  <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.charges')}</label>
+                  <label className="t-semibold" style={{ color: T.textMuted, display: 'block', marginBottom: 4 }}>{t('inventory.charges')}</label>
                   <StepInput
                     value={(localData.Charges as number | undefined) ?? 0}
                     onValueChange={(v) => handleBasicChange('Charges', v)}
@@ -337,7 +337,7 @@ export function EditItemDialog({
               </div>
 
               <div>
-                <label style={{ fontWeight: 600, color: T.textMuted, display: 'block', marginBottom: 6 }}>Flags</label>
+                <label className="t-semibold" style={{ color: T.textMuted, display: 'block', marginBottom: 6 }}>Flags</label>
                 <div style={{
                   display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6,
                   padding: '10px 12px', background: T.sectionBg, border: `1px solid ${T.sectionBorder}`, borderRadius: 4,
@@ -382,7 +382,7 @@ export function EditItemDialog({
           <Tab id="properties" title={t('inventory.propertiesTab')} panel={
             <div style={{ paddingTop: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontWeight: 600, color: T.text }}>{t('inventory.enchantments')} ({properties.length})</span>
+                <span className="t-semibold" style={{ color: T.text }}>{t('inventory.enchantments')} ({properties.length})</span>
                 <Button small icon="add" intent="primary" text={t('inventory.addProperty')} onClick={handleAddProperty} disabled={!preloadedMetadata} />
               </div>
 

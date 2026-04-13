@@ -17,7 +17,7 @@ type PartType = 'head' | 'hair' | 'fhair' | 'wings' | 'tail' | 'helm' | 'body';
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8, marginTop: 4 }}>
+    <div className="t-section" style={{ color: T.accent, marginBottom: 8, marginTop: 4 }}>
       {label}
     </div>
   );
@@ -240,7 +240,7 @@ export function AppearancePanel() {
                   }}
                   labelRenderer={false}
                 />
-                <span style={{ fontSize: 13, fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{liveHeight.toFixed(2)}</span>
+                <span className="t-md t-semibold" style={{ minWidth: 36, textAlign: 'right' }}>{liveHeight.toFixed(2)}</span>
               </div>
             }
           />
@@ -258,7 +258,7 @@ export function AppearancePanel() {
                   }}
                   labelRenderer={false}
                 />
-                <span style={{ fontSize: 13, fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{liveGirth.toFixed(2)}</span>
+                <span className="t-md t-semibold" style={{ minWidth: 36, textAlign: 'right' }}>{liveGirth.toFixed(2)}</span>
               </div>
             }
           />
@@ -271,9 +271,9 @@ export function AppearancePanel() {
             const currentVoice = voicesets.find(v => v.id === data.soundset);
             const currentName = currentVoice?.name ?? `#${data.soundset}`;
             return (
-              <div style={{ fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="t-base" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: T.textMuted }}>{t('appearance.voiceCurrent')}:</span>
-                <span style={{ fontWeight: 600 }}>{currentName}</span>
+                <span className="t-semibold">{currentName}</span>
                 {currentVoice && (
                   <Button
                     icon={playingResref === currentVoice.resref ? 'stop' : 'volume-up'}
@@ -302,7 +302,7 @@ export function AppearancePanel() {
           />
           <div style={{ maxHeight: 300, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 3 }}>
             {voicesets.length === 0 ? (
-              <div style={{ padding: 12, textAlign: 'center', color: T.textMuted, fontSize: 12 }}>
+              <div className="t-base t-center" style={{ padding: 12, color: T.textMuted }}>
                 {t('appearance.voiceNone')}
               </div>
             ) : (
@@ -317,11 +317,8 @@ export function AppearancePanel() {
 
                 return groupedVoicesets.map(({ typeKey, voices }) => (
                   <div key={typeKey}>
-                    <div style={{
+                    <div className="t-uppercase" style={{
                       padding: '4px 8px',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
                       color: T.accent,
                       background: T.surface,
                       borderBottom: `1px solid ${T.border}`,
@@ -340,6 +337,7 @@ export function AppearancePanel() {
                         <div
                           key={v.id}
                           onClick={() => setPendingVoiceId(v.id === data.soundset ? null : v.id)}
+                          className="t-base"
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -347,7 +345,6 @@ export function AppearancePanel() {
                             cursor: 'pointer',
                             background: isHighlighted ? T.accent + '22' : 'transparent',
                             borderBottom: `1px solid ${T.border}`,
-                            fontSize: 12,
                             gap: 6,
                           }}
                         >
@@ -422,7 +419,7 @@ export function AppearancePanel() {
         {/* Wings & Tail */}
         <Card elevation={Elevation.ONE} style={{ padding: '12px 16px', background: T.surface }}>
           <SectionHeader label={t('appearance.wingsAndTail')} />
-          <div style={{ fontSize: 13 }}>
+          <div className="t-md">
             <KVRow
               label={t('appearance.wings')}
               value={
@@ -430,7 +427,6 @@ export function AppearancePanel() {
                   value={data.wings}
                   onChange={(e) => updateField({ wings: Number(e.target.value) }, 'wings')}
                   minimal
-                  style={{ fontSize: 13 }}
                 >
                   {wingOptions.map(opt => (
                     <option key={opt.id} value={opt.id}>{opt.name}</option>
@@ -445,7 +441,6 @@ export function AppearancePanel() {
                   value={data.tail}
                   onChange={(e) => updateField({ tail: Number(e.target.value) }, 'tail')}
                   minimal
-                  style={{ fontSize: 13 }}
                 >
                   {tailOptions.map(opt => (
                     <option key={opt.id} value={opt.id}>{opt.name}</option>

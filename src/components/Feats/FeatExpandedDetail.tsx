@@ -9,7 +9,7 @@ interface FeatExpandedDetailProps {
 export function FeatExpandedDetail({ feat }: FeatExpandedDetailProps) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: T.text, lineHeight: 1.5, marginBottom: feat.prerequisites.length > 0 ? 10 : 0 }}>
+      <div className="t-base" style={{ color: T.text, lineHeight: 1.5, marginBottom: feat.prerequisites.length > 0 ? 10 : 0 }}>
         {feat.description}
       </div>
       {feat.prerequisites.length > 0 && (
@@ -18,8 +18,8 @@ export function FeatExpandedDetail({ feat }: FeatExpandedDetailProps) {
             <Tag
               key={p.name} minimal round
               icon={p.met ? 'tick' : 'cross'}
+              className="t-sm"
               style={{
-                fontSize: 11,
                 color: p.met ? T.positive : T.negative,
                 background: p.met ? `${T.positive}12` : `${T.negative}12`,
                 border: `1px solid ${p.met ? T.positive : T.negative}30`,

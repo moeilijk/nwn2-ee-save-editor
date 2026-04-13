@@ -15,7 +15,7 @@ import { useErrorHandler } from '@/hooks/useErrorHandler';
 function SectionLabel({ children, right }: { children: string; right?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>
+      <div className="t-section" style={{ color: T.accent }}>
         {children}
       </div>
       {right}
@@ -210,7 +210,7 @@ export function ClassesPanel() {
 
         {/* XP Bar */}
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${T.borderLight}` }}>
-          <span style={{ color: T.textMuted, fontWeight: 600 }}>{t('classes.experience')}</span>
+          <span className="t-semibold" style={{ color: T.textMuted }}>{t('classes.experience')}</span>
           <input
             type="text"
             value={xpInput}
@@ -241,7 +241,7 @@ export function ClassesPanel() {
             {t('classes.lvl')} {xpProgress?.current_level ?? '-'} | {formatNumber(xpProgress?.xp_remaining)} {t('classes.xpToNextLevel')}
           </span>
           {levelMismatch && xpProgress && (
-            <Tag minimal round intent="warning" icon={<GameIcon icon={GiHazardSign} size={12} />} style={{ fontSize: 'inherit' }}>
+            <Tag minimal round intent="warning" icon={<GameIcon icon={GiHazardSign} size={12} />}>
               {t('classes.xpLevelMismatchWarning', {
                 xpLevel: String(xpProgress.current_level),
                 classLevel: String(totalLevel),
@@ -288,7 +288,7 @@ export function ClassesPanel() {
                   <tr key={`${cls.id}-${i}`}>
                     <td>
                       <Button small minimal rightIcon="edit" onClick={() => handleOpenChangeClass(i)}
-                        style={{ fontWeight: 500, color: T.accent }} disabled={isUpdating}>
+                        className="t-medium" style={{ color: T.accent }} disabled={isUpdating}>
                         {cls.name}
                       </Button>
                     </td>
@@ -302,15 +302,15 @@ export function ClassesPanel() {
                         disabled={isUpdating}
                       />
                       {cls.max_level != null && cls.max_level > 0 && cls.max_level < 60 && (
-                        <div style={{ fontSize: 10, color: atMax ? T.negative : T.textMuted, marginTop: 1 }}>
+                        <div className="t-xs" style={{ color: atMax ? T.negative : T.textMuted, marginTop: 1 }}>
                           {atMax ? 'Max Level' : `${remaining} left`}
                         </div>
                       )}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.baseAttackBonus)}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.fortitudeSave)}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.reflexSave)}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 500 }}>{formatModifier(cls.willSave)}</td>
+                    <td className="t-medium" style={{ textAlign: 'center' }}>{formatModifier(cls.baseAttackBonus)}</td>
+                    <td className="t-medium" style={{ textAlign: 'center' }}>{formatModifier(cls.fortitudeSave)}</td>
+                    <td className="t-medium" style={{ textAlign: 'center' }}>{formatModifier(cls.reflexSave)}</td>
+                    <td className="t-medium" style={{ textAlign: 'center' }}>{formatModifier(cls.willSave)}</td>
                     <td style={{ textAlign: 'center' }}>d{cls.hitDie}</td>
                     <td style={{ textAlign: 'center' }}>{cls.skillPoints}</td>
                     <td style={{ textAlign: 'center' }}>
@@ -323,9 +323,9 @@ export function ClassesPanel() {
                   </tr>
                 );
               })}
-              <tr style={{ fontWeight: 700 }}>
+              <tr className="t-bold">
                 <td style={{ color: T.textMuted }}>{t('classes.stats')}</td>
-                <td style={{ textAlign: 'center' }}>{totalLevel}<span style={{ color: T.textMuted, fontWeight: 400 }}>/60</span></td>
+                <td style={{ textAlign: 'center' }}>{totalLevel}<span className="t-medium" style={{ color: T.textMuted }}>/60</span></td>
                 <td style={{ textAlign: 'center' }}>{formatModifier(totalBAB)}</td>
                 <td style={{ textAlign: 'center' }}>{formatModifier(totalFort)}</td>
                 <td style={{ textAlign: 'center' }}>{formatModifier(totalRef)}</td>
@@ -340,11 +340,12 @@ export function ClassesPanel() {
             <button
               onClick={handleOpenAddClass}
               disabled={isUpdating}
+              className="t-md t-medium"
               style={{
                 width: '100%', marginTop: 8, padding: '8px 0',
                 border: `2px dashed ${T.border}`, borderRadius: 4,
                 background: 'transparent', color: T.accent,
-                fontSize: 13, fontWeight: 500, cursor: isUpdating ? 'not-allowed' : 'pointer',
+                cursor: isUpdating ? 'not-allowed' : 'pointer',
                 transition: 'background 0.15s, border-color 0.15s',
                 opacity: isUpdating ? 0.5 : 1,
               }}
@@ -361,7 +362,7 @@ export function ClassesPanel() {
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
         <SectionLabel>{t('classes.levelHistory')}</SectionLabel>
         {levelHistoryReversed.length === 0 ? (
-          <div style={{ color: T.textMuted, fontSize: 12, padding: '8px 0' }}>{t('classes.noLevelHistory')}</div>
+          <div className="t-base" style={{ color: T.textMuted, padding: '8px 0' }}>{t('classes.noLevelHistory')}</div>
         ) : (
           <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
@@ -387,11 +388,11 @@ export function ClassesPanel() {
             <tbody>
               {levelHistoryReversed.map(lv => (
                 <tr key={lv.character_level}>
-                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{lv.character_level}</td>
-                  <td style={{ color: T.accent, fontWeight: 500 }}>{lv.class_name}</td>
-                  <td style={{ textAlign: 'center', color: T.positive, fontWeight: 500 }}>+{lv.hp_gained}</td>
+                  <td className="t-semibold" style={{ textAlign: 'center' }}>{lv.character_level}</td>
+                  <td className="t-medium" style={{ color: T.accent }}>{lv.class_name}</td>
+                  <td className="t-medium" style={{ textAlign: 'center', color: T.positive }}>+{lv.hp_gained}</td>
                   <td style={{ textAlign: 'center' }}>{lv.skill_points_remaining}</td>
-                  <td style={{ textAlign: 'center', color: lv.ability_increase ? T.accent : T.textMuted, fontWeight: lv.ability_increase ? 600 : 400 }}>
+                  <td className={lv.ability_increase ? 't-semibold' : undefined} style={{ textAlign: 'center', color: lv.ability_increase ? T.accent : T.textMuted }}>
                     {lv.ability_increase ?? '-'}
                   </td>
                   <td>

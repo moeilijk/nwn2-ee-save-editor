@@ -406,8 +406,7 @@ export function FileBrowserDialog({
           }}>
             <GameIcon icon={GiOpenFolder} size={14} color={T.textMuted} />
             <span style={{ color: T.textMuted }}>{locationLabel}</span>
-            <span style={{
-              fontFamily: 'monospace',
+            <span className="t-mono" style={{
               color: T.text,
               flex: 1,
               overflow: 'hidden',
@@ -452,13 +451,12 @@ export function FileBrowserDialog({
             </div>
           )}
 
-          <div style={{
+          <div className="t-bold" style={{
             display: 'flex',
             alignItems: 'center',
             padding: '6px 16px',
             borderBottom: `1px solid ${T.borderLight}`,
             background: T.sectionBg,
-            fontWeight: 700,
             color: T.textMuted,
             userSelect: 'none',
           }}>
@@ -574,8 +572,7 @@ export function FileBrowserDialog({
                               size={14}
                               color={T.textMuted}
                             />
-                            <span style={{
-                              fontWeight: 500,
+                            <span className="t-medium" style={{
                               color: isSelected ? T.accent : T.text,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -653,17 +650,15 @@ export function FileBrowserDialog({
         style={{ width: 440, paddingBottom: 0, background: T.surface }}
       >
         <DialogBody style={{ background: T.surface, margin: 0, padding: 16 }}>
-          <p style={{ color: T.textMuted, lineHeight: 1.6, margin: 0 }}>
+          <p className="t-body" style={{ color: T.textMuted, margin: 0 }}>
             {t('fileBrowser.confirmRestoreMessage', {
               name: selectedFile?.save_name?.replace('Backup of ', '') || selectedFile?.name || '',
             })}
           </p>
-          <p style={{
+          <p className="t-body t-medium" style={{
             color: T.negative,
-            lineHeight: 1.6,
             marginTop: 12,
             marginBottom: 0,
-            fontWeight: 500,
           }}>
             {t('fileBrowser.confirmRestoreWarning')}
           </p>

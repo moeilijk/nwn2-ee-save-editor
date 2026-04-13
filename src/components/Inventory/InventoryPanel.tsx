@@ -98,17 +98,17 @@ function EquipSlot({ slot, equippedItem, selected, onSelect }: EquipSlotProps) {
         iconUrl ? (
           <img src={iconUrl} alt="" width={36} height={36} style={{ borderRadius: 3 }} />
         ) : (
-          <div style={{
+          <div className="t-bold" style={{
             width: 30, height: 30, borderRadius: 3,
             background: T.sectionBg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, color: T.accent,
+            color: T.accent,
           }}>
             {equippedItem.name.charAt(0)}
           </div>
         )
       ) : (
-        <span style={{ fontWeight: 600, color: T.border }}>{label}</span>
+        <span className="t-semibold" style={{ color: T.border }}>{label}</span>
       )}
     </div>
   );
@@ -274,7 +274,7 @@ export function InventoryPanel() {
         <div style={{ width: 780, minWidth: 780, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column' }}>
 
           <div style={{ padding: '12px 16px' }}>
-            <div style={{ fontWeight: 700, color: T.accent, marginBottom: 10 }}>{t('inventory.equipment')}</div>
+            <div className="t-bold" style={{ color: T.accent, marginBottom: 10 }}>{t('inventory.equipment')}</div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
               {EQUIPMENT_GRID.map((row, ri) => (
@@ -326,8 +326,8 @@ export function InventoryPanel() {
 
           <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px', flex: 1, overflow: 'auto', minHeight: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ fontWeight: 700, color: T.accent }}>
-                Backpack <span style={{ fontWeight: 400, color: T.textMuted }}>({backpackItems.length})</span>
+              <div className="t-bold" style={{ color: T.accent }}>
+                Backpack <span style={{ color: T.textMuted }}>({backpackItems.length})</span>
               </div>
               <Button
                 icon="add"
@@ -368,7 +368,7 @@ export function InventoryPanel() {
               <span style={{ color: T.textMuted }}>{totalItems} items</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 600 }}>{t('inventory.gold')}</span>
+              <span className="t-semibold">{t('inventory.gold')}</span>
               <input
                 type="text"
                 value={goldInput}

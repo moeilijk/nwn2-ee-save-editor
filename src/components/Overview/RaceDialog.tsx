@@ -224,6 +224,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
                     <div key={r.id}>
                       <button
                         onClick={() => handleRaceClick(r.id)}
+                        className={isExpanded ? 't-semibold' : undefined}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
                           width: '100%', textAlign: 'left',
@@ -231,7 +232,6 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
                           background: isActive ? `${T.accent}15` : 'transparent',
                           borderLeft: isActive ? `2px solid ${T.accent}` : '2px solid transparent',
                           color: isActive ? T.accent : T.text,
-                          fontWeight: isExpanded ? 600 : 400,
                         }}
                       >
                         <span style={{ color: T.accent }}>
@@ -251,13 +251,13 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
                           <button
                             key={sub.id}
                             onClick={() => handleSubraceClick(sub)}
+                            className={isSubSelected ? 't-semibold' : undefined}
                             style={{
                               display: 'block', width: '100%', textAlign: 'left',
                               padding: '4px 12px 4px 30px', border: 'none', cursor: 'pointer',
                               background: isSubSelected ? `${T.accent}15` : 'transparent',
                               borderLeft: isSubSelected ? `2px solid ${T.accent}` : '2px solid transparent',
                               color: isSubSelected ? T.accent : T.textMuted,
-                              fontWeight: isSubSelected ? 600 : 400,
                             }}
                           >
                             <div>{sub.name}</div>
@@ -271,7 +271,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
                   );
                 })}
                 {filtered.length === 0 && !loadingRaces && (
-                  <div style={{ padding: 16, textAlign: 'center', color: T.textMuted }}>
+                  <div className="t-center" style={{ padding: 16, color: T.textMuted }}>
                     {t('race.noMatch')}
                   </div>
                 )}
@@ -288,7 +288,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <div style={{ textAlign: 'center', color: T.textMuted }}>
+              <div className="t-center" style={{ color: T.textMuted }}>
                 {t('race.selectRace')}
               </div>
             </div>
@@ -305,7 +305,7 @@ function RaceDetailHeader({ name, icon }: { name: string; icon: string | null })
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
       {iconUrl && <img src={iconUrl} alt="" width={32} height={32} style={{ borderRadius: 4, flexShrink: 0 }} />}
-      <div style={{ fontWeight: 700, color: T.text }}>{name}</div>
+      <div className="t-bold" style={{ color: T.text }}>{name}</div>
     </div>
   );
 }
@@ -316,7 +316,7 @@ function RaceDescription({ text }: { text: string | null }) {
   return (
     <div>
       {lore && (
-        <div style={{ lineHeight: 1.6, color: T.textMuted, marginBottom: traits.length > 0 ? 12 : 0 }}>
+        <div className="t-body" style={{ color: T.textMuted, marginBottom: traits.length > 0 ? 12 : 0 }}>
           {lore}
         </div>
       )}
@@ -326,7 +326,7 @@ function RaceDescription({ text }: { text: string | null }) {
             <div key={i} style={{ display: 'flex', gap: 8 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>-</span>
               <div>
-                <span style={{ fontWeight: 700, color: T.text }}>{trait.name}: </span>
+                <span className="t-bold" style={{ color: T.text }}>{trait.name}: </span>
                 <span style={{ color: T.textMuted }}>{trait.text}</span>
               </div>
             </div>

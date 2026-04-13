@@ -48,9 +48,8 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
             onClick={() => onSelectItem(item.index)}
             style={selectedIndex === item.index ? { background: 'rgba(160, 82, 45, 0.1)' } : undefined}
           >
-            <td style={{
+            <td className={item.is_custom ? 't-semibold' : undefined} style={{
               color: item.is_custom ? T.accent : T.text,
-              fontWeight: item.is_custom ? 600 : 400,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {display(item.name)}

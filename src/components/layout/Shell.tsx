@@ -72,7 +72,7 @@ function ShellContent() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '8px 16px', background: T.sectionBg, borderBottom: `1px solid ${T.sectionBorder}`,
           }}>
-            <span style={{ fontSize: 13, color: T.text }}>
+            <span className="t-md" style={{ color: T.text }}>
               <strong>{t('dashboard.sessionActive', { name: character.name })}</strong>
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -106,7 +106,7 @@ function ShellContent() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                   <div style={{ textAlign: 'center' }}>
                     <GameIcon icon={GiAnvil} size={40} style={{ color: T.border }} />
-                    <p style={{ marginTop: 12, fontSize: 14, color: T.textMuted }}>Coming soon</p>
+                    <p className="t-lg" style={{ marginTop: 12, color: T.textMuted }}>Coming soon</p>
                   </div>
                 </div>
               )}
@@ -159,7 +159,7 @@ export default function Shell() {
         <TitleBar onAboutClick={() => {}} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: 320, textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 16 }}>
+            <div className="t-2xl t-bold" style={{ color: T.accent, marginBottom: 16 }}>
               NWN2 Save Editor
             </div>
             <ProgressBar
@@ -169,7 +169,7 @@ export default function Shell() {
               stripes={false}
               style={{ marginBottom: 8 }}
             />
-            <div style={{ fontSize: 12, color: T.textMuted }}>{initProgress.message}</div>
+            <div className="t-base" style={{ color: T.textMuted }}>{initProgress.message}</div>
           </div>
         </div>
       </div>

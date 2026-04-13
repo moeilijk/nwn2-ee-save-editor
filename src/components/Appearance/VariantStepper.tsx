@@ -27,11 +27,9 @@ export function VariantStepper({ value, variants, onChange, disabled = false }: 
         onClick={() => canPrev && onChange(variants[currentIndex - 1])}
         style={{ minWidth: 24, minHeight: 24, padding: 0 }}
       />
-      <span style={{
+      <span className="t-md t-semibold" style={{
         minWidth: 48,
         textAlign: 'center',
-        fontSize: 13,
-        fontWeight: 600,
         color: T.text,
       }}>
         {displayIndex}/{total}

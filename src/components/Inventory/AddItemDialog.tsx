@@ -210,8 +210,8 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
         onClick={() => setSelectedBaseId(item.id)}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
-          <div style={{ fontSize: 11, color: T.textMuted }}>{item.category}</div>
+          <div className={selected ? 't-semibold' : undefined} style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
+          <div className="t-sm" style={{ color: T.textMuted }}>{item.category}</div>
         </div>
       </div>
     );
@@ -233,8 +233,8 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
         onClick={() => setSelectedResref(item.resref)}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: T.text, fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
-          <div style={{ fontSize: 11, color: T.textMuted }}>
+          <div className={selected ? 't-semibold' : undefined} style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{display(item.name)}</div>
+          <div className="t-sm" style={{ color: T.textMuted }}>
             {ITEM_CATEGORIES[item.category as keyof typeof ITEM_CATEGORIES] || 'Miscellaneous'} - {item.source}
           </div>
         </div>
@@ -268,7 +268,7 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
         />
       }
       footerLeft={
-        <span style={{ fontSize: 11, color: T.textMuted }}>
+        <span className="t-sm" style={{ color: T.textMuted }}>
           {t('inventory.selectedId')}: {selectedName}
         </span>
       }

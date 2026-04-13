@@ -15,7 +15,7 @@ import type { AbilityScores } from '@/lib/bindings';
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <div style={{ fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 8 }}>
+    <div className="t-section" style={{ color: T.accent, marginBottom: 8 }}>
       {children}
     </div>
   );
@@ -179,10 +179,10 @@ export function AbilitiesPanel() {
 
       <Card elevation={Elevation.ONE} style={{ padding: 0, background: T.surface, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
-          <span style={{ color: T.textMuted, fontSize: 14 }}>
+          <span className="t-lg" style={{ color: T.textMuted }}>
             {t('abilityScores.pointsSpent')}: <strong style={{ color: T.text }}>{spent}</strong>
           </span>
-          <span style={{ color: T.textMuted, fontSize: 14 }}>
+          <span className="t-lg" style={{ color: T.textMuted }}>
             {t('abilityScores.availablePoints')}: <strong style={{ color: T.accent }}>{available}</strong>
           </span>
           <Button icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} text={t('abilityScores.pointBuy.button')} small minimal style={{ color: T.textMuted }} onClick={() => setIsRespecOpen(true)} />
@@ -222,7 +222,7 @@ export function AbilitiesPanel() {
                     <tr key={a.shortName}>
                       <td>
                         <strong style={{ color: T.text }}>{shortName}</strong>
-                        <span style={{ marginLeft: 6, fontSize: 12, color: T.textMuted }}>{a.name}</span>
+                        <span className="t-base" style={{ marginLeft: 6, color: T.textMuted }}>{a.name}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <StepInput
@@ -234,9 +234,9 @@ export function AbilitiesPanel() {
                       <td style={{ textAlign: 'center' }}><ModCell value={levelBonus} /></td>
                       <td style={{ textAlign: 'center' }}><ModCell value={racialBonus} /></td>
                       <td style={{ textAlign: 'center' }}><ModCell value={equipBonus} /></td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: T.text }}>{a.value}</td>
-                      <td style={{
-                        textAlign: 'center', fontWeight: 600,
+                      <td className="t-xl t-bold" style={{ textAlign: 'center', color: T.text }}>{a.value}</td>
+                      <td className="t-semibold" style={{
+                        textAlign: 'center',
                         color: a.modifier > 0 ? T.positive : a.modifier < 0 ? T.negative : T.textMuted,
                       }}>
                         {mod(a.modifier)}
@@ -265,7 +265,7 @@ export function AbilitiesPanel() {
                     <tr key={key}>
                       <td>
                         <strong style={{ color: T.text }}>{shortNames[key]}</strong>
-                        <span style={{ marginLeft: 6, fontSize: 12, color: T.textMuted }}>{fullNames[key]}</span>
+                        <span className="t-base" style={{ marginLeft: 6, color: T.textMuted }}>{fullNames[key]}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <StepInput
@@ -277,9 +277,9 @@ export function AbilitiesPanel() {
                       <td style={{ textAlign: 'center' }}><ModCell value={levelBonus} /></td>
                       <td style={{ textAlign: 'center' }}><ModCell value={racial} /></td>
                       <td style={{ textAlign: 'center' }}><ModCell value={equip} /></td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, fontSize: 15, color: T.text }}>{effective}</td>
-                      <td style={{
-                        textAlign: 'center', fontWeight: 600,
+                      <td className="t-xl t-bold" style={{ textAlign: 'center', color: T.text }}>{effective}</td>
+                      <td className="t-semibold" style={{
+                        textAlign: 'center',
                         color: modifier > 0 ? T.positive : modifier < 0 ? T.negative : T.textMuted,
                       }}>
                         {mod(modifier)}
@@ -335,7 +335,7 @@ export function AbilitiesPanel() {
                   />
                 </td>
                 <td style={{ textAlign: 'center' }}>
-                  <strong style={{ fontSize: 15, color: T.text }}>{mod(s.data?.total ?? 0)}</strong>
+                  <strong className="t-xl" style={{ color: T.text }}>{mod(s.data?.total ?? 0)}</strong>
                 </td>
               </tr>
             ))}
@@ -354,7 +354,7 @@ export function AbilitiesPanel() {
                 />
               </td>
               <td style={{ textAlign: 'center' }}>
-                <strong style={{ fontSize: 15, color: T.text }}>{mod(initTotal)}</strong>
+                <strong className="t-xl" style={{ color: T.text }}>{mod(initTotal)}</strong>
               </td>
             </tr>
           </tbody>
@@ -413,7 +413,7 @@ export function AbilitiesPanel() {
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.size} /></td>
                 <td style={{ textAlign: 'center' }}><ModCell value={ac.misc} /></td>
                 <td style={{ textAlign: 'center' }}>
-                  <strong style={{ fontSize: 15, color: T.text }}>{ac.total}</strong>
+                  <strong className="t-xl" style={{ color: T.text }}>{ac.total}</strong>
                 </td>
               </tr>
             ))}

@@ -98,10 +98,8 @@ function RestoreBackupDialog({
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
+                  <div className={`t-mono${isActive ? ' t-semibold' : ''}`} style={{
                     color: isActive ? T.accent : T.text,
-                    fontWeight: isActive ? 600 : 400,
-                    fontFamily: 'monospace',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {b.filename}
@@ -269,16 +267,16 @@ function ReputationTab({ characterId }: { characterId: number }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 600, color: T.text }}>{companion.name || companionId}</span>
-                <span style={{ fontWeight: 600, color: recruitColor }}>{companion.recruitment.replace('_', ' ')}</span>
+                <span className="t-semibold" style={{ color: T.text }}>{companion.name || companionId}</span>
+                <span className="t-semibold" style={{ color: recruitColor }}>{companion.recruitment.replace('_', ' ')}</span>
                 {isModified && (
-                  <span style={{ fontWeight: 600, color: MODIFIED }}>modified</span>
+                  <span className="t-semibold" style={{ color: MODIFIED }}>modified</span>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="number"
-                  className="bp6-input"
+                  className="bp6-input t-semibold t-center"
                   value={current}
                   min={-100}
                   max={100}
@@ -287,7 +285,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
                     if (!isNaN(v)) setInfluences(prev => ({ ...prev, [companionId]: Math.max(-100, Math.min(100, v)) }));
                   }}
                   style={{
-                    width: 56, height: 24, textAlign: 'center', fontWeight: 600,
+                    width: 56, height: 24,
                     background: T.surface, border: `1px solid ${isModified ? MODIFIED : T.borderLight}`,
                     borderRadius: 3, color: T.text,
                   }}
@@ -341,16 +339,16 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
           const isModified = v.name in edits;
           return (
             <tr key={v.name} style={{ borderLeft: isModified ? `3px solid ${MODIFIED}` : undefined, background: isModified ? `${MODIFIED}10` : undefined }}>
-              <td style={{ fontFamily: 'monospace', color: T.text }}>{v.name}</td>
-              <td style={{ fontFamily: 'monospace', color: T.textMuted }}>{String(v.value)}</td>
+              <td className="t-mono" style={{ color: T.text }}>{v.name}</td>
+              <td className="t-mono" style={{ color: T.textMuted }}>{String(v.value)}</td>
               <td>
                 <input
-                  className="bp6-input"
+                  className="bp6-input t-mono"
                   type={type === 'string' ? 'text' : 'number'}
                   value={isModified ? edits[v.name] : v.value}
                   onChange={e => onEdit(v.name, e.target.value)}
                   style={{
-                    width: '100%', height: 24, fontFamily: 'monospace',
+                    width: '100%', height: 24,
                     background: T.surface, border: `1px solid ${isModified ? MODIFIED : T.borderLight}`,
                     borderRadius: 3, color: T.text, padding: '2px 6px',
                   }}
@@ -392,10 +390,10 @@ function VariableSection({
     <>
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontWeight: 600, color: T.textMuted }}>{total} variables</span>
+          <span className="t-semibold" style={{ color: T.textMuted }}>{total} variables</span>
           {changeCount > 0 && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontWeight: 600, color: MODIFIED }}>{changeCount} modified</span>
+              <span className="t-semibold" style={{ color: MODIFIED }}>{changeCount} modified</span>
               <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }}>Revert All</Button>
               <Button small intent="primary" onClick={onSave}>Save</Button>
             </div>
@@ -411,13 +409,13 @@ function VariableSection({
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: 180, fontSize: 14 }}
+            style={{ width: 180 }}
           />
         </div>
       </div>
       {warningText && changeCount > 0 && (
         <div style={{ margin: '0 16px', padding: '8px 12px', background: `${MODIFIED}12`, border: `1px solid ${MODIFIED}40`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: MODIFIED, fontWeight: 600 }}>&#9888;</span>
+          <span className="t-semibold" style={{ color: MODIFIED }}>&#9888;</span>
           <span style={{ color: T.text }}>{warningText}</span>
         </div>
       )}
@@ -652,7 +650,7 @@ function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: num
     <>
       {availableModules.length > 0 && (
         <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontWeight: 600, color: T.textMuted }}>Module</span>
+          <span className="t-semibold" style={{ color: T.textMuted }}>Module</span>
           <Popover content={moduleMenu} placement="bottom-end" minimal>
             <Button
               minimal
@@ -850,7 +848,7 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
       <div style={{ padding: '10px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
-            <div style={{ fontWeight: 700, color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
+            <div className="t-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
               Progression
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -874,7 +872,7 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
           </div>
 
           <div>
-            <div style={{ fontWeight: 700, color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
+            <div className="t-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
               Gameplay Flags
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -889,7 +887,7 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
 
         {hasChanges && (
           <div style={{ marginTop: 12, padding: '8px 12px', background: `${MODIFIED}12`, border: `1px solid ${MODIFIED}40`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: MODIFIED, fontWeight: 600 }}>&#9888;</span>
+            <span className="t-semibold" style={{ color: MODIFIED }}>&#9888;</span>
             <span style={{ color: T.text }}>Campaign settings (.cam) are shared across all saves in this campaign. A backup is created automatically before saving.</span>
           </div>
         )}
@@ -907,12 +905,12 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
 
       <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-          <KVRow label="Start Module" value={<span style={{ fontFamily: 'monospace' }}>{settings.start_module || '-'}</span>} />
+          <KVRow label="Start Module" value={<span className="t-mono">{settings.start_module || '-'}</span>} />
           <KVRow label="Module Count" value={String(settings.module_names?.length ?? 0)} />
         </div>
         <div style={{ marginTop: 6, color: T.textMuted }}>
-          <span style={{ fontWeight: 600 }}>Campaign File: </span>
-          <span style={{ fontFamily: 'monospace' }}>{settings.campaign_file_path || '-'}</span>
+          <span className="t-semibold">Campaign File: </span>
+          <span className="t-mono">{settings.campaign_file_path || '-'}</span>
           {settings.description && (
             <span> &mdash; {settings.description}</span>
           )}

@@ -55,13 +55,14 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <button
             key={item.id}
             onClick={() => onTabChange(item.id)}
+            className="t-md"
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               width: '100%', padding: '8px 16px',
               border: 'none', cursor: 'pointer',
               background: active ? 'rgba(160,82,45,0.12)' : 'transparent',
               color: active ? T.sidebarAccent : T.sidebarText,
-              fontSize: 13, textAlign: 'left',
+              textAlign: 'left',
               borderLeft: active ? `2px solid ${T.sidebarAccent}` : '2px solid transparent',
               transition: 'all 0.15s',
             }}

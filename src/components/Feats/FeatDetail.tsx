@@ -76,11 +76,11 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
             />
           )}
           <div>
-            <span style={{ fontWeight: 700, color: T.text }}>{display(feat.name)}</span>
+            <span className="t-bold" style={{ color: T.text }}>{display(feat.name)}</span>
             <span style={{ color: T.textMuted }}> — </span>
-            <span style={{ color: typeColor, fontWeight: 500 }}>{typeLabel}</span>
+            <span className="t-medium" style={{ color: typeColor }}>{typeLabel}</span>
             {feat.protected && (
-              <span style={{ marginLeft: 8, fontSize: 11, color: T.textMuted, fontStyle: 'italic' }}>protected</span>
+              <span className="t-sm t-italic" style={{ marginLeft: 8, color: T.textMuted }}>protected</span>
             )}
           </div>
         </div>
@@ -110,7 +110,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
 
       {feat.description && (
         <DetailSection title="Description">
-          <div style={{ color: T.text, lineHeight: 1.6 }}>
+          <div className="t-body" style={{ color: T.text }}>
             {feat.description}
           </div>
         </DetailSection>

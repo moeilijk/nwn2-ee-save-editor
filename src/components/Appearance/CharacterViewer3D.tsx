@@ -270,7 +270,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         </div>
       )}
       {error && (
-        <div style={{ position: 'absolute', top: 8, left: 8, color: '#ff4444', fontSize: 12 }}>
+        <div className="t-base" style={{ position: 'absolute', top: 8, left: 8, color: '#ff4444' }}>
           {error}
         </div>
       )}

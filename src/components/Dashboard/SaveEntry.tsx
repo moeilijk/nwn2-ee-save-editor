@@ -75,9 +75,7 @@ export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntr
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            fontSize: 14,
-            fontWeight: 600,
+          <span className="t-lg t-semibold" style={{
             color: isSelected ? T.accent : T.text,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -86,8 +84,7 @@ export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntr
             {save.characterName}
           </span>
           {save.isActive && (
-            <Tag minimal round style={{
-              fontSize: 10,
+            <Tag minimal round className="t-xs" style={{
               background: 'rgba(160, 82, 45, 0.12)',
               color: T.accent,
             }}>
@@ -95,10 +92,10 @@ export function SaveEntry({ save, isSelected, onClick, onDoubleClick }: SaveEntr
             </Tag>
           )}
         </div>
-        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+        <div className="t-base" style={{ color: T.textMuted, marginTop: 2 }}>
           {save.folderName}
         </div>
-        <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+        <div className="t-sm" style={{ color: T.textMuted, marginTop: 2 }}>
           {save.date}
         </div>
       </div>

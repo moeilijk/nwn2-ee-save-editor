@@ -48,7 +48,7 @@ export function SaveList({ saves, selectedIndex, onSelect, onDoubleClick, onBrow
             gap: 12,
           }}>
             <GameIcon icon={GiMagnifyingGlass} size={32} color={T.border} />
-            <span style={{ fontSize: 13, color: T.textMuted }}>
+            <span className="t-md" style={{ color: T.textMuted }}>
               {t('dashboard.noSaves')}
             </span>
           </div>

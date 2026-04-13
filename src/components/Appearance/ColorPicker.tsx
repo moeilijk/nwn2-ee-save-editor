@@ -47,7 +47,7 @@ export function ColorPicker({ label, value, onChange }: ColorPickerProps) {
           background: 'none',
         }}
       />
-      <span style={{ fontSize: 12, color: T.textMuted }}>{label}</span>
+      <span className="t-base" style={{ color: T.textMuted }}>{label}</span>
     </div>
   );
 }

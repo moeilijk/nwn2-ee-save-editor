@@ -205,14 +205,13 @@ export function FeatsPanel() {
     const typeColor = FEAT_TYPE_COLORS[typeLabel] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{
+        <span className={selected ? 't-semibold' : undefined} style={{
           color: T.text,
-          fontWeight: selected ? 600 : 400,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {display(feat.name)}
         </span>
-        <span style={{ color: typeColor, fontWeight: 500, flexShrink: 0 }}>
+        <span className="t-medium" style={{ color: typeColor, flexShrink: 0 }}>
           {typeLabel}
         </span>
       </div>

@@ -15,11 +15,11 @@ function DefaultContent() {
   return (
     <>
       <div style={{ marginBottom: 4 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>
+        <span className="t-3xl t-bold" style={{ color: T.accent }}>
           {t('dashboard.title')}
         </span>
       </div>
-      <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 16 }}>
+      <div className="t-md" style={{ color: T.textMuted, marginBottom: 16 }}>
         {t('dashboard.tagline')}
       </div>
 
@@ -62,13 +62,13 @@ function SelectedContent({ save }: { save: SaveEntryData }) {
         <GameIcon icon={GiVisoredHelm} size={40} color={T.border} />
       </div>
 
-      <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 4 }}>
+      <div className="t-2xl t-bold" style={{ color: T.accent, marginBottom: 4 }}>
         {save.characterName}
       </div>
-      <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 4 }}>
+      <div className="t-base" style={{ color: T.textMuted, marginBottom: 4 }}>
         {save.folderName}
       </div>
-      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 20 }}>
+      <div className="t-sm" style={{ color: T.textMuted, marginBottom: 20 }}>
         {save.date}
       </div>
 

@@ -7,7 +7,40 @@
 
 .bp-app {
   font-family: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+
+  /* Typography scale - adjust these to change all font sizes globally */
+  --font-xs: 10px;
+  --font-sm: 11px;
+  --font-base: 12px;
+  --font-md: 13px;
+  --font-lg: 14px;
+  --font-xl: 15px;
+  --font-2xl: 18px;
+  --font-3xl: 20px;
+  --font-4xl: 28px;
 }
+
+/* ── Typography utility classes ── */
+.t-section   { font-size: var(--font-base); font-weight: 700; color: #a0522d; }
+.t-label     { font-weight: 600; color: #4a453c; }
+.t-value     { font-weight: 600; }
+.t-bold      { font-weight: 700; }
+.t-semibold  { font-weight: 600; }
+.t-medium    { font-weight: 500; }
+.t-mono      { font-family: monospace; }
+.t-italic    { font-style: italic; }
+.t-body      { line-height: 1.6; }
+.t-uppercase { text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; font-size: var(--font-xs); }
+.t-center    { text-align: center; }
+
+.t-xs   { font-size: var(--font-xs); }
+.t-sm   { font-size: var(--font-sm); }
+.t-base { font-size: var(--font-base); }
+.t-md   { font-size: var(--font-md); }
+.t-lg   { font-size: var(--font-lg); }
+.t-xl   { font-size: var(--font-xl); }
+.t-2xl  { font-size: var(--font-2xl); }
+.t-3xl  { font-size: var(--font-3xl); }
 
 .bp-app .bp6-input {
   background: #faf7f2;
@@ -32,7 +65,7 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 }
 .bp-app .bp6-html-table th {
   color: #2d2d30;
-  font-size: 14px;
+  font-size: var(--font-lg);
   font-weight: 600;
 }
 
@@ -133,7 +166,7 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 .bp-app .bp6-tabs .bp6-tab {
   color: #4a453c;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-lg);
 }
 .bp-app .bp6-tabs .bp6-tab[aria-selected="true"] {
   color: #a0522d;
@@ -234,11 +267,11 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
   justify-content: center;
   color: #fff;
   font-weight: 700;
-  font-size: 28px;
+  font-size: var(--font-4xl);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .about-app-name {
-  font-size: 18px;
+  font-size: var(--font-2xl);
   font-weight: 700;
   color: #2d2d30;
 }
@@ -247,7 +280,7 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
   border: none;
   cursor: pointer;
   color: #4a453c;
-  font-size: 13px;
+  font-size: var(--font-md);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -259,13 +292,13 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 }
 .about-description {
   color: #2d2d30;
-  font-size: 14px;
+  font-size: var(--font-lg);
   max-width: 320px;
   margin: 4px 0 0;
 }
 .about-built-with {
   color: #4a453c;
-  font-size: 12px;
+  font-size: var(--font-base);
   opacity: 0.65;
   margin: 0;
 }
@@ -278,13 +311,13 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 .about-credits-panel,
 .about-legal-panel {
   padding: 20px;
-  font-size: 14px;
+  font-size: var(--font-lg);
   color: #2d2d30;
   line-height: 1.6;
 }
 .about-credits-panel h4,
 .about-legal-panel h4 {
-  font-size: 12px;
+  font-size: var(--font-base);
   font-weight: 700;
   color: #a0522d;
   border-bottom: 1px solid #e5ddd0;

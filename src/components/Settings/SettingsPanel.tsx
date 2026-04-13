@@ -14,7 +14,7 @@ import { KVRow, ParchmentDialog } from '../shared';
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <div style={{ fontWeight: 700, color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
+    <div className="t-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
       {title}
     </div>
   );
@@ -37,13 +37,13 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <GameIcon icon={GiFullFolder} size={16} color={T.textMuted} />
-          <span style={{ fontWeight: 600, color: T.text }}>{label}</span>
+          <span className="t-semibold" style={{ color: T.text }}>{label}</span>
           <Tag minimal round intent={autoDetected ? 'primary' : 'warning'} style={{ background: autoDetected ? 'rgba(45, 114, 210, 0.1)' : 'rgba(184, 149, 47, 0.1)' }}>
             {autoDetected ? t('settings.paths.autoDetected') : t('settings.paths.manuallySet')}
           </Tag>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <span style={{ fontFamily: 'monospace', color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="t-mono" style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {path || t('settings.paths.notConfigured')}
           </span>
           {path && (
@@ -82,7 +82,7 @@ function CustomFolderList({ folders, addLabel, onAdd, onRemove }: {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
             <GameIcon icon={GiFullFolder} size={14} color={T.textMuted} />
-            <span style={{ fontFamily: 'monospace', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className="t-mono" style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {folder.path}
             </span>
             <GameIcon icon={folder.exists ? GiCheckMark : GiBrokenShield} size={14} color={folder.exists ? T.positive : T.negative} />
@@ -144,7 +144,7 @@ function GeneralTab() {
             placement="bottom-end"
             minimal
           >
-            <Button minimal rightIcon="caret-down" text={language === 'en' ? t('settings.general.languageEnglish') : language} style={{ fontWeight: 600 }} />
+            <Button minimal rightIcon="caret-down" text={language === 'en' ? t('settings.general.languageEnglish') : language} className="t-semibold" />
           </Popover>
         } />
       </div>
@@ -163,7 +163,7 @@ function GeneralTab() {
             placement="bottom-end"
             minimal
           >
-            <Button minimal rightIcon="caret-down" text={t(`settings.general.fontSize${fontSize.charAt(0).toUpperCase() + fontSize.slice(1)}`)} style={{ fontWeight: 600 }} />
+            <Button minimal rightIcon="caret-down" text={t(`settings.general.fontSize${fontSize.charAt(0).toUpperCase() + fontSize.slice(1)}`)} className="t-semibold" />
           </Popover>
         } />
       </div>

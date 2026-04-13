@@ -106,21 +106,20 @@ export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: Respec
         <Button text={t('abilityScores.pointBuy.reset')} icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} minimal onClick={reset} style={{ color: T.textMuted }} />
       }
     >
-      <div style={{
+      <div className="t-base t-body" style={{
         padding: '8px 12px', marginBottom: 16, borderRadius: 4,
         background: '#fde8e8', border: `1px solid ${T.negative}30`,
-        fontSize: 12, color: T.negative, lineHeight: 1.5,
+        color: T.negative,
       }}>
         {t('abilityScores.pointBuy.warning')}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>
+          <span className="t-base t-semibold" style={{ color: T.textMuted }}>
             {t('abilityScores.pointBuy.pointsUsed')}: <strong style={{ color: T.text }}>{totalCost}</strong> / {BUDGET}
           </span>
-          <span style={{
-            fontSize: 12, fontWeight: 700,
+          <span className="t-base t-bold" style={{
             color: remaining === 0 ? T.positive : remaining < 0 ? T.negative : T.accent,
           }}>
             {remaining} {t('abilityScores.pointBuy.remaining')}
@@ -145,8 +144,8 @@ export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: Respec
               padding: '8px 12px', borderRadius: 4,
               background: T.surfaceAlt, border: `1px solid ${T.borderLight}`,
             }}>
-              <span style={{ width: 36, fontSize: 12, fontWeight: 700, color: T.accent }}>{ABILITY_SHORT[key]}</span>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: T.text }}>{ABILITY_NAMES[key]}</span>
+              <span className="t-base t-bold" style={{ width: 36, color: T.accent }}>{ABILITY_SHORT[key]}</span>
+              <span className="t-md t-medium" style={{ flex: 1, color: T.text }}>{ABILITY_NAMES[key]}</span>
 
               <Button
                 icon="minus" small minimal
@@ -154,9 +153,9 @@ export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: Respec
                 onClick={() => change(key, -1)}
                 style={{ color: T.textMuted }}
               />
-              <span style={{
+              <span className="t-xl t-bold" style={{
                 width: 32, textAlign: 'center',
-                fontSize: 16, fontWeight: 700, color: T.text,
+                color: T.text,
               }}>
                 {score}
               </span>
@@ -167,15 +166,15 @@ export function RespecDialog({ isOpen, onClose, pointBuyState, onApply }: Respec
                 style={{ color: T.textMuted }}
               />
 
-              <span style={{
-                width: 32, textAlign: 'center', fontSize: 12, fontWeight: 600,
+              <span className="t-base t-semibold" style={{
+                width: 32, textAlign: 'center',
                 color: modifier > 0 ? T.positive : modifier < 0 ? T.negative : T.textMuted,
               }}>
                 {mod(modifier)}
               </span>
-              <span style={{
+              <span className="t-sm" style={{
                 width: 40, textAlign: 'right',
-                fontSize: 11, color: T.textMuted,
+                color: T.textMuted,
               }}>
                 {pts} pts
               </span>

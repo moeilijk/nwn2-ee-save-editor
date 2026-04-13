@@ -65,7 +65,7 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
       thickness: 20,
       scale: 1,
       distanceFallOff: 1,
-    });
+    } as Record<string, number>);
     gtaoPass.blendIntensity = 1.5;
     composer.addPass(gtaoPass);
 

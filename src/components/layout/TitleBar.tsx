@@ -46,7 +46,7 @@ export function TitleBar({ onAboutClick }: TitleBarProps) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <img src="/logo.svg" alt="Logo" style={{ height: 18 }} />
-        <span style={{ color: T.sidebarText, fontSize: 12, fontWeight: 500 }}>{appName}</span>
+        <span className="t-base t-medium" style={{ color: T.sidebarText }}>{appName}</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

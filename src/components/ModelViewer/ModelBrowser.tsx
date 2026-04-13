@@ -36,8 +36,8 @@ const Row = memo(({ index, style, data }: ListChildComponentProps<RowData>) => {
       }}
       onClick={() => data.onSelect(m.resref)}
     >
-      <code style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.resref}</code>
-      <Tag minimal style={{ fontSize: 10, flexShrink: 0 }}>{m.zip_source}</Tag>
+      <code className="t-base" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.resref}</code>
+      <Tag minimal className="t-xs" style={{ flexShrink: 0 }}>{m.zip_source}</Tag>
     </div>
   );
 });

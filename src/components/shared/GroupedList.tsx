@@ -82,7 +82,7 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
           <span style={{ color: T.accent, width: 10 }}>
             {isCollapsed ? '\u25B6' : '\u25BC'}
           </span>
-          <span style={{ fontWeight: 700, color: T.accent, flex: 1 }}>
+          <span className="t-bold" style={{ color: T.accent, flex: 1 }}>
             {row.title}
           </span>
           <span style={{ color: T.textMuted }}>{row.count}</span>

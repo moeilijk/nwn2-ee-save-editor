@@ -70,34 +70,34 @@ function FeatRow({ feat, expanded, onToggle, tagColor, colCount, showOwned }: {
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
         <td>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontWeight: 600, color: T.text }}>{feat.name}</span>
+            <span className="t-semibold" style={{ color: T.text }}>{feat.name}</span>
             {feat.isProtected && (
-              <Tag minimal style={{ fontSize: 9, padding: '0 4px', lineHeight: '14px', color: T.gold, border: `1px solid ${T.gold}40` }}>
+              <Tag minimal className="t-xs" style={{ padding: '0 4px', lineHeight: '14px', color: T.gold, border: `1px solid ${T.gold}40` }}>
                 protected
               </Tag>
             )}
           </span>
         </td>
         <td style={{ textAlign: 'center' }}>
-          <Tag minimal round style={{
-            fontSize: 10, background: `${tagColor}18`, color: tagColor,
+          <Tag minimal round className="t-xs" style={{
+            background: `${tagColor}18`, color: tagColor,
             border: `1px solid ${tagColor}35`,
           }}>
             {feat.type}
           </Tag>
         </td>
         <td style={{ textAlign: 'center' }}>
-          <span style={{ fontSize: 12, color: expanded ? T.accent : T.textMuted }}>
+          <span className="t-base" style={{ color: expanded ? T.accent : T.textMuted }}>
             {expanded ? '\u25BC' : '\u25B6'}
           </span>
         </td>
         {showOwned && (
           <td style={{ textAlign: 'center' }}>
             {feat.hasFeat
-              ? <Tag minimal style={{ fontSize: 10, color: T.positive, background: `${T.positive}15` }}>Yes</Tag>
+              ? <Tag minimal className="t-xs" style={{ color: T.positive, background: `${T.positive}15` }}>Yes</Tag>
               : feat.canTake
-                ? <Tag minimal style={{ fontSize: 10, color: T.accent, background: `${T.accent}15` }}>Available</Tag>
-                : <span style={{ fontSize: 11, color: T.textMuted }}>-</span>
+                ? <Tag minimal className="t-xs" style={{ color: T.accent, background: `${T.accent}15` }}>Available</Tag>
+                : <span className="t-sm" style={{ color: T.textMuted }}>-</span>
             }
           </td>
         )}

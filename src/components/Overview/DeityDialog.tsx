@@ -83,13 +83,13 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
               <>
                 <button
                   onClick={() => setSelected(null)}
+                  className={`t-md${selected === null ? ' t-semibold' : ''}`}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '6px 12px', border: 'none', cursor: 'pointer',
                     background: selected === null ? `${T.accent}15` : 'transparent',
                     borderLeft: selected === null ? `2px solid ${T.accent}` : '2px solid transparent',
                     color: selected === null ? T.accent : T.textMuted,
-                    fontSize: 13, fontWeight: selected === null ? 600 : 400,
                   }}
                 >
                   None (No Deity)
@@ -98,21 +98,21 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
                   <button
                     key={d.name}
                     onClick={() => setSelected(d.name)}
+                    className={`t-md${selected === d.name ? ' t-semibold' : ''}`}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '6px 12px', border: 'none', cursor: 'pointer',
                       background: selected === d.name ? `${T.accent}15` : 'transparent',
                       borderLeft: selected === d.name ? `2px solid ${T.accent}` : '2px solid transparent',
                       color: selected === d.name ? T.accent : T.text,
-                      fontSize: 13, fontWeight: selected === d.name ? 600 : 400,
                     }}
                   >
                     <div>{d.name}</div>
-                    {d.alignment && <div style={{ fontSize: 11, color: T.textMuted }}>{d.alignment}</div>}
+                    {d.alignment && <div className="t-sm" style={{ color: T.textMuted }}>{d.alignment}</div>}
                   </button>
                 ))}
                 {filtered.length === 0 && !loadingDeities && (
-                  <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: T.textMuted }}>No deities match your search.</div>
+                  <div className="t-md t-center" style={{ padding: 16, color: T.textMuted }}>No deities match your search.</div>
                 )}
               </>
             )}
@@ -123,21 +123,21 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
           {detail ? (
             <div>
               <DeityDetailHeader deity={detail} />
-              {detail.alignment && <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 16 }}>{detail.alignment}</div>}
+              {detail.alignment && <div className="t-base" style={{ color: T.textMuted, marginBottom: 16 }}>{detail.alignment}</div>}
 
               {detail.portfolio && <DetailRow label="Portfolio" value={detail.portfolio} />}
               {detail.favored_weapon && <DetailRow label="Favored Weapon" value={detail.favored_weapon} />}
 
               {detail.description && (
-                <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.6, color: T.textMuted }}>
+                <div className="t-md t-body" style={{ marginTop: 12, color: T.textMuted }}>
                   {detail.description}
                 </div>
               )}
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 14, color: T.textMuted }}>
+              <div className="t-center">
+                <div className="t-lg" style={{ color: T.textMuted }}>
                   {selected === null ? 'No deity selected' : 'Select a deity from the list'}
                 </div>
               </div>
@@ -154,16 +154,16 @@ function DeityDetailHeader({ deity }: { deity: Deity }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
       {iconUrl && <img src={iconUrl} alt="" width={32} height={32} style={{ borderRadius: 4, flexShrink: 0 }} />}
-      <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{deity.name}</div>
+      <div className="t-2xl t-bold" style={{ color: T.text }}>{deity.name}</div>
     </div>
   );
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', gap: 12, padding: '4px 0', fontSize: 13 }}>
+    <div className="t-md" style={{ display: 'flex', gap: 12, padding: '4px 0' }}>
       <span style={{ color: T.textMuted, width: 120, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontWeight: 600, color: T.text }}>{value}</span>
+      <span className="t-semibold" style={{ color: T.text }}>{value}</span>
     </div>
   );
 }
