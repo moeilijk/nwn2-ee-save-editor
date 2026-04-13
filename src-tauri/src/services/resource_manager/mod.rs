@@ -460,7 +460,8 @@ impl ResourceManager {
         if let Some(locations) = self.resource_index.get(&resource_key) {
             if let Some(location) = locations
                 .iter()
-                .find(|l| matches!(l.source, OverrideSource::BaseGame))
+                .filter(|l| matches!(l.source, OverrideSource::BaseGame))
+                .last()
             {
                 let parser = self.load_2da_from_location(location.clone())?;
                 self.tda_cache.insert(cache_key, Arc::clone(&parser));
