@@ -1,61 +1,38 @@
 import * as THREE from 'three';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
 
-function drawSkyGradient(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, h);
-  gradient.addColorStop(0, '#1b5594');
-  gradient.addColorStop(0.25, '#2a6cb6');
-  gradient.addColorStop(0.5, '#5a9fd4');
-  gradient.addColorStop(0.75, '#8cbce0');
-  gradient.addColorStop(1.0, '#c2d9e8');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, w, h);
+const SUN_ELEVATION = 20;
+const SUN_AZIMUTH = 45;
+const TURBIDITY = 2;
+const RAYLEIGH = 1.0;
+const MIE_COEFFICIENT = 0.003;
+const MIE_DIRECTIONAL_G = 0.7;
+
+function getSunPosition(): THREE.Vector3 {
+  const phi = THREE.MathUtils.degToRad(90 - SUN_ELEVATION);
+  const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH);
+  return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 }
 
-function drawFog(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.save();
+export function createSkyObject(): Sky {
+  const sky = new Sky();
+  sky.scale.setScalar(10000);
 
-  const fogGradient = ctx.createLinearGradient(0, h * 0.7, 0, h);
-  fogGradient.addColorStop(0, 'rgba(194, 217, 232, 0)');
-  fogGradient.addColorStop(0.5, 'rgba(194, 217, 232, 0.12)');
-  fogGradient.addColorStop(1.0, 'rgba(194, 217, 232, 0.3)');
-  ctx.fillStyle = fogGradient;
-  ctx.fillRect(0, 0, w, h);
+  const sunPos = getSunPosition();
+  const uniforms = sky.material.uniforms;
+  uniforms['turbidity'].value = TURBIDITY;
+  uniforms['rayleigh'].value = RAYLEIGH;
+  uniforms['mieCoefficient'].value = MIE_COEFFICIENT;
+  uniforms['mieDirectionalG'].value = MIE_DIRECTIONAL_G;
+  uniforms['sunPosition'].value.copy(sunPos);
 
-  for (let i = 0; i < 3; i++) {
-    const y = h * (0.75 + i * 0.07);
-    const alpha = 0.03 + i * 0.015;
-    const bandGradient = ctx.createLinearGradient(0, y - h * 0.04, 0, y + h * 0.04);
-    bandGradient.addColorStop(0, `rgba(194, 217, 232, 0)`);
-    bandGradient.addColorStop(0.5, `rgba(194, 217, 232, ${alpha})`);
-    bandGradient.addColorStop(1, `rgba(194, 217, 232, 0)`);
-    ctx.fillStyle = bandGradient;
-    ctx.fillRect(0, y - h * 0.04, w, h * 0.08);
-  }
+  const mat = sky.material as THREE.ShaderMaterial;
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'gl_FragColor = vec4( texColor, 1.0 );',
+      'gl_FragColor = vec4( texColor * 0.2, 1.0 );',
+    );
+  };
 
-  ctx.restore();
-}
-
-export function createEnvTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2;
-  canvas.height = 512;
-  drawSkyGradient(canvas.getContext('2d')!, 2, 512);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.mapping = THREE.EquirectangularReflectionMapping;
-  return texture;
-}
-
-export function createSkyBackground(): THREE.Texture {
-  const w = 2048;
-  const h = 1024;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  drawSkyGradient(ctx, w, h);
-  drawFog(ctx, w, h);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.mapping = THREE.EquirectangularReflectionMapping;
-  return texture;
+  return sky;
 }

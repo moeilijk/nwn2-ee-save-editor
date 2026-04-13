@@ -119,7 +119,7 @@ export async function createMaterial(
     side: THREE.DoubleSide,
     roughness: 0.85,
     metalness: 0.0,
-    envMapIntensity: 0.3,
+    envMapIntensity: 0.0001,
   });
 
   const diffuse = await loadDDSTexture(materialData.diffuse_map);
