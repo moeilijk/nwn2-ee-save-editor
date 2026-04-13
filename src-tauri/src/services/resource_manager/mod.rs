@@ -54,7 +54,6 @@ pub struct ResourceManager {
     paths: Arc<RwLock<NWN2Paths>>,
     zip_reader: Mutex<ZipContentReader>,
 
-    tda_locations: HashMap<String, ResourceLocation>,
     template_locations: HashMap<String, ResourceLocation>,
 
     tlk_cache: Option<Arc<StdRwLock<TLKParser>>>,
@@ -62,16 +61,7 @@ pub struct ResourceManager {
 
     hak_overrides: Vec<HashMap<String, Arc<TDAParser>>>,
     module_overrides: DashMap<String, Arc<TDAParser>>,
-    campaign_overrides: DashMap<String, Arc<TDAParser>>,
-    override_dir_cache: DashMap<String, Arc<TDAParser>>,
-    workshop_cache: DashMap<String, Arc<TDAParser>>,
-    custom_override_cache: DashMap<String, Arc<TDAParser>>,
-    base_game_cache: DashMap<String, Arc<TDAParser>>,
-
-    override_file_paths: HashMap<String, PathBuf>,
-    workshop_file_paths: HashMap<String, PathBuf>,
-    custom_override_paths: HashMap<String, PathBuf>,
-    campaign_override_paths: HashMap<String, PathBuf>,
+    tda_cache: DashMap<(String, OverrideSource), Arc<TDAParser>>,
 
     current_module: Option<String>,
     module_path: Option<PathBuf>,
@@ -86,7 +76,7 @@ pub struct ResourceManager {
 
     data_zip_paths: Vec<PathBuf>,
 
-    resource_index: HashMap<String, ResourceLocation>,
+    resource_index: HashMap<String, Vec<ResourceLocation>>,
     icon_file_paths: HashMap<String, PathBuf>,
 
     cache_hits: AtomicU64,
@@ -99,24 +89,14 @@ impl ResourceManager {
         Self {
             paths,
             zip_reader: Mutex::new(ZipContentReader::new()),
-            tda_locations: HashMap::new(),
             template_locations: HashMap::new(),
             tlk_cache: None,
             custom_tlk_cache: None,
             hak_overrides: Vec::new(),
             module_overrides: DashMap::new(),
-            campaign_overrides: DashMap::new(),
-            override_dir_cache: DashMap::new(),
-            workshop_cache: DashMap::new(),
-            custom_override_cache: DashMap::new(),
-            base_game_cache: DashMap::new(),
-            override_file_paths: HashMap::new(),
-            workshop_file_paths: HashMap::new(),
-            custom_override_paths: HashMap::new(),
-            campaign_override_paths: HashMap::new(),
+            tda_cache: DashMap::new(),
             current_module: None,
             module_path: None,
-
             module_info: None,
             current_campaign_id: None,
             current_campaign_folder: None,
@@ -147,9 +127,8 @@ impl ResourceManager {
 
         self.initialized = true;
         info!(
-            "ResourceManager initialized: {} total resources, {} 2DAs, {} templates, {} icons",
+            "ResourceManager initialized: {} total resource keys, {} templates, {} icons",
             self.resource_index.len(),
-            self.tda_locations.len(),
             self.template_locations.len(),
             self.icon_file_paths.len(),
         );
@@ -226,21 +205,27 @@ impl ResourceManager {
                 mtime,
             );
 
-            self.resource_index.insert(key, location.clone());
+            self.resource_index
+                .entry(key)
+                .or_default()
+                .push(location.clone());
 
-            if entry.extension == "2da" {
-                self.tda_locations
-                    .insert(entry.stem.clone(), location.clone());
-            } else if entry.extension == "uti" {
+            if entry.extension == "uti" {
                 self.template_locations.insert(entry.stem, location);
             }
         }
 
+        let tda_count = self
+            .resource_index
+            .iter()
+            .filter(|(k, _)| k.ends_with(".2da"))
+            .count();
+
         info!(
-            "Indexed {} zips: {} resources total, {} 2DAs, {} templates",
+            "Indexed {} zips: {} resource keys, {} 2DAs, {} templates",
             zip_count,
             entry_count,
-            self.tda_locations.len(),
+            tda_count,
             self.template_locations.len()
         );
 
@@ -255,14 +240,12 @@ impl ResourceManager {
 
         if let Some(ref dir) = override_dir {
             let files = crate::utils::directory_scanner::scan_directory(dir, true);
-            let tdas = self.index_scanned_files(files, OverrideSource::OverrideDir);
-            self.override_file_paths.extend(tdas);
+            self.index_scanned_files(files, OverrideSource::OverrideDir);
         }
 
         for dir in &custom_folders {
             let files = crate::utils::directory_scanner::scan_directory(dir, true);
-            let tdas = self.index_scanned_files(files, OverrideSource::CustomOverride);
-            self.custom_override_paths.extend(tdas);
+            self.index_scanned_files(files, OverrideSource::CustomOverride);
         }
 
         Ok(())
@@ -286,16 +269,28 @@ impl ResourceManager {
         );
 
         let files = crate::utils::directory_scanner::scan_workshop(&workshop_dir);
-        let tdas = self.index_scanned_files(files, OverrideSource::Workshop);
-        self.workshop_file_paths.extend(tdas);
+        self.index_scanned_files(files, OverrideSource::Workshop);
+
+        let workshop_2da_count = self
+            .resource_index
+            .iter()
+            .filter(|(k, locs)| {
+                k.ends_with(".2da")
+                    && locs
+                        .iter()
+                        .any(|l| matches!(l.source, OverrideSource::Workshop))
+            })
+            .count();
+        let workshop_total = self
+            .resource_index
+            .values()
+            .flat_map(|v| v.iter())
+            .filter(|l| matches!(l.source, OverrideSource::Workshop))
+            .count();
 
         info!(
             "Indexed {} workshop 2DAs, {} total workshop resources",
-            self.workshop_file_paths.len(),
-            self.resource_index
-                .values()
-                .filter(|l| matches!(l.source, OverrideSource::Workshop))
-                .count()
+            workshop_2da_count, workshop_total
         );
 
         Ok(())
@@ -330,7 +325,7 @@ impl ResourceManager {
                 let key = resource_key(&file.stem, &file.extension);
                 let location =
                     ResourceLocation::from_file(OverrideSource::BaseGame, file.path, file.mtime);
-                self.resource_index.insert(key, location);
+                self.resource_index.entry(key).or_default().push(location);
             }
         }
 
@@ -346,20 +341,14 @@ impl ResourceManager {
         &mut self,
         files: Vec<crate::utils::directory_scanner::ScannedFile>,
         source: OverrideSource,
-    ) -> HashMap<String, PathBuf> {
-        let mut tda_paths = HashMap::new();
+    ) {
         for file in files {
             let key = resource_key(&file.stem, &file.extension);
             self.file_mod_tracker.track(file.path.clone(), file.mtime);
 
-            if file.extension == "2da" {
-                tda_paths.insert(file.stem.clone(), file.path.clone());
-            }
-
             let location = ResourceLocation::from_file(source.clone(), file.path, file.mtime);
-            self.resource_index.insert(key, location);
+            self.resource_index.entry(key).or_default().push(location);
         }
-        tda_paths
     }
 
     async fn load_base_tlk(&mut self) -> ResourceManagerResult<()> {
@@ -460,18 +449,23 @@ impl ResourceManager {
 
     pub fn get_2da(&self, name: &str) -> ResourceManagerResult<Arc<TDAParser>> {
         let name_lower = name.to_lowercase().replace(".2da", "");
+        let cache_key = (name_lower.clone(), OverrideSource::BaseGame);
 
-        if let Some(parser) = self.base_game_cache.get(&name_lower) {
+        if let Some(parser) = self.tda_cache.get(&cache_key) {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
             return Ok(Arc::clone(&parser));
         }
 
-        if let Some(location) = self.tda_locations.get(&name_lower) {
-            // self.cache_hits += 1; // It's a "hit" on location but "miss" on parser cache
-            // Actually, we should call load_2da_from_location which will parse and cache it
-            let parser = self.load_2da_from_location(location.clone())?;
-            self.base_game_cache.insert(name_lower, Arc::clone(&parser));
-            return Ok(parser);
+        let resource_key = format!("{name_lower}.2da");
+        if let Some(locations) = self.resource_index.get(&resource_key) {
+            if let Some(location) = locations
+                .iter()
+                .find(|l| matches!(l.source, OverrideSource::BaseGame))
+            {
+                let parser = self.load_2da_from_location(location.clone())?;
+                self.tda_cache.insert(cache_key, Arc::clone(&parser));
+                return Ok(parser);
+            }
         }
 
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
@@ -480,47 +474,26 @@ impl ResourceManager {
 
     pub fn get_2da_with_overrides(&self, name: &str) -> ResourceManagerResult<Arc<TDAParser>> {
         let name_lower = name.to_lowercase().replace(".2da", "");
+        let resource_key = format!("{name_lower}.2da");
 
-        // 1. Check custom override paths (highest priority)
-        if let Some(path) = self.custom_override_paths.get(&name_lower) {
-            if let Some(parser) = self.custom_override_cache.get(&name_lower) {
+        // Pick the highest-priority non-base-game location
+        if let Some(locations) = self.resource_index.get(&resource_key)
+            && let Some(location) = locations
+                .iter()
+                .filter(|l| !matches!(l.source, OverrideSource::BaseGame))
+                .max_by_key(|l| l.source.priority())
+        {
+            let cache_key = (name_lower.clone(), location.source.clone());
+            if let Some(parser) = self.tda_cache.get(&cache_key) {
                 self.cache_hits.fetch_add(1, Ordering::Relaxed);
                 return Ok(Arc::clone(&parser));
             }
-            let parser = self.parse_2da_file(path)?;
-            let arc = Arc::new(parser);
-            self.custom_override_cache
-                .insert(name_lower.clone(), Arc::clone(&arc));
-            return Ok(arc);
+            let parser = self.load_2da_from_location(location.clone())?;
+            self.tda_cache.insert(cache_key, Arc::clone(&parser));
+            return Ok(parser);
         }
 
-        // 2. Check traditional override directory (Documents/override)
-        if let Some(path) = self.override_file_paths.get(&name_lower) {
-            if let Some(parser) = self.override_dir_cache.get(&name_lower) {
-                self.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(Arc::clone(&parser));
-            }
-            let parser = self.parse_2da_file(path)?;
-            let arc = Arc::new(parser);
-            self.override_dir_cache
-                .insert(name_lower.clone(), Arc::clone(&arc));
-            return Ok(arc);
-        }
-
-        // 3. Check Workshop content
-        if let Some(path) = self.workshop_file_paths.get(&name_lower) {
-            if let Some(parser) = self.workshop_cache.get(&name_lower) {
-                self.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(Arc::clone(&parser));
-            }
-            let parser = self.parse_2da_file(path)?;
-            let arc = Arc::new(parser);
-            self.workshop_cache
-                .insert(name_lower.clone(), Arc::clone(&arc));
-            return Ok(arc);
-        }
-
-        // 4. Check HAK overrides (Module specified)
+        // HAK overrides (pre-parsed from ERF, not in resource_index)
         for hak_cache in &self.hak_overrides {
             if let Some(parser) = hak_cache.get(&name_lower) {
                 self.cache_hits.fetch_add(1, Ordering::Relaxed);
@@ -528,26 +501,13 @@ impl ResourceManager {
             }
         }
 
-        // 5. Check campaign folder (campaign.cam linked)
-        if let Some(path) = self.campaign_override_paths.get(&name_lower) {
-            if let Some(parser) = self.campaign_overrides.get(&name_lower) {
-                self.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(Arc::clone(&parser));
-            }
-            let parser = self.parse_2da_file(path)?;
-            let arc = Arc::new(parser);
-            self.campaign_overrides
-                .insert(name_lower.clone(), Arc::clone(&arc));
-            return Ok(arc);
-        }
-
-        // 6. Check module overrides (inside .mod files)
+        // Module overrides (pre-parsed from .mod, not in resource_index)
         if let Some(parser) = self.module_overrides.get(&name_lower) {
             self.cache_hits.fetch_add(1, Ordering::Relaxed);
             return Ok(Arc::clone(&parser));
         }
 
-        // 7. Base Game (fallback)
+        // Base game fallback
         self.get_2da(&name_lower)
     }
 
@@ -734,8 +694,13 @@ impl ResourceManager {
         let cached_state = CachedModuleState {
             module_info: module_info.clone(),
             hak_overrides: self.hak_overrides.clone(),
-            module_overrides: self.module_overrides.clone().into_iter().collect(), // convert DashMap to HashMap for caching
-            campaign_overrides: self.campaign_overrides.clone().into_iter().collect(),
+            module_overrides: self.module_overrides.clone().into_iter().collect(),
+            campaign_overrides: self
+                .tda_cache
+                .iter()
+                .filter(|entry| matches!(entry.key().1, OverrideSource::Campaign))
+                .map(|entry| (entry.key().0.clone(), entry.value().clone()))
+                .collect(),
             custom_tlk_path: None,
             last_accessed: 0,
         };
@@ -757,9 +722,8 @@ impl ResourceManager {
         for (k, v) in cached.module_overrides {
             self.module_overrides.insert(k, v);
         }
-        self.campaign_overrides.clear();
         for (k, v) in cached.campaign_overrides {
-            self.campaign_overrides.insert(k, v);
+            self.tda_cache.insert((k, OverrideSource::Campaign), v);
         }
     }
 
@@ -806,17 +770,32 @@ impl ResourceManager {
             self.current_campaign_folder = Some(campaign_folder.clone());
             self.current_campaign_id = Some(guid.to_string());
 
-            self.campaign_override_paths.clear();
-            self.campaign_overrides.clear();
+            // Remove old campaign entries from resource_index
+            for locs in self.resource_index.values_mut() {
+                locs.retain(|l| !matches!(l.source, OverrideSource::Campaign));
+            }
+
+            // Clear campaign entries from tda_cache
+            self.tda_cache
+                .retain(|k, _| !matches!(k.1, OverrideSource::Campaign));
 
             let files = crate::utils::directory_scanner::scan_directory(&campaign_folder, true);
-            let tdas = self.index_scanned_files(files, OverrideSource::Campaign);
-            self.campaign_override_paths.extend(tdas);
+            self.index_scanned_files(files, OverrideSource::Campaign);
+
+            let campaign_2da_count = self
+                .resource_index
+                .iter()
+                .filter(|(k, locs)| {
+                    k.ends_with(".2da")
+                        && locs
+                            .iter()
+                            .any(|l| matches!(l.source, OverrideSource::Campaign))
+                })
+                .count();
 
             info!(
                 "Set campaign: {} with {} 2DA overrides",
-                guid,
-                self.campaign_override_paths.len()
+                guid, campaign_2da_count
             );
             return Ok(true);
         }
@@ -880,29 +859,50 @@ impl ResourceManager {
         }
 
         let files = crate::utils::directory_scanner::scan_directory(path, true);
-        let tdas = self.index_scanned_files(files, OverrideSource::CustomOverride);
-        self.custom_override_paths.extend(tdas);
-        self.custom_override_cache.clear();
+        self.index_scanned_files(files, OverrideSource::CustomOverride);
+
+        self.tda_cache
+            .retain(|k, _| !matches!(k.1, OverrideSource::CustomOverride));
+
+        let custom_2da_count = self
+            .resource_index
+            .iter()
+            .filter(|(k, locs)| {
+                k.ends_with(".2da")
+                    && locs
+                        .iter()
+                        .any(|l| matches!(l.source, OverrideSource::CustomOverride))
+            })
+            .count();
 
         info!(
-            "Added custom override directory: {} ({} 2DAs)",
+            "Added custom override directory: {} ({} total custom 2DAs)",
             path.display(),
-            self.custom_override_paths.len()
+            custom_2da_count
         );
         Ok(true)
     }
 
     pub fn remove_custom_override_directory(&mut self, path: &Path) -> bool {
         let path_str = path.display().to_string();
-        let before = self.custom_override_paths.len();
+        let mut removed = 0usize;
 
-        self.custom_override_paths
-            .retain(|_, p| !p.starts_with(path));
-        self.custom_override_cache.clear();
+        for locs in self.resource_index.values_mut() {
+            let before = locs.len();
+            locs.retain(|l| {
+                !(matches!(l.source, OverrideSource::CustomOverride)
+                    && l.container_path.starts_with(path))
+            });
+            removed += before - locs.len();
+        }
 
-        let removed = before - self.custom_override_paths.len();
+        self.resource_index.retain(|_, v| !v.is_empty());
+
+        self.tda_cache
+            .retain(|k, _| !matches!(k.1, OverrideSource::CustomOverride));
+
         info!(
-            "Removed custom override directory: {} ({} 2DAs removed)",
+            "Removed custom override directory: {} ({} resources removed)",
             path_str, removed
         );
         removed > 0
@@ -911,10 +911,7 @@ impl ResourceManager {
     pub fn clear_override_caches(&mut self) {
         self.hak_overrides.clear();
         self.module_overrides.clear();
-        self.campaign_overrides.clear();
-        self.override_dir_cache.clear();
-        self.workshop_cache.clear();
-        self.custom_override_cache.clear();
+        self.tda_cache.clear();
         self.custom_tlk_cache = None;
         self.current_module = None;
         self.module_path = None;
@@ -929,9 +926,7 @@ impl ResourceManager {
         for path in &modified {
             if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                 let name_lower = name.to_lowercase();
-                self.override_dir_cache.remove(&name_lower);
-                self.workshop_cache.remove(&name_lower);
-                self.custom_override_cache.remove(&name_lower);
+                self.tda_cache.retain(|k, _| k.0 != name_lower);
             }
             self.file_mod_tracker.update(path);
         }
@@ -1141,9 +1136,14 @@ impl ResourceManager {
     pub fn get_cache_stats(&self) -> CacheStats {
         let hits = self.cache_hits.load(Ordering::Relaxed);
         let misses = self.cache_misses.load(Ordering::Relaxed);
+        let tda_count = self
+            .resource_index
+            .keys()
+            .filter(|k| k.ends_with(".2da"))
+            .count();
 
         CacheStats {
-            size: self.tda_locations.len(),
+            size: tda_count,
             max_size: 0,
             hits,
             misses,
@@ -1168,12 +1168,11 @@ impl ResourceManager {
     }
 
     pub fn get_available_2da_files(&self) -> Vec<String> {
-        let mut files: std::collections::HashSet<String> =
-            self.tda_locations.keys().cloned().collect();
-        files.extend(self.workshop_file_paths.keys().cloned());
-        files.extend(self.override_file_paths.keys().cloned());
-        files.extend(self.custom_override_paths.keys().cloned());
-        files.into_iter().collect()
+        self.resource_index
+            .keys()
+            .filter(|k| k.ends_with(".2da"))
+            .map(|k| k.trim_end_matches(".2da").to_string())
+            .collect()
     }
 
     pub fn get_tlk_parser(&self) -> Option<Arc<StdRwLock<TLKParser>>> {
@@ -1191,7 +1190,9 @@ impl ResourceManager {
     ) -> ResourceManagerResult<Vec<u8>> {
         let key = resource_key(&resref.to_lowercase(), &extension.to_lowercase());
 
-        if let Some(location) = self.resource_index.get(&key) {
+        if let Some(locations) = self.resource_index.get(&key)
+            && let Some(location) = locations.iter().max_by_key(|l| l.source.priority())
+        {
             return match &location.container_type {
                 ContainerType::Directory => Ok(std::fs::read(&location.container_path)?),
                 ContainerType::Zip => {
@@ -1247,7 +1248,8 @@ impl ResourceManager {
             .resource_index
             .iter()
             .filter(|(key, _)| key.ends_with(&ext_suffix))
-            .map(|(key, loc)| {
+            .map(|(key, locs)| {
+                let loc = locs.iter().max_by_key(|l| l.source.priority()).unwrap();
                 let source = loc
                     .container_path
                     .file_name()
@@ -1274,16 +1276,21 @@ impl ResourceManager {
 
         drop(zip_reader);
 
-        // Also scan override dirs (already indexed at init)
-        // override_file_paths keys are file stems without extension (e.g. "p_hhm_head01")
+        // Also check indexed override resources
         let prefix_lower = prefix.to_lowercase();
         let ext_lower = extension.to_lowercase();
-        for (name, path) in &self.override_file_paths {
-            let has_matching_ext = path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case(&ext_lower));
-            if name.starts_with(&prefix_lower) && has_matching_ext {
-                results.push(format!("{name}.{ext_lower}"));
+        let ext_suffix = format!(".{ext_lower}");
+        for (key, locs) in &self.resource_index {
+            if !key.ends_with(&ext_suffix) {
+                continue;
+            }
+            let stem = key.trim_end_matches(&ext_suffix);
+            if stem.starts_with(&prefix_lower)
+                && locs
+                    .iter()
+                    .any(|l| !matches!(l.source, OverrideSource::BaseGame))
+            {
+                results.push(key.clone());
             }
         }
 
