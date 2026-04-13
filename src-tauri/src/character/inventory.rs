@@ -1267,7 +1267,7 @@ impl super::Character {
         slot: EquipmentSlot,
         game_data: &GameData,
     ) -> Result<EquipResult, CharacterError> {
-        let mut inv_list = self
+        let inv_list = self
             .get_list_owned("ItemList")
             .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
 
@@ -1279,6 +1279,7 @@ impl super::Character {
         }
 
         let item_struct = inv_list[inventory_index].clone();
+        drop(inv_list);
 
         let base_item_id = item_struct
             .get("BaseItem")
@@ -1304,6 +1305,9 @@ impl super::Character {
             swapped_item = unequip_result.unequipped_item;
         }
 
+        let mut inv_list = self
+            .get_list_owned("ItemList")
+            .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
         inv_list.remove(inventory_index);
         self.set_list("ItemList", inv_list);
 
