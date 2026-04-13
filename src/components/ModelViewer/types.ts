@@ -27,6 +27,7 @@ export interface BoneData {
   position: [number, number, number];
   rotation: [number, number, number, number];
   scale: [number, number, number];
+  inverse_world_4x4: number[];
 }
 
 export interface HookData {
@@ -49,10 +50,25 @@ export interface HelmData {
   orientation: [[number, number, number], [number, number, number], [number, number, number]];
 }
 
+export interface TrackData {
+  bone_name: string;
+  times: number[];
+  positions: number[] | null;
+  rotations: number[] | null;
+  scales: number[] | null;
+}
+
+export interface AnimationData {
+  name: string;
+  duration: number;
+  tracks: TrackData[];
+}
+
 export interface ModelData {
   meshes: MeshData[];
   hooks: HookData[];
   hair: HairData[];
   helm: HelmData[];
   skeleton: { bones: BoneData[] } | null;
+  animations: AnimationData[];
 }

@@ -97,10 +97,27 @@ pub struct Gr2Bone {
     pub name: String,
     pub parent_index: i32,
     pub transform: BoneTransform,
+    pub inverse_world_4x4: [f32; 16],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Gr2Skeleton {
     pub name: String,
     pub bones: Vec<Gr2Bone>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Gr2Track {
+    pub bone_name: String,
+    pub position_keys: Vec<(f32, [f32; 3])>,
+    pub rotation_keys: Vec<(f32, [f32; 4])>,
+    pub scale_keys: Vec<(f32, [f32; 3])>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Gr2Animation {
+    pub name: String,
+    pub duration: f32,
+    pub time_step: f32,
+    pub tracks: Vec<Gr2Track>,
 }

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button, Card, Elevation, HTMLSelect, InputGroup, NonIdealState, Slider, Spinner, Switch } from '@blueprintjs/core';
+import { GiMirrorMirror, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
@@ -166,7 +168,7 @@ export function AppearancePanel() {
   useEffect(() => { if (dataGirth !== undefined) setLiveGirth(dataGirth); }, [dataGirth]);
 
   if (!character) {
-    return <NonIdealState icon="style" title={t('character.noCharacter')} description={t('character.loadSaveFile')} />;
+    return <NonIdealState icon={<GameIcon icon={GiMirrorMirror} size={40} />} title={t('character.noCharacter')} description={t('character.loadSaveFile')} />;
   }
 
   if (appearanceSubsystem.isLoading && !appearanceSubsystem.data) {
@@ -462,6 +464,8 @@ export function AppearancePanel() {
           refreshPart={partRefresh}
           tintHead={data.tint_head}
           tintHair={data.tint_hair}
+          tintCloak={data.cloak_tint}
+          tintArmor={data.armor_tint}
           height={liveHeight}
           girth={liveGirth}
         />

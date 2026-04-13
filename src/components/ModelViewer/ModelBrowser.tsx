@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { InputGroup, Spinner, NonIdealState, Tag } from '@blueprintjs/core';
+import { GiBrokenShield, GiCube, GiMagnifyingGlass } from 'react-icons/gi';
+import { GameIcon } from '../shared/GameIcon';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -102,7 +104,7 @@ export function ModelBrowser() {
   }
 
   if (error) {
-    return <NonIdealState icon="error" title={t('modelViewer.error')} description={error} />;
+    return <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('modelViewer.error')} description={error} />;
   }
 
   return (
@@ -140,7 +142,7 @@ export function ModelBrowser() {
         {selectedResref ? (
           <AssetViewer3D resref={selectedResref} />
         ) : (
-          <NonIdealState icon="cube" title={t('modelViewer.selectModel')} />
+          <NonIdealState icon={<GameIcon icon={GiCube} size={40} />} title={t('modelViewer.selectModel')} />
         )}
       </div>
     </div>

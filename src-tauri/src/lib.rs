@@ -12,8 +12,8 @@ pub mod utils;
 mod window_manager;
 
 use std::sync::Arc;
-use tauri::image::Image;
 use tauri::Manager;
+use tauri::image::Image;
 use tracing::{debug, info};
 
 use file_operations::{

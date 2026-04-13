@@ -29,6 +29,12 @@ pub enum Gr2Error {
     #[error("No skeleton data found in GR2 file")]
     NoSkeleton,
 
+    #[error("No animations found in GR2 file")]
+    NoAnimations,
+
+    #[error("Unsupported curve format: {format}")]
+    UnsupportedCurveFormat { format: u32 },
+
     #[error("Unexpected end of data at offset {offset}")]
     UnexpectedEof { offset: usize },
 }

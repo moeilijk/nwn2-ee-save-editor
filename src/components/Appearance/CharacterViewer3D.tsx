@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { invoke } from '@tauri-apps/api/core';
 import { createMaterial, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
-import { buildSkeleton, buildMesh } from '../ModelViewer/meshBuilder';
+import { buildSkeleton, buildMesh, buildAnimationClips } from '../ModelViewer/meshBuilder';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
 import type { MeshData, ModelData } from '../ModelViewer/types';
 import type { TintChannels } from '@/lib/bindings';
@@ -23,21 +23,30 @@ interface CharacterViewer3DProps {
   refreshPart: { parts: PartType[]; key: number } | null;
   tintHead: TintChannels;
   tintHair: TintChannels;
+  tintCloak?: TintChannels | null;
+  tintArmor?: TintChannels | null;
   height: number;
   girth: number;
 }
 
-export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair, height, girth }: CharacterViewer3DProps) {
+export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair, tintCloak, tintArmor, height, girth }: CharacterViewer3DProps) {
   const skeletonRef = useRef<{ skeleton: THREE.Skeleton; rootBone: THREE.Bone } | null>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const tintHeadRef = useRef(tintHead);
   const tintHairRef = useRef(tintHair);
+  const tintCloakRef = useRef(tintCloak);
+  const tintArmorRef = useRef(tintArmor);
   const heightRef = useRef(height);
   const girthRef = useRef(girth);
   tintHeadRef.current = tintHead;
   tintHairRef.current = tintHair;
+  tintCloakRef.current = tintCloak;
+  tintArmorRef.current = tintArmor;
   heightRef.current = height;
   girthRef.current = girth;
 
@@ -45,6 +54,9 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     const model = scene.getObjectByName('__model');
     if (model) {
       model.scale.set(girthRef.current, heightRef.current, girthRef.current);
+    }
+    if (mixerRef.current) {
+      mixerRef.current.update(clockRef.current.getDelta());
     }
   }, []);
 
@@ -55,7 +67,16 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     const hairColors = tintChannelsToColors(tintHairRef.current);
     const white: TintColors = { channel1: [1, 1, 1], channel2: [1, 1, 1], channel3: [1, 1, 1] };
     const fhairColors: TintColors = { channel1: hairColors.channel1, channel2: [1, 1, 1], channel3: [1, 1, 1] };
-    return { head: headColors, hair: hairColors, fhair: fhairColors, body: white };
+    const cloakColors = tintCloakRef.current ? tintChannelsToColors(tintCloakRef.current) : white;
+    const armorColors = tintArmorRef.current ? tintChannelsToColors(tintArmorRef.current) : white;
+    // DEBUG: log armor tint values
+    if (tintArmorRef.current) {
+      const t = tintArmorRef.current;
+      console.log(`[TINT] armor ch1=(${t.channel1.r},${t.channel1.g},${t.channel1.b}) ch2=(${t.channel2.r},${t.channel2.g},${t.channel2.b}) ch3=(${t.channel3.r},${t.channel3.g},${t.channel3.b})`);
+    } else {
+      console.log('[TINT] armor: no tint data, using white');
+    }
+    return { head: headColors, hair: hairColors, fhair: fhairColors, body: armorColors, cloak: cloakColors };
   }
 
   const partGroupName = (part: string) => `__part_${part}`;
@@ -66,7 +87,6 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     tintMap: Record<string, TintColors>,
     skeleton?: THREE.Skeleton,
     rootBone?: THREE.Bone,
-    preserveInverses = false,
   ): Promise<THREE.Group> {
     const group = new THREE.Group();
     group.name = partGroupName(partName);
@@ -74,7 +94,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       if (/_L\d+$/i.test(meshData.name)) continue;
       const colors = tintMap[meshData.tint_group];
       const material = await createMaterial(meshData.material, colors);
-      const obj = buildMesh(meshData, material, skeleton, rootBone, preserveInverses);
+      const obj = buildMesh(meshData, material, skeleton, rootBone);
       group.add(obj);
     }
     return group;
@@ -85,6 +105,15 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!scene || !camera || !controls) return;
+
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    if (mixerRef.current) {
+      mixerRef.current.stopAllAction();
+      mixerRef.current = null;
+    }
 
     clearSceneModels(scene);
     setLoading(true);
@@ -119,8 +148,63 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       scene.add(modelGroup);
 
       frameBounds(camera, controls, scene, modelGroup);
+
+      // Set up idle animation with fidget rotation
+      if (data.animations && data.animations.length > 0 && skeletonRef.current) {
+        const boneNames = skeletonRef.current.skeleton.bones.map((b) => b.name);
+
+        const clips = buildAnimationClips(data.animations, boneNames);
+        if (clips.length > 0) {
+          const mixer = new THREE.AnimationMixer(modelGroup);
+          mixerRef.current = mixer;
+          clockRef.current = new THREE.Clock();
+
+          const idleClips = clips.filter((c) => {
+            const n = c.name.toLowerCase();
+            return n.includes('idle') && !n.includes('fidget');
+          });
+          const fidgetClips = clips.filter((c) => c.name.toLowerCase().includes('fidget'));
+
+          if (idleClips.length === 0) idleClips.push(clips[0]);
+
+          const actions = idleClips.map((c) => {
+            const a = mixer.clipAction(c);
+            a.setLoop(THREE.LoopOnce, 1);
+            a.clampWhenFinished = true;
+            return a;
+          });
+          const fidgetActions = fidgetClips.map((c) => {
+            const a = mixer.clipAction(c);
+            a.setLoop(THREE.LoopOnce, 1);
+            a.clampWhenFinished = true;
+            return a;
+          });
+
+          let currentAction: THREE.AnimationAction | null = null;
+          let lastWasFidget = false;
+
+          const playNext = () => {
+            const useFidget = !lastWasFidget && Math.random() < 0.2 && fidgetActions.length > 0;
+            const pool = useFidget ? fidgetActions : actions;
+            const next = pool[Math.floor(Math.random() * pool.length)];
+            lastWasFidget = useFidget;
+
+            if (currentAction && currentAction !== next) {
+              currentAction.crossFadeTo(next, 0.3, true);
+            }
+            next.reset().play();
+            currentAction = next;
+          };
+
+          mixer.addEventListener('finished', () => {
+            playNext();
+          });
+
+          playNext();
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err));
     } finally {
       setLoading(false);
     }
@@ -140,14 +224,14 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       const skel = skeletonRef.current;
 
       const newGroup = data.meshes.length > 0
-        ? await buildPartGroup(data.meshes, part, tintMap, skel?.skeleton, skel?.rootBone, true)
+        ? await buildPartGroup(data.meshes, part, tintMap, skel?.skeleton, skel?.rootBone)
         : null;
 
       const old = modelGroup.getObjectByName(partGroupName(part));
       if (old) modelGroup.remove(old);
       if (newGroup) modelGroup.add(newGroup);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

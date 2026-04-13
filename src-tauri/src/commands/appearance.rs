@@ -2,7 +2,7 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use crate::character::{AppearanceOption, AppearanceState, Character, TintChannels};
 use crate::commands::{CommandError, CommandResult};
@@ -140,13 +140,13 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         .resolve_model_parts(&game_data)
         .ok_or_else(|| CommandError::Internal("Failed to resolve character model parts".into()))?;
 
-    debug!(
-        "Resolved model parts: {} body parts, head={}, hair={:?}, helm={:?}, skel={}",
-        parts.body_parts.len(),
-        parts.head_resref,
-        parts.hair_resref,
-        parts.helm_candidates.first().unwrap_or(&String::new()),
-        parts.skeleton_resref
+    info!(
+        "Model parts: body={:?}, boots={:?}, gloves={:?}, helm={:?}, cloak={:?}",
+        parts.body_parts,
+        parts.boots_candidates,
+        parts.gloves_candidates,
+        parts.helm_candidates,
+        parts.cloak_resref,
     );
 
     let rm = state.resource_manager.blocking_read();
@@ -173,6 +173,10 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
     if !body_loaded {
+        warn!(
+            "Body candidates all failed: {:?}, falling back to naked: {}",
+            parts.body_parts, parts.naked_body_resref
+        );
         if let Ok(part_data) = model_loader::load_model_with_skeleton(
             &rm,
             &parts.naked_body_resref,
@@ -309,7 +313,7 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
             cloak_resref,
             &parts.skeleton_resref,
             "cloak",
-            "body",
+            "cloak",
         ) {
             Ok(cloak_data) => all_meshes.extend(cloak_data.meshes),
             Err(e) => warn!("Failed to load cloak model '{}': {}", cloak_resref, e),
@@ -322,12 +326,19 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         ));
     }
 
+    let animations = if skeleton.is_some() {
+        model_loader::load_idle_animations(&rm, &parts.skeleton_resref)
+    } else {
+        Vec::new()
+    };
+
     Ok(ModelData {
         meshes: all_meshes,
         hooks: Vec::new(),
         hair: Vec::new(),
         helm: Vec::new(),
         skeleton,
+        animations,
     })
 }
 
@@ -457,7 +468,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
                     resref,
                     &parts.skeleton_resref,
                     "cloak",
-                    "body",
+                    "cloak",
                 )
             {
                 meshes.extend(data.meshes);
@@ -474,6 +485,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         hair: Vec::new(),
         helm: Vec::new(),
         skeleton: None,
+        animations: Vec::new(),
     })
 }
 

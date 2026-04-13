@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use tracing::debug;
+use tracing::{debug, warn};
 
 use super::Character;
 use crate::character::gff_helpers::gff_value_to_i32;
@@ -58,6 +58,8 @@ pub struct AppearanceState {
     pub is_parts_based: bool,
     pub has_fhair_meshes: bool,
     pub never_draw_helmet: bool,
+    pub cloak_tint: Option<TintChannels>,
+    pub armor_tint: Option<TintChannels>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
@@ -81,6 +83,8 @@ pub struct CharacterModelParts {
     pub boots_candidates: Vec<String>,
     pub gloves_candidates: Vec<String>,
     pub cloak_resref: Option<String>,
+    pub cloak_tint: Option<TintChannels>,
+    pub armor_tint: Option<TintChannels>,
 }
 
 struct PartVisual {
@@ -90,10 +94,13 @@ struct PartVisual {
 
 struct EquippedVisuals {
     armor_prefixes: Vec<String>,
+    armor_variation: i32,
     helm_visual: Option<i32>,
     boots: Option<PartVisual>,
     gloves: Option<PartVisual>,
     cloak_variation: Option<i32>,
+    cloak_tint: Option<TintChannels>,
+    armor_tint: Option<TintChannels>,
 }
 
 impl Character {
@@ -386,8 +393,9 @@ impl Character {
         let (available_heads, available_hairs, is_parts_based) =
             self.discover_model_variants(game_data, resource_manager);
 
-        let has_fhair_meshes = self
-            .resolve_model_parts(game_data)
+        let model_parts = self.resolve_model_parts(game_data);
+        let has_fhair_meshes = model_parts
+            .as_ref()
             .map(|parts| {
                 crate::services::model_loader::head_has_fhair_meshes(
                     resource_manager,
@@ -395,6 +403,9 @@ impl Character {
                 )
             })
             .unwrap_or(false);
+        let cloak_tint = model_parts.as_ref().and_then(|p| p.cloak_tint.clone());
+        let armor_tint = model_parts.and_then(|p| p.armor_tint);
+        debug!("AppearanceState: armor_tint={armor_tint:?}, cloak_tint={cloak_tint:?}");
 
         AppearanceState {
             race_id: self.race_id().0,
@@ -427,6 +438,8 @@ impl Character {
             is_parts_based,
             has_fhair_meshes,
             never_draw_helmet: self.never_draw_helmet(),
+            cloak_tint,
+            armor_tint,
         }
     }
 
@@ -491,17 +504,38 @@ impl Character {
 
     pub fn resolve_model_parts(&self, game_data: &GameData) -> Option<CharacterModelParts> {
         let appearance_id = self.appearance_type();
-        let appearance_table = game_data.get_table("appearance")?;
-        let row = appearance_table.get_by_id(appearance_id)?;
+        let appearance_table = game_data.get_table("appearance").or_else(|| {
+            warn!("appearance.2da not loaded");
+            None
+        })?;
+        let row = appearance_table.get_by_id(appearance_id).or_else(|| {
+            warn!("No appearance row for id {appearance_id}");
+            None
+        })?;
 
         let gender_id = self.gender();
-        let gender_table = game_data.get_table("gender")?;
-        let gender_row = gender_table.get_by_id(gender_id)?;
+        let gender_table = game_data.get_table("gender").or_else(|| {
+            warn!("gender.2da not loaded");
+            None
+        })?;
+        let gender_row = gender_table.get_by_id(gender_id).or_else(|| {
+            warn!("No gender row for id {gender_id}");
+            None
+        })?;
         let gender_letter = row_str(&gender_row, "gender").unwrap_or_else(|| "M".to_string());
 
-        let body_template = row_str(&row, "nwn2_model_body")?;
-        let head_template = row_str(&row, "nwn2_model_head")?;
-        let skel_template = row_str(&row, "nwn2_skeleton_file")?;
+        let body_template = row_str(&row, "nwn2_model_body").or_else(|| {
+            warn!("No nwn2_model_body for appearance {appearance_id}");
+            None
+        })?;
+        let head_template = row_str(&row, "nwn2_model_head").or_else(|| {
+            warn!("No nwn2_model_head for appearance {appearance_id}");
+            None
+        })?;
+        let skel_template = row_str(&row, "nwn2_skeleton_file").or_else(|| {
+            warn!("No nwn2_skeleton_file for appearance {appearance_id}");
+            None
+        })?;
 
         let body_prefix = body_template.replace('?', &gender_letter);
         let head_prefix = head_template.replace('?', &gender_letter);
@@ -514,16 +548,20 @@ impl Character {
         // Extract all equipped visual info in one pass
         let equip_visuals = self.resolve_equipped_visuals(game_data);
         let armor_prefixes = &equip_visuals.armor_prefixes;
-        let primary_armor_prefix = armor_prefixes.first().map(|s| s.as_str()).unwrap_or("NK");
-
         let body_parts = if model_type.to_uppercase() == "P" {
-            // Try each candidate prefix, naked body is handled as fallback in command
+            let var = equip_visuals.armor_variation;
             let mut parts: Vec<String> = armor_prefixes
                 .iter()
-                .map(|pfx| format!("{body_prefix}_{pfx}_Body01"))
+                .map(|pfx| format!("{body_prefix}_{pfx}_Body{var:02}"))
                 .collect();
+            // Fallback to variation 01 if the requested variation doesn't exist
+            if var != 1 {
+                for pfx in armor_prefixes {
+                    parts.push(format!("{body_prefix}_{pfx}_Body01"));
+                }
+            }
             if parts.is_empty() {
-                parts.push(naked_body_resref.clone());
+                parts.push(format!("{body_prefix}_CL_Body01"));
             }
             debug!("Body model candidates: {parts:?}");
             parts
@@ -543,17 +581,19 @@ impl Character {
         let show_fhair = self.appearance_fhair() > 0;
 
         let wings_resref = if self.wings() > 0 {
-            let wing_table = game_data.get_table("wingmodel")?;
-            let wing_row = wing_table.get_by_id(self.wings())?;
-            row_str(&wing_row, "model")
+            game_data
+                .get_table("wingmodel")
+                .and_then(|t| t.get_by_id(self.wings()))
+                .and_then(|r| row_str(&r, "model"))
         } else {
             None
         };
 
         let tail_resref = if self.tail() > 0 {
-            let tail_table = game_data.get_table("tailmodel")?;
-            let tail_row = tail_table.get_by_id(self.tail())?;
-            row_str(&tail_row, "model")
+            game_data
+                .get_table("tailmodel")
+                .and_then(|t| t.get_by_id(self.tail()))
+                .and_then(|r| row_str(&r, "model"))
         } else {
             None
         };
@@ -569,13 +609,13 @@ impl Character {
 
         let boots_candidates = Self::build_part_candidates(
             &body_prefix,
-            primary_armor_prefix,
+            armor_prefixes,
             "Boots",
             equip_visuals.boots.as_ref(),
         );
         let gloves_candidates = Self::build_part_candidates(
             &body_prefix,
-            primary_armor_prefix,
+            armor_prefixes,
             "Gloves",
             equip_visuals.gloves.as_ref(),
         );
@@ -603,6 +643,8 @@ impl Character {
             boots_candidates,
             gloves_candidates,
             cloak_resref,
+            cloak_tint: equip_visuals.cloak_tint,
+            armor_tint: equip_visuals.armor_tint,
         })
     }
 
@@ -644,26 +686,33 @@ impl Character {
 
     fn build_part_candidates(
         body_prefix: &str,
-        chest_armor_prefix: &str,
+        chest_armor_prefixes: &[String],
         part_name: &str,
         part_visual: Option<&PartVisual>,
     ) -> Vec<String> {
-        let Some(pv) = part_visual else {
-            return Vec::new();
+        let mut candidates = Vec::new();
+        let mut push = |c: String| {
+            if !candidates.contains(&c) {
+                candidates.push(c);
+            }
         };
 
-        let mut candidates = Vec::new();
-        let var = pv.variation;
+        if let Some(pv) = part_visual {
+            let var = pv.variation;
+            for pfx in &pv.armor_prefixes {
+                push(format!("{body_prefix}_{pfx}_{part_name}{var:02}"));
+            }
+            for pfx in chest_armor_prefixes {
+                push(format!("{body_prefix}_{pfx}_{part_name}{var:02}"));
+            }
+        }
 
-        // Try the part's own prefix(es) first
-        for pfx in &pv.armor_prefixes {
-            candidates.push(format!("{body_prefix}_{pfx}_{part_name}{var:02}"));
+        // Default: try each chest armor prefix with variation 01
+        for pfx in chest_armor_prefixes {
+            push(format!("{body_prefix}_{pfx}_{part_name}01"));
         }
-        // Then try the chest armor prefix
-        let chest_candidate = format!("{body_prefix}_{chest_armor_prefix}_{part_name}{var:02}");
-        if !candidates.contains(&chest_candidate) {
-            candidates.push(chest_candidate);
-        }
+        // Last resort: CL (Cloth) which always has boots/gloves
+        push(format!("{body_prefix}_CL_{part_name}01"));
 
         candidates
     }
@@ -700,41 +749,99 @@ impl Character {
     fn resolve_equipped_visuals(&self, game_data: &GameData) -> EquippedVisuals {
         let mut result = EquippedVisuals {
             armor_prefixes: Vec::new(),
+            armor_variation: 1,
             helm_visual: None,
             boots: None,
             gloves: None,
             cloak_variation: None,
+            cloak_tint: None,
+            armor_tint: None,
         };
 
         let Some(equip_list) = self.get_list_owned("Equip_ItemList") else {
             return result;
         };
 
-        let chest_bitmask = EquipmentSlot::Chest.to_bitmask();
-        let head_bitmask = EquipmentSlot::Head.to_bitmask();
-        let boots_bitmask = EquipmentSlot::Boots.to_bitmask();
-        let gloves_bitmask = EquipmentSlot::Gloves.to_bitmask();
+        let baseitems_table = game_data.get_table("baseitems");
 
         for item_struct in &equip_list {
-            let struct_id = item_struct
-                .get("__struct_id__")
+            // Determine equipment slot from BaseItem -> baseitems.2da EquipableSlots
+            // This is more reliable than __struct_id__ which some saves don't set correctly
+            let base_item = item_struct
+                .get("BaseItem")
                 .and_then(gff_value_to_i32)
-                .unwrap_or(0) as u32;
+                .unwrap_or(-1);
+            let equip_slots = baseitems_table
+                .as_ref()
+                .and_then(|t| t.get_by_id(base_item))
+                .and_then(|row| {
+                    row_str(&row, "equipableslots").and_then(|s| {
+                        let s = s.trim();
+                        if let Some(hex) = s.strip_prefix("0x") {
+                            u32::from_str_radix(hex, 16).ok()
+                        } else {
+                            s.parse::<u32>().ok()
+                        }
+                    })
+                })
+                .unwrap_or(0);
 
-            if struct_id == chest_bitmask {
+            let is_chest = equip_slots & EquipmentSlot::Chest.to_bitmask() != 0;
+            let is_head = equip_slots & EquipmentSlot::Head.to_bitmask() != 0;
+            let is_boots = equip_slots & EquipmentSlot::Boots.to_bitmask() != 0;
+            let is_gloves = equip_slots & EquipmentSlot::Gloves.to_bitmask() != 0;
+            let is_cloak = equip_slots & EquipmentSlot::Cloak.to_bitmask() != 0;
+
+            let raw_equip_str = baseitems_table
+                .as_ref()
+                .and_then(|t| t.get_by_id(base_item))
+                .and_then(|row| row_str(&row, "equipableslots"));
+            debug!(
+                "Equip item: BaseItem={base_item}, raw_equipslots={raw_equip_str:?}, parsed=0x{equip_slots:04x}, chest={is_chest}, cloak={is_cloak}"
+            );
+
+            if is_chest {
                 let visual_type = item_struct
                     .get("ArmorVisualType")
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
 
-                if visual_type > 0 {
-                    result.armor_prefixes =
-                        Self::resolve_armor_prefix(game_data, visual_type, true);
-                    debug!(
-                        "Chest ArmorVisualType {visual_type} -> prefixes: {:?}",
-                        result.armor_prefixes
-                    );
+                result.armor_prefixes = Self::resolve_armor_prefix(game_data, visual_type, false);
+                // Variation is 0-indexed in GFF, body mesh files are 1-indexed (Body01, Body02...)
+                result.armor_variation = item_struct
+                    .get("Variation")
+                    .and_then(gff_value_to_i32)
+                    .map(|v| v + 1)
+                    .unwrap_or(1)
+                    .max(1);
+                debug!(
+                    "Chest ArmorVisualType {visual_type}, Variation {} -> prefixes: {:?}",
+                    result.armor_variation, result.armor_prefixes
+                );
+
+                let tintable_raw = item_struct.get("Tintable");
+                debug!("Chest Tintable raw variant: {:?}", tintable_raw.map(std::mem::discriminant));
+                if let Some(val) = tintable_raw {
+                    debug!("Chest Tintable keys: {:?}", match val {
+                        GffValue::StructOwned(s) => s.keys().cloned().collect::<Vec<_>>(),
+                        GffValue::Struct(lazy) => lazy.force_load().keys().cloned().collect::<Vec<_>>(),
+                        _ => vec!["NOT_A_STRUCT".to_string()],
+                    });
                 }
+                let tintable = match tintable_raw {
+                    Some(GffValue::StructOwned(s)) => Some(s.as_ref().clone()),
+                    Some(GffValue::Struct(lazy)) => Some(lazy.force_load()),
+                    _ => None,
+                };
+                if let Some(ref t) = tintable {
+                    debug!("Tintable has Tint key: {}", t.contains_key("Tint"));
+                    let tint = Self::read_tint_from_tintable(t);
+                    debug!("Read tint: ch1.a={}, ch2.a={}, ch3.a={}", tint.channel1.a, tint.channel2.a, tint.channel3.a);
+                    if tint.channel1.a > 0 || tint.channel2.a > 0 || tint.channel3.a > 0 {
+                        result.armor_tint = Some(tint);
+                    }
+                }
+                debug!("Armor tint: {:?}", result.armor_tint);
 
                 // Boots and Gloves are nested structs with their own ArmorVisualType + Variation
                 let boots_fields = match item_struct.get("Boots") {
@@ -769,7 +876,7 @@ impl Character {
                 }
             }
 
-            if struct_id == head_bitmask {
+            if is_head {
                 let visual_type = item_struct
                     .get("ArmorVisualType")
                     .and_then(gff_value_to_i32)
@@ -779,8 +886,7 @@ impl Character {
                 }
             }
 
-            // Equipped boots/gloves items override chest armor's sub-part visuals
-            if struct_id == boots_bitmask && result.boots.is_none() {
+            if is_boots && result.boots.is_none() {
                 result.boots = Self::parse_item_part_visual(item_struct, game_data);
                 debug!(
                     "Boots from slot: {:?}",
@@ -790,7 +896,7 @@ impl Character {
                         .map(|b| (&b.armor_prefixes, b.variation))
                 );
             }
-            if struct_id == gloves_bitmask && result.gloves.is_none() {
+            if is_gloves && result.gloves.is_none() {
                 result.gloves = Self::parse_item_part_visual(item_struct, game_data);
                 debug!(
                     "Gloves from slot: {:?}",
@@ -801,14 +907,25 @@ impl Character {
                 );
             }
 
-            if struct_id == EquipmentSlot::Cloak.to_bitmask() {
+            if is_cloak {
                 let variation = item_struct
                     .get("Variation")
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
                 if variation > 0 {
                     result.cloak_variation = Some(variation);
-                    debug!("Cloak variation: {variation}");
+                    let tintable = match item_struct.get("Tintable") {
+                        Some(GffValue::StructOwned(s)) => Some(s.as_ref().clone()),
+                        Some(GffValue::Struct(lazy)) => Some(lazy.force_load()),
+                        _ => None,
+                    };
+                    if let Some(ref t) = tintable {
+                        result.cloak_tint = Some(Self::read_tint_from_tintable(t));
+                    }
+                    debug!(
+                        "Cloak variation: {variation}, tint: {:?}",
+                        result.cloak_tint
+                    );
                 }
             }
         }

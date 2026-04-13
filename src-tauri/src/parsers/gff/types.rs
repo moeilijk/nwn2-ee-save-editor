@@ -112,10 +112,26 @@ impl LazyStruct {
             return fields.clone();
         }
 
-        let fields = self
-            .parser
-            .read_struct_fields(self.struct_index)
-            .unwrap_or_default();
+        let fields = match self.parser.read_struct_fields(self.struct_index) {
+            Ok(f) => {
+                if f.is_empty() {
+                    tracing::debug!(
+                        "force_load: struct_index={} returned 0 fields (struct_id={})",
+                        self.struct_index,
+                        self.struct_id
+                    );
+                }
+                f
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "force_load failed for struct_index={}, struct_id={}: {e}",
+                    self.struct_index,
+                    self.struct_id
+                );
+                IndexMap::new()
+            }
+        };
         let mut owned_fields: IndexMap<String, GffValue<'static>> = fields
             .into_iter()
             .map(|(k, v)| (k, v.into_owned()))

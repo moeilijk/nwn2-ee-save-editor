@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use crate::parsers::gr2::Gr2Parser;
 use crate::parsers::mdb::MdbParser;
@@ -87,6 +87,23 @@ pub struct ModelData {
     pub hair: Vec<HairData>,
     pub helm: Vec<HelmData>,
     pub skeleton: Option<SkeletonData>,
+    pub animations: Vec<AnimationData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnimationData {
+    pub name: String,
+    pub duration: f32,
+    pub tracks: Vec<TrackData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackData {
+    pub bone_name: String,
+    pub times: Vec<f32>,
+    pub positions: Option<Vec<f32>>,
+    pub rotations: Option<Vec<f32>>,
+    pub scales: Option<Vec<f32>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +143,7 @@ pub struct BoneData {
     pub position: [f32; 3],
     pub rotation: [f32; 4],
     pub scale: [f32; 3],
+    pub inverse_world_4x4: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,14 +193,20 @@ pub fn load_model(
 ) -> Result<ModelData, String> {
     let (mut data, mdb) = parse_mdb(resource_manager, resref, part, tint_group)?;
 
-    data.skeleton = mdb.skin_meshes.first().and_then(|sm| {
-        let skeleton_name = resolve_skeleton_name(&sm.name, &sm.skeleton_name);
-        debug!(
-            "Resolving skeleton '{}' for mesh '{}'",
-            skeleton_name, sm.name
-        );
-        load_skeleton(resource_manager, &skeleton_name)
-    });
+    let skeleton_name = mdb
+        .skin_meshes
+        .first()
+        .map(|sm| resolve_skeleton_name(&sm.name, &sm.skeleton_name));
+
+    if let Some(ref skel_name) = skeleton_name {
+        debug!("Resolving skeleton '{}' for model", skel_name);
+        data.skeleton = load_skeleton(resource_manager, skel_name);
+        if let Some(ref skel) = data.skeleton {
+            let palettes = build_bone_palettes(skel);
+            remap_mesh_bone_indices(&mut data.meshes, &palettes);
+            data.animations = load_idle_animations(resource_manager, skel_name);
+        }
+    }
 
     Ok(data)
 }
@@ -198,6 +222,11 @@ pub fn load_model_with_skeleton(
 
     if !mdb.skin_meshes.is_empty() {
         data.skeleton = load_skeleton(resource_manager, skeleton_resref);
+        if let Some(ref skel) = data.skeleton {
+            let palettes = build_bone_palettes(skel);
+            remap_mesh_bone_indices(&mut data.meshes, &palettes);
+            data.animations = load_idle_animations(resource_manager, skeleton_resref);
+        }
     }
 
     Ok(data)
@@ -262,6 +291,7 @@ fn parse_mdb(
         hair,
         helm,
         skeleton: None,
+        animations: Vec::new(),
     };
 
     Ok((data, mdb))
@@ -280,12 +310,26 @@ fn load_skeleton(resource_manager: &ResourceManager, skeleton_name: &str) -> Opt
                     bones: skel
                         .bones
                         .iter()
-                        .map(|b| BoneData {
-                            name: b.name.clone(),
-                            parent_index: b.parent_index,
-                            position: b.transform.position,
-                            rotation: b.transform.rotation,
-                            scale: b.transform.scale,
+                        .map(|b| {
+                            let m = &b.inverse_world_4x4;
+                            // GR2 stores inverse_world_4x4 in row-vector convention,
+                            // row-major: translation in last row (m[12..14]), last column
+                            // is [0,0,0,1]. Convert to Three.js column-major with
+                            // coordinate swizzle (NWN2 Y-fwd/Z-up → Three.js Y-up/Z-back).
+                            // Steps: transpose (row-vec → col-vec), then C·M·C⁻¹, then
+                            // row-major → column-major. Positions already in cm (no ×100).
+                            let iw = vec![
+                                m[0], m[2], -m[1], m[3], m[8], m[10], -m[9], m[11], -m[4], -m[6],
+                                m[5], -m[7], m[12], m[14], -m[13], m[15],
+                            ];
+                            BoneData {
+                                name: b.name.clone(),
+                                parent_index: b.parent_index,
+                                position: b.transform.position,
+                                rotation: b.transform.rotation,
+                                scale: b.transform.scale,
+                                inverse_world_4x4: iw,
+                            }
                         })
                         .collect(),
                 })
@@ -299,6 +343,127 @@ fn load_skeleton(resource_manager: &ResourceManager, skeleton_name: &str) -> Opt
             warn!("Skeleton not found {}: {}", skeleton_name, e);
             None
         }
+    }
+}
+
+pub fn load_idle_animations(
+    resource_manager: &ResourceManager,
+    skeleton_name: &str,
+) -> Vec<AnimationData> {
+    let prefix = skeleton_name
+        .strip_suffix("_skel")
+        .or_else(|| skeleton_name.strip_suffix("_Skel"))
+        .unwrap_or(skeleton_name);
+
+    let idle_suffixes = ["_idle", "_idlefidgetnervous"];
+
+    let mut animations = Vec::new();
+    for suffix in &idle_suffixes {
+        let resref = format!("{prefix}{suffix}");
+        let bytes = match resource_manager.get_resource_bytes(&resref, "gr2") {
+            Ok(b) => {
+                info!("Found {resref}.gr2 ({} bytes)", b.len());
+                b
+            }
+            Err(e) => {
+                info!("Idle animation not found: {resref}.gr2: {e}");
+                continue;
+            }
+        };
+
+        match Gr2Parser::parse_animations(&bytes) {
+            Ok(gr2_anims) => {
+                info!("Parsed {resref}: {} animations", gr2_anims.len());
+                for (i, anim) in gr2_anims.iter().enumerate() {
+                    let tag = if gr2_anims.len() == 1 {
+                        resref.clone()
+                    } else {
+                        format!("{resref}_{i}")
+                    };
+                    info!(
+                        "  '{}' -> '{}': {:.2}s, {} tracks",
+                        anim.name, tag, anim.duration, anim.tracks.len()
+                    );
+                    let mut converted = convert_animation(anim);
+                    converted.name = tag;
+                    animations.push(converted);
+                }
+            }
+            Err(e) => {
+                info!("Failed to parse {resref}: {e}");
+            }
+        }
+    }
+
+    animations
+}
+
+fn convert_animation(anim: &crate::parsers::gr2::Gr2Animation) -> AnimationData {
+    let tracks = anim
+        .tracks
+        .iter()
+        .filter(|t| {
+            !t.position_keys.is_empty() || !t.rotation_keys.is_empty() || !t.scale_keys.is_empty()
+        })
+        .map(|track| {
+            let primary_times: Vec<f32> = if !track.rotation_keys.is_empty() {
+                track.rotation_keys.iter().map(|(t, _)| *t).collect()
+            } else if !track.position_keys.is_empty() {
+                track.position_keys.iter().map(|(t, _)| *t).collect()
+            } else {
+                track.scale_keys.iter().map(|(t, _)| *t).collect()
+            };
+
+            let positions = if track.position_keys.is_empty() {
+                None
+            } else {
+                Some(
+                    track
+                        .position_keys
+                        .iter()
+                        .flat_map(|(_, v)| v.iter().copied())
+                        .collect(),
+                )
+            };
+
+            let rotations = if track.rotation_keys.is_empty() {
+                None
+            } else {
+                Some(
+                    track
+                        .rotation_keys
+                        .iter()
+                        .flat_map(|(_, v)| v.iter().copied())
+                        .collect(),
+                )
+            };
+
+            let scales = if track.scale_keys.is_empty() {
+                None
+            } else {
+                Some(
+                    track
+                        .scale_keys
+                        .iter()
+                        .flat_map(|(_, v)| v.iter().copied())
+                        .collect(),
+                )
+            };
+
+            TrackData {
+                bone_name: track.bone_name.clone(),
+                times: primary_times,
+                positions,
+                rotations,
+                scales,
+            }
+        })
+        .collect();
+
+    AnimationData {
+        name: anim.name.clone(),
+        duration: anim.duration,
+        tracks,
     }
 }
 
@@ -340,6 +505,61 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> Mes
         bone_weights: None,
         bone_indices: None,
         material: convert_material(&rm.material),
+    }
+}
+
+/// Bone palettes for MDB skinning index remapping.
+/// Matches nwn2mdk's process_fbx_bones: skip ap_*, separate f_*, Ribcage last.
+struct BonePalettes {
+    body: Vec<usize>,
+    face: Vec<usize>,
+}
+
+fn build_bone_palettes(skeleton: &SkeletonData) -> BonePalettes {
+    let mut body = Vec::new();
+    let mut face = Vec::new();
+    let mut ribcage: Option<usize> = None;
+
+    for (skel_idx, bone) in skeleton.bones.iter().enumerate() {
+        if bone.name.starts_with("ap_") {
+            // attachment points — not used for skinning
+        } else if bone.name.starts_with("f_") {
+            face.push(skel_idx);
+        } else if bone.name == "Ribcage" {
+            ribcage = Some(skel_idx);
+        } else {
+            body.push(skel_idx);
+        }
+    }
+
+    if let Some(rc) = ribcage {
+        body.push(rc);
+    }
+
+    BonePalettes { body, face }
+}
+
+/// Remap MDB bone_indices from palette space to full-skeleton space.
+/// Cutscene meshes (heads) use face palette for low indices, body palette for the rest.
+fn remap_mesh_bone_indices(meshes: &mut [MeshData], palettes: &BonePalettes) {
+    use crate::parsers::mdb::types::material_flags::CUTSCENE_MESH;
+
+    for mesh in meshes.iter_mut() {
+        let Some(ref mut indices) = mesh.bone_indices else {
+            continue;
+        };
+        let is_cutscene = mesh.material.flags & CUTSCENE_MESH != 0;
+        for idx in indices.iter_mut() {
+            let i = *idx as usize;
+            let skel_idx = if is_cutscene && i < palettes.face.len() {
+                palettes.face[i]
+            } else if i < palettes.body.len() {
+                palettes.body[i]
+            } else {
+                i // fallback: pass through
+            };
+            *idx = skel_idx as u8;
+        }
     }
 }
 

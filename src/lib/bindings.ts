@@ -111,6 +111,8 @@ export interface AppearanceState {
   is_parts_based: boolean;
   has_fhair_meshes: boolean;
   never_draw_helmet: boolean;
+  cloak_tint: TintChannels | null;
+  armor_tint: TintChannels | null;
 }
 
 export interface AppearanceOption {
