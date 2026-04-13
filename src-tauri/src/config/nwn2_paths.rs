@@ -400,13 +400,88 @@ impl NWN2Paths {
         self.game_folder.as_ref().and_then(|g| {
             let version_file = g.join("version.txt");
             if version_file.exists() {
-                std::fs::read_to_string(version_file)
+                if let Some(v) = std::fs::read_to_string(version_file)
                     .ok()
                     .map(|s| s.trim().to_string())
-            } else {
-                None
+                    .filter(|s| !s.is_empty())
+                {
+                    return Some(v);
+                }
             }
+            Self::read_exe_version(&g.join("nwn2.exe"))
         })
+    }
+
+    #[cfg(target_os = "windows")]
+    fn read_exe_version(exe_path: &std::path::Path) -> Option<String> {
+        use std::os::windows::ffi::OsStrExt;
+
+        #[allow(non_snake_case)]
+        #[repr(C)]
+        struct VS_FIXEDFILEINFO {
+            dwSignature: u32,
+            dwStrucVersion: u32,
+            dwFileVersionMS: u32,
+            dwFileVersionLS: u32,
+            _rest: [u32; 9],
+        }
+
+        unsafe extern "system" {
+            fn GetFileVersionInfoSizeW(file: *const u16, handle: *mut u32) -> u32;
+            fn GetFileVersionInfoW(file: *const u16, handle: u32, len: u32, data: *mut u8) -> i32;
+            fn VerQueryValueW(
+                block: *const u8,
+                sub_block: *const u16,
+                buffer: *mut *const u8,
+                len: *mut u32,
+            ) -> i32;
+        }
+
+        if !exe_path.exists() {
+            return None;
+        }
+
+        let wide_path: Vec<u16> = exe_path.as_os_str().encode_wide().chain(Some(0)).collect();
+
+        unsafe {
+            let size = GetFileVersionInfoSizeW(wide_path.as_ptr(), std::ptr::null_mut());
+            if size == 0 {
+                return None;
+            }
+
+            let mut buffer = vec![0u8; size as usize];
+            if GetFileVersionInfoW(wide_path.as_ptr(), 0, size, buffer.as_mut_ptr()) == 0 {
+                return None;
+            }
+
+            let mut info_ptr: *const u8 = std::ptr::null();
+            let mut info_len: u32 = 0;
+            let query: Vec<u16> = "\\".encode_utf16().chain(Some(0)).collect();
+
+            if VerQueryValueW(
+                buffer.as_ptr(),
+                query.as_ptr(),
+                &mut info_ptr,
+                &mut info_len,
+            ) == 0
+            {
+                return None;
+            }
+
+            let info = &*(info_ptr as *const VS_FIXEDFILEINFO);
+            Some(format!(
+                "{}.{}.{}.{}",
+                (info.dwFileVersionMS >> 16) & 0xFFFF,
+                info.dwFileVersionMS & 0xFFFF,
+                (info.dwFileVersionLS >> 16) & 0xFFFF,
+                info.dwFileVersionLS & 0xFFFF,
+            ))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn read_exe_version(_exe_path: &std::path::Path) -> Option<String> {
+        None
     }
 
     pub fn custom_override_folders(&self) -> &[PathBuf] {

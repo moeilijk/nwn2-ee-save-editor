@@ -1168,6 +1168,42 @@ impl ResourceManager {
         self.module_info.as_ref()
     }
 
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
+    }
+
+    pub fn resource_count(&self) -> usize {
+        self.resource_index.len()
+    }
+
+    pub fn template_count(&self) -> usize {
+        self.template_locations.len()
+    }
+
+    pub fn data_zip_paths(&self) -> &[PathBuf] {
+        &self.data_zip_paths
+    }
+
+    pub fn resource_source_counts(&self) -> std::collections::HashMap<String, usize> {
+        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for locations in self.resource_index.values() {
+            for loc in locations {
+                let key = match loc.source {
+                    OverrideSource::BaseGame => "base_game",
+                    OverrideSource::Expansion => "expansion",
+                    OverrideSource::Module => "module",
+                    OverrideSource::Campaign => "campaign",
+                    OverrideSource::OverrideDir => "override_dir",
+                    OverrideSource::Workshop => "workshop",
+                    OverrideSource::CustomOverride => "custom_override",
+                    OverrideSource::Hak(_) => "hak",
+                };
+                *counts.entry(key.to_string()).or_default() += 1;
+            }
+        }
+        counts
+    }
+
     pub fn get_available_2da_files(&self) -> Vec<String> {
         self.resource_index
             .keys()

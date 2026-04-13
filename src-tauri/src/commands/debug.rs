@@ -15,7 +15,12 @@ pub struct DebugLog {
     pub arch: String,
     pub timestamp: String,
     pub paths: PathsDebug,
+    pub mods: ModsDebug,
+    pub config: ConfigDebug,
+    pub resources: ResourcesDebug,
+    pub game_data: GameDataDebug,
     pub session: SessionDebug,
+    pub character_summary: Option<CharacterSummaryDebug>,
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -35,11 +40,104 @@ pub struct PathsDebug {
 }
 
 #[derive(Debug, Serialize, Type)]
+pub struct ModsDebug {
+    pub override_files: Vec<String>,
+    pub hak_files: Vec<String>,
+    pub workshop_items: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct ConfigDebug {
+    pub theme: String,
+    pub language: String,
+    pub font_size: String,
+    pub auto_backup: bool,
+    pub backup_count: u32,
+    pub auto_close_on_launch: bool,
+    pub show_launch_dialog: bool,
+    pub max_recent_saves: usize,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct CacheStatsDebug {
+    pub size: usize,
+    pub max_size: usize,
+    pub hits: u64,
+    pub misses: u64,
+    pub hit_ratio: f64,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct ModuleInfoDebug {
+    pub name: String,
+    pub mod_id: String,
+    pub custom_tlk: String,
+    pub hak_list: Vec<String>,
+    pub campaign_id: Option<String>,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct ResourcesDebug {
+    pub initialized: bool,
+    pub resource_count: usize,
+    pub template_count: usize,
+    pub data_zip_count: usize,
+    pub resource_sources: std::collections::HashMap<String, usize>,
+    pub cache_stats: CacheStatsDebug,
+    pub module_cache_stats: CacheStatsDebug,
+    pub module_info: Option<ModuleInfoDebug>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct BrokenReferenceDebug {
+    pub source_table: String,
+    pub source_column: String,
+    pub source_row: usize,
+    pub target_table: String,
+    pub target_id: i32,
+    pub error: String,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct ValidationDebug {
+    pub total_relationships: usize,
+    pub valid_relationships: usize,
+    pub broken_reference_count: usize,
+    pub broken_references_sample: Vec<BrokenReferenceDebug>,
+    pub missing_tables: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct GameDataDebug {
+    pub table_count: usize,
+    pub priority_tables: Vec<String>,
+    pub summary: String,
+    pub validation: ValidationDebug,
+}
+
+#[derive(Debug, Serialize, Type)]
 pub struct SessionDebug {
     pub character_loaded: bool,
     pub file_path: Option<String>,
     pub character_name: Option<String>,
     pub has_unsaved_changes: bool,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct CharacterClassDebug {
+    pub class_id: i32,
+    pub level: i32,
+}
+
+#[derive(Debug, Serialize, Type)]
+pub struct CharacterSummaryDebug {
+    pub name: String,
+    pub race_id: i32,
+    pub subrace: Option<String>,
+    pub classes: Vec<CharacterClassDebug>,
+    pub total_level: i32,
+    pub alignment: String,
 }
 
 fn path_source_to_string(source: PathSource) -> String {
@@ -55,44 +153,252 @@ fn path_source_to_string(source: PathSource) -> String {
 pub async fn export_debug_log(state: State<'_, AppState>) -> CommandResult<String> {
     info!("Exporting debug log");
 
-    let paths = state.paths.read();
-    let session = state.session.read();
+    // Collect all sync-locked data before any .await (parking_lot guards are !Send)
+    let (
+        paths_debug,
+        mods_debug,
+        config_debug,
+        session_debug,
+        character_summary,
+        table_count,
+        priority_tables,
+        validation,
+    ) = {
+        let paths = state.paths.read();
+        let config = state.config.read();
+        let session = state.session.read();
+        let game_data = state.game_data.read();
 
-    let paths_debug = PathsDebug {
-        game_folder: paths.game_folder().map(|p| p.to_string_lossy().to_string()),
-        game_folder_source: path_source_to_string(paths.game_folder_source()),
-        documents_folder: paths
-            .documents_folder()
-            .map(|p| p.to_string_lossy().to_string()),
-        documents_folder_source: path_source_to_string(paths.documents_folder_source()),
-        steam_workshop_folder: paths
+        let paths_debug = PathsDebug {
+            game_folder: paths.game_folder().map(|p| p.to_string_lossy().to_string()),
+            game_folder_source: path_source_to_string(paths.game_folder_source()),
+            documents_folder: paths
+                .documents_folder()
+                .map(|p| p.to_string_lossy().to_string()),
+            documents_folder_source: path_source_to_string(paths.documents_folder_source()),
+            steam_workshop_folder: paths
+                .steam_workshop_folder()
+                .map(|p| p.to_string_lossy().to_string()),
+            steam_workshop_folder_source: path_source_to_string(
+                paths.steam_workshop_folder_source(),
+            ),
+            custom_override_folders: paths
+                .custom_override_folders()
+                .iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect(),
+            custom_hak_folders: paths
+                .custom_hak_folders()
+                .iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect(),
+            game_version: paths.get_game_version(),
+            is_enhanced_edition: paths.is_enhanced_edition(),
+            is_steam_installation: paths.is_steam_installation(),
+            is_gog_installation: paths.is_gog_installation(),
+        };
+
+        let override_files = paths
+            .override_dir()
+            .filter(|d| d.exists())
+            .and_then(|d| std::fs::read_dir(d).ok())
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let hak_files = paths
+            .hak_dir()
+            .filter(|d| d.exists())
+            .and_then(|d| std::fs::read_dir(d).ok())
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| {
+                        e.path()
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("hak"))
+                    })
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let workshop_items = paths
             .steam_workshop_folder()
-            .map(|p| p.to_string_lossy().to_string()),
-        steam_workshop_folder_source: path_source_to_string(paths.steam_workshop_folder_source()),
-        custom_override_folders: paths
-            .custom_override_folders()
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect(),
-        custom_hak_folders: paths
-            .custom_hak_folders()
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect(),
-        game_version: paths.get_game_version(),
-        is_enhanced_edition: paths.is_enhanced_edition(),
-        is_steam_installation: paths.is_steam_installation(),
-        is_gog_installation: paths.is_gog_installation(),
+            .filter(|d| d.exists())
+            .and_then(|d| std::fs::read_dir(d).ok())
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().is_dir())
+                    .map(|e| {
+                        let id = e.file_name().to_string_lossy().to_string();
+                        let contents: Vec<String> = std::fs::read_dir(e.path())
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|c| c.ok())
+                            .map(|c| c.file_name().to_string_lossy().to_string())
+                            .collect();
+                        format!("{id} ({})", contents.join(", "))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let mods_debug = ModsDebug {
+            override_files,
+            hak_files,
+            workshop_items,
+        };
+
+        let config_debug = ConfigDebug {
+            theme: config.theme.clone(),
+            language: config.language.clone(),
+            font_size: config.font_size.clone(),
+            auto_backup: config.auto_backup,
+            backup_count: config.backup_count,
+            auto_close_on_launch: config.auto_close_on_launch,
+            show_launch_dialog: config.show_launch_dialog,
+            max_recent_saves: config.max_recent_saves,
+        };
+
+        let session_debug = SessionDebug {
+            character_loaded: session.character.is_some(),
+            file_path: session
+                .current_file_path
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string()),
+            character_name: session.character.as_ref().map(|c| c.full_name()),
+            has_unsaved_changes: session.has_unsaved_changes(),
+        };
+
+        let character_summary = session.character.as_ref().map(|c| CharacterSummaryDebug {
+            name: c.full_name(),
+            race_id: c.race_id().0,
+            subrace: c.subrace(),
+            classes: c
+                .class_entries()
+                .iter()
+                .map(|e| CharacterClassDebug {
+                    class_id: e.class_id.0,
+                    level: e.level,
+                })
+                .collect(),
+            total_level: c.total_level(),
+            alignment: c.alignment().alignment_string(),
+        });
+
+        let table_count = game_data.table_count();
+        let priority_tables = game_data.priority_tables.clone();
+        let validation = ValidationDebug {
+            total_relationships: game_data.relationships.total_relationships,
+            valid_relationships: game_data.relationships.valid_relationships,
+            broken_reference_count: game_data.relationships.broken_references.len(),
+            broken_references_sample: game_data
+                .relationships
+                .broken_references
+                .iter()
+                .take(10)
+                .map(|b| BrokenReferenceDebug {
+                    source_table: b.source_table.clone(),
+                    source_column: b.source_column.clone(),
+                    source_row: b.source_row,
+                    target_table: b.target_table.clone(),
+                    target_id: b.target_id,
+                    error: b.error.clone(),
+                })
+                .collect(),
+            missing_tables: game_data.relationships.missing_tables.clone(),
+        };
+
+        (
+            paths_debug,
+            mods_debug,
+            config_debug,
+            session_debug,
+            character_summary,
+            table_count,
+            priority_tables,
+            validation,
+        )
+    };
+    // All sync locks dropped here
+
+    // Now safe to .await the async resource manager lock
+    let rm = state.resource_manager.read().await;
+
+    let cache_stats = rm.get_cache_stats();
+    let module_cache_stats = rm.get_module_cache_stats();
+
+    let resources_debug = ResourcesDebug {
+        initialized: rm.is_initialized(),
+        resource_count: rm.resource_count(),
+        template_count: rm.template_count(),
+        data_zip_count: rm.data_zip_paths().len(),
+        resource_sources: rm.resource_source_counts(),
+        cache_stats: CacheStatsDebug {
+            size: cache_stats.size,
+            max_size: cache_stats.max_size,
+            hits: cache_stats.hits,
+            misses: cache_stats.misses,
+            hit_ratio: cache_stats.hit_ratio,
+        },
+        module_cache_stats: CacheStatsDebug {
+            size: module_cache_stats.size,
+            max_size: module_cache_stats.max_size,
+            hits: module_cache_stats.hits,
+            misses: module_cache_stats.misses,
+            hit_ratio: module_cache_stats.hit_ratio,
+        },
+        module_info: rm.get_module_info().map(|m| ModuleInfoDebug {
+            name: m.name.clone(),
+            mod_id: m.mod_id.clone(),
+            custom_tlk: m.custom_tlk.clone(),
+            hak_list: m.hak_list.clone(),
+            campaign_id: m.campaign_id.clone(),
+            path: m.path.to_string_lossy().to_string(),
+        }),
     };
 
-    let session_debug = SessionDebug {
-        character_loaded: session.character.is_some(),
-        file_path: session
-            .current_file_path
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string()),
-        character_name: session.character.as_ref().map(|c| c.full_name()),
-        has_unsaved_changes: session.has_unsaved_changes(),
+    // Build game data summary using module info from resource manager
+    let hak_count = rm.get_module_info().map(|m| m.hak_list.len()).unwrap_or(0);
+    let has_custom_tlk = rm
+        .get_module_info()
+        .is_some_and(|m| !m.custom_tlk.is_empty());
+    let has_module = rm.get_module_info().is_some();
+
+    let summary = if !has_module {
+        format!("{table_count} tables loaded (vanilla)")
+    } else {
+        let mut modifiers = Vec::new();
+        if hak_count > 0 {
+            modifiers.push(format!(
+                "{hak_count} HAK{}",
+                if hak_count == 1 { "" } else { "s" }
+            ));
+        }
+        if has_custom_tlk {
+            modifiers.push("custom TLK".to_string());
+        }
+        if modifiers.is_empty() {
+            format!("{table_count} tables loaded (module)")
+        } else {
+            format!(
+                "{table_count} tables loaded (modded: {})",
+                modifiers.join(", ")
+            )
+        }
+    };
+
+    let game_data_debug = GameDataDebug {
+        table_count,
+        priority_tables,
+        summary,
+        validation,
     };
 
     let debug_log = DebugLog {
@@ -103,7 +409,12 @@ pub async fn export_debug_log(state: State<'_, AppState>) -> CommandResult<Strin
             .format("%Y-%m-%d %H:%M:%S UTC")
             .to_string(),
         paths: paths_debug,
+        mods: mods_debug,
+        config: config_debug,
+        resources: resources_debug,
+        game_data: game_data_debug,
         session: session_debug,
+        character_summary,
     };
 
     let json = serde_json::to_string_pretty(&debug_log)
