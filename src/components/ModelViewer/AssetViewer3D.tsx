@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useModelLoader } from './useModelLoader';
 import { useThreeScene, clearSceneModels, frameBounds } from './useThreeScene';
+import { Spinner } from '@blueprintjs/core';
 
 interface AssetViewer3DProps {
   resref: string;
@@ -31,8 +32,10 @@ export function AssetViewer3D({ resref }: AssetViewer3DProps) {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 400 }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      
       {loading && (
         <div style={{ position: 'absolute', top: 8, left: 8, color: '#fff' }}>
+          <Spinner size={20} style={{ marginRight: 8 }} />
           {t('modelViewer.loading')}
         </div>
       )}

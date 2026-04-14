@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { invoke } from '@tauri-apps/api/core';
 import { createMaterial, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
 import { buildSkeleton, buildMesh, buildAnimationClips } from '../ModelViewer/meshBuilder';
+import { useTranslations } from '@/hooks/useTranslations';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
 import type { MeshData, ModelData } from '../ModelViewer/types';
 import type { TintChannels } from '@/lib/bindings';
@@ -30,12 +31,14 @@ interface CharacterViewer3DProps {
 }
 
 export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair, tintCloak, tintArmor, height, girth }: CharacterViewer3DProps) {
+  const t = useTranslations();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const skeletonRef = useRef<{ skeleton: THREE.Skeleton; rootBone: THREE.Bone } | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const tintHeadRef = useRef(tintHead);
   const tintHairRef = useRef(tintHair);
@@ -257,6 +260,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 400 }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      
       {loading && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
           <Spinner />

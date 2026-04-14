@@ -13,6 +13,7 @@ export interface SceneRefs {
   camera: React.RefObject<THREE.PerspectiveCamera | null>;
   controls: React.RefObject<OrbitControls | null>;
   renderer: React.RefObject<THREE.WebGLRenderer | null>;
+  composer: React.RefObject<EffectComposer | null>;
   frame: React.RefObject<number>;
 }
 
@@ -22,6 +23,7 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const composerRef = useRef<EffectComposer | null>(null);
   const frameRef = useRef<number>(0);
   const onAnimateRef = useRef(onAnimate);
   onAnimateRef.current = onAnimate;
@@ -50,27 +52,9 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.8;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
-
-    // -- Post-processing --
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const gtaoPass = new GTAOPass(scene, camera, w, h, {
-      radius: 50,
-      distanceExponent: 2,
-      thickness: 20,
-      scale: 1,
-      distanceFallOff: 1,
-    } as Record<string, number>);
-    gtaoPass.blendIntensity = 1.5;
-    composer.addPass(gtaoPass);
-
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
 
     // -- Controls --
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -114,21 +98,16 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const origRenderOverride = (gtaoPass as any)._renderOverride.bind(gtaoPass);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (gtaoPass as any)._renderOverride = (...args: any[]) => {
-      ground.visible = false;
-      origRenderOverride(...args);
-      ground.visible = true;
-    };
-
     // -- Render loop --
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
       onAnimateRef.current?.(scene);
       controls.update();
-      composer.render();
+      if (composerRef.current) {
+        composerRef.current.render();
+      } else {
+        renderer.render(scene, camera);
+      }
     };
     animate();
 
@@ -138,7 +117,7 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
         camera.aspect = r.width / r.height;
         camera.updateProjectionMatrix();
         renderer.setSize(r.width, r.height);
-        composer.setSize(r.width, r.height);
+        composerRef.current?.setSize(r.width, r.height);
       }
     };
     const resizeObserver = new ResizeObserver(handleResize);
@@ -147,11 +126,63 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
     return () => {
       resizeObserver.disconnect();
       cancelAnimationFrame(frameRef.current);
-      composer.dispose();
       renderer.dispose();
+      controls.dispose();
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    const container = containerRef.current;
+    if (!scene || !camera || !renderer || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const w = rect.width || 500;
+    const h = rect.height || 500;
+
+    const renderTarget = new THREE.WebGLRenderTarget(w, h, {
+      samples: 4,
+    });
+    const composer = new EffectComposer(renderer, renderTarget);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const gtaoPass = new GTAOPass(scene, camera, w, h, {
+      radius: 50,
+      distanceExponent: 2,
+      thickness: 20,
+      scale: 1,
+      distanceFallOff: 1,
+    } as Record<string, number>);
+    gtaoPass.blendIntensity = 1.5;
+    composer.addPass(gtaoPass);
+
+    const outputPass = new OutputPass();
+    composer.addPass(outputPass);
+
+    // -- GTAO Ground Hack --
+    const ground = scene.getObjectByName('__ground_shadow');
+    if (ground) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const origRenderOverride = (gtaoPass as any)._renderOverride.bind(gtaoPass);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (gtaoPass as any)._renderOverride = (...args: any[]) => {
+        ground.visible = false;
+        origRenderOverride(...args);
+        ground.visible = true;
+      };
+    }
+
+    composerRef.current = composer;
+
+    return () => {
+      composer.dispose();
+      composerRef.current = null;
     };
   }, []);
 
@@ -161,6 +192,7 @@ export function useThreeScene(onAnimate?: (scene: THREE.Scene) => void): SceneRe
     camera: cameraRef,
     controls: controlsRef,
     renderer: rendererRef,
+    composer: composerRef,
     frame: frameRef,
   };
 }
