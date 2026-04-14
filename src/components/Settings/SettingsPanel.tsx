@@ -135,11 +135,32 @@ function GeneralTab() {
         <SectionHeader title={t('settings.general.languageRegion')} />
         <KVRow label={t('settings.general.language')} value={
           <Popover
-            content={<Menu><MenuItem text={t('settings.general.languageEnglish')} active={language === 'en'} onClick={() => handleLanguageChange('en')} /></Menu>}
+            content={
+              <Menu>
+                <MenuItem text={t('settings.general.languageEnglish')} active={language === 'en'} onClick={() => handleLanguageChange('en')} />
+                <MenuItem text={t('settings.general.languageGerman')} active={language === 'de'} onClick={() => handleLanguageChange('de')} />
+                <MenuItem text={t('settings.general.languageSpanish')} active={language === 'es'} onClick={() => handleLanguageChange('es')} />
+                <MenuItem text={t('settings.general.languageFrench')} active={language === 'fr'} onClick={() => handleLanguageChange('fr')} />
+                <MenuItem text={t('settings.general.languagePolish')} active={language === 'pl'} onClick={() => handleLanguageChange('pl')} />
+                <MenuItem text={t('settings.general.languageRussian')} active={language === 'ru'} onClick={() => handleLanguageChange('ru')} />
+              </Menu>
+            }
             placement="bottom-end"
             minimal
           >
-            <Button minimal rightIcon="caret-down" text={language === 'en' ? t('settings.general.languageEnglish') : language} className="t-semibold" />
+            <Button
+              minimal
+              rightIcon="caret-down"
+              text={t(`settings.general.language${
+                language === 'en' ? 'English' :
+                language === 'de' ? 'German' :
+                language === 'es' ? 'Spanish' :
+                language === 'fr' ? 'French' :
+                language === 'pl' ? 'Polish' :
+                language === 'ru' ? 'Russian' : 'English'
+              }`)}
+              className="t-semibold"
+            />
           </Popover>
         } />
       </div>
