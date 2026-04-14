@@ -297,15 +297,11 @@ table.bp6-html-table.bp6-interactive tbody tr:hover td {
 .about-app-icon {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #a0522d, #c4865a);
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: var(--font-4xl);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 .about-app-name {
   font-size: var(--font-2xl);

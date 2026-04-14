@@ -33,7 +33,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
   const infoPanel = (
     <div className="about-info-panel">
       <div className="about-app-icon">
-        <span>N</span>
+        <img src="/logo.png" alt="Logo" width={56} height={56} />
       </div>
       <div className="about-app-name">{appName}</div>
       <Tooltip content={t('about.copyVersion')} placement="bottom">
