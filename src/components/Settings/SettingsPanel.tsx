@@ -8,6 +8,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useLocale } from '@/providers/LocaleProvider';
+import { useFontSize } from '@/providers/FontSizeProvider';
 import { pathService, PathConfig } from '@/lib/api/paths';
 import { T } from '../theme';
 import { KVRow, ParchmentDialog } from '../shared';
@@ -105,33 +106,27 @@ function CustomFolderList({ folders, addLabel, onAdd, onRemove }: {
 function GeneralTab() {
   const { setLocale } = useLocale();
   const t = useTranslations();
+  const { fontSize, setFontSize: applyFontSize } = useFontSize();
   const [language, setLanguage] = useState('en');
-  const [fontSize, setFontSize] = useState('medium');
   const [debugExporting, setDebugExporting] = useState(false);
   const [debugResult, setDebugResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    invoke<{ language: string; font_size: string }>('get_app_config')
+    invoke<{ language: string }>('get_app_config')
       .then((config) => {
         setLanguage(config.language);
-        setFontSize(config.font_size);
       })
       .catch(() => {});
   }, []);
 
-  const updateSetting = (key: string, value: string) => {
-    invoke('update_app_config', { updates: { [key]: value } }).catch(() => {});
-  };
-
   const handleLanguageChange = (newLocale: string) => {
     setLanguage(newLocale);
     setLocale(newLocale);
-    updateSetting('language', newLocale);
+    invoke('update_app_config', { updates: { language: newLocale } }).catch(() => {});
   };
 
   const handleFontSizeChange = (size: string) => {
-    setFontSize(size);
-    updateSetting('font_size', size);
+    applyFontSize(size as 'small' | 'medium' | 'large');
   };
 
   return (

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { VariableSizeList } from 'react-window';
 import { T } from '../theme';
+import { useFontSize } from '@/providers/FontSizeProvider';
 
 export interface ListSection<T> {
   key: string;
@@ -19,10 +20,15 @@ type FlatRow<T> =
   | { type: 'header'; sectionKey: string; title: string; count: number }
   | { type: 'item'; item: T };
 
-const HEADER_HEIGHT = 32;
-const ITEM_HEIGHT = 31;
+const ROW_HEIGHTS = {
+  small:  { header: 28, item: 27 },
+  medium: { header: 32, item: 31 },
+  large:  { header: 38, item: 36 },
+} as const;
 
 export function GroupedList<T extends { id: number }>({ sections, selectedId, onSelect, renderItem }: GroupedListProps<T>) {
+  const { fontSize } = useFontSize();
+  const heights = ROW_HEIGHTS[fontSize];
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [containerHeight, setContainerHeight] = useState(400);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,10 +54,10 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
     });
   }, []);
 
-  // Reset list cache when collapsed state or sections change
+  // Reset list cache when collapsed state, sections, or font size change
   useEffect(() => {
     listRef.current?.resetAfterIndex(0);
-  }, [collapsed, sections]);
+  }, [collapsed, sections, heights]);
 
   const flatRows: FlatRow<T>[] = useMemo(() => {
     const rows: FlatRow<T>[] = [];
@@ -67,8 +73,8 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
   }, [sections, collapsed]);
 
   const getItemSize = useCallback((index: number) => {
-    return flatRows[index].type === 'header' ? HEADER_HEIGHT : ITEM_HEIGHT;
-  }, [flatRows]);
+    return flatRows[index].type === 'header' ? heights.header : heights.item;
+  }, [flatRows, heights]);
 
   const Row = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
     const row = flatRows[index];
