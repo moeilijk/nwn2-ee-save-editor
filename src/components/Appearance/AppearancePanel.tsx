@@ -39,10 +39,11 @@ export function AppearancePanel() {
   const [voiceFilter, setVoiceFilter] = useState('');
   const [playingResref, setPlayingResref] = useState<string | null>(null);
   const [pendingVoiceId, setPendingVoiceId] = useState<number | null>(null);
+  const [pendingTints, setPendingTints] = useState<{ tint_head: TintChannels; tint_hair: TintChannels } | null>(null);
+  const [pendingSize, setPendingSize] = useState<{ height: number; girth: number } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const sizeDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (character?.id) {
@@ -95,12 +96,36 @@ export function AppearancePanel() {
       (value: TintChannel) => {
         const data = appearanceSubsystem.data;
         if (!data) return;
-        const current: TintChannels = { ...data[group] };
-        current[channelKey] = value;
-        updateField({ [group]: current });
+        setPendingTints(prev => {
+          const base = prev ?? { tint_head: { ...data.tint_head }, tint_hair: { ...data.tint_hair } };
+          return { ...base, [group]: { ...base[group], [channelKey]: value } };
+        });
       },
-    [appearanceSubsystem.data, updateField]
+    [appearanceSubsystem.data]
   );
+
+  const confirmTints = useCallback(() => {
+    if (!pendingTints) return;
+    updateField({ tint_head: pendingTints.tint_head, tint_hair: pendingTints.tint_hair });
+    setPendingTints(null);
+  }, [pendingTints, updateField]);
+
+  const cancelTints = useCallback(() => {
+    setPendingTints(null);
+  }, []);
+
+  const confirmSize = useCallback(() => {
+    if (!pendingSize) return;
+    updateField({ height: pendingSize.height, girth: pendingSize.girth });
+    setPendingSize(null);
+  }, [pendingSize, updateField]);
+
+  const cancelSize = useCallback(() => {
+    if (!appearanceSubsystem.data) return;
+    setLiveHeight(appearanceSubsystem.data.height);
+    setLiveGirth(appearanceSubsystem.data.girth);
+    setPendingSize(null);
+  }, [appearanceSubsystem.data]);
 
   const cleanupAudio = useCallback(() => {
     if (audioRef.current) {
@@ -214,13 +239,28 @@ export function AppearancePanel() {
         <Card elevation={Elevation.ONE} style={{ padding: '12px 16px', background: T.surface }}>
           <SectionHeader label={t('appearance.colors')} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <ColorPicker label={t('appearance.skin')} value={data.tint_head.channel1} onChange={updateTintChannel('tint_head', 'channel1')} />
-            <ColorPicker label={t('appearance.eyes')} value={data.tint_head.channel2} onChange={updateTintChannel('tint_head', 'channel2')} />
-            <ColorPicker label={t('appearance.eyebrows')} value={data.tint_head.channel3} onChange={updateTintChannel('tint_head', 'channel3')} />
-            <ColorPicker label={t('appearance.hairBase')} value={data.tint_hair.channel1} onChange={updateTintChannel('tint_hair', 'channel1')} />
-            <ColorPicker label={t('appearance.hairHighlight')} value={data.tint_hair.channel2} onChange={updateTintChannel('tint_hair', 'channel2')} />
-            <ColorPicker label={t('appearance.hairAccessory')} value={data.tint_hair.channel3} onChange={updateTintChannel('tint_hair', 'channel3')} />
+            <ColorPicker label={t('appearance.skin')} value={(pendingTints ?? data).tint_head.channel1} onChange={updateTintChannel('tint_head', 'channel1')} />
+            <ColorPicker label={t('appearance.eyes')} value={(pendingTints ?? data).tint_head.channel2} onChange={updateTintChannel('tint_head', 'channel2')} />
+            <ColorPicker label={t('appearance.eyebrows')} value={(pendingTints ?? data).tint_head.channel3} onChange={updateTintChannel('tint_head', 'channel3')} />
+            <ColorPicker label={t('appearance.hairBase')} value={(pendingTints ?? data).tint_hair.channel1} onChange={updateTintChannel('tint_hair', 'channel1')} />
+            <ColorPicker label={t('appearance.hairHighlight')} value={(pendingTints ?? data).tint_hair.channel2} onChange={updateTintChannel('tint_hair', 'channel2')} />
+            <ColorPicker label={t('appearance.hairAccessory')} value={(pendingTints ?? data).tint_hair.channel3} onChange={updateTintChannel('tint_hair', 'channel3')} />
           </div>
+          {pendingTints !== null && (
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <Button
+                small
+                text={t('common.cancel')}
+                onClick={cancelTints}
+              />
+              <Button
+                small
+                intent="primary"
+                text={t('actions.apply')}
+                onClick={confirmTints}
+              />
+            </div>
+          )}
         </Card>
 
         {/* Size */}
@@ -235,8 +275,7 @@ export function AppearancePanel() {
                   value={liveHeight}
                   onChange={(v) => {
                     setLiveHeight(v);
-                    if (sizeDebounceRef.current) clearTimeout(sizeDebounceRef.current);
-                    sizeDebounceRef.current = setTimeout(() => updateField({ height: v }), 100);
+                    setPendingSize(prev => ({ height: v, girth: prev?.girth ?? liveGirth }));
                   }}
                   labelRenderer={false}
                 />
@@ -253,8 +292,7 @@ export function AppearancePanel() {
                   value={liveGirth}
                   onChange={(v) => {
                     setLiveGirth(v);
-                    if (sizeDebounceRef.current) clearTimeout(sizeDebounceRef.current);
-                    sizeDebounceRef.current = setTimeout(() => updateField({ girth: v }), 100);
+                    setPendingSize(prev => ({ height: prev?.height ?? liveHeight, girth: v }));
                   }}
                   labelRenderer={false}
                 />
@@ -262,6 +300,12 @@ export function AppearancePanel() {
               </div>
             }
           />
+          {pendingSize !== null && (
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+              <Button small text={t('common.cancel')} onClick={cancelSize} />
+              <Button small intent="primary" text={t('actions.apply')} onClick={confirmSize} />
+            </div>
+          )}
         </Card>
 
         {/* Voice */}
@@ -391,7 +435,7 @@ export function AppearancePanel() {
               <Button
                 small
                 intent="primary"
-                text={t('appearance.voiceConfirm')}
+                text={t('actions.apply')}
                 onClick={() => {
                   updateField({ soundset: pendingVoiceId });
                   setPendingVoiceId(null);
@@ -457,8 +501,8 @@ export function AppearancePanel() {
         <CharacterViewer3D
           refreshKey={modelRefreshKey}
           refreshPart={partRefresh}
-          tintHead={data.tint_head}
-          tintHair={data.tint_hair}
+          tintHead={pendingTints?.tint_head ?? data.tint_head}
+          tintHair={pendingTints?.tint_hair ?? data.tint_hair}
           tintCloak={data.cloak_tint}
           tintArmor={data.armor_tint}
           height={liveHeight}
