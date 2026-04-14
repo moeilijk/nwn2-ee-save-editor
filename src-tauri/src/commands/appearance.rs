@@ -136,8 +136,9 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         .ok_or(CommandError::NoCharacterLoaded)?;
     let game_data = state.game_data.read();
 
+    let rm = state.resource_manager.blocking_read();
     let parts = character
-        .resolve_model_parts(&game_data)
+        .resolve_model_parts(&game_data, &rm)
         .ok_or_else(|| CommandError::Internal("Failed to resolve character model parts".into()))?;
 
     info!(
@@ -148,8 +149,6 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         parts.helm_candidates,
         parts.cloak_resref,
     );
-
-    let rm = state.resource_manager.blocking_read();
 
     let mut all_meshes: Vec<MeshData> = Vec::new();
     let mut skeleton = None;
@@ -351,11 +350,12 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         .ok_or(CommandError::NoCharacterLoaded)?;
     let game_data = state.game_data.read();
 
-    let parts = character.resolve_model_parts(&game_data).ok_or_else(|| {
-        CommandError::Internal("Failed to resolve character model parts".to_string())
-    })?;
-
     let rm = state.resource_manager.blocking_read();
+    let parts = character
+        .resolve_model_parts(&game_data, &rm)
+        .ok_or_else(|| {
+            CommandError::Internal("Failed to resolve character model parts".to_string())
+        })?;
     let mut meshes: Vec<MeshData> = Vec::new();
 
     match part.as_str() {

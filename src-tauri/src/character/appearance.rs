@@ -194,7 +194,7 @@ impl Character {
 
     // -- Tint reading --
 
-    fn read_tint_channel(fields: &IndexMap<String, GffValue<'static>>) -> TintChannel {
+    fn read_tint_channel(fields: &IndexMap<String, GffValue<'_>>) -> TintChannel {
         let get_byte = |key: &str| -> u8 {
             match fields.get(key) {
                 Some(GffValue::Byte(v)) => *v,
@@ -209,7 +209,7 @@ impl Character {
         }
     }
 
-    fn read_tint_from_tintable(tintable: &IndexMap<String, GffValue<'static>>) -> TintChannels {
+    fn read_tint_from_tintable(tintable: &IndexMap<String, GffValue<'_>>) -> TintChannels {
         let tint = match tintable.get("Tint") {
             Some(GffValue::StructOwned(s)) => s.as_ref().clone(),
             Some(GffValue::Struct(lazy)) => lazy.force_load(),
@@ -393,7 +393,7 @@ impl Character {
         let (available_heads, available_hairs, is_parts_based) =
             self.discover_model_variants(game_data, resource_manager);
 
-        let model_parts = self.resolve_model_parts(game_data);
+        let model_parts = self.resolve_model_parts(game_data, resource_manager);
         let has_fhair_meshes = model_parts
             .as_ref()
             .map(|parts| {
@@ -502,7 +502,11 @@ impl Character {
         options
     }
 
-    pub fn resolve_model_parts(&self, game_data: &GameData) -> Option<CharacterModelParts> {
+    pub fn resolve_model_parts(
+        &self,
+        game_data: &GameData,
+        resource_manager: &crate::services::resource_manager::ResourceManager,
+    ) -> Option<CharacterModelParts> {
         let appearance_id = self.appearance_type();
         let appearance_table = game_data.get_table("appearance").or_else(|| {
             warn!("appearance.2da not loaded");
@@ -546,7 +550,7 @@ impl Character {
         let naked_body_resref = format!("{body_prefix}_NK_Body01");
 
         // Extract all equipped visual info in one pass
-        let equip_visuals = self.resolve_equipped_visuals(game_data);
+        let equip_visuals = self.resolve_equipped_visuals(game_data, resource_manager);
         let armor_prefixes = &equip_visuals.armor_prefixes;
         let body_parts = if model_type.to_uppercase() == "P" {
             let var = equip_visuals.armor_variation;
@@ -746,7 +750,11 @@ impl Character {
         })
     }
 
-    fn resolve_equipped_visuals(&self, game_data: &GameData) -> EquippedVisuals {
+    fn resolve_equipped_visuals(
+        &self,
+        game_data: &GameData,
+        resource_manager: &crate::services::resource_manager::ResourceManager,
+    ) -> EquippedVisuals {
         let mut result = EquippedVisuals {
             armor_prefixes: Vec::new(),
             armor_variation: 1,
@@ -820,13 +828,20 @@ impl Character {
                 );
 
                 let tintable_raw = item_struct.get("Tintable");
-                debug!("Chest Tintable raw variant: {:?}", tintable_raw.map(std::mem::discriminant));
+                debug!(
+                    "Chest Tintable raw variant: {:?}",
+                    tintable_raw.map(std::mem::discriminant)
+                );
                 if let Some(val) = tintable_raw {
-                    debug!("Chest Tintable keys: {:?}", match val {
-                        GffValue::StructOwned(s) => s.keys().cloned().collect::<Vec<_>>(),
-                        GffValue::Struct(lazy) => lazy.force_load().keys().cloned().collect::<Vec<_>>(),
-                        _ => vec!["NOT_A_STRUCT".to_string()],
-                    });
+                    debug!(
+                        "Chest Tintable keys: {:?}",
+                        match val {
+                            GffValue::StructOwned(s) => s.keys().cloned().collect::<Vec<_>>(),
+                            GffValue::Struct(lazy) =>
+                                lazy.force_load().keys().cloned().collect::<Vec<_>>(),
+                            _ => vec!["NOT_A_STRUCT".to_string()],
+                        }
+                    );
                 }
                 let tintable = match tintable_raw {
                     Some(GffValue::StructOwned(s)) => Some(s.as_ref().clone()),
@@ -836,9 +851,25 @@ impl Character {
                 if let Some(ref t) = tintable {
                     debug!("Tintable has Tint key: {}", t.contains_key("Tint"));
                     let tint = Self::read_tint_from_tintable(t);
-                    debug!("Read tint: ch1.a={}, ch2.a={}, ch3.a={}", tint.channel1.a, tint.channel2.a, tint.channel3.a);
-                    if tint.channel1.a > 0 || tint.channel2.a > 0 || tint.channel3.a > 0 {
+                    debug!(
+                        "Read tint: ch1.a={}, ch2.a={}, ch3.a={}",
+                        tint.channel1.a, tint.channel2.a, tint.channel3.a
+                    );
+                    let has_color = [&tint.channel1, &tint.channel2, &tint.channel3]
+                        .iter()
+                        .any(|ch| ch.r > 0 || ch.g > 0 || ch.b > 0);
+                    if has_color {
                         result.armor_tint = Some(tint);
+                    }
+                }
+
+                // Fallback: when save item has no tints (all zero), use item template tints
+                if result.armor_tint.is_none() {
+                    if let Some(template_tint) =
+                        Self::load_template_tint(item_struct, resource_manager)
+                    {
+                        debug!("Using template tint fallback");
+                        result.armor_tint = Some(template_tint);
                     }
                 }
                 debug!("Armor tint: {:?}", result.armor_tint);
@@ -931,6 +962,48 @@ impl Character {
         }
 
         result
+    }
+
+    fn load_template_tint(
+        item_struct: &IndexMap<String, GffValue<'static>>,
+        resource_manager: &crate::services::resource_manager::ResourceManager,
+    ) -> Option<TintChannels> {
+        let resref = match item_struct.get("TemplateResRef") {
+            Some(GffValue::ResRef(s)) => s.to_string(),
+            _ => return None,
+        };
+        let uti_bytes = resource_manager.get_resource_bytes(&resref, "uti").ok()?;
+        let gff = crate::parsers::gff::parser::GffParser::from_bytes(uti_bytes).ok()?;
+        let fields = gff.read_struct_fields(0).ok()?;
+        let tintable = match fields.get("Tintable") {
+            Some(GffValue::Struct(lazy)) => lazy.force_load(),
+            _ => return None,
+        };
+        let tint = Self::read_tint_from_tintable(&tintable);
+        let has_color = [&tint.channel1, &tint.channel2, &tint.channel3]
+            .iter()
+            .any(|ch| ch.r > 0 || ch.g > 0 || ch.b > 0);
+        if has_color {
+            debug!(
+                "Template '{}' tint: ch1=({},{},{},{}), ch2=({},{},{},{}), ch3=({},{},{},{})",
+                resref,
+                tint.channel1.r,
+                tint.channel1.g,
+                tint.channel1.b,
+                tint.channel1.a,
+                tint.channel2.r,
+                tint.channel2.g,
+                tint.channel2.b,
+                tint.channel2.a,
+                tint.channel3.r,
+                tint.channel3.g,
+                tint.channel3.b,
+                tint.channel3.a,
+            );
+            Some(tint)
+        } else {
+            None
+        }
     }
 
     fn parse_item_part_visual(

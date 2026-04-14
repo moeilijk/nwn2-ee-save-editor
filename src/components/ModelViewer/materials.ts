@@ -65,9 +65,6 @@ uniform vec3 tintColor3;
 `,
     );
 
-    // NWN2 tint_map: R/G/B channels are masks for 3 independent tint colors.
-    // Each channel blends between white (no tint) and the tint color.
-    // Applied as a multiply on the diffuse color after texture sampling.
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <color_fragment>',
       `#include <color_fragment>
@@ -83,7 +80,7 @@ uniform vec3 tintColor3;
   vec3 tint = mix(vec3(1.0), tintColor1, tintMask.r)
             * mix(vec3(1.0), tintColor2, tintMask.g)
             * mix(vec3(1.0), tintColor3, tintMask.b);
-  diffuseColor.rgb *= tint;
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * tint, tintMask.a);
 }
 `,
     );

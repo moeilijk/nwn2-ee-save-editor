@@ -69,13 +69,6 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     const fhairColors: TintColors = { channel1: hairColors.channel1, channel2: [1, 1, 1], channel3: [1, 1, 1] };
     const cloakColors = tintCloakRef.current ? tintChannelsToColors(tintCloakRef.current) : white;
     const armorColors = tintArmorRef.current ? tintChannelsToColors(tintArmorRef.current) : white;
-    // DEBUG: log armor tint values
-    if (tintArmorRef.current) {
-      const t = tintArmorRef.current;
-      console.log(`[TINT] armor ch1=(${t.channel1.r},${t.channel1.g},${t.channel1.b}) ch2=(${t.channel2.r},${t.channel2.g},${t.channel2.b}) ch3=(${t.channel3.r},${t.channel3.g},${t.channel3.b})`);
-    } else {
-      console.log('[TINT] armor: no tint data, using white');
-    }
     return { head: headColors, hair: hairColors, fhair: fhairColors, body: armorColors, cloak: cloakColors };
   }
 
