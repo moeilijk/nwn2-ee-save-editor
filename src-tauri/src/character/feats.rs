@@ -2179,9 +2179,9 @@ impl Character {
         })
     }
 
-    /// Fast path for listing: skips prerequisites, availability checks, and
-    /// uses pre-computed HashSets for domain/epithet lookups instead of
-    /// iterating the domains table per feat.
+    /// Fast path for listing: skips availability checks and uses pre-computed
+    /// HashSets for domain/epithet lookups instead of iterating the domains
+    /// table per feat.
     pub fn get_feat_info_display(
         &self,
         feat_id: FeatId,
@@ -2235,7 +2235,7 @@ impl Character {
             has_feat,
             can_take: true,
             missing_requirements: vec![],
-            prerequisites: FeatPrerequisites::default(),
+            prerequisites: self.build_feat_prerequisites(&feat_data, game_data),
             availability: FeatAvailability {
                 available: true,
                 reasons: vec![],
