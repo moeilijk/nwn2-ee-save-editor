@@ -203,7 +203,7 @@ pub fn load_model(
         data.skeleton = load_skeleton(resource_manager, skel_name);
         if let Some(ref skel) = data.skeleton {
             let palettes = build_bone_palettes(skel);
-            remap_mesh_bone_indices(&mut data.meshes, &palettes);
+            remap_mesh_bone_indices(&mut data.meshes, &palettes, skel);
             data.animations = load_idle_animations(resource_manager, skel_name);
         }
     }
@@ -224,7 +224,7 @@ pub fn load_model_with_skeleton(
         data.skeleton = load_skeleton(resource_manager, skeleton_resref);
         if let Some(ref skel) = data.skeleton {
             let palettes = build_bone_palettes(skel);
-            remap_mesh_bone_indices(&mut data.meshes, &palettes);
+            remap_mesh_bone_indices(&mut data.meshes, &palettes, skel);
             data.animations = load_idle_animations(resource_manager, skeleton_resref);
         }
     }
@@ -382,7 +382,10 @@ pub fn load_idle_animations(
                     };
                     info!(
                         "  '{}' -> '{}': {:.2}s, {} tracks",
-                        anim.name, tag, anim.duration, anim.tracks.len()
+                        anim.name,
+                        tag,
+                        anim.duration,
+                        anim.tracks.len()
                     );
                     let mut converted = convert_animation(anim);
                     converted.name = tag;
@@ -509,7 +512,8 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> Mes
 }
 
 /// Bone palettes for MDB skinning index remapping.
-/// Matches nwn2mdk's process_fbx_bones: skip ap_*, separate f_*, Ribcage last.
+/// Matches nwn2mdk's process_fbx_bones (export_info.cpp):
+/// iterate skeleton array order, skip ap_*, separate f_*, Ribcage last.
 struct BonePalettes {
     body: Vec<usize>,
     face: Vec<usize>,
@@ -541,9 +545,14 @@ fn build_bone_palettes(skeleton: &SkeletonData) -> BonePalettes {
 
 /// Remap MDB bone_indices from palette space to full-skeleton space.
 /// Cutscene meshes (heads) use face palette for low indices, body palette for the rest.
-fn remap_mesh_bone_indices(meshes: &mut [MeshData], palettes: &BonePalettes) {
+fn remap_mesh_bone_indices(
+    meshes: &mut [MeshData],
+    palettes: &BonePalettes,
+    skeleton: &SkeletonData,
+) {
     use crate::parsers::mdb::types::material_flags::CUTSCENE_MESH;
 
+    // Phase 1: standard palette remap
     for mesh in meshes.iter_mut() {
         let Some(ref mut indices) = mesh.bone_indices else {
             continue;
@@ -559,6 +568,64 @@ fn remap_mesh_bone_indices(meshes: &mut [MeshData], palettes: &BonePalettes) {
                 i // fallback: pass through
             };
             *idx = skel_idx as u8;
+        }
+    }
+
+    // Phase 2: detect and fix eye↔lid palette mismatch.
+    // Some race MDBs were authored with a skeleton version where
+    // eye rotation bones had different palette positions than the
+    // current GR2 skeleton. Detect by checking if an "Eye" mesh
+    // ended up bound to eyelid bones (should be eyeL/eyeR).
+    fix_eye_lid_mismatch(meshes, skeleton);
+}
+
+fn fix_eye_lid_mismatch(meshes: &mut [MeshData], skeleton: &SkeletonData) {
+    let find = |name: &str| -> Option<usize> { skeleton.bones.iter().position(|b| b.name == name) };
+
+    let (Some(eye_l), Some(eye_r), Some(lid_l), Some(lid_r)) =
+        (find("eyeL"), find("eyeR"), find("eyeLlid"), find("eyeRlid"))
+    else {
+        return;
+    };
+
+    let needs_swap = meshes.iter().any(|mesh| {
+        let lower = mesh.name.to_ascii_lowercase();
+        if !lower.contains("eye") || lower.contains("lid") {
+            return false;
+        }
+        let Some(ref indices) = mesh.bone_indices else {
+            return false;
+        };
+        indices
+            .iter()
+            .any(|&idx| idx as usize == lid_l || idx as usize == lid_r)
+    });
+
+    if !needs_swap {
+        return;
+    }
+
+    debug!(
+        "Eye/lid mismatch detected: swapping eyeL(skel[{}])↔eyeLlid(skel[{}]), eyeR(skel[{}])↔eyeRlid(skel[{}])",
+        eye_l, lid_l, eye_r, lid_r
+    );
+
+    // Apply symmetric swap to ALL meshes so both eye and head meshes are fixed
+    for mesh in meshes.iter_mut() {
+        let Some(ref mut indices) = mesh.bone_indices else {
+            continue;
+        };
+        for idx in indices.iter_mut() {
+            let i = *idx as usize;
+            if i == eye_l {
+                *idx = lid_l as u8;
+            } else if i == lid_l {
+                *idx = eye_l as u8;
+            } else if i == eye_r {
+                *idx = lid_r as u8;
+            } else if i == lid_r {
+                *idx = eye_r as u8;
+            }
         }
     }
 }
