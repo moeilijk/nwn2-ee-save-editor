@@ -1,5 +1,7 @@
 import { Tag } from '@blueprintjs/core';
 import { T } from '../theme';
+import { FormattedDescription } from '../shared';
+import { parseFeatDescription } from '@/utils/descriptionParser';
 import type { DummyFeat } from '../dummy-data';
 
 interface FeatExpandedDetailProps {
@@ -7,10 +9,12 @@ interface FeatExpandedDetailProps {
 }
 
 export function FeatExpandedDetail({ feat }: FeatExpandedDetailProps) {
+  const parsed = parseFeatDescription(feat.description);
+
   return (
     <div>
-      <div className="t-base" style={{ color: T.text, lineHeight: 1.5, marginBottom: feat.prerequisites.length > 0 ? 10 : 0 }}>
-        {feat.description}
+      <div style={{ marginBottom: feat.prerequisites.length > 0 ? 10 : 0 }}>
+        <FormattedDescription sections={parsed.sections} />
       </div>
       {feat.prerequisites.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

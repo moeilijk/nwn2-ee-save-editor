@@ -5,10 +5,11 @@ import { T, FEAT_TYPE_COLORS } from '../theme';
 import { GameIcon } from '../shared/GameIcon';
 import type { FeatInfo, BackendFeatPrerequisites } from '@/components/Feats/types';
 import { FEAT_TYPE_LABELS, getFeatTypeLabel } from '@/utils/featUtils';
-import { DetailSection } from '../shared';
+import { DetailSection, FormattedDescription } from '../shared';
 import { display } from '@/utils/dataHelpers';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useIcon } from '@/hooks/useIcon';
+import { parseFeatDescription } from '@/utils/descriptionParser';
 
 interface FeatDetailProps {
   feat: FeatInfo | null;
@@ -108,13 +109,14 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
         </div>
       </div>
 
-      {feat.description && (
-        <DetailSection title={t('feats.description')}>
-          <div className="t-body" style={{ color: T.text }}>
-            {feat.description}
-          </div>
-        </DetailSection>
-      )}
+      {feat.description && (() => {
+        const parsed = parseFeatDescription(feat.description);
+        return (
+          <DetailSection title={t('feats.description')}>
+            <FormattedDescription sections={parsed.sections} />
+          </DetailSection>
+        );
+      })()}
 
       {feat.missing_requirements && feat.missing_requirements.length > 0 && (
         <DetailSection title={t('feats.missingRequirements')}>
@@ -166,6 +168,17 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
                 <span style={{ color: T.textMuted }}>({p.current}/{p.required})</span>
               </div>
             ))}
+            {!isOwned && onAdd && (
+              prereqs.feats?.some(p => !p.met) ||
+              prereqs.abilities?.some(p => !p.met) ||
+              (prereqs.bab && !prereqs.bab.met) ||
+              (prereqs.level && !prereqs.level.met) ||
+              prereqs.skills?.some(p => !p.met)
+            ) && (
+              <div className="t-sm" style={{ color: T.textMuted, fontStyle: 'italic', marginTop: 4 }}>
+                {t('feats.autoAddHint')}
+              </div>
+            )}
           </div>
         </DetailSection>
       )}

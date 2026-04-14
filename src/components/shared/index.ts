@@ -7,6 +7,7 @@ export { SplitPane } from './SplitPane';
 export { GroupedList } from './GroupedList';
 export type { ListSection } from './GroupedList';
 export { DetailSection } from './DetailSection';
+export { FormattedDescription } from './FormattedDescription';
 export { LevelHelper } from './LevelHelper';
 export { ErrorBoundary } from './ErrorBoundary';
 export { AboutDialog } from './AboutDialog';

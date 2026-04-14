@@ -7,6 +7,7 @@ import { display } from '@/utils/dataHelpers';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useIcon } from '@/hooks/useIcon';
 import type { CasterClassInfo } from '@/utils/spellUtils';
+import { parseSpellDescriptionBody } from '@/utils/descriptionParser';
 
 interface SpellDetailProps {
   spell: SpellInfo | null;
@@ -60,6 +61,7 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
 
   const schoolName = spell.school_name || spell.school;
   const schoolColor = SPELL_SCHOOL_COLORS[schoolName || ''] || T.textMuted;
+  const parsedDesc = spell.description ? parseSpellDescriptionBody(spell.description) : null;
 
   return (
     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -143,6 +145,9 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
           {spell.components && <InfoRow label={t('spells.components')} value={spell.components} />}
           {spell.range && <InfoRow label={t('spells.range')} value={spell.range} />}
           {spell.target_type && <InfoRow label={t('spells.target')} value={spell.target_type} />}
+          {parsedDesc?.duration && <InfoRow label={t('spells.duration')} value={parsedDesc.duration} />}
+          {parsedDesc?.save && <InfoRow label={t('spells.save')} value={parsedDesc.save} />}
+          {parsedDesc?.spellResistance && <InfoRow label={t('spells.spellResistance')} value={parsedDesc.spellResistance} />}
           {spell.cast_time && <InfoRow label={t('spells.castTime')} value={spell.cast_time} />}
           {spell.available_metamagic && <InfoRow label={t('spells.metamagic')} value={spell.available_metamagic} />}
           {spell.is_domain_spell && <InfoRow label={t('spells.source')} value={t('spells.domainSpell')} color="#c62828" />}
@@ -155,10 +160,10 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
         </div>
       </DetailSection>
 
-      {spell.description && (
+      {parsedDesc?.body && (
         <DetailSection title={t('spells.description')}>
-          <div className="t-body" style={{ color: T.text }}>
-            {spell.description}
+          <div className="t-body" style={{ color: T.text, lineHeight: 1.5 }}>
+            {parsedDesc.body}
           </div>
         </DetailSection>
       )}
