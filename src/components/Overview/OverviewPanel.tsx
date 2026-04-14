@@ -14,16 +14,16 @@ import { display, formatModifier, formatNumber } from '@/utils/dataHelpers';
 import { invoke } from '@tauri-apps/api/core';
 
 const ALIGNMENT_GRID = [
-  { name: 'Lawful Good', lc: 85, ge: 85, color: '#FFD700' },
-  { name: 'Neutral Good', lc: 50, ge: 85, color: '#87CEEB' },
-  { name: 'Chaotic Good', lc: 15, ge: 85, color: '#228B22' },
-  { name: 'Lawful Neutral', lc: 85, ge: 50, color: '#71797E' },
-  { name: 'True Neutral', lc: 50, ge: 50, color: '#A0522D' },
-  { name: 'Chaotic Neutral', lc: 15, ge: 50, color: '#FF4500' },
-  { name: 'Lawful Evil', lc: 85, ge: 15, color: '#8B0000' },
-  { name: 'Neutral Evil', lc: 50, ge: 15, color: '#556B2F' },
-  { name: 'Chaotic Evil', lc: 15, ge: 15, color: '#483D8B' },
-];
+  { key: 'lawfulGood', lc: 85, ge: 85, color: '#FFD700' },
+  { nameKey: 'neutralGood', key: 'neutralGood', lc: 50, ge: 85, color: '#87CEEB' },
+  { nameKey: 'chaoticGood', key: 'chaoticGood', lc: 15, ge: 85, color: '#228B22' },
+  { nameKey: 'lawfulNeutral', key: 'lawfulNeutral', lc: 85, ge: 50, color: '#71797E' },
+  { nameKey: 'trueNeutral', key: 'trueNeutral', lc: 50, ge: 50, color: '#A0522D' },
+  { nameKey: 'chaoticNeutral', key: 'chaoticNeutral', lc: 15, ge: 50, color: '#FF4500' },
+  { nameKey: 'lawfulEvil', key: 'lawfulEvil', lc: 85, ge: 15, color: '#8B0000' },
+  { nameKey: 'neutralEvil', key: 'neutralEvil', lc: 50, ge: 15, color: '#556B2F' },
+  { nameKey: 'chaoticEvil', key: 'chaoticEvil', lc: 15, ge: 15, color: '#483D8B' },
+].map(a => ({ ...a, nameKey: a.key, labelKey: `alignment.names.${a.key}` }));
 
 function getAlignmentIndex(lc: number, ge: number): number {
   const col = lc >= 70 ? 0 : lc <= 30 ? 2 : 1;
@@ -32,12 +32,12 @@ function getAlignmentIndex(lc: number, ge: number): number {
 }
 
 const ABILITY_DEFS = [
-  { key: 'Str' as const, fallbackKey: 'strength' as const, label: 'Strength' },
-  { key: 'Dex' as const, fallbackKey: 'dexterity' as const, label: 'Dexterity' },
-  { key: 'Con' as const, fallbackKey: 'constitution' as const, label: 'Constitution' },
-  { key: 'Int' as const, fallbackKey: 'intelligence' as const, label: 'Intelligence' },
-  { key: 'Wis' as const, fallbackKey: 'wisdom' as const, label: 'Wisdom' },
-  { key: 'Cha' as const, fallbackKey: 'charisma' as const, label: 'Charisma' },
+  { key: 'Str' as const, fallbackKey: 'strength' as const, labelKey: 'abilityScores.names.strength' },
+  { key: 'Dex' as const, fallbackKey: 'dexterity' as const, labelKey: 'abilityScores.names.dexterity' },
+  { key: 'Con' as const, fallbackKey: 'constitution' as const, labelKey: 'abilityScores.names.constitution' },
+  { key: 'Int' as const, fallbackKey: 'intelligence' as const, labelKey: 'abilityScores.names.intelligence' },
+  { key: 'Wis' as const, fallbackKey: 'wisdom' as const, labelKey: 'abilityScores.names.wisdom' },
+  { key: 'Cha' as const, fallbackKey: 'charisma' as const, labelKey: 'abilityScores.names.charisma' },
 ];
 
 export function OverviewPanel() {
@@ -253,7 +253,7 @@ export function OverviewPanel() {
   const difficultyLabel = character.difficultyLabel ?? null;
   const gt = character.gameTime;
   const gameTimeStr = gt?.year != null
-    ? `Y${gt.year} M${gt.month} D${gt.day}, Hour ${gt.hour}`
+    ? t('overview.gameTimeValue', { year: gt.year, month: gt.month, day: gt.day, hour: gt.hour })
     : null;
   const lastSavedStr = character.lastSaved
     ? (() => { try { return new Date(character.lastSaved!).toLocaleDateString(); } catch { return character.lastSaved; } })()
@@ -298,16 +298,16 @@ export function OverviewPanel() {
                 <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               </span>
             } />
-            <KVRow label={t('character.gender')} value={
+            <KVRow label={t('character.genderLabel')} value={
               <ButtonGroup minimal>
-                <Button small active={character.gender_id === 0} intent={character.gender_id === 0 ? 'primary' : 'none'} onClick={() => handleGenderChange(0)}>{t('character.male')}</Button>
-                <Button small active={character.gender_id === 1} intent={character.gender_id === 1 ? 'primary' : 'none'} onClick={() => handleGenderChange(1)}>{t('character.female')}</Button>
+                <Button small active={character.gender_id === 0} intent={character.gender_id === 0 ? 'primary' : 'none'} onClick={() => handleGenderChange(0)}>{t('character.gender.male')}</Button>
+                <Button small active={character.gender_id === 1} intent={character.gender_id === 1 ? 'primary' : 'none'} onClick={() => handleGenderChange(1)}>{t('character.gender.female')}</Button>
               </ButtonGroup>
             } />
             <KVRow label={t('character.age')} value={
               <StepInput value={age} onValueChange={handleAgeChange} min={0} max={9999} width={88} />
             } />
-            <KVRow label={t('character.alignment')} value={ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.name ?? display(character.alignment)} />
+            <KVRow label={t('character.alignment')} value={t(ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.labelKey) || display(character.alignment)} />
             <KVRow label={t('overview.deity')} value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsDeityOpen(true)}>
                 {display(character.deity, 'None')}
@@ -367,7 +367,7 @@ export function OverviewPanel() {
             <KVRow label={t('overview.campaignName')} value={display(campaignName)} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-            <KVRow label={t('overview.gameAct')} value={gameAct != null ? `Act ${gameAct}` : '-'} />
+            <KVRow label={t('overview.gameAct')} value={gameAct != null ? t('overview.actValue', { act: gameAct }) : '-'} />
             <KVRow label={t('overview.module')} value={display(moduleName)} />
             <KVRow label={t('character.location')} value={display(locationName)} />
             <KVRow label={t('overview.difficulty')} value={display(difficultyLabel)} />
@@ -422,7 +422,7 @@ export function OverviewPanel() {
             <KVRow label={t('character.initiative')} value={formatModifier(initTotal)} />
             <KVRow label={t('character.meleeAttack')} value={formatModifier(melee)} />
             <KVRow label={t('character.rangedAttack')} value={formatModifier(ranged)} />
-            <KVRow label={t('character.size')} value={display(character.size)} />
+            <KVRow label={t('character.size')} value={t(`character.size.${character.size?.toLowerCase()}`) || display(character.size)} />
           </div>
         </div>
 
@@ -442,7 +442,7 @@ export function OverviewPanel() {
               const score = character.abilities?.[a.fallbackKey];
               const modVal = character.abilityModifiers?.[a.key] ?? (score != null ? Math.floor((score - 10) / 2) : null);
               return (
-                <KVRow key={a.key} label={a.label} value={
+                <KVRow key={a.key} label={t(a.labelKey)} value={
                   <>
                     {display(score)}
                     {modVal != null && (
@@ -464,7 +464,7 @@ export function OverviewPanel() {
               const active = getAlignmentIndex(lawChaos, goodEvil) === i;
               return (
                 <button
-                  key={a.name}
+                  key={a.labelKey}
                   onClick={() => handleAlignmentSelect(a.lc, a.ge)}
                   disabled={alignmentSaving}
                   className={`t-sm t-center ${active ? 't-bold' : 't-medium'}`}
@@ -477,18 +477,18 @@ export function OverviewPanel() {
                     cursor: alignmentSaving ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                   }}
                 >
-                  {a.name}
+                  {t(a.labelKey)}
                 </button>
               );
             })}
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
-              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Law - Chaos</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>{t('alignment.lawChaosLabel')}</div>
               <StepInput value={lawChaos} onValueChange={v => handleAlignmentStep('lc', v)} min={0} max={100} width={88} />
             </div>
             <div>
-              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Good - Evil</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>{t('alignment.goodEvilLabel')}</div>
               <StepInput value={goodEvil} onValueChange={v => handleAlignmentStep('ge', v)} min={0} max={100} width={88} />
             </div>
           </div>

@@ -22,9 +22,9 @@ type TabId = 'known' | 'prepared' | 'all';
 
 const SPELLS_PER_PAGE = 10000;
 
-const SPELL_SCHOOL_OPTIONS = [
-  'Abjuration', 'Conjuration', 'Divination', 'Enchantment',
-  'Evocation', 'Illusion', 'Necromancy', 'Transmutation',
+const SPELL_SCHOOL_KEYS = [
+  'abjuration', 'conjuration', 'divination', 'enchantment',
+  'evocation', 'illusion', 'necromancy', 'transmutation',
 ];
 
 export function SpellsPanel() {
@@ -127,7 +127,8 @@ export function SpellsPanel() {
   const handleAddSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
     try {
       const response = await addSpell(spellId, classIndex, spellLevel);
-      showToast(response.message || t('placeholders.spellAdded'), 'success');
+      const isSimple = response.message === 'Spell added successfully';
+      showToast(isSimple ? t('placeholders.spellAdded') : response.message, 'success');
       setAllSpells(prev => prev.filter(s => s.id !== spellId));
       setAllSpellsTotal(prev => prev - 1);
       setSelectedSpell(null);
@@ -137,7 +138,8 @@ export function SpellsPanel() {
   const handleRemoveSpell = useCallback(async (spellId: number, classIndex: number, spellLevel: number) => {
     try {
       const response = await removeSpell(spellId, classIndex, spellLevel);
-      showToast(response.message || t('placeholders.spellRemoved'), 'success');
+      const isSimple = response.message === 'Spell removed successfully';
+      showToast(isSimple ? t('placeholders.spellRemoved') : response.message, 'success');
       setSelectedSpell(null);
     } catch (error) { handleError(error); }
   }, [removeSpell, showToast, handleError, t]);
@@ -217,15 +219,15 @@ export function SpellsPanel() {
 
   const sections = tab === 'known' ? knownSections : tab === 'prepared' ? preparedSections : allSections;
 
-  const schoolLabel = activeSchool === 'all' ? t('spells.schoolAll') : activeSchool;
+  const schoolLabel = activeSchool === 'all' ? t('spells.schoolAll') : t(`spells.schools.${activeSchool.toLowerCase()}`);
   const levelFilterLabel = activeLevel === 'all' ? t('spells.levelAll') : activeLevel === '0' ? t('spells.cantrips') : t('spells.levelSpells', { level: activeLevel });
   const classLabel = activeClass === 'all' ? t('spells.classAll') : activeClass;
 
   const schoolMenu = (
     <Menu>
       <MenuItem text={t('common.all')} active={activeSchool === 'all'} onClick={() => setActiveSchool('all')} />
-      {SPELL_SCHOOL_OPTIONS.map(s => (
-        <MenuItem key={s} text={s} active={activeSchool === s} onClick={() => setActiveSchool(s)} />
+      {SPELL_SCHOOL_KEYS.map(s => (
+        <MenuItem key={s} text={t(`spells.schools.${s}`)} active={activeSchool.toLowerCase() === s} onClick={() => setActiveSchool(s)} />
       ))}
     </Menu>
   );
@@ -251,7 +253,8 @@ export function SpellsPanel() {
 
   const renderSpellItem = useCallback((spell: SpellInfo, selected: boolean) => {
     const schoolName = spell.school_name || spell.school;
-    const schoolColor = SPELL_SCHOOL_COLORS[schoolName || ''] || T.textMuted;
+    const schoolKey = schoolName ? `spells.schools.${schoolName.toLowerCase()}` : '';
+    const schoolColor = SPELL_SCHOOL_COLORS[schoolKey] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className={selected ? 't-semibold' : undefined} style={{
@@ -261,19 +264,19 @@ export function SpellsPanel() {
           {display(spell.name)}
         </span>
         {spell.is_domain_spell && (
-          <span className="t-medium" style={{ color: '#c62828', flexShrink: 0 }}>Domain</span>
+          <span className="t-medium" style={{ color: '#c62828', flexShrink: 0 }}>{t('spells.domain')}</span>
         )}
         {spell.memorized_count !== undefined && spell.memorized_count > 0 && (
           <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>{spell.memorized_count}x</span>
         )}
         {schoolName && (
           <span className="t-medium" style={{ color: schoolColor, flexShrink: 0 }}>
-            {schoolName}
+            {t(schoolKey)}
           </span>
         )}
       </div>
     );
-  }, []);
+  }, [t]);
 
   const totalKnown = knownSpells.length;
   const totalPrepared = preparedSpells.length;
@@ -396,7 +399,7 @@ export function SpellsPanel() {
             }}>
               <span style={{ color: T.text, flex: 1 }}>{display(a.name)}</span>
               {a.school_name && (
-                <span style={{ color: T.textMuted, flexShrink: 0 }}>{a.school_name}</span>
+                <span style={{ color: T.textMuted, flexShrink: 0 }}>{t(`spells.schools.${a.school_name.toLowerCase()}`)}</span>
               )}
               <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>Lv {a.innate_level}</span>
             </div>

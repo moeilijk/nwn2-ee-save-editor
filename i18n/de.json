@@ -105,7 +105,23 @@
     "totalFeats": "Talente gesamt",
     "knownSpells": "Bekannte Zauber",
     "questsCompleted": "Quests abgeschlossen",
-    "activeQuests": "Aktive Quests"
+    "activeQuests": "Aktive Quests",
+    "genderLabel": "Geschlecht",
+    "gender": {
+      "male": "Männlich",
+      "female": "Weiblich"
+    },
+    "size": {
+      "fine": "Winzig",
+      "diminutive": "Sehr klein",
+      "tiny": "Klein",
+      "small": "Klein",
+      "medium": "Mittel",
+      "large": "Groß",
+      "huge": "Riesig",
+      "gargantuan": "Gigantisch",
+      "colossal": "Kolossal"
+    }
   },
   "overview": {
     "armorClass": "Rüstungsklasse",
@@ -125,7 +141,9 @@
     "difficulty": "Schwierigkeit",
     "gameTime": "Spielzeit",
     "questProgress": "Quest-Fortschritt",
-    "completion": "Abschluss"
+    "completion": "Abschluss",
+    "actValue": "Akt {act}",
+    "gameTimeValue": "J{year} M{month} T{day}, Stunde {hour}"
   },
   "abilityScores": {
     "abilityScores": "Attribute",
@@ -158,9 +176,19 @@
       "pointsUsed": "Verwendete Punkte",
       "remaining": "verbleibend",
       "warning": "Dies setzt Ihre Attributserhöhungen durch Stufenaufstiege zurück. Sie können diese nach dem Anwenden neu verteilen."
+    },
+    "names": {
+      "strength": "Stärke",
+      "dexterity": "Geschicklichkeit",
+      "constitution": "Konstitution",
+      "intelligence": "Intelligenz",
+      "wisdom": "Weisheit",
+      "charisma": "Charisma"
     }
   },
   "alignment": {
+    "lawChaosLabel": "Rechtschaffen - Chaos",
+    "goodEvilLabel": "Gut - Böse",
     "trueNeutral": "Neutral",
     "lawfulGood": "Rechtschaffen Gut",
     "neutralGood": "Neutral Gut",
@@ -169,9 +197,27 @@
     "chaoticNeutral": "Chaotisch Neutral",
     "lawfulEvil": "Rechtschaffen Böse",
     "neutralEvil": "Neutral Böse",
-    "chaoticEvil": "Chaotisch Böse"
+    "chaoticEvil": "Chaotisch Böse",
+    "names": {
+      "lawfulGood": "Rechtschaffen Gut",
+      "neutralGood": "Neutral Gut",
+      "chaoticGood": "Chaotisch Gut",
+      "lawfulNeutral": "Rechtschaffen Neutral",
+      "trueNeutral": "Neutral",
+      "chaoticNeutral": "Chaotic Neutral",
+      "lawfulEvil": "Rechtschaffen Böse",
+      "neutralEvil": "Neutral Böse",
+      "chaoticEvil": "Chaotisch Böse"
+    }
   },
   "inventory": {
+    "categories": {
+      "armorAndClothing": "Rüstung & Kleidung",
+      "weapons": "Waffen",
+      "magicItems": "Magische Gegenstände",
+      "accessories": "Zubehör",
+      "miscellaneous": "Verschiedenes"
+    },
     "equipment": "Ausrüstung",
     "weight": "Gewicht",
     "gold": "Gold",
@@ -291,13 +337,32 @@
     "domainFeats": "Domänentalente",
     "customFeats": "Benutzerdefinierte Talente",
     "protectedFeats": "Geschützte Talente",
-    "ranks": "Ränge"
+    "ranks": "Ränge",
+    "categories": {
+      "general": "Allgemein",
+      "proficiency": "Kampf",
+      "skillSave": "Fertigkeit/Rettungswurf",
+      "metamagic": "Metamagie",
+      "divine": "Göttlich",
+      "epic": "Episch",
+      "class": "Klasse",
+      "background": "Hintergrund",
+      "spellcasting": "Zaubern",
+      "history": "Geschichte",
+      "heritage": "Erbe",
+      "itemCreation": "Gegenstand herstellen",
+      "racial": "Volk",
+      "domain": "Domäne"
+    }
   },
   "placeholders": {
     "addFeat": "Talent hinzufügen",
     "removeFeat": "Talent entfernen",
     "featAdded": "Talent erfolgreich hinzugefügt",
     "featRemoved": "Talent erfolgreich entfernt",
+    "featAddedWithPrereqs": "Talent mit Voraussetzungen hinzugefügt - {details}",
+    "autoAddedFeats": "Talente: {feats}",
+    "autoModifiedAbilities": "Attribute: {abilities}",
     "addSpell": "Zauber hinzufügen",
     "removeSpell": "Zauber entfernen",
     "spellAdded": "Zauber erfolgreich hinzugefügt",
@@ -624,7 +689,18 @@
     "spellResistance": "Zauberresistenz",
     "description": "Beschreibung",
     "specialAbilities": "Spezialfähigkeiten",
-    "domain": "Domäne"
+    "domain": "Domäne",
+    "domainSpell": "Domänenzauber",
+    "schools": {
+      "abjuration": "Abjuration",
+      "conjuration": "Beschwörung",
+      "divination": "Erkenntnis",
+      "enchantment": "Verzauberung",
+      "evocation": "Hervorrufung",
+      "illusion": "Illusion",
+      "necromancy": "Nekromantie",
+      "transmutation": "Verwandlung"
+    }
   },
   "titlebar": {
     "minimize": "Minimieren",

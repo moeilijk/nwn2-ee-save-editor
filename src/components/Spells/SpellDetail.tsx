@@ -82,7 +82,9 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
             {schoolName && (
               <>
                 <span style={{ color: T.textMuted }}> — </span>
-                <span className="t-medium" style={{ color: schoolColor }}>{schoolName}</span>
+                <span className="t-medium" style={{ color: SPELL_SCHOOL_COLORS[`spells.schools.${schoolName.toLowerCase()}`] || T.textMuted }}>
+                  {t(`spells.schools.${schoolName.toLowerCase()}`)}
+                </span>
               </>
             )}
           </div>
@@ -141,7 +143,13 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
       <DetailSection title={t('spells.spellInfo')}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <InfoRow label={t('spells.innateLevel')} value={spell.innate_level !== undefined ? String(spell.innate_level) : String(spell.level)} />
-          {schoolName && <InfoRow label={t('spells.school')} value={schoolName} color={schoolColor} />}
+          {schoolName && (
+            <InfoRow
+              label={t('spells.school')}
+              value={t(`spells.schools.${schoolName.toLowerCase()}`)}
+              color={SPELL_SCHOOL_COLORS[`spells.schools.${schoolName.toLowerCase()}`]}
+            />
+          )}
           {spell.components && <InfoRow label={t('spells.components')} value={spell.components} />}
           {spell.range && <InfoRow label={t('spells.range')} value={spell.range} />}
           {spell.target_type && <InfoRow label={t('spells.target')} value={spell.target_type} />}

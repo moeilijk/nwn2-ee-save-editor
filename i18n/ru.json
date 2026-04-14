@@ -105,7 +105,23 @@
     "totalFeats": "Всего фитов",
     "knownSpells": "Известные заклинания",
     "questsCompleted": "Завершено квестов",
-    "activeQuests": "Активные квесты"
+    "activeQuests": "Активные задания",
+    "genderLabel": "Пол",
+    "gender": {
+      "male": "Мужской",
+      "female": "Женский"
+    },
+    "size": {
+      "fine": "Миниатюрный",
+      "diminutive": "Крошечный",
+      "tiny": "Маленький",
+      "small": "Маленький",
+      "medium": "Средний",
+      "large": "Большой",
+      "huge": "Огромный",
+      "gargantuan": "Громадный",
+      "colossal": "Колоссальный"
+    }
   },
   "overview": {
     "armorClass": "Класс защиты",
@@ -125,7 +141,9 @@
     "difficulty": "Сложность",
     "gameTime": "Игровое время",
     "questProgress": "Прогресс квестов",
-    "completion": "Завершение"
+    "completion": "Завершение",
+    "actValue": "Акт {act}",
+    "gameTimeValue": "Г{year} М{month} Д{day}, Час {hour}"
   },
   "abilityScores": {
     "abilityScores": "Основные характеристики",
@@ -158,21 +176,49 @@
       "pointsUsed": "Использовано очков",
       "remaining": "осталось",
       "warning": "Это сбросит ваши прибавки характеристик за уровни. Вы сможете перераспределить их после применения."
+    },
+    "names": {
+      "strength": "Сила",
+      "dexterity": "Ловкость",
+      "constitution": "Выносливость",
+      "intelligence": "Интеллект",
+      "wisdom": "Мудрость",
+      "charisma": "Харизма"
     }
   },
   "alignment": {
-    "trueNeutral": "Нейтральный",
-    "lawfulGood": "Законопослушный добрый",
-    "neutralGood": "Нейтральный добрый",
-    "chaoticGood": "Хаотичный добрый",
-    "lawfulNeutral": "Законопослушный нейтральный",
-    "chaoticNeutral": "Хаотичный нейтральный",
-    "lawfulEvil": "Законопослушный злой",
-    "neutralEvil": "Нейтральный злой",
-    "chaoticEvil": "Хаотичный злой"
+    "lawChaosLabel": "Закон - Хаос",
+    "goodEvilLabel": "Добро - Зло",
+    "trueNeutral": "Истинно-нейтральный",
+    "lawfulGood": "Принципиально-добрый",
+    "neutralGood": "Нейтрально-добрый",
+    "chaoticGood": "Хаотично-добрый",
+    "lawfulNeutral": "Принципиально-нейтральный",
+    "chaoticNeutral": "Хаотично-нейтральный",
+    "lawfulEvil": "Принципиально-злой",
+    "neutralEvil": "Нейтрально-злой",
+    "chaoticEvil": "Хаотично-злой",
+    "names": {
+      "lawfulGood": "Принципиально-добрый",
+      "neutralGood": "Нейтрально-добрый",
+      "chaoticGood": "Хаотично-добрый",
+      "lawfulNeutral": "Принципиально-нейтральный",
+      "trueNeutral": "Истинно-нейтральный",
+      "chaoticNeutral": "Хаотично-нейтральный",
+      "lawfulEvil": "Принципиально-злой",
+      "neutralEvil": "Нейтрально-злой",
+      "chaoticEvil": "Хаотично-злой"
+    }
   },
   "inventory": {
-    "equipment": "Экипировка",
+    "categories": {
+      "armorAndClothing": "Доспехи и одежда",
+      "weapons": "Оружие",
+      "magicItems": "Волшебные предметы",
+      "accessories": "Аксессуары",
+      "miscellaneous": "Разное"
+    },
+    "equipment": "Снаряжение",
     "weight": "Вес",
     "gold": "Золото",
     "goldUpdated": "Золото успешно обновлено",
@@ -291,13 +337,32 @@
     "domainFeats": "Доменные фиты",
     "customFeats": "Пользовательские фиты",
     "protectedFeats": "Защищенные фиты",
-    "ranks": "ранги"
+    "ranks": "ранги",
+    "categories": {
+      "general": "Общий",
+      "proficiency": "Владение",
+      "skillSave": "Навык/Спасбросок",
+      "metamagic": "Метамагия",
+      "divine": "Божественный",
+      "epic": "Эпический",
+      "class": "Классовый",
+      "background": "Происхождение",
+      "spellcasting": "Заклинания",
+      "history": "История",
+      "heritage": "Наследие",
+      "itemCreation": "Создание предметов",
+      "racial": "Расовый",
+      "domain": "Домен"
+    }
   },
   "placeholders": {
     "addFeat": "Добавить фит",
     "removeFeat": "Удалить фит",
     "featAdded": "Фит успешно добавлен",
     "featRemoved": "Фит успешно удален",
+    "featAddedWithPrereqs": "Фит добавлен с условиями - {details}",
+    "autoAddedFeats": "фиты: {feats}",
+    "autoModifiedAbilities": "параметры: {abilities}",
     "addSpell": "Добавить заклинание",
     "removeSpell": "Удалить заклинание",
     "spellAdded": "Заклинание успешно добавлено",
@@ -499,20 +564,31 @@
       "validationError": "Некорректное поле {field}: {reason}",
       "invalidValue": "Недопустимое значение для {field}",
       "fileError": "Ошибка файла: {message}",
+      "fileErrorWithPath": "Ошибка файла ({path}): {message}",
       "parseError": "Ошибка обработки: {message}",
-      "insufficientResources": "Недостаточно ресурсов: {resource}",
+      "parseErrorWithContext": "Ошибка обработки {context}: {message}",
+      "insufficientResources": "Недостаточно ресурсов: {resource}: нужно {required}, есть {available}",
       "prerequisitesNotMet": "Не соблюдены условия: {missing}",
       "notFound": "Элемент {item} не найден",
       "alreadyExists": "Элемент {item} уже существует",
-      "operationFailed": "Операция {operation} провалена",
-      "internal": "Произошла непредвиденная ошибка"
+      "operationFailed": "Операция {operation} провалена: {reason}",
+      "internal": "Произошла непредвиденная ошибка",
+      "unknown": "Произошла неизвестная ошибка"
     },
     "recovery": {
       "noCharacterLoaded": "Загрузите файл сохранения с главного экрана.",
       "noGameDataLoaded": "Проверьте пути к игре в настройках.",
-      "characterNotFound": "Файл мог быть перемещен или удален.",
-      "parseError": "Файл может быть поврежден. Используйте бэкап.",
-      "operationFailed": "Попробуйте снова или перезапустите приложение."
+      "characterNotFound": "Файл мог быть перемещен или удален. Попробуйте загрузить другое сохранение.",
+      "validationError": "Проверьте значение и попробуйте снова.",
+      "invalidValue": "Исправьте значение, чтобы оно соответствовало формату.",
+      "fileError": "Убедитесь, что файл существует и не занят другой программой.",
+      "parseError": "Файл может быть поврежден. Используйте бэкап или другое сохранение.",
+      "insufficientResources": "Освободите ресурсы или измените выбор.",
+      "prerequisitesNotMet": "Сначала добавьте необходимые условия.",
+      "notFound": "Элемент мог быть удален. Попробуйте обновить данные.",
+      "alreadyExists": "Выберите другое имя или сначала удалите существующий элемент.",
+      "operationFailed": "Попробуйте еще раз. Если ошибка повторится, перезапустите приложение.",
+      "internal": "Попробуйте перезапустить приложение. Если проблема останется, проверьте лог отладки."
     },
     "boundary": {
       "title": "Что-то пошло не так",
@@ -562,7 +638,12 @@
       "change": "Изменить",
       "set": "Задать",
       "addOverrideFolder": "Добавить папку Override",
-      "addHakFolder": "Добавить папку HAK"
+      "addHakFolder": "Добавить папку HAK",
+      "selectGameFolder": "Выберите папку установки NWN2",
+      "selectDocumentsFolder": "Выберите папку документов NWN2",
+      "selectWorkshopFolder": "Выберите папку Steam Workshop",
+      "selectOverrideFolder": "Выберите папку Override",
+      "selectHakFolder": "Выберите папку HAK"
     },
     "launch": {
       "launchBehavior": "Поведение при запуске",
@@ -581,7 +662,10 @@
     "known": "Известные",
     "prepared": "Подготовленные",
     "allSpells": "Все заклинания",
+    "myFeats": "Мои способности",
+    "allFeats": "Все способности",
     "filterSpells": "Поиск заклинаний...",
+    "filterFeats": "Поиск способностей...",
     "cantrips": "Заговоры (0 круг)",
     "levelSpells": "Заклинания {level} круга",
     "schoolAll": "Школа: Все",
@@ -605,7 +689,18 @@
     "spellResistance": "Сопр. магии",
     "description": "Описание",
     "specialAbilities": "Спец. способности",
-    "domain": "Домен"
+    "domain": "Домен",
+    "domainSpell": "Доменное заклинание",
+    "schools": {
+      "abjuration": "Ограждение",
+      "conjuration": "Вызов",
+      "divination": "Прорицание",
+      "enchantment": "Очарование",
+      "evocation": "Воплощение",
+      "illusion": "Иллюзия",
+      "necromancy": "Некромантия",
+      "transmutation": "Превращение"
+    }
   },
   "titlebar": {
     "minimize": "Свернуть",
@@ -631,6 +726,10 @@
     "licenseText": "Открытое ПО под лицензией MIT.",
     "fanContent": "Неофициальный фанатский проект.",
     "notAffiliated": "Этот проект не связан с Aspyr Media.",
+    "scripterronCredit": "За NWN2 GFF Tools.",
+    "nwn2mdkCredit": "За NWN2 Model Development Kit.",
+    "xoreosCredit": "За инструменты xoreos-tools.",
+    "thirdParty": "Сторонние библиотеки",
     "copyVersion": "Копировать версию"
   },
   "gameLaunch": {
@@ -653,12 +752,16 @@
     "noneNoDeity": "Нет (Безбожник)",
     "noDeitySelected": "Божество не выбрано",
     "portfolio": "Сферы влияния",
-    "favoredWeapon": "Любимое оружие"
+    "favoredWeapon": "Любимое оружие",
+    "selectFromList": "Выберите из списка",
+    "noMatch": "Нет совпадений"
   },
   "race": {
     "selectTitle": "Выбор расы",
     "searchPlaceholder": "Поиск рас...",
-    "selectRace": "Выберите расу из списка"
+    "selectRace": "Выберите расу из списка",
+    "noMatch": "Нет совпадений",
+    "confirm": "Выбрать"
   },
   "appearance": {
     "title": "Внешность",
@@ -675,6 +778,8 @@
     "hairHighlight": "Блики",
     "hairAccessory": "Аксессуар",
     "tattoos": "Татуировки",
+    "tattoo1Color": "Цвет тату 1",
+    "tattoo2Color": "Цвет тату 2",
     "size": "Размер",
     "height": "Рост",
     "girth": "Телосложение",
@@ -683,9 +788,14 @@
     "voiceSet": "Голос",
     "voiceSearch": "Поиск голосов...",
     "voiceConfirm": "Применить",
+    "voiceNone": "Нет",
     "voiceCurrent": "Текущий",
+    "voiceMale": "М",
+    "voiceFemale": "Ж",
     "voiceTypePlayer": "Игрок",
     "voiceTypeHenchman": "Спутник",
+    "voiceTypeNPC": "NPC",
+    "voiceTypeCreature": "Существо",
     "wingsAndTail": "Крылья и хвост",
     "wings": "Крылья",
     "tail": "Хвост",

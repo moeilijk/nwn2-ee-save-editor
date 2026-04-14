@@ -2,20 +2,20 @@ import type { FeatInfo } from '@/components/Feats/types';
 import { FEAT_TYPES } from '@/components/Feats/types';
 
 export const FEAT_TYPE_LABELS: Record<number, string> = {
-  [FEAT_TYPES.GENERAL]: 'General',
-  [FEAT_TYPES.PROFICIENCY]: 'Proficiency',
-  [FEAT_TYPES.SKILL_SAVE]: 'Skill/Save',
-  [FEAT_TYPES.METAMAGIC]: 'Metamagic',
-  [FEAT_TYPES.DIVINE]: 'Divine',
-  [FEAT_TYPES.EPIC]: 'Epic',
-  [FEAT_TYPES.CLASS]: 'Class',
-  [FEAT_TYPES.BACKGROUND]: 'Background',
-  [FEAT_TYPES.SPELLCASTING]: 'Spellcasting',
-  [FEAT_TYPES.HISTORY]: 'History',
-  [FEAT_TYPES.HERITAGE]: 'Heritage',
-  [FEAT_TYPES.ITEM_CREATION]: 'Item Creation',
-  [FEAT_TYPES.RACIAL]: 'Racial',
-  [FEAT_TYPES.DOMAIN]: 'Domain',
+  [FEAT_TYPES.GENERAL]: 'feats.categories.general',
+  [FEAT_TYPES.PROFICIENCY]: 'feats.categories.proficiency',
+  [FEAT_TYPES.SKILL_SAVE]: 'feats.categories.skillSave',
+  [FEAT_TYPES.METAMAGIC]: 'feats.categories.metamagic',
+  [FEAT_TYPES.DIVINE]: 'feats.categories.divine',
+  [FEAT_TYPES.EPIC]: 'feats.categories.epic',
+  [FEAT_TYPES.CLASS]: 'feats.categories.class',
+  [FEAT_TYPES.BACKGROUND]: 'feats.categories.background',
+  [FEAT_TYPES.SPELLCASTING]: 'feats.categories.spellcasting',
+  [FEAT_TYPES.HISTORY]: 'feats.categories.history',
+  [FEAT_TYPES.HERITAGE]: 'feats.categories.heritage',
+  [FEAT_TYPES.ITEM_CREATION]: 'feats.categories.itemCreation',
+  [FEAT_TYPES.RACIAL]: 'feats.categories.racial',
+  [FEAT_TYPES.DOMAIN]: 'feats.categories.domain',
 };
 
 export function getFeatTypeLabel(type: number): string {

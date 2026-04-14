@@ -37,7 +37,7 @@ interface FeatManagementActions {
   validateFeat: (featId: number) => Promise<ValidationState | null>;
   clearValidationCache: () => void;
   addFeat: (featId: number) => Promise<FeatActionResponse>;
-  removeFeat: (featId: number) => Promise<void>;
+  removeFeat: (featId: number) => Promise<FeatActionResponse>;
   selectFeat: (feat: FeatInfo | null) => void;
   clearSelection: () => void;
 }
@@ -173,10 +173,10 @@ export function useFeatManagement(
     return response;
   }, [character?.id, feats, invalidateSubsystems]);
 
-  const removeFeat = useCallback(async (featId: number) => {
-    if (!character?.id) return;
+  const removeFeat = useCallback(async (featId: number): Promise<FeatActionResponse> => {
+    if (!character?.id) throw new Error('No character loaded');
 
-    await CharacterAPI.removeFeat(character.id, featId);
+    const response = await CharacterAPI.removeFeat(character.id, featId);
     await feats.load({ force: true });
     setValidationCache(prev => {
       const newCache = { ...prev };
@@ -184,6 +184,7 @@ export function useFeatManagement(
       return newCache;
     });
     await invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]);
+    return response;
   }, [character?.id, feats, invalidateSubsystems]);
 
   const selectFeat = useCallback((feat: FeatInfo | null) => {

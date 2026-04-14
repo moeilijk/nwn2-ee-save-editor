@@ -44,20 +44,30 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
         </tr>
       </thead>
       <tbody>
-        {items.map((item) => (
-          <tr
-            key={item.index}
-            onClick={() => onSelectItem(item.index)}
-            style={selectedIndex === item.index ? { background: 'rgba(160, 82, 45, 0.1)' } : undefined}
-          >
-            <td className={item.is_custom ? 't-semibold' : undefined} style={{
-              color: item.is_custom ? T.accent : T.text,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {display(item.name)}
-            </td>
-            <td style={{ color: T.textMuted }}>{display(item.category)}</td>
-            <td style={{ textAlign: 'center' }}>{item.stack_size > 1 ? item.stack_size : ''}</td>
+        {items.map((item) => {
+          const resolveCategory = (c: string) => {
+            if (c === 'Armor & Clothing') return t('inventory.categories.armorAndClothing');
+            if (c === 'Weapons') return t('inventory.categories.weapons');
+            if (c === 'Magic Items') return t('inventory.categories.magicItems');
+            if (c === 'Accessories') return t('inventory.categories.accessories');
+            if (c === 'Miscellaneous') return t('inventory.categories.miscellaneous');
+            return c;
+          };
+
+          return (
+            <tr
+              key={item.index}
+              onClick={() => onSelectItem(item.index)}
+              style={selectedIndex === item.index ? { background: 'rgba(160, 82, 45, 0.1)' } : undefined}
+            >
+              <td className={item.is_custom ? 't-semibold' : undefined} style={{
+                color: item.is_custom ? T.accent : T.text,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {display(item.name)}
+              </td>
+              <td style={{ color: T.textMuted }}>{display(resolveCategory(item.category))}</td>
+              <td style={{ textAlign: 'center' }}>{item.stack_size > 1 ? item.stack_size : ''}</td>
             <td style={{ textAlign: 'right', color: T.textMuted }}>
               {item.weight > 0 ? `${item.weight.toFixed(1)} lbs` : '-'}
             </td>
@@ -65,7 +75,8 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
               {item.value > 0 ? `${fmtNum(item.value)} gp` : '-'}
             </td>
           </tr>
-        ))}
+          );
+        })}
       </tbody>
     </HTMLTable>
   );

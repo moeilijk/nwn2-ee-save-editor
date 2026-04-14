@@ -19,14 +19,29 @@ export const useLocale = () => {
   return context;
 };
 
+const flattenMessages = (nestedMessages: any, prefix = '') => {
+  return Object.keys(nestedMessages).reduce((messages: any, key) => {
+    const value = nestedMessages[key];
+    const prefixedKey = prefix ? `${prefix}.${key}` : key;
+
+    if (typeof value === 'string') {
+      messages[prefixedKey] = value;
+    } else {
+      Object.assign(messages, flattenMessages(value, prefixedKey));
+    }
+
+    return messages;
+  }, {});
+};
+
 const loadMessages = async (locale: string) => {
   try {
     const messages = await import(`../../i18n/${locale}.json`);
-    return messages.default;
+    return flattenMessages(messages.default);
   } catch (error) {
     console.error(`Failed to load messages for locale: ${locale}`, error);
     const messages = await import('../../i18n/en.json');
-    return messages.default;
+    return flattenMessages(messages.default);
   }
 };
 

@@ -51,6 +51,8 @@
     "overview": "Przegląd",
     "abilityScores": "Atrybuty i Statystyki",
     "appearance": "Wygląd",
+    "hpGained": "PŻ Zdobyte",
+    "abilityIncrease": "Przyrost Atrybutu",
     "classes": "Klasy i Poziomy",
     "skills": "Umiejętności",
     "feats": "Atuty",
@@ -105,7 +107,23 @@
     "totalFeats": "Suma Atutów",
     "knownSpells": "Znane Czary",
     "questsCompleted": "Ukończone Zadania",
-    "activeQuests": "Aktywne Zadania"
+    "activeQuests": "Aktywne Zadania",
+    "genderLabel": "Płeć",
+    "gender": {
+      "male": "Mężczyzna",
+      "female": "Kobieta"
+    },
+    "size": {
+      "fine": "Bardzo mały",
+      "diminutive": "Malutki",
+      "tiny": "Drobny",
+      "small": "Mały",
+      "medium": "Średni",
+      "large": "Duży",
+      "huge": "Ogromny",
+      "gargantuan": "Gargantuiczny",
+      "colossal": "Kolosalny"
+    }
   },
   "overview": {
     "armorClass": "Klasa Pancerza",
@@ -125,7 +143,9 @@
     "difficulty": "Trudność",
     "gameTime": "Czas Gry",
     "questProgress": "Postęp Zadań",
-    "completion": "Ukończono"
+    "completion": "Ukończono",
+    "actValue": "Akt {act}",
+    "gameTimeValue": "R{year} M{month} D{day}, Godzina {hour}"
   },
   "abilityScores": {
     "abilityScores": "Atrybuty",
@@ -158,9 +178,19 @@
       "pointsUsed": "Wydane Punkty",
       "remaining": "pozostało",
       "warning": "To zresetuje Twoje przyrosty atrybutów z poziomów. Będziesz mógł je rozdzielić ponownie po zastosowaniu."
+    },
+    "names": {
+      "strength": "Siła",
+      "dexterity": "Zręczność",
+      "constitution": "Kondycja",
+      "intelligence": "Inteligencja",
+      "wisdom": "Roztropność",
+      "charisma": "Charyzma"
     }
   },
   "alignment": {
+    "lawChaosLabel": "Zakon - Chaos",
+    "goodEvilLabel": "Dobro - Zło",
     "trueNeutral": "Neutralny",
     "lawfulGood": "Praworządny Dobry",
     "neutralGood": "Neutralny Dobry",
@@ -169,9 +199,27 @@
     "chaoticNeutral": "Chaotyczny Neutralny",
     "lawfulEvil": "Praworządny Zły",
     "neutralEvil": "Neutralny Zły",
-    "chaoticEvil": "Chaotyczny Zły"
+    "chaoticEvil": "Chaotyczny Zły",
+    "names": {
+      "lawfulGood": "Praworządny Dobry",
+      "neutralGood": "Neutralny Dobry",
+      "chaoticGood": "Chaotyczny Dobry",
+      "lawfulNeutral": "Praworządny Neutralny",
+      "trueNeutral": "Neutralny",
+      "chaoticNeutral": "Chaotyczny Neutralny",
+      "lawfulEvil": "Praworządny Zły",
+      "neutralEvil": "Neutralny Zły",
+      "chaoticEvil": "Chaotyczny Zły"
+    }
   },
   "inventory": {
+    "categories": {
+      "armorAndClothing": "Pancerze i Odzież",
+      "weapons": "Broń",
+      "magicItems": "Magiczne Przedmioty",
+      "accessories": "Akcesoria",
+      "miscellaneous": "Różne"
+    },
     "equipment": "Ekwipunek",
     "weight": "Waga",
     "gold": "Złoto",
@@ -291,13 +339,32 @@
     "domainFeats": "Atuty Domen",
     "customFeats": "Atuty Niestandardowe",
     "protectedFeats": "Atuty Chronione",
-    "ranks": "poziomy"
+    "ranks": "poziomy",
+    "categories": {
+      "general": "Ogólny",
+      "proficiency": "Biegłość",
+      "skillSave": "Umiejętność/Rzut obronny",
+      "metamagic": "Metamagia",
+      "divine": "Boski",
+      "epic": "Epicki",
+      "class": "Klasowy",
+      "background": "Pochodzenie",
+      "spellcasting": "Rzucanie czarów",
+      "history": "Historia",
+      "heritage": "Dziedzictwo",
+      "itemCreation": "Tworzenie przedmiotów",
+      "racial": "Rasowy",
+      "domain": "Domena"
+    }
   },
   "placeholders": {
     "addFeat": "Dodaj Atut",
     "removeFeat": "Usuń Atut",
     "featAdded": "Atut dodany pomyślnie",
     "featRemoved": "Atut usunięty pomyślnie",
+    "featAddedWithPrereqs": "Atut dodany z wymaganiami - {details}",
+    "autoAddedFeats": "atuty: {feats}",
+    "autoModifiedAbilities": "atrybuty: {abilities}",
     "addSpell": "Dodaj Czar",
     "removeSpell": "Usuń Czar",
     "spellAdded": "Czar dodany pomyślnie",
@@ -342,8 +409,8 @@
     "levelHistory": "Historia Poziomów",
     "noLevelHistory": "Brak historii poziomów.",
     "stats": "Statystyki",
-    "hpGained": "Zyskane PŻ",
-    "abilityScoreIncrease": "Wzrost Atrybutu",
+    "hpGained": "PŻ Zdobyte",
+    "abilityIncrease": "Przyrost Atrybutu",
     "skills": "Umiejętności",
     "feats": "Atuty",
     "lvl": "Poz",
@@ -497,22 +564,33 @@
       "noGameDataLoaded": "Dane gry nie zainicjowane.",
       "characterNotFound": "Nie znaleziono pliku postaci: {path}",
       "validationError": "Nieprawidłowy {field}: {reason}",
+      "invalidValue": "Nieprawidłowa wartość dla {field}: oczekiwano {expected}, otrzymano {actual}",
       "fileError": "Błąd pliku: {message}",
+      "fileErrorWithPath": "Błąd pliku ({path}): {message}",
       "parseError": "Błąd przetwarzania: {message}",
-      "insufficientResources": "Niewystarczające zasoby: {resource}",
+      "parseErrorWithContext": "Błąd przetwarzania {context}: {message}",
+      "insufficientResources": "Niewystarczające zasoby: {resource}: potrzeba {required}, masz {available}",
       "prerequisitesNotMet": "Nie spełniono wymagań: {missing}",
-      "notFound": "Nie znaleziono elementu: {item}",
-      "alreadyExists": "Element już istnieje: {item}",
+      "notFound": "{item} nie znaleziono",
+      "alreadyExists": "{item} już istnieje",
       "operationFailed": "{operation} zawiodło: {reason}",
-      "internal": "Wystąpił nieoczekiwany błąd"
+      "internal": "Wystąpił nieoczekiwany błąd",
+      "unknown": "Wystąpił nieznany błąd"
     },
     "recovery": {
       "noCharacterLoaded": "Wczytaj zapis z ekranu głównego.",
       "noGameDataLoaded": "Sprawdź ścieżki instalacji w Ustawieniach.",
-      "characterNotFound": "Plik mógł zostać przeniesiony lub usunięty.",
+      "characterNotFound": "Plik mógł zostać przeniesiony lub usunięty. Spróbuj wczytać inny zapis.",
       "validationError": "Sprawdź wartość i spróbuj ponownie.",
-      "parseError": "Plik może być uszkodzony. Spróbuj wczytać kopię.",
-      "operationFailed": "Spróbuj ponownie lub zrestartuj program."
+      "invalidValue": "Popraw wartość, aby pasowała do oczekiwanego formatu.",
+      "fileError": "Upewnij się, że plik istnieje i nie jest używany przez inny program.",
+      "parseError": "Plik może być uszkodzony. Spróbuj wczytać kopię lub inny zapis.",
+      "insufficientResources": "Zwolnij zasoby lub dostosuj wybór.",
+      "prerequisitesNotMet": "Najpierw dodaj wymagane atuty/umiejętności.",
+      "notFound": "Element mógł zostać usunięty. Spróbuj odświeżyć dane.",
+      "alreadyExists": "Wybierz inną nazwę lub najpierw usuń istniejący element.",
+      "operationFailed": "Spróbuj ponownie. Jeśli błąd się powtarza, zrestartuj program.",
+      "internal": "Spróbuj zrestartować program. Jeśli problem nie ustąpi, sprawdź log debugowania."
     },
     "boundary": {
       "title": "Coś poszło nie tak",
@@ -562,7 +640,12 @@
       "change": "Zmień",
       "set": "Ustaw",
       "addOverrideFolder": "Dodaj Folder Override",
-      "addHakFolder": "Dodaj Folder HAK"
+      "addHakFolder": "Dodaj Folder HAK",
+      "selectGameFolder": "Wybierz folder instalacji gry",
+      "selectDocumentsFolder": "Wybierz folder dokumentów NWN2",
+      "selectWorkshopFolder": "Wybierz folder Steam Workshop",
+      "selectOverrideFolder": "Wybierz folder Override",
+      "selectHakFolder": "Wybierz folder HAK"
     },
     "launch": {
       "launchBehavior": "Zachowanie przy Uruchamianiu",
@@ -581,7 +664,10 @@
     "known": "Znane",
     "prepared": "Przygotowane",
     "allSpells": "Wszystkie Czary",
+    "myFeats": "Moje Zdolności",
+    "allFeats": "Wszystkie Zdolności",
     "filterSpells": "Filtruj czary...",
+    "filterFeats": "Filtruj zdolności...",
     "cantrips": "Sztuczki",
     "levelSpells": "Czary {level}. poziomu",
     "schoolAll": "Szkoła: Wszystkie",
@@ -605,7 +691,17 @@
     "spellResistance": "Odporność na Czary",
     "description": "Opis",
     "specialAbilities": "Zdolności Specjalne",
-    "domain": "Domena"
+    "domain": "Domena",
+    "schools": {
+      "abjuration": "Abjuracja",
+      "conjuration": "Przywoływanie",
+      "divination": "Poznanie",
+      "enchantment": "Zauroczenie",
+      "evocation": "Wywoływanie",
+      "illusion": "Iluzja",
+      "necromancy": "Nekromancja",
+      "transmutation": "Przemiana"
+    }
   },
   "titlebar": {
     "minimize": "Minimalizuj",
@@ -628,9 +724,13 @@
     "obsidianCredit": "Za stworzenie gry.",
     "aspyrCredit": "Za wersję Enhanced Edition.",
     "license": "Licencja",
-    "licenseText": "Oprogramowanie Open Source na licencji MIT.",
+    "licenseText": "Wolne oprogramowanie na licencji MIT.",
     "fanContent": "Nieoficjalny projekt fanowski.",
-    "notAffiliated": "Projekt niepowiązany z Aspyr Media.",
+    "notAffiliated": "Ten projekt nie jest powiązany z Aspyr Media.",
+    "scripterronCredit": "Za NWN2 GFF Tools.",
+    "nwn2mdkCredit": "Za NWN2 Model Development Kit.",
+    "xoreosCredit": "Za narzędzia xoreos-tools.",
+    "thirdParty": "Biblioteki zewnętrzne",
     "copyVersion": "Kopiuj wersję"
   },
   "gameLaunch": {
@@ -653,12 +753,16 @@
     "noneNoDeity": "Brak (Bez bóstwa)",
     "noDeitySelected": "Nie wybrano bóstwa",
     "portfolio": "Domeny",
-    "favoredWeapon": "Ulubiona Broń"
+    "favoredWeapon": "Ulubiona broń",
+    "selectFromList": "Wybierz z listy",
+    "noMatch": "Brak wyników"
   },
   "race": {
-    "selectTitle": "Wybierz Rasę",
-    "searchPlaceholder": "Szukaj ras...",
-    "selectRace": "Wybierz rasę z listy"
+    "selectTitle": "Wybór rasy",
+    "searchPlaceholder": "Szukaj rasy...",
+    "selectRace": "Wybierz rasę z listy",
+    "noMatch": "Brak wyników",
+    "confirm": "Wybierz"
   },
   "appearance": {
     "title": "Wygląd",
@@ -675,17 +779,25 @@
     "hairHighlight": "Pasemka",
     "hairAccessory": "Dodatki",
     "tattoos": "Tatuaże",
+    "tattoo1Color": "Kolor tatuażu 1",
+    "tattoo2Color": "Kolor tatuażu 2",
     "size": "Rozmiar",
     "height": "Wzrost",
     "girth": "Szerokość",
     "voice": "Głos",
     "soundset": "Baza Dźwięków",
     "voiceSet": "Zestaw Głosu",
+    "voiceSearch": "Szukaj głosu...",
     "voiceConfirm": "Zastosuj",
-    "voiceCurrent": "Obecny",
+    "voiceNone": "Brak",
+    "voiceCurrent": "Aktualny",
+    "voiceMale": "M",
+    "voiceFemale": "K",
     "voiceTypePlayer": "Gracz",
     "voiceTypeHenchman": "Towarzysz",
-    "wingsAndTail": "Skrzydła i Ogon",
+    "voiceTypeNPC": "NPC",
+    "voiceTypeCreature": "Stworzenie",
+    "wingsAndTail": "Skrzydła i ogon",
     "wings": "Skrzydła",
     "tail": "Ogon",
     "none": "Brak",

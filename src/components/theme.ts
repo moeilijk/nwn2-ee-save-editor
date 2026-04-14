@@ -21,17 +21,32 @@ export const T = {
 } as const;
 
 export const FEAT_TYPE_COLORS: Record<string, string> = {
-  General: '#43a047', Proficiency: '#6d4c41', 'Skill/Save': '#00acc1',
-  Metamagic: '#8e24aa', Divine: '#f9a825', Epic: '#e53935',
-  Class: '#1e88e5', Background: '#00897b', Spellcasting: '#5c6bc0',
-  History: '#f57f17', Heritage: '#c62828', 'Item Creation': '#689f38',
-  Racial: '#00838f', Domain: '#7b1fa2',
+  'feats.categories.general': '#43a047',
+  'feats.categories.proficiency': '#6d4c41',
+  'feats.categories.skillSave': '#00acc1',
+  'feats.categories.metamagic': '#8e24aa',
+  'feats.categories.divine': '#f9a825',
+  'feats.categories.epic': '#e53935',
+  'feats.categories.class': '#1e88e5',
+  'feats.categories.background': '#00897b',
+  'feats.categories.spellcasting': '#5c6bc0',
+  'feats.categories.history': '#f57f17',
+  'feats.categories.heritage': '#c62828',
+  'feats.categories.itemCreation': '#689f38',
+  'feats.categories.racial': '#00838f',
+  'feats.categories.domain': '#7b1fa2',
 };
 
 export const SPELL_SCHOOL_COLORS: Record<string, string> = {
-  Abjuration: '#1565c0', Conjuration: '#2e7d32', Enchantment: '#7b1fa2',
-  Evocation: '#d84315', Transmutation: '#0277bd', Necromancy: '#b71c1c',
-  Divination: '#00838f', Illusion: '#ad1457', Universal: '#546e7a',
+  'spells.schools.abjuration': '#1565c0',
+  'spells.schools.conjuration': '#2e7d32',
+  'spells.schools.enchantment': '#7b1fa2',
+  'spells.schools.evocation': '#d84315',
+  'spells.schools.transmutation': '#0277bd',
+  'spells.schools.necromancy': '#b71c1c',
+  'spells.schools.divination': '#00838f',
+  'spells.schools.illusion': '#ad1457',
+  'spells.schools.universal': '#546e7a',
 };
 
 export const RARITY_COLORS: Record<string, string> = {

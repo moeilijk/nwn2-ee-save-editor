@@ -5,6 +5,13 @@ export function useTranslations() {
   const intl = useIntl();
 
   return useCallback((key: string, values?: Record<string, unknown>) => {
+    // 1. Try flat messages first (LocaleProvider flattens translations for react-intl)
+    const flatMessage = intl.messages[key];
+    if (typeof flatMessage === 'string') {
+      return values ? intl.formatMessage({ id: key, defaultMessage: flatMessage }, values as Record<string, string | number>) : flatMessage;
+    }
+
+    // 2. Fallback to nested traversal (if not flattened)
     const keys = key.split('.');
     let message: unknown = intl.messages;
 

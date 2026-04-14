@@ -20,21 +20,21 @@ import { useTranslations } from '@/hooks/useTranslations';
 
 type TabId = 'my' | 'all';
 
-const FEAT_TYPE_OPTIONS: { label: string; value: number }[] = [
-  { label: 'General', value: FEAT_TYPES.GENERAL },
-  { label: 'Proficiency', value: FEAT_TYPES.PROFICIENCY },
-  { label: 'Skill/Save', value: FEAT_TYPES.SKILL_SAVE },
-  { label: 'Metamagic', value: FEAT_TYPES.METAMAGIC },
-  { label: 'Divine', value: FEAT_TYPES.DIVINE },
-  { label: 'Epic', value: FEAT_TYPES.EPIC },
-  { label: 'Class', value: FEAT_TYPES.CLASS },
-  { label: 'Background', value: FEAT_TYPES.BACKGROUND },
-  { label: 'Spellcasting', value: FEAT_TYPES.SPELLCASTING },
-  { label: 'History', value: FEAT_TYPES.HISTORY },
-  { label: 'Heritage', value: FEAT_TYPES.HERITAGE },
-  { label: 'Item Creation', value: FEAT_TYPES.ITEM_CREATION },
-  { label: 'Racial', value: FEAT_TYPES.RACIAL },
-  { label: 'Domain', value: FEAT_TYPES.DOMAIN },
+const FEAT_TYPE_OPTIONS: { labelKey: string; value: number }[] = [
+  { labelKey: 'feats.categories.general', value: FEAT_TYPES.GENERAL },
+  { labelKey: 'feats.categories.proficiency', value: FEAT_TYPES.PROFICIENCY },
+  { labelKey: 'feats.categories.skillSave', value: FEAT_TYPES.SKILL_SAVE },
+  { labelKey: 'feats.categories.metamagic', value: FEAT_TYPES.METAMAGIC },
+  { labelKey: 'feats.categories.divine', value: FEAT_TYPES.DIVINE },
+  { labelKey: 'feats.categories.epic', value: FEAT_TYPES.EPIC },
+  { labelKey: 'feats.categories.class', value: FEAT_TYPES.CLASS },
+  { labelKey: 'feats.categories.background', value: FEAT_TYPES.BACKGROUND },
+  { labelKey: 'feats.categories.spellcasting', value: FEAT_TYPES.SPELLCASTING },
+  { labelKey: 'feats.categories.history', value: FEAT_TYPES.HISTORY },
+  { labelKey: 'feats.categories.heritage', value: FEAT_TYPES.HERITAGE },
+  { labelKey: 'feats.categories.itemCreation', value: FEAT_TYPES.ITEM_CREATION },
+  { labelKey: 'feats.categories.racial', value: FEAT_TYPES.RACIAL },
+  { labelKey: 'feats.categories.domain', value: FEAT_TYPES.DOMAIN },
 ];
 
 
@@ -149,7 +149,25 @@ export function FeatsPanel() {
   const handleAddFeat = useCallback(async (featId: number) => {
     try {
       const response = await addFeat(featId);
-      showToast(response.message || t('placeholders.featAdded'), 'success');
+      let toastMsg = t('placeholders.featAdded') as string;
+      
+      const parts: string[] = [];
+      if (response.auto_added_feats && response.auto_added_feats.length > 0) {
+        const featNames = response.auto_added_feats.map(f => f.label).join(', ');
+        parts.push(t('placeholders.autoAddedFeats', { feats: featNames }) as string);
+      }
+      if (response.auto_modified_abilities && response.auto_modified_abilities.length > 0) {
+        const abilityChanges = response.auto_modified_abilities.map(a => `${a.ability} ${a.old_value} -> ${a.new_value}`).join(', ');
+        parts.push(t('placeholders.autoModifiedAbilities', { abilities: abilityChanges }) as string);
+      }
+      
+      if (parts.length > 0) {
+        toastMsg = t('placeholders.featAddedWithPrereqs', { details: parts.join('; ') }) as string;
+      } else if (response.message && response.message !== 'Feat added successfully') {
+        toastMsg = response.message;
+      }
+      
+      showToast(toastMsg, 'success');
       setAllFeats(prev => prev.filter(f => f.id !== featId));
       setAllFeatsTotal(prev => prev - 1);
       setSelectedFeat(null);
@@ -158,9 +176,10 @@ export function FeatsPanel() {
 
   const handleRemoveFeat = useCallback(async (featId: number) => {
     try {
-      await removeFeat(featId);
-      showToast(t('placeholders.featRemoved'), 'success');
-      setSelectedFeat(null);
+      const response = await removeFeat(featId);
+      const isSimple = response.message === 'Feat removed successfully';
+      showToast(isSimple ? t('placeholders.featRemoved') : response.message, 'success');
+      setAllFeats(prev => [...prev, response.character_feats?.find(f => f.id === featId) || { id: featId, label: 'Removed', name: 'Unknown', protected: false, custom: false, type: 0 }]);
     } catch (error) { handleError(error); }
   }, [removeFeat, showToast, handleError, t]);
 
@@ -185,13 +204,13 @@ export function FeatsPanel() {
   const allSections: ListSection<FeatInfo>[] = useMemo(() => {
     const grouped = new Map<string, FeatInfo[]>();
     for (const f of allFeats) {
-      const label = getFeatTypeLabel(f.type);
-      if (!grouped.has(label)) grouped.set(label, []);
-      grouped.get(label)!.push(f);
+      const labelKey = getFeatTypeLabel(f.type);
+      if (!grouped.has(labelKey)) grouped.set(labelKey, []);
+      grouped.get(labelKey)!.push(f);
     }
-    return [...grouped.entries()].map(([label, items]) => ({
-      key: label,
-      title: `${label} ${t('feats.feats')}`,
+    return [...grouped.entries()].map(([labelKey, items]) => ({
+      key: labelKey,
+      title: `${t(labelKey)} ${t('feats.feats')}`,
       items,
     }));
   }, [allFeats, t]);
@@ -201,8 +220,8 @@ export function FeatsPanel() {
   const sections = tab === 'my' ? mySections : allSections;
 
   const renderFeatItem = useCallback((feat: FeatInfo, selected: boolean) => {
-    const typeLabel = getFeatTypeLabel(feat.type);
-    const typeColor = FEAT_TYPE_COLORS[typeLabel] || T.textMuted;
+    const labelKey = getFeatTypeLabel(feat.type);
+    const typeColor = FEAT_TYPE_COLORS[labelKey] || T.textMuted;
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className={selected ? 't-semibold' : undefined} style={{
@@ -212,15 +231,15 @@ export function FeatsPanel() {
           {display(feat.name)}
         </span>
         <span className="t-medium" style={{ color: typeColor, flexShrink: 0 }}>
-          {typeLabel}
+          {t(labelKey)}
         </span>
       </div>
     );
-  }, []);
+  }, [t]);
 
   const typeLabel = activeTypeBit === null
     ? t('common.typeAll')
-    : (FEAT_TYPE_LABELS[activeTypeBit] ?? t('common.typeAll'));
+    : (t(FEAT_TYPE_LABELS[activeTypeBit]) || t('common.typeAll'));
 
   const typeMenu = (
     <Menu>
@@ -228,7 +247,7 @@ export function FeatsPanel() {
       {FEAT_TYPE_OPTIONS.map(opt => (
         <MenuItem
           key={opt.value}
-          text={opt.label}
+          text={t(opt.labelKey)}
           active={activeTypeBit === opt.value}
           onClick={() => setActiveTypeBit(opt.value)}
         />

@@ -105,7 +105,23 @@
     "totalFeats": "Total de Dotes",
     "knownSpells": "Hechizos Conocidos",
     "questsCompleted": "Misiones Completadas",
-    "activeQuests": "Misiones Activas"
+    "activeQuests": "Misiones Activas",
+    "genderLabel": "Género",
+    "gender": {
+      "male": "Varón",
+      "female": "Mujer"
+    },
+    "size": {
+      "fine": "Diminuto",
+      "diminutive": "Muy pequeño",
+      "tiny": "Pequeño",
+      "small": "Pequeño",
+      "medium": "Mediano",
+      "large": "Grande",
+      "huge": "Enorme",
+      "gargantuan": "Gargantuesco",
+      "colossal": "Colosal"
+    }
   },
   "overview": {
     "armorClass": "Clase de Armadura",
@@ -125,7 +141,9 @@
     "difficulty": "Dificultad",
     "gameTime": "Tiempo de Juego",
     "questProgress": "Progreso de Misiones",
-    "completion": "Completado"
+    "completion": "Completado",
+    "actValue": "Acto {act}",
+    "gameTimeValue": "A{year} M{month} D{day}, Hora {hour}"
   },
   "abilityScores": {
     "abilityScores": "Puntuaciones de Habilidad",
@@ -158,9 +176,19 @@
       "pointsUsed": "Puntos Usados",
       "remaining": "restantes",
       "warning": "Esto restablecerá sus aumentos de puntuación por nivel. Podrá volver a asignarlos después de aplicar."
+    },
+    "names": {
+      "strength": "Fuerza",
+      "dexterity": "Destreza",
+      "constitution": "Constitución",
+      "intelligence": "Inteligencia",
+      "wisdom": "Sabiduría",
+      "charisma": "Carisma"
     }
   },
   "alignment": {
+    "lawChaosLabel": "Ley - Caos",
+    "goodEvilLabel": "Bien - Mal",
     "trueNeutral": "Neutral Auténtico",
     "lawfulGood": "Legal Bueno",
     "neutralGood": "Neutral Bueno",
@@ -169,9 +197,27 @@
     "chaoticNeutral": "Caótico Neutral",
     "lawfulEvil": "Legal Maligno",
     "neutralEvil": "Neutral Maligno",
-    "chaoticEvil": "Caótico Maligno"
+    "chaoticEvil": "Caótico Maligno",
+    "names": {
+      "lawfulGood": "Legal Bueno",
+      "neutralGood": "Neutral Bueno",
+      "chaoticGood": "Caótico Bueno",
+      "lawfulNeutral": "Legal Neutral",
+      "trueNeutral": "Neutral Auténtico",
+      "chaoticNeutral": "Caótico Neutral",
+      "lawfulEvil": "Legal Maligno",
+      "neutralEvil": "Neutral Maligno",
+      "chaoticEvil": "Caótico Maligno"
+    }
   },
   "inventory": {
+    "categories": {
+      "armorAndClothing": "Armaduras y Ropa",
+      "weapons": "Armas",
+      "magicItems": "Objetos Mágicos",
+      "accessories": "Accesorios",
+      "miscellaneous": "Varios"
+    },
     "equipment": "Equipo",
     "weight": "Peso",
     "gold": "Oro",
@@ -291,13 +337,32 @@
     "domainFeats": "Dotes de Dominio",
     "customFeats": "Dotes Personalizadas",
     "protectedFeats": "Dotes Protegidas",
-    "ranks": "rangos"
+    "ranks": "rangos",
+    "categories": {
+      "general": "General",
+      "proficiency": "Competencia",
+      "skillSave": "Habilidad/Salvación",
+      "metamagic": "Metamagia",
+      "divine": "Divina",
+      "epic": "Épica",
+      "class": "Clase",
+      "background": "Trasfondo",
+      "spellcasting": "Lanzamiento de Conjuros",
+      "history": "Historia",
+      "heritage": "Herencia",
+      "itemCreation": "Creación de Objetos",
+      "racial": "Racial",
+      "domain": "Dominio"
+    }
   },
   "placeholders": {
     "addFeat": "Añadir Dote",
     "removeFeat": "Quitar Dote",
     "featAdded": "Dote añadida con éxito",
     "featRemoved": "Dote quitada con éxito",
+    "featAddedWithPrereqs": "Dote añadida con requisitos previos - {details}",
+    "autoAddedFeats": "dotes: {feats}",
+    "autoModifiedAbilities": "habilidades: {abilities}",
     "addSpell": "Añadir Hechizo",
     "removeSpell": "Quitar Hechizo",
     "spellAdded": "Hechizo añadido con éxito",
@@ -343,6 +408,7 @@
     "noLevelHistory": "Sin historial grabado.",
     "stats": "Estadísticas",
     "hpGained": "PG Ganados",
+    "abilityIncrease": "Aumento de Habilidad",
     "abilityScoreIncrease": "Aumento de Habilidad",
     "skills": "Habilidades",
     "feats": "Dotes",
@@ -624,7 +690,18 @@
     "spellResistance": "Resistencia a Conjuros",
     "description": "Descripción",
     "specialAbilities": "Habilidades Especiales",
-    "domain": "Dominio"
+    "domain": "Dominio",
+    "domainSpell": "Conjuro de Dominio",
+    "schools": {
+      "abjuration": "Abjuración",
+      "conjuration": "Conjuración",
+      "divination": "Adivinación",
+      "enchantment": "Encantamiento",
+      "evocation": "Evocación",
+      "illusion": "Ilusión",
+      "necromancy": "Nigromancia",
+      "transmutation": "Transmutación"
+    }
   },
   "titlebar": {
     "minimize": "Minimizar",

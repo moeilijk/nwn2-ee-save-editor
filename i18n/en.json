@@ -105,7 +105,23 @@
     "totalFeats": "Total Feats",
     "knownSpells": "Known Spells",
     "questsCompleted": "Quests Completed",
-    "activeQuests": "Active Quests"
+    "activeQuests": "Active Quests",
+    "genderLabel": "Gender",
+    "gender": {
+      "male": "Male",
+      "female": "Female"
+    },
+    "size": {
+      "fine": "Fine",
+      "diminutive": "Diminutive",
+      "tiny": "Tiny",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "huge": "Huge",
+      "gargantuan": "Gargantuan",
+      "colossal": "Colossal"
+    }
   },
   "overview": {
     "armorClass": "Armor Class",
@@ -125,7 +141,9 @@
     "difficulty": "Difficulty",
     "gameTime": "Game Time",
     "questProgress": "Quest Progress",
-    "completion": "Completion"
+    "completion": "Completion",
+    "actValue": "Act {act}",
+    "gameTimeValue": "Y{year} M{month} D{day}, Hour {hour}"
   },
   "abilityScores": {
     "abilityScores": "Ability Scores",
@@ -158,9 +176,19 @@
       "pointsUsed": "Points Used",
       "remaining": "remaining",
       "warning": "This will reset your level-up ability increases. You can re-spend them after applying."
+    },
+    "names": {
+      "strength": "Strength",
+      "dexterity": "Dexterity",
+      "constitution": "Constitution",
+      "intelligence": "Intelligence",
+      "wisdom": "Wisdom",
+      "charisma": "Charisma"
     }
   },
   "alignment": {
+    "lawChaosLabel": "Law - Chaos",
+    "goodEvilLabel": "Good - Evil",
     "trueNeutral": "True Neutral",
     "lawfulGood": "Lawful Good",
     "neutralGood": "Neutral Good",
@@ -169,9 +197,27 @@
     "chaoticNeutral": "Chaotic Neutral",
     "lawfulEvil": "Lawful Evil",
     "neutralEvil": "Neutral Evil",
-    "chaoticEvil": "Chaotic Evil"
+    "chaoticEvil": "Chaotic Evil",
+    "names": {
+      "lawfulGood": "Lawful Good",
+      "neutralGood": "Neutral Good",
+      "chaoticGood": "Chaotic Good",
+      "lawfulNeutral": "Lawful Neutral",
+      "trueNeutral": "True Neutral",
+      "chaoticNeutral": "Chaotic Neutral",
+      "lawfulEvil": "Lawful Evil",
+      "neutralEvil": "Neutral Evil",
+      "chaoticEvil": "Chaotic Evil"
+    }
   },
   "inventory": {
+    "categories": {
+      "armorAndClothing": "Armor & Clothing",
+      "weapons": "Weapons",
+      "magicItems": "Magic Items",
+      "accessories": "Accessories",
+      "miscellaneous": "Miscellaneous"
+    },
     "equipment": "Equipment",
     "weight": "Weight",
     "gold": "Gold",
@@ -291,13 +337,32 @@
     "domainFeats": "Domain Feats",
     "customFeats": "Custom Feats",
     "protectedFeats": "Protected Feats",
-    "ranks": "ranks"
+    "ranks": "ranks",
+    "categories": {
+      "general": "General",
+      "proficiency": "Proficiency",
+      "skillSave": "Skill/Save",
+      "metamagic": "Metamagic",
+      "divine": "Divine",
+      "epic": "Epic",
+      "class": "Class",
+      "background": "Background",
+      "spellcasting": "Spellcasting",
+      "history": "History",
+      "heritage": "Heritage",
+      "itemCreation": "Item Creation",
+      "racial": "Racial",
+      "domain": "Domain"
+    }
   },
   "placeholders": {
     "addFeat": "Add Feat",
     "removeFeat": "Remove Feat",
     "featAdded": "Feat added successfully",
     "featRemoved": "Feat removed successfully",
+    "featAddedWithPrereqs": "Feat added with prerequisites - {details}",
+    "autoAddedFeats": "feats: {feats}",
+    "autoModifiedAbilities": "abilities: {abilities}",
     "addSpell": "Add Spell",
     "removeSpell": "Remove Spell",
     "spellAdded": "Spell added successfully",
@@ -624,7 +689,18 @@
     "spellResistance": "Spell Resistance",
     "description": "Description",
     "specialAbilities": "Special Abilities",
-    "domain": "Domain"
+    "domain": "Domain",
+    "domainSpell": "Domain Spell",
+    "schools": {
+      "abjuration": "Abjuration",
+      "conjuration": "Conjuration",
+      "divination": "Divination",
+      "enchantment": "Enchantment",
+      "evocation": "Evocation",
+      "illusion": "Illusion",
+      "necromancy": "Necromancy",
+      "transmutation": "Transmutation"
+    }
   },
   "titlebar": {
     "minimize": "Minimize",

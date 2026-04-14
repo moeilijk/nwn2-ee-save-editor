@@ -105,7 +105,23 @@
     "totalFeats": "Dons Totaux",
     "knownSpells": "Sorts Connus",
     "questsCompleted": "Quêtes Terminées",
-    "activeQuests": "Quêtes Actives"
+    "activeQuests": "Quêtes Actives",
+    "genderLabel": "Sexe",
+    "gender": {
+      "male": "Mâle",
+      "female": "Femelle"
+    },
+    "size": {
+      "fine": "Infiniment petit",
+      "diminutive": "Très petit",
+      "tiny": "Minuscule",
+      "small": "Petit",
+      "medium": "Moyen",
+      "large": "Grand",
+      "huge": "Très grand",
+      "gargantuan": "Gargantuesque",
+      "colossal": "Colossal"
+    }
   },
   "overview": {
     "armorClass": "Classe d'Armure",
@@ -125,7 +141,9 @@
     "difficulty": "Difficulté",
     "gameTime": "Temps de Jeu",
     "questProgress": "Progression Quêtes",
-    "completion": "Terminé"
+    "completion": "Terminé",
+    "actValue": "Acte {act}",
+    "gameTimeValue": "A{year} M{month} J{day}, Heure {hour}"
   },
   "abilityScores": {
     "abilityScores": "Caractéristiques",
@@ -158,9 +176,19 @@
       "pointsUsed": "Points Utilisés",
       "remaining": "restants",
       "warning": "Cela réinitialisera vos augmentations dues aux niveaux. Vous pourrez les redistribuer après application."
+    },
+    "names": {
+      "strength": "Force",
+      "dexterity": "Dextérité",
+      "constitution": "Constitution",
+      "intelligence": "Intelligence",
+      "wisdom": "Sagesse",
+      "charisma": "Charisme"
     }
   },
   "alignment": {
+    "lawChaosLabel": "Loi - Chaos",
+    "goodEvilLabel": "Bien - Mal",
     "trueNeutral": "Neutre Strict",
     "lawfulGood": "Loyal Bon",
     "neutralGood": "Neutre Bon",
@@ -169,9 +197,27 @@
     "chaoticNeutral": "Chaotique Neutre",
     "lawfulEvil": "Loyal Mauvais",
     "neutralEvil": "Neutre Mauvais",
-    "chaoticEvil": "Chaotique Mauvais"
+    "chaoticEvil": "Chaotique Mauvais",
+    "names": {
+      "lawfulGood": "Loyal Bon",
+      "neutralGood": "Neutre Bon",
+      "chaoticGood": "Chaotique Bon",
+      "lawfulNeutral": "Loyal Neutre",
+      "trueNeutral": "Neutre Strict",
+      "chaoticNeutral": "Chaotique Neutre",
+      "lawfulEvil": "Loyal Mauvais",
+      "neutralEvil": "Neutre Mauvais",
+      "chaoticEvil": "Chaotique Mauvais"
+    }
   },
   "inventory": {
+    "categories": {
+      "armorAndClothing": "Armures et Vêtements",
+      "weapons": "Armes",
+      "magicItems": "Objets Magiques",
+      "accessories": "Accessoires",
+      "miscellaneous": "Divers"
+    },
     "equipment": "Équipement",
     "weight": "Poids",
     "gold": "Or",
@@ -291,13 +337,32 @@
     "domainFeats": "Dons de Domaine",
     "customFeats": "Dons Personnalisés",
     "protectedFeats": "Dons Protégés",
-    "ranks": "rangs"
+    "ranks": "rangs",
+    "categories": {
+      "general": "Général",
+      "proficiency": "Maîtrise",
+      "skillSave": "Compétence/Sauvegarde",
+      "metamagic": "Métamagie",
+      "divine": "Divin",
+      "epic": "Épique",
+      "class": "Classe",
+      "background": "Historique",
+      "spellcasting": "Incantation",
+      "history": "Histoire",
+      "heritage": "Héritage",
+      "itemCreation": "Création d'objets",
+      "racial": "Racial",
+      "domain": "Domaine"
+    }
   },
   "placeholders": {
     "addFeat": "Ajouter Don",
     "removeFeat": "Retirer Don",
     "featAdded": "Don ajouté avec succès",
     "featRemoved": "Don retiré avec succès",
+    "featAddedWithPrereqs": "Don ajouté avec prérequis - {details}",
+    "autoAddedFeats": "dons : {feats}",
+    "autoModifiedAbilities": "caract. : {abilities}",
     "addSpell": "Ajouter Sort",
     "removeSpell": "Retirer Sort",
     "spellAdded": "Sort ajouté avec succès",
@@ -343,7 +408,7 @@
     "noLevelHistory": "Aucun historique enregistré.",
     "stats": "Stats",
     "hpGained": "PV Gagnés",
-    "abilityScoreIncrease": "Augmentation Caract.",
+    "abilityIncrease": "Augmentation de Caract.",
     "skills": "Compétences",
     "feats": "Dons",
     "lvl": "Niv.",
@@ -497,24 +562,33 @@
       "noGameDataLoaded": "Données de jeu non initialisées.",
       "characterNotFound": "Fichier introuvable : {path}",
       "validationError": "{field} invalide : {reason}",
-      "invalidValue": "Valeur incorrecte pour {field}",
+      "invalidValue": "Valeur incorrecte pour {field} : attendue {expected}, reçue {actual}",
       "fileError": "Erreur fichier : {message}",
-      "fileErrorWithPath": "Erreur fichier ({path})",
+      "fileErrorWithPath": "Erreur fichier ({path}) : {message}",
       "parseError": "Erreur analyse : {message}",
-      "parseErrorWithContext": "Erreur analyse {context}",
-      "insufficientResources": "Ressources insuffisantes",
-      "prerequisitesNotMet": "Prérequis manquants",
-      "alreadyExists": "Existe déjà",
-      "operationFailed": "Échec de l'opération",
-      "internal": "Une erreur inattendue est survenue"
+      "parseErrorWithContext": "Erreur analyse {context} : {message}",
+      "insufficientResources": "Ressources insuffisantes : {resource} (nécessite {required}, possède {available})",
+      "prerequisitesNotMet": "Prérequis manquants : {missing}",
+      "notFound": "{item} non trouvé",
+      "alreadyExists": "{item} existe déjà",
+      "operationFailed": "Échec de l'opération {operation} : {reason}",
+      "internal": "Une erreur inattendue est survenue",
+      "unknown": "Une erreur inconnue est survenue"
     },
     "recovery": {
       "noCharacterLoaded": "Chargez un personnage depuis le dashboard.",
       "noGameDataLoaded": "Vérifiez vos chemins d'installation.",
-      "characterNotFound": "Le fichier a pu être déplacé ou supprimé.",
-      "validationError": "Vérifiez la valeur.",
-      "parseError": "Fichier corrompu. Utilisez une sauvegarde.",
-      "operationFailed": "Réessayez ou redémarrez l'app."
+      "characterNotFound": "Le fichier a pu être déplacé ou supprimé. Essayez de charger une autre sauvegarde.",
+      "validationError": "Vérifiez la valeur et réessayez.",
+      "invalidValue": "Corrigez la valeur selon le format attendu.",
+      "fileError": "Vérifiez que le fichier existe et n'est pas utilisé par un autre programme.",
+      "parseError": "Fichier corrompu. Utilisez une sauvegarde ou un autre fichier.",
+      "insufficientResources": "Libérez des ressources ou ajustez vos sélections.",
+      "prerequisitesNotMet": "Ajoutez d'abord les prérequis nécessaires.",
+      "notFound": "L'élément peut avoir été supprimé. Essayez de rafraîchir.",
+      "alreadyExists": "Choisissez un autre nom ou supprimez d'abord l'existant.",
+      "operationFailed": "Réessayez. Si cela persiste, redémarrez l'application.",
+      "internal": "Redémarrez l'application. Si le problème persiste, vérifiez le log de debug."
     },
     "boundary": {
       "title": "Un problème est survenu",
@@ -564,7 +638,12 @@
       "change": "Modifier",
       "set": "Définir",
       "addOverrideFolder": "Ajouter Dossier Override",
-      "addHakFolder": "Ajouter Dossier HAK"
+      "addHakFolder": "Ajouter Dossier HAK",
+      "selectGameFolder": "Sélectionner le dossier du jeu",
+      "selectDocumentsFolder": "Sélectionner le dossier Documents",
+      "selectWorkshopFolder": "Sélectionner le dossier Workshop",
+      "selectOverrideFolder": "Sélectionner le dossier Override",
+      "selectHakFolder": "Sélectionner le dossier HAK"
     },
     "launch": {
       "launchBehavior": "Comportement au Lancement",
@@ -583,7 +662,10 @@
     "known": "Connus",
     "prepared": "Préparés",
     "allSpells": "Tous les Sorts",
-    "filterSpells": "Filtrer sorts...",
+    "myFeats": "Mes Capacités",
+    "allFeats": "Toutes les Capacités",
+    "filterSpells": "Filtrer les sorts...",
+    "filterFeats": "Filtrer les capacités...",
     "cantrips": "Sorts de niveau 0",
     "levelSpells": "Sorts de Niveau {level}",
     "schoolAll": "École : Toutes",
@@ -607,7 +689,17 @@
     "spellResistance": "Résistance à la Magie",
     "description": "Description",
     "specialAbilities": "Capacités Spéciales",
-    "domain": "Domaine"
+    "domain": "Domaine",
+    "schools": {
+      "abjuration": "Abjuration",
+      "conjuration": "Invocation",
+      "divination": "Divination",
+      "enchantment": "Enchantement",
+      "evocation": "Evocation",
+      "illusion": "Illusion",
+      "necromancy": "Nécromancie",
+      "transmutation": "Transmutation"
+    }
   },
   "titlebar": {
     "minimize": "Réduire",
@@ -630,9 +722,13 @@
     "obsidianCredit": "Pour la création du jeu original.",
     "aspyrCredit": "Pour l'Enhanced Edition 2025.",
     "license": "Licence",
-    "licenseText": "Logiciel Open Source sous licence MIT.",
-    "fanContent": "Projet de Fan non-officiel.",
+    "licenseText": "Logiciel libre sous licence MIT.",
+    "fanContent": "Projet non-officiel par des fans.",
     "notAffiliated": "Ce projet n'est pas affilié à Aspyr Media.",
+    "scripterronCredit": "Pour NWN2 GFF Tools.",
+    "nwn2mdkCredit": "Pour NWN2 Model Development Kit.",
+    "xoreosCredit": "Pour xoreos-tools.",
+    "thirdParty": "Bibliothèques tierces",
     "copyVersion": "Copier la version"
   },
   "gameLaunch": {
@@ -654,13 +750,17 @@
     "searchPlaceholder": "Chercher divinités...",
     "noneNoDeity": "Aucune (Athée)",
     "noDeitySelected": "Aucune divinité choisie",
-    "portfolio": "Attributions",
-    "favoredWeapon": "Arme de Prédilection"
+    "portfolio": "Portfolio",
+    "favoredWeapon": "Arme de prédilection",
+    "selectFromList": "Choisir dans la liste",
+    "noMatch": "Aucun résultat"
   },
   "race": {
-    "selectTitle": "Choisir Race",
-    "searchPlaceholder": "Chercher races...",
-    "selectRace": "Sélectionnez une race"
+    "selectTitle": "Sélection de la race",
+    "searchPlaceholder": "Rechercher une race...",
+    "selectRace": "Choisissez une race dans la liste",
+    "noMatch": "Aucun résultat",
+    "confirm": "Confirmer"
   },
   "appearance": {
     "title": "Apparence",
@@ -674,20 +774,27 @@
     "eyes": "Yeux",
     "eyebrows": "Sourcils",
     "hairBase": "Couleur Cheveux",
-    "hairHighlight": "Reflets",
+    "hairHighlight": "Mèches",
     "hairAccessory": "Accessoire",
     "tattoos": "Tatouages",
+    "tattoo1Color": "Couleur tatouage 1",
+    "tattoo2Color": "Couleur tatouage 2",
     "size": "Taille",
     "height": "Hauteur",
     "girth": "Largeur",
     "voice": "Voix",
     "soundset": "Bruitage",
     "voiceSet": "Banque de Voix",
-    "voiceSearch": "Chercher voix...",
-    "voiceConfirm": "Appliquer",
-    "voiceCurrent": "Actuel",
+    "voiceSearch": "Rechercher voix...",
+    "voiceConfirm": "Confirmer",
+    "voiceNone": "Aucun",
+    "voiceCurrent": "Actuelle",
+    "voiceMale": "H",
+    "voiceFemale": "F",
     "voiceTypePlayer": "Joueur",
     "voiceTypeHenchman": "Compagnon",
+    "voiceTypeNPC": "PNJ",
+    "voiceTypeCreature": "Créature",
     "wingsAndTail": "Ailes & Queue",
     "wings": "Ailes",
     "tail": "Queue",

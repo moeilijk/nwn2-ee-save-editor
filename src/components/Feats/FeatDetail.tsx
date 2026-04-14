@@ -50,8 +50,8 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
     try { await onRemove(feat.id); } finally { setBusy(false); }
   };
 
-  const typeLabel = getFeatTypeLabel(feat.type);
-  const typeColor = FEAT_TYPE_COLORS[typeLabel] || T.textMuted;
+  const labelKey = getFeatTypeLabel(feat.type);
+  const typeColor = FEAT_TYPE_COLORS[labelKey] || T.textMuted;
   const prereqs = isBackendPrerequisites(feat.prerequisites) ? feat.prerequisites : null;
 
   const hasPrereqs = prereqs && (
@@ -79,7 +79,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
           <div>
             <span className="t-bold" style={{ color: T.text }}>{display(feat.name)}</span>
             <span style={{ color: T.textMuted }}> — </span>
-            <span className="t-medium" style={{ color: typeColor }}>{typeLabel}</span>
+            <span className="t-medium" style={{ color: typeColor }}>{t(labelKey)}</span>
             {feat.protected && (
               <span className="t-sm t-italic" style={{ marginLeft: 8, color: T.textMuted }}>{t('feats.protected')}</span>
             )}
