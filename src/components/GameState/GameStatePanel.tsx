@@ -41,6 +41,7 @@ function RestoreBackupDialog({
   isRestoring: boolean;
   error: string | null;
 }) {
+  const t = useTranslations();
   const [selected, setSelected] = useState<string | null>(null);
 
   const selectedName = backups.find(b => b.path === selected)?.filename;
@@ -50,12 +51,12 @@ function RestoreBackupDialog({
       isOpen={isOpen}
       onClose={onClose}
       onOpened={() => setSelected(null)}
-      title="Restore Backup"
+      title={t('common.restoreBackup')}
       width={780}
       minHeight={480}
       footerActions={
         <Button
-          text={isRestoring ? 'Restoring...' : 'Restore'}
+          text={isRestoring ? t('common.restoring') : t('common.restore')}
           intent="primary"
           disabled={!selected || isRestoring}
           onClick={() => selected && onRestore(selected)}
@@ -63,13 +64,13 @@ function RestoreBackupDialog({
       }
       footerLeft={
         <span style={{ color: T.textMuted }}>
-          Selected: {selectedName || 'None'}
+          {t('common.selected')}: {selectedName || t('common.none')}
         </span>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', margin: -16 }}>
         <div style={{ padding: '8px 12px', borderBottom: `1px solid ${T.borderLight}`, color: T.textMuted }}>
-          Select a backup to restore. This will overwrite the current campaign/module data.
+          {t('common.restoreBackupPrompt')}
         </div>
         {error && (
           <div style={{ margin: '8px 12px', padding: '6px 10px', background: '#c6282810', border: `1px solid #c6282840`, borderRadius: 3, color: T.negative }}>
@@ -82,7 +83,7 @@ function RestoreBackupDialog({
               <Spinner size={24} />
             </div>
           ) : backups.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>No backups available.</div>
+            <div style={{ padding: 32, textAlign: 'center', color: T.textMuted }}>{t('common.noBackups')}</div>
           ) : backups.map(b => {
             const isActive = selected === b.path;
             return (
@@ -157,6 +158,7 @@ const RECRUITMENT_COLOR: Record<string, string> = {
 };
 
 function ReputationTab({ characterId }: { characterId: number }) {
+  const t = useTranslations();
   const [companions, setCompanions] = useState<Record<string, CompanionInfluenceData>>({});
   const initialRef = useRef<Record<string, CompanionInfluenceData> | null>(null);
   const [influences, setInfluences] = useState<Record<string, number>>({});
@@ -225,7 +227,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
   if (error) {
     return (
       <div style={{ padding: 24 }}>
-        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load companions" description={error} />
+        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('gameState.companions.failedToLoad')} description={error} />
       </div>
     );
   }
@@ -235,7 +237,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
   if (companionEntries.length === 0) {
     return (
       <div style={{ padding: 24 }}>
-        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No companion data" description="No companion influence data found for this save." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('gameState.companions.noData')} description={t('gameState.companions.noDataDescription')} />
       </div>
     );
   }
@@ -244,8 +246,8 @@ function ReputationTab({ characterId }: { characterId: number }) {
     <>
       {(hasChanges || isSaving) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 16px', borderBottom: `1px solid ${T.borderLight}` }}>
-          <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={handleRevertAll} style={{ color: MODIFIED }} disabled={isSaving}>Revert All</Button>
-          <Button small intent="primary" loading={isSaving} onClick={handleSave}>Save</Button>
+          <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={handleRevertAll} style={{ color: MODIFIED }} disabled={isSaving}>{t('common.revertAll')}</Button>
+          <Button small intent="primary" loading={isSaving} onClick={handleSave}>{t('common.save')}</Button>
         </div>
       )}
 
@@ -270,7 +272,7 @@ function ReputationTab({ characterId }: { characterId: number }) {
                 <span className="t-semibold" style={{ color: T.text }}>{companion.name || companionId}</span>
                 <span className="t-semibold" style={{ color: recruitColor }}>{companion.recruitment.replace('_', ' ')}</span>
                 {isModified && (
-                  <span className="t-semibold" style={{ color: MODIFIED }}>modified</span>
+                  <span className="t-semibold" style={{ color: MODIFIED }}>{t('common.modified')}</span>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -321,6 +323,7 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
   onEdit: (name: string, value: string) => void;
   onRevert: (name: string) => void;
 }) {
+  const t = useTranslations();
   const filtered = useMemo(() =>
     variables.filter(v => v.name.toLowerCase().includes(search.toLowerCase())),
     [variables, search],
@@ -330,11 +333,11 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
     <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
       <colgroup><col /><col style={{ width: 200 }} /><col style={{ width: 260 }} /><col style={{ width: 40 }} /></colgroup>
       <thead>
-        <tr><th>Variable</th><th>Current</th><th>Value</th><th /></tr>
+        <tr><th>{t('gameState.variables.variable')}</th><th>{t('gameState.variables.current')}</th><th>{t('gameState.variables.value')}</th><th /></tr>
       </thead>
       <tbody>
         {filtered.length === 0 ? (
-          <tr><td colSpan={4} style={{ textAlign: 'center', color: T.textMuted, padding: 20 }}>No variables found</td></tr>
+          <tr><td colSpan={4} style={{ textAlign: 'center', color: T.textMuted, padding: 20 }}>{t('gameState.variables.noVariables')}</td></tr>
         ) : filtered.map(v => {
           const isModified = v.name in edits;
           return (
@@ -383,6 +386,7 @@ function VariableSection({
   warningText?: string;
   onRestoreClick?: () => void;
 }) {
+  const t = useTranslations();
   const [search, setSearch] = useState('');
   const total = integers.length + strings.length + floats.length;
 
@@ -390,23 +394,23 @@ function VariableSection({
     <>
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span className="t-semibold" style={{ color: T.textMuted }}>{total} variables</span>
+          <span className="t-semibold" style={{ color: T.textMuted }}>{total} {t('common.variables')}</span>
           {changeCount > 0 && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className="t-semibold" style={{ color: MODIFIED }}>{changeCount} modified</span>
-              <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }}>Revert All</Button>
-              <Button small intent="primary" onClick={onSave}>Save</Button>
+              <span className="t-semibold" style={{ color: MODIFIED }}>{changeCount} {t('common.modified')}</span>
+              <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }}>{t('common.revertAll')}</Button>
+              <Button small intent="primary" onClick={onSave}>{t('common.save')}</Button>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {onRestoreClick && (
-            <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={onRestoreClick}>Restore Backup</Button>
+            <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={onRestoreClick}>{t('common.restoreBackup')}</Button>
           )}
           <InputGroup
             small
             leftIcon="search"
-            placeholder="Search..."
+            placeholder={t('common.search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: 180 }}
@@ -421,13 +425,13 @@ function VariableSection({
       )}
       <div style={{ padding: '0 16px 16px' }}>
         <Tabs id={`vars-${total}`} defaultSelectedTabId="integers" renderActiveTabPanelOnly>
-          <Tab id="integers" title={`Integers (${integers.length})`}
+          <Tab id="integers" title={`${t('gameState.variables.integers')} (${integers.length})`}
             panel={<div style={{ paddingTop: 8 }}><VariableTable variables={integers} search={search} type="int" edits={edits} onEdit={onEdit} onRevert={onRevert} /></div>}
           />
-          <Tab id="strings" title={`Strings (${strings.length})`}
+          <Tab id="strings" title={`${t('gameState.variables.strings')} (${strings.length})`}
             panel={<div style={{ paddingTop: 8 }}><VariableTable variables={strings} search={search} type="string" edits={edits} onEdit={onEdit} onRevert={onRevert} /></div>}
           />
-          <Tab id="floats" title={`Floats (${floats.length})`}
+          <Tab id="floats" title={`${t('gameState.variables.floats')} (${floats.length})`}
             panel={<div style={{ paddingTop: 8 }}><VariableTable variables={floats} search={search} type="float" edits={edits} onEdit={onEdit} onRevert={onRevert} /></div>}
           />
         </Tabs>
@@ -585,6 +589,7 @@ function recordToVarEntries(record: Record<string, number | string>): VarEntry[]
 }
 
 function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: number; onModuleIdChange?: (id: string | null) => void }) {
+  const t = useTranslations();
   const { handleError } = useErrorHandler();
   const [moduleInfo, setModuleInfo] = useState<ModuleInfo | null>(null);
   const [availableModules, setAvailableModules] = useState<ModuleSummary[]>([]);
@@ -638,7 +643,7 @@ function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: num
       {availableModules.map(m => (
         <MenuItem
           key={m.id}
-          text={`${m.name}${m.is_current ? ' (Current)' : ''}`}
+          text={`${m.name}${m.is_current ? ` (${t('gameState.module.current')})` : ''}`}
           active={m.id === selectedModuleId}
           onClick={() => handleModuleSelect(m.id)}
         />
@@ -650,7 +655,7 @@ function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: num
     <>
       {availableModules.length > 0 && (
         <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.borderLight}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="t-semibold" style={{ color: T.textMuted }}>Module</span>
+          <span className="t-semibold" style={{ color: T.textMuted }}>{t('gameState.module.module')}</span>
           <Popover content={moduleMenu} placement="bottom-end" minimal>
             <Button
               minimal
@@ -662,10 +667,10 @@ function ModuleInfoSection({ characterId, onModuleIdChange }: { characterId: num
         </div>
       )}
       <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-        <KVRow label="Module" value={moduleInfo?.module_name || '-'} />
-        <KVRow label="Campaign" value={moduleInfo?.campaign || '-'} />
-        <KVRow label="Current Area" value={moduleInfo?.area_name || '-'} />
-        <KVRow label="Entry Area" value={moduleInfo?.entry_area || '-'} />
+        <KVRow label={t('gameState.module.module')} value={moduleInfo?.module_name || '-'} />
+        <KVRow label={t('gameState.module.campaign')} value={moduleInfo?.campaign || '-'} />
+        <KVRow label={t('gameState.module.currentArea')} value={moduleInfo?.area_name || '-'} />
+        <KVRow label={t('gameState.module.entryArea')} value={moduleInfo?.entry_area || '-'} />
       </div>
     </>
   );
@@ -831,11 +836,11 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
   }
 
   if (error && !settings) {
-    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load campaign settings" description={error} /></div>;
+    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('gameState.campaign.failedToLoad')} description={error} /></div>;
   }
 
   if (!settings) {
-    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiInfo} size={40} />} title="No campaign" description="No campaign is associated with this save." /></div>;
+    return <div style={{ padding: 16 }}><NonIdealState icon={<GameIcon icon={GiInfo} size={40} />} title={t('gameState.campaign.noCampaign')} description={t('gameState.campaign.noCampaignDescription')} /></div>;
   }
 
   return (
@@ -849,23 +854,23 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <div className="t-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
-              Progression
+              {t('gameState.campaign.progression')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: T.textMuted }}>Level Cap</span>
+                <span style={{ color: T.textMuted }}>{t('gameState.campaign.levelCap')}</span>
                 <StepInput value={levelCap} onValueChange={setLevelCap} min={1} max={40} width={100} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: T.textMuted }}>XP Cap</span>
+                <span style={{ color: T.textMuted }}>{t('gameState.campaign.xpCap')}</span>
                 <StepInput value={xpCap} onValueChange={setXpCap} min={0} max={2000000} step={1000} width={120} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: T.textMuted }}>Companion XP Weight</span>
+                <span style={{ color: T.textMuted }}>{t('gameState.campaign.companionXpWeight')}</span>
                 <StepInput value={compXp} onValueChange={setCompXp} min={0} max={1} width={100} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: T.textMuted }}>Henchman XP Weight</span>
+                <span style={{ color: T.textMuted }}>{t('gameState.campaign.henchmanXpWeight')}</span>
                 <StepInput value={henchXp} onValueChange={setHenchXp} min={0} max={1} width={100} />
               </div>
             </div>
@@ -873,14 +878,14 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
 
           <div>
             <div className="t-bold" style={{ color: T.textMuted, borderBottom: `1px solid ${T.borderLight}`, paddingBottom: 4, marginBottom: 10 }}>
-              Gameplay Flags
+              {t('gameState.campaign.gameplayFlags')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <Switch checked={attackNeutrals} onChange={() => setAttackNeutrals(v => !v)} label="Attack Neutrals" style={{ marginBottom: 0 }} />
-              <Switch checked={autoXp} onChange={() => setAutoXp(v => !v)} label="Auto XP Award" style={{ marginBottom: 0 }} />
-              <Switch checked={journalSync} onChange={() => setJournalSync(v => !v)} label="Journal Sync" style={{ marginBottom: 0 }} />
-              <Switch checked={noCharChange} onChange={() => setNoCharChange(v => !v)} label="Lock Character Changes" style={{ marginBottom: 0 }} />
-              <Switch checked={personalRep} onChange={() => setPersonalRep(v => !v)} label="Use Personal Reputation" style={{ marginBottom: 0 }} />
+              <Switch checked={attackNeutrals} onChange={() => setAttackNeutrals(v => !v)} label={t('gameState.campaign.attackNeutrals')} style={{ marginBottom: 0 }} />
+              <Switch checked={autoXp} onChange={() => setAutoXp(v => !v)} label={t('gameState.campaign.autoXpAward')} style={{ marginBottom: 0 }} />
+              <Switch checked={journalSync} onChange={() => setJournalSync(v => !v)} label={t('gameState.campaign.journalSync')} style={{ marginBottom: 0 }} />
+              <Switch checked={noCharChange} onChange={() => setNoCharChange(v => !v)} label={t('gameState.campaign.lockCharChanges')} style={{ marginBottom: 0 }} />
+              <Switch checked={personalRep} onChange={() => setPersonalRep(v => !v)} label={t('gameState.campaign.usePersonalRep')} style={{ marginBottom: 0 }} />
             </div>
           </div>
         </div>
@@ -888,12 +893,12 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
         {hasChanges && (
           <div style={{ marginTop: 12, padding: '8px 12px', background: `${MODIFIED}12`, border: `1px solid ${MODIFIED}40`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="t-semibold" style={{ color: MODIFIED }}>&#9888;</span>
-            <span style={{ color: T.text }}>Campaign settings (.cam) are shared across all saves in this campaign. A backup is created automatically before saving.</span>
+            <span style={{ color: T.text }}>{t('gameState.campaign.sharedWarning')}</span>
           </div>
         )}
 
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={backupDialog.open}>Restore Backup</Button>
+          <Button small minimal icon={<GameIcon icon={GiBackwardTime} size={14} />} style={{ color: T.textMuted }} onClick={backupDialog.open}>{t('common.restoreBackup')}</Button>
           {hasChanges && (
             <div style={{ display: 'flex', gap: 8 }}>
               <Button minimal onClick={handleRevert}>{t('gameState.campaign.revertSettings')}</Button>
@@ -905,11 +910,11 @@ function CampaignSettingsSection({ characterId }: { characterId: number }) {
 
       <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-          <KVRow label="Start Module" value={<span className="t-mono">{settings.start_module || '-'}</span>} />
-          <KVRow label="Module Count" value={String(settings.module_names?.length ?? 0)} />
+          <KVRow label={t('gameState.campaign.startModule')} value={<span className="t-mono">{settings.start_module || '-'}</span>} />
+          <KVRow label={t('gameState.campaign.moduleCount')} value={String(settings.module_names?.length ?? 0)} />
         </div>
         <div style={{ marginTop: 6, color: T.textMuted }}>
-          <span className="t-semibold">Campaign File: </span>
+          <span className="t-semibold">{t('gameState.campaign.campaignFile')}: </span>
           <span className="t-mono">{settings.campaign_file_path || '-'}</span>
           {settings.description && (
             <span> &mdash; {settings.description}</span>
@@ -995,6 +1000,7 @@ function CampaignVariablesSection({ characterId }: { characterId: number }) {
 }
 
 export function GameStatePanel() {
+  const t = useTranslations();
   const { character } = useCharacterContext();
   const characterId = character?.id;
   const [activeTab, setActiveTab] = useState<string>('reputation');
@@ -1011,7 +1017,7 @@ export function GameStatePanel() {
   if (!characterId) {
     return (
       <div style={{ padding: 48 }}>
-        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view game state." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.gameState').toLowerCase() })} />
       </div>
     );
   }
@@ -1026,9 +1032,9 @@ export function GameStatePanel() {
             onChange={(newTab) => setActiveTab(newTab as string)}
             large
           >
-            <Tab id="reputation" title="Companion Influence" />
-            <Tab id="moduleVars" title="Module & Variables" />
-            <Tab id="campaignSettings" title="Campaign & Variables" />
+            <Tab id="reputation" title={t('gameState.tabs.companionInfluence')} />
+            <Tab id="moduleVars" title={t('gameState.tabs.moduleAndVariables')} />
+            <Tab id="campaignSettings" title={t('gameState.tabs.campaignAndVariables')} />
           </Tabs>
         </div>
 

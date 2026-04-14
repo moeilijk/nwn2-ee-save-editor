@@ -222,7 +222,7 @@ export function OverviewPanel() {
   if (!character) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view the overview." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.overview').toLowerCase() })} />
       </div>
     );
   }
@@ -273,8 +273,8 @@ export function OverviewPanel() {
         <div style={{ padding: '14px 16px 12px' }}>
           {isEditingName ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <InputGroup small value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First Name" style={{ width: 160 }} />
-              <InputGroup small value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last Name" style={{ width: 160 }} />
+              <InputGroup small value={firstName} onChange={e => setFirstName(e.target.value)} placeholder={t('overview.firstName')} style={{ width: 160 }} />
+              <InputGroup small value={lastName} onChange={e => setLastName(e.target.value)} placeholder={t('overview.lastName')} style={{ width: 160 }} />
               <Button icon="tick" intent="primary" small onClick={handleNameSave} />
               <Button icon="cross" minimal small onClick={handleNameCancel} />
             </div>
@@ -308,26 +308,26 @@ export function OverviewPanel() {
               <StepInput value={age} onValueChange={handleAgeChange} min={0} max={9999} width={88} />
             } />
             <KVRow label={t('character.alignment')} value={ALIGNMENT_GRID[getAlignmentIndex(lawChaos, goodEvil)]?.name ?? display(character.alignment)} />
-            <KVRow label="Deity" value={
+            <KVRow label={t('overview.deity')} value={
               <span className="editable-row" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => setIsDeityOpen(true)}>
                 {display(character.deity, 'None')}
                 <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               </span>
             } />
-            <KVRow label="Background" value={display(character.background?.name)} />
+            <KVRow label={t('overview.background')} value={display(character.background?.name)} />
             <KVRow label={t('character.experience')} value={formatNumber(character.experience)} />
             <KVRow label={t('inventory.gold')} value={formatNumber(character.gold)} color={T.gold} />
           </div>
 
           {domains.length > 0 && (
             <div style={{ marginTop: 8 }}>
-              <KVRow label="Domains" value={domains.map(d => d.name).join(', ')} />
+              <KVRow label={t('overview.domains')} value={domains.map(d => d.name).join(', ')} />
             </div>
           )}
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div className="t-section" style={{ marginBottom: 8 }}>Progression</div>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('overview.progression')}</div>
           <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('character.skillPoints')} value={display(totalSkillPoints)} />
             <KVRow label={t('character.totalFeats')} value={display(totalFeats)} />
@@ -338,7 +338,7 @@ export function OverviewPanel() {
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '12px 16px' }}>
           <div style={{ marginBottom: 8 }}>
             <span className={isEditingBio ? undefined : 'editable-row'} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: isEditingBio ? undefined : 'pointer' }} onClick={() => !isEditingBio && setIsEditingBio(true)}>
-              <span className="t-section">Biography</span>
+              <span className="t-section">{t('overview.biography')}</span>
               {!isEditingBio && (
                 <GameIcon icon={GiQuillInk} size={12} style={{ color: T.textMuted }} />
               )}
@@ -356,33 +356,33 @@ export function OverviewPanel() {
             </div>
           ) : (
             <p className="t-md t-body" style={{ margin: 0, color: T.textMuted }}>
-              {biography || 'No biography written'}
+              {biography || t('overview.noBiography')}
             </p>
           )}
         </div>
 
         <div className="t-md" style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div className="t-section" style={{ marginBottom: 8 }}>Campaign</div>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('overview.campaign')}</div>
           <div style={{ marginBottom: 4 }}>
-            <KVRow label="Campaign Name" value={display(campaignName)} />
+            <KVRow label={t('overview.campaignName')} value={display(campaignName)} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
-            <KVRow label="Game Act" value={gameAct != null ? `Act ${gameAct}` : '-'} />
-            <KVRow label="Module" value={display(moduleName)} />
+            <KVRow label={t('overview.gameAct')} value={gameAct != null ? `Act ${gameAct}` : '-'} />
+            <KVRow label={t('overview.module')} value={display(moduleName)} />
             <KVRow label={t('character.location')} value={display(locationName)} />
-            <KVRow label="Difficulty" value={display(difficultyLabel)} />
+            <KVRow label={t('overview.difficulty')} value={display(difficultyLabel)} />
             <KVRow label={t('character.lastSaved')} value={display(lastSavedStr)} />
-            <KVRow label="Game Time" value={display(gameTimeStr)} />
+            <KVRow label={t('overview.gameTime')} value={display(gameTimeStr)} />
           </div>
         </div>
 
         <div style={{ borderTop: `1px solid ${T.borderLight}`, padding: '10px 16px' }}>
-          <div className="t-section" style={{ marginBottom: 8 }}>Quest Progress</div>
+          <div className="t-section" style={{ marginBottom: 8 }}>{t('overview.questProgress')}</div>
           <div className="t-md" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px 16px' }}>
             <KVRow label={t('character.questsCompleted')} value={display(completedQuests)} />
             <KVRow label={t('character.activeQuests')} value={display(activeQuests)} />
             {completionRate != null && (
-              <KVRow label="Completion" value={`${Math.round(completionRate)}%`} />
+              <KVRow label={t('overview.completion')} value={`${Math.round(completionRate)}%`} />
             )}
           </div>
         </div>
@@ -403,11 +403,11 @@ export function OverviewPanel() {
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <div>
-              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Current</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>{t('common.current')}</div>
               <StepInput value={hp} onValueChange={v => { setHp(v); handleHpChange(v, maxHp); }} min={-10} max={maxHp} width={88} />
             </div>
             <div>
-              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>Max</div>
+              <div className="t-xs t-semibold" style={{ color: T.textMuted, marginBottom: 3 }}>{t('common.max')}</div>
               <StepInput value={maxHp} onValueChange={v => { setMaxHp(v); handleHpChange(hp, v); }} min={1} max={9999} width={88} />
             </div>
           </div>

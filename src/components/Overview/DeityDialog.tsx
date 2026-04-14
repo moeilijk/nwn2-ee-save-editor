@@ -4,6 +4,7 @@ import { T } from '../theme';
 import { ParchmentDialog } from '../shared';
 import { CharacterAPI, type Deity } from '@/services/characterApi';
 import { useIcon } from '@/hooks/useIcon';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface DeityDialogProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface DeityDialogProps {
 }
 
 export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDialogProps) {
+  const t = useTranslations();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [deities, setDeities] = useState<Deity[]>([]);
@@ -56,10 +58,10 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
       isOpen={isOpen}
       onClose={onClose}
       onOpened={handleOpen}
-      title="Select Deity"
+      title={t('deity.selectTitle')}
       width={720}
       footerActions={
-        <Button text="Confirm" intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
+        <Button text={t('common.confirm')} intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
       }
     >
       <div style={{ display: 'flex', gap: 0, margin: -16, height: 550, overflow: 'hidden' }}>
@@ -67,7 +69,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
           <div style={{ padding: 8 }}>
             <InputGroup
               leftIcon="search"
-              placeholder="Search deities..."
+              placeholder={t('deity.searchPlaceholder')}
               small
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -92,7 +94,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
                     color: selected === null ? T.accent : T.textMuted,
                   }}
                 >
-                  None (No Deity)
+                  {t('deity.noneNoDeity')}
                 </button>
                 {filtered.map(d => (
                   <button
@@ -112,7 +114,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
                   </button>
                 ))}
                 {filtered.length === 0 && !loadingDeities && (
-                  <div className="t-md t-center" style={{ padding: 16, color: T.textMuted }}>No deities match your search.</div>
+                  <div className="t-md t-center" style={{ padding: 16, color: T.textMuted }}>{t('deity.noMatch')}</div>
                 )}
               </>
             )}
@@ -125,8 +127,8 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
               <DeityDetailHeader deity={detail} />
               {detail.alignment && <div className="t-base" style={{ color: T.textMuted, marginBottom: 16 }}>{detail.alignment}</div>}
 
-              {detail.portfolio && <DetailRow label="Portfolio" value={detail.portfolio} />}
-              {detail.favored_weapon && <DetailRow label="Favored Weapon" value={detail.favored_weapon} />}
+              {detail.portfolio && <DetailRow label={t('deity.portfolio')} value={detail.portfolio} />}
+              {detail.favored_weapon && <DetailRow label={t('deity.favoredWeapon')} value={detail.favored_weapon} />}
 
               {detail.description && (
                 <div className="t-md t-body" style={{ marginTop: 12, color: T.textMuted }}>
@@ -138,7 +140,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <div className="t-center">
                 <div className="t-lg" style={{ color: T.textMuted }}>
-                  {selected === null ? 'No deity selected' : 'Select a deity from the list'}
+                  {selected === null ? t('deity.noDeitySelected') : t('deity.selectFromList')}
                 </div>
               </div>
             </div>

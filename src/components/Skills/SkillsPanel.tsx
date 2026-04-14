@@ -149,7 +149,7 @@ export function SkillsPanel() {
   if (error) {
     return (
       <div style={{ padding: 16 }}>
-        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load skills" description={error} />
+        <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('common.failedToLoad', { section: t('navigation.skills').toLowerCase() })} description={error} />
       </div>
     );
   }
@@ -157,7 +157,7 @@ export function SkillsPanel() {
   if (!character || !skillsData) {
     return (
       <div style={{ padding: 16 }}>
-        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Import a save file to begin editing." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.skills').toLowerCase() })} />
       </div>
     );
   }

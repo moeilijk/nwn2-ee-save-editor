@@ -32,7 +32,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
   if (!feat) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.textMuted }}>
-        Select a feat to view details
+        {t('feats.selectFeatDetail')}
       </div>
     );
   }
@@ -80,7 +80,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
             <span style={{ color: T.textMuted }}> — </span>
             <span className="t-medium" style={{ color: typeColor }}>{typeLabel}</span>
             {feat.protected && (
-              <span className="t-sm t-italic" style={{ marginLeft: 8, color: T.textMuted }}>protected</span>
+              <span className="t-sm t-italic" style={{ marginLeft: 8, color: T.textMuted }}>{t('feats.protected')}</span>
             )}
           </div>
         </div>
@@ -109,7 +109,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
       </div>
 
       {feat.description && (
-        <DetailSection title="Description">
+        <DetailSection title={t('feats.description')}>
           <div className="t-body" style={{ color: T.text }}>
             {feat.description}
           </div>
@@ -117,7 +117,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
       )}
 
       {feat.missing_requirements && feat.missing_requirements.length > 0 && (
-        <DetailSection title="Missing Requirements">
+        <DetailSection title={t('feats.missingRequirements')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {feat.missing_requirements.map((req, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -130,7 +130,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
       )}
 
       {hasPrereqs && prereqs && (
-        <DetailSection title="Prerequisites">
+        <DetailSection title={t('feats.prerequisites')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {prereqs.feats?.map(p => (
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -162,7 +162,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
             {prereqs.skills?.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <GameIcon icon={p.met ? GiCheckMark : GiCancel} size={14} style={{ color: p.met ? T.positive : T.negative }} />
-                <span style={{ color: T.text }}>{p.skill} {p.required} ranks</span>
+                <span style={{ color: T.text }}>{p.skill} {p.required} {t('feats.ranks')}</span>
                 <span style={{ color: T.textMuted }}>({p.current}/{p.required})</span>
               </div>
             ))}

@@ -172,11 +172,11 @@ export function ClassesPanel() {
       <div style={{ padding: 16 }}>
         <NonIdealState
           icon={<GameIcon icon={GiBrokenShield} size={40} />}
-          title="Failed to load class data"
+          title={t('common.failedToLoad', { section: t('navigation.classes').toLowerCase() })}
           description={classesSubsystem.error}
           action={
             <Button intent="primary" onClick={() => classesSubsystem.load()}>
-              Retry
+              {t('common.retry')}
             </Button>
           }
         />
@@ -190,8 +190,8 @@ export function ClassesPanel() {
       <div style={{ padding: 16 }}>
         <NonIdealState
           icon={<GameIcon icon={GiVisoredHelm} size={40} />}
-          title="No character loaded"
-          description="Load a save file to view class data."
+          title={t('common.noCharacterLoaded')}
+          description={t('common.loadSaveToView', { section: t('navigation.classes').toLowerCase() })}
         />
       </div>
     );

@@ -251,9 +251,9 @@ export function InventoryPanel() {
       <div style={{ padding: 16, height: '100%' }}>
         <NonIdealState
           icon={<GameIcon icon={GiBrokenShield} size={40} />}
-          title="Failed to load inventory"
+          title={t('common.failedToLoad', { section: t('navigation.inventory').toLowerCase() })}
           description={inventorySubsystem.error}
-          action={<Button onClick={() => inventorySubsystem.load()}>Retry</Button>}
+          action={<Button onClick={() => inventorySubsystem.load()}>{t('common.retry')}</Button>}
         />
       </div>
     );
@@ -262,7 +262,7 @@ export function InventoryPanel() {
   if (!inventoryData) {
     return (
       <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a character to view inventory." />
+        <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.inventory').toLowerCase() })} />
       </div>
     );
   }

@@ -90,11 +90,11 @@ export function ItemDetails({ item, canEquip, onEdit, onEquip, onUnequip, onDele
               <Button
                 icon={<GameIcon icon={GiArmorUpgrade} size={14} />}
                 small
-                text="Unequip"
+                text={t('inventory.unequip')}
                 style={{ color: T.textMuted }}
                 onClick={() => onUnequip?.(item.slot)}
               />
-              <Button icon="trash" small intent="danger" text="Destroy" />
+              <Button icon="trash" small intent="danger" text={t('inventory.destroy')} />
             </ButtonGroup>
           )}
           {!equipped && (

@@ -1,6 +1,7 @@
 import { Button, Dialog, DialogBody, DialogFooter } from '@blueprintjs/core';
 import type { ReactNode } from 'react';
 import { T } from '../theme';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface ParchmentDialogProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function ParchmentDialog({
   isOpen, onClose, onOpened, title, width = 480, minHeight,
   children, footerActions, footerLeft,
 }: ParchmentDialogProps) {
+  const t = useTranslations();
   return (
     <Dialog
       isOpen={isOpen}
@@ -36,7 +38,7 @@ export function ParchmentDialog({
           style={{ background: T.surfaceAlt, borderTop: `1px solid ${T.borderLight}` }}
           actions={
             <>
-              <Button text="Cancel" onClick={onClose} />
+              <Button text={t('common.cancel')} onClick={onClose} />
               {footerActions}
             </>
           }

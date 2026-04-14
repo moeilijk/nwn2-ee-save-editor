@@ -164,7 +164,7 @@ export function SpellsPanel() {
   const knownSpells = useMemo(() => mapKnownSpellsToSpellInfo(spellsData?.known_spells), [spellsData?.known_spells]);
   const preparedSpells = useMemo(() => groupMemorizedSpells(spellsData?.memorized_spells), [spellsData?.memorized_spells]);
 
-  const levelLabel = (l: number) => l === 0 ? 'Cantrips' : `Level ${l} Spells`;
+  const levelLabel = (l: number) => l === 0 ? t('spells.cantrips') : t('spells.levelSpells', { level: l });
 
   const knownSections: ListSection<SpellInfo>[] = useMemo(() => {
     const filtered = knownSpells.filter(clientFilter);
@@ -217,13 +217,13 @@ export function SpellsPanel() {
 
   const sections = tab === 'known' ? knownSections : tab === 'prepared' ? preparedSections : allSections;
 
-  const schoolLabel = activeSchool === 'all' ? 'School: All' : activeSchool;
-  const levelFilterLabel = activeLevel === 'all' ? 'Level: All' : activeLevel === '0' ? 'Cantrips' : `Level ${activeLevel}`;
-  const classLabel = activeClass === 'all' ? 'Class: All' : activeClass;
+  const schoolLabel = activeSchool === 'all' ? t('spells.schoolAll') : activeSchool;
+  const levelFilterLabel = activeLevel === 'all' ? t('spells.levelAll') : activeLevel === '0' ? t('spells.cantrips') : t('spells.levelSpells', { level: activeLevel });
+  const classLabel = activeClass === 'all' ? t('spells.classAll') : activeClass;
 
   const schoolMenu = (
     <Menu>
-      <MenuItem text="All" active={activeSchool === 'all'} onClick={() => setActiveSchool('all')} />
+      <MenuItem text={t('common.all')} active={activeSchool === 'all'} onClick={() => setActiveSchool('all')} />
       {SPELL_SCHOOL_OPTIONS.map(s => (
         <MenuItem key={s} text={s} active={activeSchool === s} onClick={() => setActiveSchool(s)} />
       ))}
@@ -232,17 +232,17 @@ export function SpellsPanel() {
 
   const levelMenu = (
     <Menu>
-      <MenuItem text="All" active={activeLevel === 'all'} onClick={() => setActiveLevel('all')} />
-      <MenuItem text="Cantrips" active={activeLevel === '0'} onClick={() => setActiveLevel('0')} />
+      <MenuItem text={t('common.all')} active={activeLevel === 'all'} onClick={() => setActiveLevel('all')} />
+      <MenuItem text={t('spells.cantrips')} active={activeLevel === '0'} onClick={() => setActiveLevel('0')} />
       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => (
-        <MenuItem key={l} text={`Level ${l}`} active={activeLevel === String(l)} onClick={() => setActiveLevel(String(l))} />
+        <MenuItem key={l} text={t('spells.levelSpells', { level: l })} active={activeLevel === String(l)} onClick={() => setActiveLevel(String(l))} />
       ))}
     </Menu>
   );
 
   const classMenu = (
     <Menu>
-      <MenuItem text="All" active={activeClass === 'all'} onClick={() => setActiveClass('all')} />
+      <MenuItem text={t('common.all')} active={activeClass === 'all'} onClick={() => setActiveClass('all')} />
       {casterClasses.map(c => (
         <MenuItem key={c.class_id} text={c.name} active={activeClass === c.name} onClick={() => setActiveClass(c.name)} />
       ))}
@@ -280,8 +280,8 @@ export function SpellsPanel() {
 
   const allSpellsCount = allSpellsTotal || allSpellsCache?.pagination.total || 0;
   const allTabTitle = allSpellsCount > 0
-    ? `All Spells (${allSpellsCount})`
-    : 'All Spells';
+    ? `${t('spells.allSpells')} (${allSpellsCount})`
+    : t('spells.allSpells');
 
   const toolbar = (
     <>
@@ -290,8 +290,8 @@ export function SpellsPanel() {
         onChange={(id) => { setTab(id as TabId); setSelectedSpell(null); setAllSpellsPage(1); }}
         renderActiveTabPanelOnly
       >
-        <Tab id="known" title={`Known (${totalKnown})`} />
-        <Tab id="prepared" title={`Prepared (${totalPrepared})`} />
+        <Tab id="known" title={`${t('spells.known')} (${totalKnown})`} />
+        <Tab id="prepared" title={`${t('spells.prepared')} (${totalPrepared})`} />
         <Tab id="all" title={allTabTitle} />
       </Tabs>
       {casterClasses.length > 1 && (
@@ -306,12 +306,12 @@ export function SpellsPanel() {
         <Button minimal rightIcon="caret-down" text={levelFilterLabel} />
       </Popover>
       <InputGroup
-        leftIcon="search" placeholder="Filter spells..." value={search}
+        leftIcon="search" placeholder={t('spells.filterSpells')} value={search}
         onChange={e => setSearch(e.target.value)}
         rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
         style={{ maxWidth: 220 }}
       />
-      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text="Clear" onClick={clearFilters} disabled={!hasFilters} />
+      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text={t('common.clear')} onClick={clearFilters} disabled={!hasFilters} />
       <div style={{ flex: 1 }} />
     </>
   );
@@ -331,8 +331,8 @@ export function SpellsPanel() {
       return (
         <NonIdealState
           icon={<GameIcon icon={GiVisoredHelm} size={40} />}
-          title="No character loaded"
-          description="Load a save file to view spells."
+          title={t('common.noCharacterLoaded')}
+          description={t('common.loadSaveToView', { section: t('navigation.spells').toLowerCase() })}
         />
       );
     }
@@ -348,7 +348,7 @@ export function SpellsPanel() {
     if (sections.length === 0) {
       return (
         <div style={{ padding: 24, textAlign: 'center', color: T.textMuted }}>
-          No spells match your filters.
+          {t('common.noMatchFilters', { items: t('navigation.spells').toLowerCase() })}
         </div>
       );
     }
@@ -385,7 +385,7 @@ export function SpellsPanel() {
             <span style={{ color: T.accent, width: 10 }}>
               {abilitiesOpen ? '\u25BC' : '\u25B6'}
             </span>
-            <span className="t-bold" style={{ color: T.accent, flex: 1 }}>Special Abilities</span>
+            <span className="t-bold" style={{ color: T.accent, flex: 1 }}>{t('spells.specialAbilities')}</span>
             <span style={{ color: T.textMuted }}>{abilitySpells.length}</span>
           </div>
           {abilitiesOpen && abilitySpells.map(a => (

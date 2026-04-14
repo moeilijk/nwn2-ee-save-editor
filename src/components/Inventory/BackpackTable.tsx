@@ -5,6 +5,7 @@ import { fmtNum } from '../shared';
 import { T } from '../theme';
 import type { FullInventoryItem } from '@/lib/bindings';
 import { display } from '@/utils/dataHelpers';
+import { useTranslations } from '@/hooks/useTranslations';
 
 interface BackpackTableProps {
   items: FullInventoryItem[];
@@ -13,12 +14,13 @@ interface BackpackTableProps {
 }
 
 export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTableProps) {
+  const t = useTranslations();
   if (items.length === 0) {
     return (
       <NonIdealState
         icon={<GameIcon icon={GiSwapBag} size={40} />}
-        title="Backpack is empty"
-        description="No items in backpack."
+        title={t('inventory.backpackEmpty')}
+        description={t('inventory.backpackEmptyDescription')}
       />
     );
   }
@@ -34,11 +36,11 @@ export function BackpackTable({ items, selectedIndex, onSelectItem }: BackpackTa
       </colgroup>
       <thead>
         <tr>
-          <th>Item</th>
-          <th>Type</th>
-          <th style={{ textAlign: 'center' }}>Qty</th>
-          <th style={{ textAlign: 'right' }}>Weight</th>
-          <th style={{ textAlign: 'right' }}>Value</th>
+          <th>{t('inventory.item')}</th>
+          <th>{t('abilityScores.type')}</th>
+          <th style={{ textAlign: 'center' }}>{t('inventory.qty')}</th>
+          <th style={{ textAlign: 'right' }}>{t('inventory.weight')}</th>
+          <th style={{ textAlign: 'right' }}>{t('inventory.value')}</th>
         </tr>
       </thead>
       <tbody>

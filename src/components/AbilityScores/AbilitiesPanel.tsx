@@ -63,8 +63,8 @@ export function AbilitiesPanel() {
       <div style={{ padding: 32 }}>
         <NonIdealState
           icon={<GameIcon icon={GiVisoredHelm} size={40} />}
-          title="No character loaded"
-          description="Load a save file to view ability scores."
+          title={t('common.noCharacterLoaded')}
+          description={t('common.loadSaveToView', { section: t('abilityScores.abilityScores').toLowerCase() })}
         />
       </div>
     );
@@ -73,7 +73,7 @@ export function AbilitiesPanel() {
   if (isLoading && !abilitiesSubsystem.data) {
     return (
       <div style={{ padding: 32 }}>
-        <NonIdealState icon={<Spinner />} title="Loading ability scores..." />
+        <NonIdealState icon={<Spinner />} title={t('common.loading')} />
       </div>
     );
   }
@@ -83,7 +83,7 @@ export function AbilitiesPanel() {
       <div style={{ padding: 32 }}>
         <NonIdealState
           icon={<GameIcon icon={GiBrokenShield} size={40} />}
-          title="Failed to load ability scores"
+          title={t('common.failedToLoad', { section: t('abilityScores.abilityScores').toLowerCase() })}
           description={abilitiesSubsystem.error ?? savesSubsystem.error ?? combatSubsystem.error ?? undefined}
         />
       </div>
@@ -201,12 +201,12 @@ export function AbilitiesPanel() {
             </colgroup>
             <thead>
               <tr>
-                <th>Ability</th>
-                <th style={{ textAlign: 'center' }}>Base</th>
-                <th style={{ textAlign: 'center' }}>Level</th>
-                <th style={{ textAlign: 'center' }}>Racial</th>
-                <th style={{ textAlign: 'center' }}>Equip</th>
-                <th style={{ textAlign: 'center' }}>Effective</th>
+                <th>{t('abilityScores.ability')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.base')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.level')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.racial')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.equip')}</th>
+                <th style={{ textAlign: 'center' }}>{t('abilityScores.effective')}</th>
                 <th style={{ textAlign: 'center' }}>Mod</th>
               </tr>
             </thead>
@@ -294,7 +294,7 @@ export function AbilitiesPanel() {
       </Card>
 
       <Card elevation={Elevation.ONE} style={{ padding: '12px 16px 16px', background: T.surface }}>
-        <SectionLabel>Saving Throws &amp; Initiative</SectionLabel>
+        <SectionLabel>{t('abilityScores.savingThrowsAndInitiative')}</SectionLabel>
         <HTMLTable compact striped bordered style={{ width: '100%', tableLayout: 'fixed' }}>
           <colgroup>
             <col />
@@ -378,7 +378,7 @@ export function AbilitiesPanel() {
           </colgroup>
           <thead>
             <tr>
-              <th>Type</th>
+              <th>{t('abilityScores.type')}</th>
               <th style={{ textAlign: 'center' }}>Base</th>
               <th style={{ textAlign: 'center' }}>DEX</th>
               <th style={{ textAlign: 'center' }}>Armor</th>

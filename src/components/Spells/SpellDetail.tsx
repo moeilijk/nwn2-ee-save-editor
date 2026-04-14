@@ -34,7 +34,7 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
   if (!spell) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: T.textMuted }}>
-        Select a spell to view details
+        {t('spells.selectSpellDetail')}
       </div>
     );
   }
@@ -136,27 +136,27 @@ export function SpellDetail({ spell, memorizedCount, isOwned, editableClasses = 
         </div>
       </div>
 
-      <DetailSection title="Spell Info">
+      <DetailSection title={t('spells.spellInfo')}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <InfoRow label="Innate Level" value={spell.innate_level !== undefined ? String(spell.innate_level) : String(spell.level)} />
-          {schoolName && <InfoRow label="School" value={schoolName} color={schoolColor} />}
-          {spell.components && <InfoRow label="Component(s)" value={spell.components} />}
-          {spell.range && <InfoRow label="Range" value={spell.range} />}
-          {spell.target_type && <InfoRow label="Target" value={spell.target_type} />}
-          {spell.cast_time && <InfoRow label="Cast Time" value={spell.cast_time} />}
-          {spell.available_metamagic && <InfoRow label="Metamagic" value={spell.available_metamagic} />}
-          {spell.is_domain_spell && <InfoRow label="Source" value="Domain Spell" color="#c62828" />}
+          <InfoRow label={t('spells.innateLevel')} value={spell.innate_level !== undefined ? String(spell.innate_level) : String(spell.level)} />
+          {schoolName && <InfoRow label={t('spells.school')} value={schoolName} color={schoolColor} />}
+          {spell.components && <InfoRow label={t('spells.components')} value={spell.components} />}
+          {spell.range && <InfoRow label={t('spells.range')} value={spell.range} />}
+          {spell.target_type && <InfoRow label={t('spells.target')} value={spell.target_type} />}
+          {spell.cast_time && <InfoRow label={t('spells.castTime')} value={spell.cast_time} />}
+          {spell.available_metamagic && <InfoRow label={t('spells.metamagic')} value={spell.available_metamagic} />}
+          {spell.is_domain_spell && <InfoRow label={t('spells.source')} value={t('spells.domainSpell')} color="#c62828" />}
           {memorizedCount !== undefined && memorizedCount > 0 && (
-            <InfoRow label="Memorized" value={`${memorizedCount}x`} />
+            <InfoRow label={t('spells.memorized')} value={`${memorizedCount}x`} />
           )}
           {spell.available_classes && spell.available_classes.length > 0 && (
-            <InfoRow label="Available To" value={spell.available_classes.join(', ')} />
+            <InfoRow label={t('spells.availableTo')} value={spell.available_classes.join(', ')} />
           )}
         </div>
       </DetailSection>
 
       {spell.description && (
-        <DetailSection title="Description">
+        <DetailSection title={t('spells.description')}>
           <div className="t-body" style={{ color: T.text }}>
             {spell.description}
           </div>

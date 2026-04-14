@@ -112,9 +112,9 @@ export function ClassSelectorDialog({
           onChange={(id) => { setTab(id as string); setSelectedClass(null); }}
           renderActiveTabPanelOnly
         >
-          <Tab id="base" title="Base" />
-          <Tab id="prestige" title="Prestige" />
-          <Tab id="npc" title="NPC" />
+          <Tab id="base" title={t('classes.base')} />
+          <Tab id="prestige" title={t('classes.prestige')} />
+          <Tab id="npc" title={t('classes.npc')} />
         </Tabs>
       )}
       <InputGroup
@@ -132,10 +132,10 @@ export function ClassSelectorDialog({
 
   const renderList = () => {
     if (!categorizedClasses) {
-      return <NonIdealState icon={<Spinner size={30} />} title="Loading..." />;
+      return <NonIdealState icon={<Spinner size={30} />} title={t('common.loading')} />;
     }
     if (sections.length === 0) {
-      return <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No classes found" />;
+      return <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title={t('classes.noClassesFound')} />;
     }
     return (
       <GroupedList

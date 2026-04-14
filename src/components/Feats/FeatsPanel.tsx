@@ -38,13 +38,13 @@ const FEAT_TYPE_OPTIONS: { label: string; value: number }[] = [
 ];
 
 
-const MY_FEATS_SECTIONS: { key: keyof FeatsState['summary']; title: string }[] = [
-  { key: 'general_feats', title: 'General Feats' },
-  { key: 'class_feats', title: 'Class Feats' },
-  { key: 'background_feats', title: 'Background Feats' },
-  { key: 'domain_feats', title: 'Domain Feats' },
-  { key: 'custom_feats', title: 'Custom Feats' },
-  { key: 'protected', title: 'Protected Feats' },
+const MY_FEATS_SECTIONS: { key: keyof FeatsState['summary']; titleKey: string }[] = [
+  { key: 'general_feats', titleKey: 'feats.generalFeats' },
+  { key: 'class_feats', titleKey: 'feats.classFeats' },
+  { key: 'background_feats', titleKey: 'feats.backgroundFeats' },
+  { key: 'domain_feats', titleKey: 'feats.domainFeats' },
+  { key: 'custom_feats', titleKey: 'feats.customFeats' },
+  { key: 'protected', titleKey: 'feats.protectedFeats' },
 ];
 
 const FEATS_PER_PAGE = 10000;
@@ -170,7 +170,7 @@ export function FeatsPanel() {
     const typeFilter = activeTypeBit !== null ? new Set([activeTypeBit]) : new Set<number>();
     const searchLower = search.toLowerCase();
 
-    return MY_FEATS_SECTIONS.flatMap(({ key, title }) => {
+    return MY_FEATS_SECTIONS.flatMap(({ key, titleKey }) => {
       const raw = (featsData?.summary?.[key] as FeatInfo[] | undefined) ?? [];
       let items = typeFilter.size > 0 ? filterFeatsByType(raw, typeFilter) : raw;
       if (search.length >= 3) {
@@ -178,9 +178,9 @@ export function FeatsPanel() {
       }
       items = sortFeats(items, 'name');
       if (items.length === 0) return [];
-      return [{ key, title, items }];
+      return [{ key, title: t(titleKey), items }];
     });
-  }, [featsData, activeTypeBit, search]);
+  }, [featsData, activeTypeBit, search, t]);
 
   const allSections: ListSection<FeatInfo>[] = useMemo(() => {
     const grouped = new Map<string, FeatInfo[]>();
@@ -191,10 +191,10 @@ export function FeatsPanel() {
     }
     return [...grouped.entries()].map(([label, items]) => ({
       key: label,
-      title: `${label} Feats`,
+      title: `${label} ${t('feats.feats')}`,
       items,
     }));
-  }, [allFeats]);
+  }, [allFeats, t]);
 
   const totalOwned = allMyFeats.length;
   const hasFilters = search.length > 0 || activeTypeBit !== null;
@@ -219,12 +219,12 @@ export function FeatsPanel() {
   }, []);
 
   const typeLabel = activeTypeBit === null
-    ? 'Type: All'
-    : (FEAT_TYPE_LABELS[activeTypeBit] ?? 'Type: All');
+    ? t('common.typeAll')
+    : (FEAT_TYPE_LABELS[activeTypeBit] ?? t('common.typeAll'));
 
   const typeMenu = (
     <Menu>
-      <MenuItem text="All" active={activeTypeBit === null} onClick={() => setActiveTypeBit(null)} />
+      <MenuItem text={t('common.all')} active={activeTypeBit === null} onClick={() => setActiveTypeBit(null)} />
       {FEAT_TYPE_OPTIONS.map(opt => (
         <MenuItem
           key={opt.value}
@@ -238,8 +238,8 @@ export function FeatsPanel() {
 
   const allFeatsCount = allFeatsTotal || allFeatsCache?.pagination.total || 0;
   const allTabTitle = allFeatsCount > 0
-    ? `All Feats (${allFeatsCount})`
-    : 'All Feats';
+    ? `${t('feats.allFeats')} (${allFeatsCount})`
+    : t('feats.allFeats');
 
   const toolbar = (
     <>
@@ -248,19 +248,19 @@ export function FeatsPanel() {
         onChange={(id) => { setTab(id as TabId); setSelectedFeat(null); }}
         renderActiveTabPanelOnly
       >
-        <Tab id="my" title={`My Feats (${totalOwned})`} />
+        <Tab id="my" title={`${t('feats.myFeats')} (${totalOwned})`} />
         <Tab id="all" title={allTabTitle} />
       </Tabs>
       <Popover content={typeMenu} placement="bottom-start" minimal>
         <Button minimal rightIcon="caret-down" text={typeLabel} />
       </Popover>
       <InputGroup
-        leftIcon="search" placeholder="Filter feats..." value={search}
+        leftIcon="search" placeholder={t('feats.filterFeats')} value={search}
         onChange={e => setSearch(e.target.value)}
         rightElement={search ? <Button icon="cross" minimal onClick={() => setSearch('')} /> : undefined}
         style={{ maxWidth: 220 }}
       />
-      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text="Clear" onClick={clearFilters} disabled={!hasFilters} />
+      <Button minimal icon={<GameIcon icon={GiFunnel} size={14} />} text={t('common.clear')} onClick={clearFilters} disabled={!hasFilters} />
       <div style={{ flex: 1 }} />
     </>
   );
@@ -269,22 +269,22 @@ export function FeatsPanel() {
     if (tab === 'my') {
       if (isLoading && !featsData) {
         return (
-          <NonIdealState icon={<Spinner size={30} />} title="Loading feats..." />
+          <NonIdealState icon={<Spinner size={30} />} title={t('feats.loadingFeats')} />
         );
       }
       if (loadError) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load feats" description={loadError} />
+          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('common.failedToLoad', { section: t('navigation.feats').toLowerCase() })} description={loadError} />
         );
       }
       if (!character || !featsData) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to view feats." />
+          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.feats').toLowerCase() })} />
         );
       }
       if (sections.length === 0) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
+          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title={t('common.noMatchFilters', { items: t('navigation.feats').toLowerCase() })} action={<Button minimal text={t('common.clearFilters')} onClick={clearFilters} />} />
         );
       }
     }
@@ -292,22 +292,22 @@ export function FeatsPanel() {
     if (tab === 'all') {
       if (!character) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title="No character loaded" description="Load a save file to browse feats." />
+          <NonIdealState icon={<GameIcon icon={GiVisoredHelm} size={40} />} title={t('common.noCharacterLoaded')} description={t('common.loadSaveToView', { section: t('navigation.feats').toLowerCase() })} />
         );
       }
       if (allFeatsLoading) {
         return (
-          <NonIdealState icon={<Spinner size={30} />} title="Loading feats..." />
+          <NonIdealState icon={<Spinner size={30} />} title={t('feats.loadingFeats')} />
         );
       }
       if (allFeatsError) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title="Failed to load feats" description={allFeatsError} />
+          <NonIdealState icon={<GameIcon icon={GiBrokenShield} size={40} />} title={t('common.failedToLoad', { section: t('navigation.feats').toLowerCase() })} description={allFeatsError} />
         );
       }
       if (sections.length === 0) {
         return (
-          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title="No feats match your filters" action={<Button minimal text="Clear filters" onClick={clearFilters} />} />
+          <NonIdealState icon={<GameIcon icon={GiMagnifyingGlass} size={40} />} title={t('common.noMatchFilters', { items: t('navigation.feats').toLowerCase() })} action={<Button minimal text={t('common.clearFilters')} onClick={clearFilters} />} />
         );
       }
     }
