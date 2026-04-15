@@ -223,14 +223,22 @@ export function FeatsPanel() {
     const labelKey = getFeatTypeLabel(feat.type);
     const typeColor = FEAT_TYPE_COLORS[labelKey] || T.textMuted;
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
         <span className={selected ? 't-semibold' : undefined} style={{
           color: T.text,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {display(feat.name)}
         </span>
-        <span className="t-medium" style={{ color: typeColor, flexShrink: 0 }}>
+        <span className="t-medium" style={{ 
+          color: typeColor, 
+          flexShrink: 0,
+          width: 120,
+          textAlign: 'left',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}>
           {t(labelKey)}
         </span>
       </div>

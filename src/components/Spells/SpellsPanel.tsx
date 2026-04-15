@@ -256,7 +256,7 @@ export function SpellsPanel() {
     const schoolKey = schoolName ? `spells.schools.${schoolName.toLowerCase()}` : '';
     const schoolColor = SPELL_SCHOOL_COLORS[schoolKey] || T.textMuted;
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
         <span className={selected ? 't-semibold' : undefined} style={{
           color: T.text,
           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -269,11 +269,17 @@ export function SpellsPanel() {
         {spell.memorized_count !== undefined && spell.memorized_count > 0 && (
           <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>{spell.memorized_count}x</span>
         )}
-        {schoolName && (
-          <span className="t-medium" style={{ color: schoolColor, flexShrink: 0 }}>
-            {t(schoolKey)}
-          </span>
-        )}
+        <span className="t-medium" style={{ 
+          color: schoolColor, 
+          flexShrink: 0,
+          width: 120,
+          textAlign: 'left',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}>
+          {schoolName ? t(schoolKey) : ''}
+        </span>
       </div>
     );
   }, [t]);
