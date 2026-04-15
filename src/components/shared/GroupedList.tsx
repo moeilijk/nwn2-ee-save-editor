@@ -31,20 +31,19 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
   const heights = ROW_HEIGHTS[fontSize];
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [containerHeight, setContainerHeight] = useState(400);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const listRef = useRef<VariableSizeList>(null);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!containerNode) return;
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         setContainerHeight(entry.contentRect.height);
       }
     });
-    observer.observe(el);
+    observer.observe(containerNode);
     return () => observer.disconnect();
-  }, []);
+  }, [containerNode]);
 
   const toggleSection = useCallback((key: string) => {
     setCollapsed(prev => {
@@ -117,7 +116,7 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
   }, [flatRows, collapsed, selectedId, onSelect, renderItem, toggleSection]);
 
   return (
-    <div ref={containerRef} style={{ height: '100%' }}>
+    <div ref={setContainerNode} style={{ height: '100%' }}>
       <VariableSizeList
         ref={listRef}
         height={containerHeight}

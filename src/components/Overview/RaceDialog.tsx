@@ -196,7 +196,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
         />
       }
     >
-      <div style={{ display: 'flex', gap: 0, margin: -16, height: 'calc(80vh - 100px)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 0, margin: -16, flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
         <div style={{ width: 260, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column', background: T.surfaceAlt }}>
           <div style={{ padding: 8 }}>

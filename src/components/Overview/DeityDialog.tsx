@@ -64,7 +64,7 @@ export function DeityDialog({ isOpen, currentDeity, onClose, onSelect }: DeityDi
         <Button text={t('common.confirm')} intent="primary" onClick={handleConfirm} style={{ background: T.accent }} />
       }
     >
-      <div style={{ display: 'flex', gap: 0, margin: -16, height: 550, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 0, margin: -16, flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <div style={{ width: 240, borderRight: `1px solid ${T.borderLight}`, display: 'flex', flexDirection: 'column', background: T.surfaceAlt }}>
           <div style={{ padding: 8 }}>
             <InputGroup

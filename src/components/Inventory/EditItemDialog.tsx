@@ -386,7 +386,7 @@ export function EditItemDialog({
                 <Button small icon="add" intent="primary" text={t('inventory.addProperty')} onClick={handleAddProperty} disabled={!preloadedMetadata} />
               </div>
 
-              <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
                 {properties.map((prop, i) => {
                   const propMeta = getPropMeta(prop.PropertyName as number);
                   const subtypeOptions = getSubtypeOptions(prop.PropertyName as number);

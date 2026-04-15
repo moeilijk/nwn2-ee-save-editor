@@ -75,7 +75,7 @@ export function FileBrowserDialog({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const listRef = useRef<List>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const previousRefreshKey = useRef(refreshKey);
   const lastPath = useRef(currentPath);
 
@@ -88,7 +88,7 @@ export function FileBrowserDialog({
   );
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerNode) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.height > 0) {
@@ -96,9 +96,9 @@ export function FileBrowserDialog({
         }
       }
     });
-    observer.observe(containerRef.current);
+    observer.observe(containerNode);
     return () => observer.disconnect();
-  }, [isOpen]);
+  }, [containerNode, isOpen]);
 
   const loadFiles = useCallback(async (isInitial = true) => {
     if (demoFiles) {
@@ -493,7 +493,7 @@ export function FileBrowserDialog({
             </div>
           </div>
 
-          <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <div ref={setContainerNode} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {loading && files.length === 0 ? (
               <NonIdealState
                 icon={<Spinner size={32} />}

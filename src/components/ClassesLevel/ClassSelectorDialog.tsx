@@ -164,7 +164,7 @@ export function ClassSelectorDialog({
         </Button>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', height: 600 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${T.borderLight}` }}>
           {toolbar}
         </div>

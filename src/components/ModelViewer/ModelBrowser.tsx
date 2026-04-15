@@ -44,18 +44,19 @@ const Row = memo(({ index, style, data }: ListChildComponentProps<RowData>) => {
 
 function useContainerHeight() {
   const [height, setHeight] = useState(0);
-  const ref = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      setHeight(node.clientHeight);
-      const observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setHeight(entry.contentRect.height);
-        }
-      });
-      observer.observe(node);
-    }
-  }, []);
-  return { ref, height };
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!node) return;
+    setHeight(node.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node]);
+  return { ref: setNode, height };
 }
 
 export function ModelBrowser() {

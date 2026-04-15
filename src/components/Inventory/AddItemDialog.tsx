@@ -43,8 +43,9 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const [listWidth, setListWidth] = useState(680);
+  const [listHeight, setListHeight] = useState(LIST_HEIGHT);
 
   useEffect(() => {
     if (!isOpen || !characterId) return;
@@ -60,10 +61,18 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
   }, [isOpen, characterId]);
 
   useEffect(() => {
-    if (containerRef.current) {
-      setListWidth(containerRef.current.offsetWidth);
-    }
-  }, [isOpen, isLoading]);
+    if (!containerNode) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setListWidth(entry.contentRect.width);
+        if (entry.contentRect.height > 0) {
+          setListHeight(entry.contentRect.height);
+        }
+      }
+    });
+    observer.observe(containerNode);
+    return () => observer.disconnect();
+  }, [containerNode, isOpen]);
 
   const handleReset = useCallback(() => {
     setSearch('');
@@ -320,15 +329,15 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
           </div>
         )}
 
-        <div ref={containerRef} style={{ flex: 1, minHeight: LIST_HEIGHT }}>
+        <div ref={setContainerNode} style={{ flex: 1, minHeight: 0 }}>
           {isLoading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: LIST_HEIGHT, gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: listHeight, gap: 10 }}>
               <Spinner size={20} />
               <span style={{ color: T.textMuted }}>{tab === 'base' ? t('inventory.loadingBaseItems') : t('inventory.loadingTemplates')}</span>
             </div>
           ) : itemCount > 0 ? (
             <List
-              height={LIST_HEIGHT}
+              height={listHeight}
               itemCount={itemCount}
               itemSize={ROW_HEIGHT}
               width={listWidth}
