@@ -32,13 +32,17 @@ interface SidebarProps {
   onTabChange: (id: string) => void;
 }
 
+export function preloadSidebarIcons() {
+  NAV_ITEMS.forEach(item => {
+    if (item.gameIcon) fetchIcon(item.gameIcon);
+  });
+}
+
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const t = useTranslations();
 
   useEffect(() => {
-    NAV_ITEMS.forEach(item => {
-      if (item.gameIcon) fetchIcon(item.gameIcon);
-    });
+    preloadSidebarIcons();
   }, []);
   return (
     <div style={{

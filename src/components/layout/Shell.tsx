@@ -10,7 +10,7 @@ import { T, PATTERN_BG } from '../theme';
 import '../blueprint.css';
 import { TitleBar } from './TitleBar';
 import { Navbar } from './Navbar';
-import { Sidebar } from './Sidebar';
+import { Sidebar, preloadSidebarIcons } from './Sidebar';
 import { OverviewPanel } from '../Overview/OverviewPanel';
 import { AbilitiesPanel } from '../AbilityScores/AbilitiesPanel';
 import { ClassesPanel } from '../ClassesLevel/ClassesPanel';
@@ -46,6 +46,10 @@ function ShellContent() {
   const { character, isLoading, clearCharacter } = useCharacterContext();
   const t = useTranslations();
   const Panel = PANELS[activeTab];
+
+  useEffect(() => {
+    preloadSidebarIcons();
+  }, []);
 
   useEffect(() => {
     if (character && !isLoading && viewMode === 'dashboard') {
