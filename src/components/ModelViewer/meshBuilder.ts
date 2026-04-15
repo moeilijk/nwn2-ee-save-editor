@@ -101,39 +101,43 @@ export function buildAnimationClips(
         const bonePath = track.bone_name;
 
         if (track.rotations && track.times.length > 0) {
+          // TODO: fix eyeball popping out of socket during pupil movement
+          // Skip eye bone animations entirely for now
           const isEyeBone = /^eye[LR](lid)?$/.test(track.bone_name);
+          if (isEyeBone) continue;
+
           const rotations = new Float32Array(track.rotations.length);
           for (let i = 0; i < track.rotations.length; i += 4) {
-            let qx = track.rotations[i];
-            let qy = track.rotations[i + 1];
-            let qz = track.rotations[i + 2];
-            let qw = track.rotations[i + 3];
+            const qx = track.rotations[i];
+            const qy = track.rotations[i + 1];
+            const qz = track.rotations[i + 2];
+            const qw = track.rotations[i + 3];
 
             // Dampen eye/eyelid rotation to 25% of original range.
             // The eye bone pivot is behind the eyeball center, so large
             // rotations cause the eyeball to orbit out of the socket.
-            if (isEyeBone) {
-              const bx = track.rotations[0], by = track.rotations[1];
-              const bz = track.rotations[2], bw = track.rotations[3];
-              let dot = bx * qx + by * qy + bz * qz + bw * qw;
-              if (dot < 0) { qx = -qx; qy = -qy; qz = -qz; qw = -qw; dot = -dot; }
-              const t = 0.25;
-              if (dot < 0.9995) {
-                const omega = Math.acos(dot);
-                const so = Math.sin(omega);
-                const s0 = Math.sin((1 - t) * omega) / so;
-                const s1 = Math.sin(t * omega) / so;
-                qx = s0 * bx + s1 * qx;
-                qy = s0 * by + s1 * qy;
-                qz = s0 * bz + s1 * qz;
-                qw = s0 * bw + s1 * qw;
-              } else {
-                qx = (1 - t) * bx + t * qx;
-                qy = (1 - t) * by + t * qy;
-                qz = (1 - t) * bz + t * qz;
-                qw = (1 - t) * bw + t * qw;
-              }
-            }
+            // if (isEyeBone) {
+            //   const bx = track.rotations[0], by = track.rotations[1];
+            //   const bz = track.rotations[2], bw = track.rotations[3];
+            //   let dot = bx * qx + by * qy + bz * qz + bw * qw;
+            //   if (dot < 0) { qx = -qx; qy = -qy; qz = -qz; qw = -qw; dot = -dot; }
+            //   const t = 0.25;
+            //   if (dot < 0.9995) {
+            //     const omega = Math.acos(dot);
+            //     const so = Math.sin(omega);
+            //     const s0 = Math.sin((1 - t) * omega) / so;
+            //     const s1 = Math.sin(t * omega) / so;
+            //     qx = s0 * bx + s1 * qx;
+            //     qy = s0 * by + s1 * qy;
+            //     qz = s0 * bz + s1 * qz;
+            //     qw = s0 * bw + s1 * qw;
+            //   } else {
+            //     qx = (1 - t) * bx + t * qx;
+            //     qy = (1 - t) * by + t * qy;
+            //     qz = (1 - t) * bz + t * qz;
+            //     qw = (1 - t) * bw + t * qw;
+            //   }
+            // }
 
             rotations[i] = qx;           // x
             rotations[i + 1] = qz;       // z -> y
