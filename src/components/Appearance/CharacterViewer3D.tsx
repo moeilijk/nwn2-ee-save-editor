@@ -37,7 +37,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
   const skeletonRef = useRef<{ skeleton: THREE.Skeleton; rootBone: THREE.Bone } | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+  const timerRef = useRef<THREE.Timer>(new THREE.Timer());
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tintHeadRef = useRef(tintHead);
@@ -59,7 +59,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       model.scale.set(girthRef.current, heightRef.current, girthRef.current);
     }
     if (mixerRef.current) {
-      mixerRef.current.update(clockRef.current.getDelta());
+      timerRef.current.update();
+      mixerRef.current.update(timerRef.current.getDelta());
     }
   }, []);
 
@@ -117,6 +118,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
     try {
       const data: ModelData = await invoke('load_character_model');
+
       const tintMap = getTintColors();
 
       let skeleton: THREE.Skeleton | undefined;
@@ -134,15 +136,43 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         (partBuckets[meshData.part] ??= []).push(meshData);
       }
 
+      // Pre-compute all materials in parallel
+      const allMeshEntries: { meshData: MeshData; partName: string }[] = [];
+      for (const [partName, meshes] of Object.entries(partBuckets)) {
+        for (const meshData of meshes) {
+          if (/_L\d+$/i.test(meshData.name)) continue;
+          allMeshEntries.push({ meshData, partName });
+        }
+      }
+
+      const materialPromises = allMeshEntries.map(({ meshData }) => {
+        const colors = tintMap[meshData.tint_group];
+        return createMaterial(meshData.material, colors);
+      });
+      const allMaterials = await Promise.all(materialPromises);
+
       const modelGroup = new THREE.Group();
       modelGroup.name = '__model';
 
-      for (const [partName, meshes] of Object.entries(partBuckets)) {
-        const partGroup = await buildPartGroup(meshes, partName, tintMap, skeleton, rootBone);
-        modelGroup.add(partGroup);
-      }
-      scene.add(modelGroup);
+      const partGroups = new Map<string, THREE.Group>();
+      for (let i = 0; i < allMeshEntries.length; i++) {
+        const { meshData, partName } = allMeshEntries[i];
+        const material = allMaterials[i];
 
+        let group = partGroups.get(partName);
+        if (!group) {
+          group = new THREE.Group();
+          group.name = partGroupName(partName);
+          partGroups.set(partName, group);
+          modelGroup.add(group);
+        }
+
+        const obj = buildMesh(meshData, material, skeleton, rootBone);
+        group.add(obj);
+      }
+
+
+      scene.add(modelGroup);
       frameBounds(camera, controls, scene, modelGroup);
 
       // Set up idle animation with fidget rotation
@@ -153,7 +183,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         if (clips.length > 0) {
           const mixer = new THREE.AnimationMixer(modelGroup);
           mixerRef.current = mixer;
-          clockRef.current = new THREE.Clock();
+          timerRef.current = new THREE.Timer();
 
           const idleClips = clips.filter((c) => {
             const n = c.name.toLowerCase();
@@ -199,6 +229,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
           playNext();
         }
       }
+
+
     } catch (err) {
       setError(err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err));
     } finally {

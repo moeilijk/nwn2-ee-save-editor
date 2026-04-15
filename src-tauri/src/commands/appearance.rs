@@ -150,23 +150,29 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         parts.cloak_resref,
     );
 
-    let mut all_meshes: Vec<MeshData> = Vec::new();
-    let mut skeleton = None;
+    // Load skeleton + bone palettes + animations once
+    let skeleton = model_loader::load_skeleton(&rm, &parts.skeleton_resref);
+    let palettes = skeleton.as_ref().map(model_loader::build_bone_palettes);
+    let animations = skeleton
+        .as_ref()
+        .map(|_| model_loader::load_idle_animations(&rm, &parts.skeleton_resref))
+        .unwrap_or_default();
 
-    // Try body candidates in order, stop at first success
+    let mut all_meshes: Vec<MeshData> = Vec::new();
+
+    let load_part = |resref: &str, part: &str, tint: &str| -> Result<Vec<MeshData>, String> {
+        if let (Some(skel), Some(pal)) = (&skeleton, &palettes) {
+            model_loader::load_meshes_with_existing_skeleton(&rm, resref, part, tint, skel, pal)
+        } else {
+            model_loader::load_model(&rm, resref, part, tint).map(|d| d.meshes)
+        }
+    };
+
+    // Body
     let mut body_loaded = false;
     for part_resref in &parts.body_parts {
-        if let Ok(part_data) = model_loader::load_model_with_skeleton(
-            &rm,
-            part_resref,
-            &parts.skeleton_resref,
-            "body",
-            "body",
-        ) {
-            if skeleton.is_none() {
-                skeleton = part_data.skeleton;
-            }
-            all_meshes.extend(part_data.meshes);
+        if let Ok(meshes) = load_part(part_resref, "body", "body") {
+            all_meshes.extend(meshes);
             body_loaded = true;
             break;
         }
@@ -176,35 +182,16 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
             "Body candidates all failed: {:?}, falling back to naked: {}",
             parts.body_parts, parts.naked_body_resref
         );
-        if let Ok(part_data) = model_loader::load_model_with_skeleton(
-            &rm,
-            &parts.naked_body_resref,
-            &parts.skeleton_resref,
-            "body",
-            "body",
-        ) {
-            if skeleton.is_none() {
-                skeleton = part_data.skeleton;
-            }
-            all_meshes.extend(part_data.meshes);
+        if let Ok(meshes) = load_part(&parts.naked_body_resref, "body", "body") {
+            all_meshes.extend(meshes);
         }
     }
 
-    match model_loader::load_model_with_skeleton(
-        &rm,
-        &parts.head_resref,
-        &parts.skeleton_resref,
-        "head",
-        "head",
-    ) {
-        Ok(head_data) => {
-            if skeleton.is_none() {
-                skeleton = head_data.skeleton;
-            }
-            for mut mesh in head_data.meshes {
+    // Head
+    match load_part(&parts.head_resref, "head", "head") {
+        Ok(head_meshes) => {
+            for mut mesh in head_meshes {
                 if mesh.name.to_lowercase().contains("_fhair") {
-                    // Facial hair meshes are embedded in head MDB
-                    // Show only if Appearance_FHair > 0
                     if parts.show_fhair {
                         mesh.part = "fhair".to_string();
                         mesh.tint_group = "hair".to_string();
@@ -218,19 +205,15 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         Err(e) => warn!("Failed to load head model '{}': {}", parts.head_resref, e),
     }
 
+    // Hair
     if let Some(ref hair_resref) = parts.hair_resref {
-        match model_loader::load_model_with_skeleton(
-            &rm,
-            hair_resref,
-            &parts.skeleton_resref,
-            "hair",
-            "hair",
-        ) {
-            Ok(hair_data) => all_meshes.extend(hair_data.meshes),
+        match load_part(hair_resref, "hair", "hair") {
+            Ok(meshes) => all_meshes.extend(meshes),
             Err(e) => debug!("Hair model '{}' not found: {}", hair_resref, e),
         }
     }
 
+    // Wings
     if let Some(ref wing_resref) = parts.wings_resref {
         match model_loader::load_model(&rm, wing_resref, "wings", "none") {
             Ok(wing_data) => all_meshes.extend(wing_data.meshes),
@@ -238,6 +221,7 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
+    // Tail
     if let Some(ref tail_resref) = parts.tail_resref {
         match model_loader::load_model(&rm, tail_resref, "tail", "none") {
             Ok(tail_data) => all_meshes.extend(tail_data.meshes),
@@ -245,32 +229,22 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
+    // Helm
     if parts.show_helmet {
         for helm_resref in &parts.helm_candidates {
-            if let Ok(helm_data) = model_loader::load_model_with_skeleton(
-                &rm,
-                helm_resref,
-                &parts.skeleton_resref,
-                "helm",
-                "body",
-            ) {
-                all_meshes.extend(helm_data.meshes);
+            if let Ok(meshes) = load_part(helm_resref, "helm", "body") {
+                all_meshes.extend(meshes);
                 break;
             }
         }
     }
 
+    // Boots
     if !parts.boots_candidates.is_empty() {
         let mut loaded = false;
         for boots_resref in &parts.boots_candidates {
-            if let Ok(data) = model_loader::load_model_with_skeleton(
-                &rm,
-                boots_resref,
-                &parts.skeleton_resref,
-                "boots",
-                "body",
-            ) {
-                all_meshes.extend(data.meshes);
+            if let Ok(meshes) = load_part(boots_resref, "boots", "body") {
+                all_meshes.extend(meshes);
                 loaded = true;
                 break;
             }
@@ -283,17 +257,12 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
+    // Gloves
     if !parts.gloves_candidates.is_empty() {
         let mut loaded = false;
         for gloves_resref in &parts.gloves_candidates {
-            if let Ok(data) = model_loader::load_model_with_skeleton(
-                &rm,
-                gloves_resref,
-                &parts.skeleton_resref,
-                "gloves",
-                "body",
-            ) {
-                all_meshes.extend(data.meshes);
+            if let Ok(meshes) = load_part(gloves_resref, "gloves", "body") {
+                all_meshes.extend(meshes);
                 loaded = true;
                 break;
             }
@@ -306,15 +275,10 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
+    // Cloak
     if let Some(ref cloak_resref) = parts.cloak_resref {
-        match model_loader::load_model_with_skeleton(
-            &rm,
-            cloak_resref,
-            &parts.skeleton_resref,
-            "cloak",
-            "cloak",
-        ) {
-            Ok(cloak_data) => all_meshes.extend(cloak_data.meshes),
+        match load_part(cloak_resref, "cloak", "cloak") {
+            Ok(meshes) => all_meshes.extend(meshes),
             Err(e) => warn!("Failed to load cloak model '{}': {}", cloak_resref, e),
         }
     }
@@ -324,12 +288,6 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
             "No model meshes could be loaded".to_string(),
         ));
     }
-
-    let animations = if skeleton.is_some() {
-        model_loader::load_idle_animations(&rm, &parts.skeleton_resref)
-    } else {
-        Vec::new()
-    };
 
     Ok(ModelData {
         meshes: all_meshes,
@@ -356,19 +314,28 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         .ok_or_else(|| {
             CommandError::Internal("Failed to resolve character model parts".to_string())
         })?;
+
+    let skeleton = model_loader::load_skeleton(&rm, &parts.skeleton_resref);
+    let palettes = skeleton.as_ref().map(model_loader::build_bone_palettes);
+
+    let load_with_skel =
+        |resref: &str, part_name: &str, tint: &str| -> Result<Vec<MeshData>, String> {
+            if let (Some(skel), Some(pal)) = (&skeleton, &palettes) {
+                model_loader::load_meshes_with_existing_skeleton(
+                    &rm, resref, part_name, tint, skel, pal,
+                )
+            } else {
+                model_loader::load_model(&rm, resref, part_name, tint).map(|d| d.meshes)
+            }
+        };
+
     let mut meshes: Vec<MeshData> = Vec::new();
 
     match part.as_str() {
         "head" => {
-            if let Ok(data) = model_loader::load_model_with_skeleton(
-                &rm,
-                &parts.head_resref,
-                &parts.skeleton_resref,
-                "head",
-                "head",
-            ) {
+            if let Ok(head_meshes) = load_with_skel(&parts.head_resref, "head", "head") {
                 meshes.extend(
-                    data.meshes
+                    head_meshes
                         .into_iter()
                         .filter(|m| !m.name.to_lowercase().contains("_fhair")),
                 );
@@ -376,28 +343,16 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         }
         "hair" => {
             if let Some(ref resref) = parts.hair_resref
-                && let Ok(data) = model_loader::load_model_with_skeleton(
-                    &rm,
-                    resref,
-                    &parts.skeleton_resref,
-                    "hair",
-                    "hair",
-                )
+                && let Ok(hair_meshes) = load_with_skel(resref, "hair", "hair")
             {
-                meshes.extend(data.meshes);
+                meshes.extend(hair_meshes);
             }
         }
         "fhair" => {
             if parts.show_fhair
-                && let Ok(data) = model_loader::load_model_with_skeleton(
-                    &rm,
-                    &parts.head_resref,
-                    &parts.skeleton_resref,
-                    "fhair",
-                    "hair",
-                )
+                && let Ok(head_meshes) = load_with_skel(&parts.head_resref, "fhair", "hair")
             {
-                for mesh in data.meshes {
+                for mesh in head_meshes {
                     if mesh.name.to_lowercase().contains("_fhair") {
                         meshes.push(mesh);
                     }
@@ -421,14 +376,8 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         "helm" => {
             if parts.show_helmet {
                 for resref in &parts.helm_candidates {
-                    if let Ok(data) = model_loader::load_model_with_skeleton(
-                        &rm,
-                        resref,
-                        &parts.skeleton_resref,
-                        "helm",
-                        "body",
-                    ) {
-                        meshes.extend(data.meshes);
+                    if let Ok(helm_meshes) = load_with_skel(resref, "helm", "body") {
+                        meshes.extend(helm_meshes);
                         break;
                     }
                 }
@@ -437,41 +386,23 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         "body" => {
             let mut loaded = false;
             for part_resref in &parts.body_parts {
-                if let Ok(part_data) = model_loader::load_model_with_skeleton(
-                    &rm,
-                    part_resref,
-                    &parts.skeleton_resref,
-                    "body",
-                    "body",
-                ) {
-                    meshes.extend(part_data.meshes);
+                if let Ok(body_meshes) = load_with_skel(part_resref, "body", "body") {
+                    meshes.extend(body_meshes);
                     loaded = true;
                     break;
                 }
             }
             if !loaded {
-                if let Ok(part_data) = model_loader::load_model_with_skeleton(
-                    &rm,
-                    &parts.naked_body_resref,
-                    &parts.skeleton_resref,
-                    "body",
-                    "body",
-                ) {
-                    meshes.extend(part_data.meshes);
+                if let Ok(body_meshes) = load_with_skel(&parts.naked_body_resref, "body", "body") {
+                    meshes.extend(body_meshes);
                 }
             }
         }
         "cloak" => {
             if let Some(ref resref) = parts.cloak_resref
-                && let Ok(data) = model_loader::load_model_with_skeleton(
-                    &rm,
-                    resref,
-                    &parts.skeleton_resref,
-                    "cloak",
-                    "cloak",
-                )
+                && let Ok(cloak_meshes) = load_with_skel(resref, "cloak", "cloak")
             {
-                meshes.extend(data.meshes);
+                meshes.extend(cloak_meshes);
             }
         }
         _ => {

@@ -53,14 +53,13 @@ pub fn load_model(state: State<'_, AppState>, resref: String) -> Result<ModelDat
 }
 
 #[tauri::command]
-pub fn get_texture_bytes(state: State<'_, AppState>, name: String) -> Result<Vec<u8>, String> {
-    debug!("Loading texture: {}", name);
+pub fn get_texture_bytes(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<tauri::ipc::Response, String> {
     let rm = state.resource_manager.blocking_read();
     match rm.get_resource_bytes(&name, "dds") {
-        Ok(bytes) => {
-            debug!("Texture loaded: {} ({} bytes)", name, bytes.len());
-            Ok(bytes)
-        }
+        Ok(bytes) => Ok(tauri::ipc::Response::new(bytes)),
         Err(e) => {
             error!("Texture not found '{}': {}", name, e);
             Err(format!("Texture not found {name}: {e}"))

@@ -196,14 +196,15 @@ export function AppearancePanel() {
     return <NonIdealState icon={<GameIcon icon={GiMirrorMirror} size={40} />} title={t('character.noCharacter')} description={t('character.loadSaveFile')} />;
   }
 
-  if (appearanceSubsystem.isLoading && !appearanceSubsystem.data) {
-    return <Spinner />;
+  if (!appearanceSubsystem.data) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <Spinner />
+      </div>
+    );
   }
 
   const data = appearanceSubsystem.data;
-  if (!data) {
-    return <Spinner />;
-  }
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>

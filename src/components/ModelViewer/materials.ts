@@ -14,8 +14,7 @@ export async function loadDDSTexture(textureName: string): Promise<THREE.Compres
   if (!textureName) return null;
 
   try {
-    const bytes: number[] = await invoke('get_texture_bytes', { name: textureName });
-    const buffer = new Uint8Array(bytes).buffer;
+    const buffer: ArrayBuffer = await invoke('get_texture_bytes', { name: textureName });
     const dds = ddsLoader.parse(buffer, false);
 
     const texture = new THREE.CompressedTexture(
@@ -119,29 +118,30 @@ export async function createMaterial(
     envMapIntensity: 0.0001,
   });
 
-  const diffuse = await loadDDSTexture(materialData.diffuse_map);
+  const needGlow = !!(materialData.flags & 0x20);
+
+  const [diffuse, tintTex, normal, glow] = await Promise.all([
+    loadDDSTexture(materialData.diffuse_map),
+    materialData.tint_map ? loadDDSTexture(materialData.tint_map) : Promise.resolve(null),
+    loadDDSTexture(materialData.normal_map),
+    needGlow ? loadDDSTexture(materialData.glow_map) : Promise.resolve(null),
+  ]);
+
   if (diffuse) {
     mat.map = diffuse;
   }
 
-  if (materialData.tint_map && tintColors) {
-    const tintTex = await loadDDSTexture(materialData.tint_map);
-    if (tintTex) {
-      if (!diffuse) {
-        const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
-        white.needsUpdate = true;
-        mat.map = white;
-      }
-      injectTintShader(mat, tintTex, tintColors);
+  if (tintTex && tintColors) {
+    if (!diffuse) {
+      const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+      white.needsUpdate = true;
+      mat.map = white;
     }
-  } else if (!diffuse && materialData.tint_map) {
-    const tint = await loadDDSTexture(materialData.tint_map);
-    if (tint) {
-      mat.map = tint;
-    }
+    injectTintShader(mat, tintTex, tintColors);
+  } else if (!diffuse && tintTex) {
+    mat.map = tintTex;
   }
 
-  const normal = await loadDDSTexture(materialData.normal_map);
   if (normal) {
     mat.normalMap = normal;
   }
@@ -151,12 +151,9 @@ export async function createMaterial(
     mat.transparent = true;
   }
 
-  if (materialData.flags & 0x20) {
-    const glow = await loadDDSTexture(materialData.glow_map);
-    if (glow) {
-      mat.emissiveMap = glow;
-      mat.emissive = new THREE.Color(1, 1, 1);
-    }
+  if (glow) {
+    mat.emissiveMap = glow;
+    mat.emissive = new THREE.Color(1, 1, 1);
   }
 
   return mat;

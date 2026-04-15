@@ -232,6 +232,19 @@ pub fn load_model_with_skeleton(
     Ok(data)
 }
 
+pub fn load_meshes_with_existing_skeleton(
+    resource_manager: &ResourceManager,
+    resref: &str,
+    part: &str,
+    tint_group: &str,
+    skeleton: &SkeletonData,
+    palettes: &BonePalettes,
+) -> Result<Vec<MeshData>, String> {
+    let (mut data, _mdb) = parse_mdb(resource_manager, resref, part, tint_group)?;
+    remap_mesh_bone_indices(&mut data.meshes, palettes, skeleton);
+    Ok(data.meshes)
+}
+
 fn parse_mdb(
     resource_manager: &ResourceManager,
     resref: &str,
@@ -297,7 +310,10 @@ fn parse_mdb(
     Ok((data, mdb))
 }
 
-fn load_skeleton(resource_manager: &ResourceManager, skeleton_name: &str) -> Option<SkeletonData> {
+pub fn load_skeleton(
+    resource_manager: &ResourceManager,
+    skeleton_name: &str,
+) -> Option<SkeletonData> {
     match resource_manager.get_resource_bytes(skeleton_name, "gr2") {
         Ok(gr2_data) => match Gr2Parser::parse(&gr2_data) {
             Ok(skel) => {
@@ -514,12 +530,12 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> Mes
 /// Bone palettes for MDB skinning index remapping.
 /// Matches nwn2mdk's process_fbx_bones (export_info.cpp):
 /// iterate skeleton array order, skip ap_*, separate f_*, Ribcage last.
-struct BonePalettes {
+pub struct BonePalettes {
     body: Vec<usize>,
     face: Vec<usize>,
 }
 
-fn build_bone_palettes(skeleton: &SkeletonData) -> BonePalettes {
+pub fn build_bone_palettes(skeleton: &SkeletonData) -> BonePalettes {
     let mut body = Vec::new();
     let mut face = Vec::new();
     let mut ribcage: Option<usize> = None;
