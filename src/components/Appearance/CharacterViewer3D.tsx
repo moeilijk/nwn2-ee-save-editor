@@ -187,11 +187,20 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
           const idleClips = clips.filter((c) => {
             const n = c.name.toLowerCase();
-            return n.includes('idle') && !n.includes('fidget');
+            const isFidget = n.includes('fidget') || n.includes('fid_');
+            return n.includes('idle') && !isFidget;
           });
-          const fidgetClips = clips.filter((c) => c.name.toLowerCase().includes('fidget'));
+          const fidgetClips = clips.filter((c) => {
+             const n = c.name.toLowerCase();
+             return n.includes('fidget') || n.includes('fid_');
+          });
 
-          if (idleClips.length === 0) idleClips.push(clips[0]);
+          if (idleClips.length === 0 && clips.length > 0) {
+            // If no clear idle found, use the first clip that isn't a fidget, 
+            // or just the first clip if all are fidgets.
+            const fallback = clips.find(c => !(c.name.toLowerCase().includes('fidget') || c.name.toLowerCase().includes('fid_'))) || clips[0];
+            idleClips.push(fallback);
+          }
 
           const actions = idleClips.map((c) => {
             const a = mixer.clipAction(c);
@@ -207,12 +216,19 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
           });
 
           let currentAction: THREE.AnimationAction | null = null;
+          let lastFidgetIdx = -1;
           let lastWasFidget = false;
-
           const playNext = () => {
-            const useFidget = !lastWasFidget && Math.random() < 0.2 && fidgetActions.length > 0;
+            const useFidget = !lastWasFidget && Math.random() < 0.5 && fidgetActions.length > 0;
             const pool = useFidget ? fidgetActions : actions;
-            const next = pool[Math.floor(Math.random() * pool.length)];
+            
+            let idx = Math.floor(Math.random() * pool.length);
+            if (useFidget && fidgetActions.length > 1 && idx === lastFidgetIdx) {
+              idx = (idx + 1) % fidgetActions.length;
+            }
+            if (useFidget) lastFidgetIdx = idx;
+
+            const next = pool[idx];
             lastWasFidget = useFidget;
 
             if (currentAction && currentAction !== next) {
@@ -222,8 +238,10 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
             currentAction = next;
           };
 
-          mixer.addEventListener('finished', () => {
-            playNext();
+          mixer.addEventListener('finished', (e: any) => {
+            if (e.action === currentAction) {
+              playNext();
+            }
           });
 
           playNext();

@@ -390,12 +390,8 @@ pub fn load_idle_animations(
         match Gr2Parser::parse_animations(&bytes) {
             Ok(gr2_anims) => {
                 info!("Parsed {resref}: {} animations", gr2_anims.len());
-                for (i, anim) in gr2_anims.iter().enumerate() {
-                    let tag = if gr2_anims.len() == 1 {
-                        resref.clone()
-                    } else {
-                        format!("{resref}_{i}")
-                    };
+                for anim in gr2_anims.iter() {
+                    let tag = format!("{resref} [{}]", anim.name);
                     info!(
                         "  '{}' -> '{}': {:.2}s, {} tracks",
                         anim.name,
