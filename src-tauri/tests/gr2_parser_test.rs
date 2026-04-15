@@ -559,6 +559,72 @@ fn test_compare_bind_pose_vs_animation_rotations() {
 
 #[test]
 #[ignore]
+fn test_eye_curve_formats() {
+    use app_lib::parsers::gr2::Gr2Parser;
+    let format_name = |f: u8| -> &'static str {
+        match f {
+            0 => "DaKeyframes32f",
+            1 => "DaK32fC32f",
+            2 => "DaIdentity",
+            3 => "DaConstant32f",
+            4 => "D3Constant32f",
+            5 => "D4Constant32f",
+            6 => "DaK16uC16u",
+            7 => "DaK8uC8u",
+            8 => "D4nK16uC15u",
+            9 => "D4nK8uC7u",
+            10 => "D3K16uC16u",
+            11 => "D3K8uC8u",
+            _ => "UNKNOWN",
+        }
+    };
+
+    let mut out = String::new();
+    for file in &["p_hhm_idle.gr2", "p_hhf_idle.gr2"] {
+        let data = extract_gr2_from_lod_merged(file).unwrap();
+        let formats = Gr2Parser::audit_curve_formats(&data);
+        let anims = Gr2Parser::parse_animations(&data).unwrap();
+        out.push_str(&format!("\n=== {} ===\n", file));
+        for (name, pf, of, sf) in &formats {
+            let n = name.to_lowercase();
+            if n.contains("eye") || n.contains("lid") {
+                out.push_str(&format!(
+                    "  {:<20} pos={}({}) orient={}({}) scale={}({})\n",
+                    name,
+                    format_name(*pf),
+                    pf,
+                    format_name(*of),
+                    of,
+                    format_name(*sf),
+                    sf
+                ));
+                // Show decoded key counts
+                for anim in &anims {
+                    if let Some(t) = anim.tracks.iter().find(|t| t.bone_name == *name) {
+                        out.push_str(&format!(
+                            "    decoded: pos_keys={} rot_keys={} scale_keys={}\n",
+                            t.position_keys.len(),
+                            t.rotation_keys.len(),
+                            t.scale_keys.len()
+                        ));
+                        if !t.position_keys.is_empty() {
+                            let (time, pos) = &t.position_keys[0];
+                            out.push_str(&format!(
+                                "    pos[0]: t={:.4} v=[{:.4},{:.4},{:.4}]\n",
+                                time, pos[0], pos[1], pos[2]
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::fs::create_dir_all("../target_test").ok();
+    std::fs::write("../target_test/eye_curves.txt", &out).unwrap();
+}
+
+#[test]
+#[ignore]
 fn test_curve_format_audit() {
     use app_lib::parsers::gr2::Gr2Parser;
 
@@ -1070,7 +1136,11 @@ fn test_diagnose_cape_skeleton() {
         .expect("cape skeleton not found");
     let cape_skel = Gr2Parser::parse(&cape_skel_data).expect("Failed to parse cape skeleton");
 
-    eprintln!("=== CAPE SKELETON: {} ({} bones) ===", cape_skel.name, cape_skel.bones.len());
+    eprintln!(
+        "=== CAPE SKELETON: {} ({} bones) ===",
+        cape_skel.name,
+        cape_skel.bones.len()
+    );
     for (i, b) in cape_skel.bones.iter().enumerate() {
         eprintln!("  [{}] {} (parent={})", i, b.name, b.parent_index);
     }
@@ -1083,29 +1153,439 @@ fn test_diagnose_cape_skeleton() {
     let cape_bone_names: Vec<&str> = cape_skel.bones.iter().map(|b| b.name.as_str()).collect();
 
     for anim in &anims {
-        let cape_tracks: Vec<&str> = anim.tracks.iter()
+        let cape_tracks: Vec<&str> = anim
+            .tracks
+            .iter()
             .filter(|t| cape_bone_names.contains(&t.bone_name.as_str()))
             .map(|t| t.bone_name.as_str())
             .collect();
-        let body_tracks: Vec<&str> = anim.tracks.iter()
+        let body_tracks: Vec<&str> = anim
+            .tracks
+            .iter()
             .filter(|t| !cape_bone_names.contains(&t.bone_name.as_str()))
             .map(|t| t.bone_name.as_str())
             .collect();
-        eprintln!("\nAnimation '{}' ({:.2}s): {} total tracks", anim.name, anim.duration, anim.tracks.len());
+        eprintln!(
+            "\nAnimation '{}' ({:.2}s): {} total tracks",
+            anim.name,
+            anim.duration,
+            anim.tracks.len()
+        );
         eprintln!("  Cape tracks ({}): {:?}", cape_tracks.len(), cape_tracks);
         eprintln!("  Body tracks: {}", body_tracks.len());
     }
 
     // Also check fidget
-    let fidget_data =
-        extract_file_from_zip(GAME_DATA_PATH, "p_hhm_idlefidgetnervous.gr2").expect("fidget not found");
+    let fidget_data = extract_file_from_zip(GAME_DATA_PATH, "p_hhm_idlefidgetnervous.gr2")
+        .expect("fidget not found");
     let fidget_anims = Gr2Parser::parse_animations(&fidget_data).expect("Failed to parse fidget");
     for anim in &fidget_anims {
-        let cape_tracks: Vec<&str> = anim.tracks.iter()
+        let cape_tracks: Vec<&str> = anim
+            .tracks
+            .iter()
             .filter(|t| cape_bone_names.contains(&t.bone_name.as_str()))
             .map(|t| t.bone_name.as_str())
             .collect();
-        eprintln!("\nFidget '{}' ({:.2}s): {} total tracks", anim.name, anim.duration, anim.tracks.len());
+        eprintln!(
+            "\nFidget '{}' ({:.2}s): {} total tracks",
+            anim.name,
+            anim.duration,
+            anim.tracks.len()
+        );
         eprintln!("  Cape tracks ({}): {:?}", cape_tracks.len(), cape_tracks);
+    }
+}
+
+#[test]
+#[ignore]
+fn test_diagnose_eye_mesh_specific_heads() {
+    use app_lib::parsers::mdb::MdbParser;
+    use app_lib::parsers::mdb::types::material_flags::CUTSCENE_MESH;
+
+    let models_dir =
+        "C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/data/nwn2_models";
+    let mut out = String::new();
+
+    let check_heads = |out: &mut String, skel_name: &str, label: &str, heads: &[&str]| {
+        let skel_data = extract_file_from_zip(GAME_DATA_PATH, skel_name)
+            .unwrap_or_else(|| panic!("{} not found", skel_name));
+        let skeleton = Gr2Parser::parse(&skel_data).expect("parse failed");
+
+        let mut body: Vec<(usize, String)> = Vec::new();
+        let mut face: Vec<(usize, String)> = Vec::new();
+        let mut ribcage: Option<(usize, String)> = None;
+        for (i, b) in skeleton.bones.iter().enumerate() {
+            if b.name.starts_with("ap_") {
+            } else if b.name.starts_with("f_") {
+                face.push((i, b.name.clone()));
+            } else if b.name == "Ribcage" {
+                ribcage = Some((i, b.name.clone()));
+            } else {
+                body.push((i, b.name.clone()));
+            }
+        }
+        if let Some(rc) = ribcage {
+            body.push(rc);
+        }
+
+        out.push_str(&format!("\n=== {} ({}) ===\n", label, skel_name));
+        for name in &["eyeL", "eyeR", "eyeLlid", "eyeRlid"] {
+            if let Some((pi, (si, _))) = body.iter().enumerate().find(|(_, (_, n))| n == name) {
+                out.push_str(&format!("  {} -> body[{}] = skel[{}]\n", name, pi, si));
+            }
+        }
+
+        for head_name in heads {
+            let head_path = format!("{}/{}", models_dir, head_name);
+            let mdb_data = match std::fs::read(&head_path) {
+                Ok(d) => d,
+                Err(_) => {
+                    out.push_str(&format!("\n  {}: NOT FOUND\n", head_name));
+                    continue;
+                }
+            };
+            let mdb = MdbParser::parse(&mdb_data).expect("parse failed");
+            out.push_str(&format!("\n  {}\n", head_name));
+            for sm in &mdb.skin_meshes {
+                let is_cutscene = sm.material.flags & CUTSCENE_MESH != 0;
+                let name_lower = sm.name.to_lowercase();
+                if !name_lower.contains("eye") {
+                    continue;
+                }
+                if name_lower.contains("_l0") {
+                    continue;
+                }
+
+                let mut unique_bones = std::collections::BTreeSet::new();
+                for v in &sm.vertices {
+                    for j in 0..4 {
+                        if v.bone_weights[j] > 0.0 {
+                            unique_bones.insert(v.bone_indices[j]);
+                        }
+                    }
+                }
+                out.push_str(&format!(
+                    "    {} cutscene={} bones={:?}\n",
+                    sm.name, is_cutscene, unique_bones
+                ));
+                if is_cutscene {
+                    for &idx in &unique_bones {
+                        let i = idx as usize;
+                        let resolved = if i < face.len() {
+                            format!("face[{}] = skel[{}] {}", i, face[i].0, face[i].1)
+                        } else if i < body.len() {
+                            format!("body[{}] = skel[{}] {}", i, body[i].0, body[i].1)
+                        } else {
+                            "OUT OF RANGE".to_string()
+                        };
+                        out.push_str(&format!("      idx {} -> {}\n", idx, resolved));
+                    }
+                }
+            }
+        }
+    };
+
+    check_heads(
+        &mut out,
+        "p_hhm_skel.gr2",
+        "HUMAN SKEL (shared)",
+        &[
+            "P_HHM_Head01.MDB",
+            "P_AAM_Head01.MDB",
+            "P_EDM_Head01.MDB",
+            "P_EDM_Head02.MDB",
+            "P_EDM_Head03.MDB",
+        ],
+    );
+    check_heads(
+        &mut out,
+        "p_ggm_skel.gr2",
+        "GNOME MALE",
+        &["P_GGM_Head01.MDB", "P_GGM_Head02.MDB"],
+    );
+    check_heads(
+        &mut out,
+        "p_oom_skel.gr2",
+        "ORC MALE (works)",
+        &["P_OOM_Head01.MDB"],
+    );
+
+    // Compare base game vs EE skeleton bone ordering for GGM
+    out.push_str("\n\n=== BASE vs EE SKELETON COMPARISON ===\n");
+
+    let ee_lod = "C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/enhanced/data/lod-merged";
+    for skel_file in &["P_GGM_skel.GR2", "P_HHM_skel.gr2", "P_OOM_skel.GR2"] {
+        let ee_path = format!("{}/{}", ee_lod, skel_file);
+        let ee_data = match std::fs::read(&ee_path) {
+            Ok(d) => d,
+            Err(e) => {
+                out.push_str(&format!("\nEE {} NOT READABLE: {}\n", skel_file, e));
+                continue;
+            }
+        };
+
+        let base_name = skel_file.to_lowercase();
+        let base_data = match extract_file_from_zip(GAME_DATA_PATH, &base_name) {
+            Some(d) => d,
+            None => {
+                out.push_str(&format!("\nBASE {} not found in zip\n", base_name));
+                continue;
+            }
+        };
+
+        out.push_str(&format!("\n--- {} ---\n", skel_file));
+        out.push_str(&format!(
+            "  Base: {} bytes, EE: {} bytes\n",
+            base_data.len(),
+            ee_data.len()
+        ));
+
+        let base_skel = match Gr2Parser::parse(&base_data) {
+            Ok(s) => s,
+            Err(e) => {
+                out.push_str(&format!("  BASE PARSE FAIL: {}\n", e));
+                continue;
+            }
+        };
+        let ee_skel = match Gr2Parser::parse(&ee_data) {
+            Ok(s) => s,
+            Err(e) => {
+                out.push_str(&format!("  EE PARSE FAIL: {}\n", e));
+                continue;
+            }
+        };
+
+        out.push_str(&format!(
+            "  Base bones: {}, EE bones: {}\n",
+            base_skel.bones.len(),
+            ee_skel.bones.len()
+        ));
+
+        // Compare eye/lid bone positions in skeleton
+        let eye_names = ["eyeL", "eyeR", "eyeLlid", "eyeRlid"];
+        for name in &eye_names {
+            let base_idx = base_skel.bones.iter().position(|b| b.name == *name);
+            let ee_idx = ee_skel.bones.iter().position(|b| b.name == *name);
+            let diff = if base_idx != ee_idx {
+                " ← DIFFERENT!"
+            } else {
+                ""
+            };
+            out.push_str(&format!(
+                "  {} base=skel[{:?}] ee=skel[{:?}]{}\n",
+                name, base_idx, ee_idx, diff
+            ));
+        }
+
+        // Show any bones that differ in order
+        let mut diffs = 0;
+        for i in 0..base_skel.bones.len().min(ee_skel.bones.len()) {
+            if base_skel.bones[i].name != ee_skel.bones[i].name {
+                if diffs < 10 {
+                    out.push_str(&format!(
+                        "  skel[{}]: base='{}' ee='{}'\n",
+                        i, base_skel.bones[i].name, ee_skel.bones[i].name
+                    ));
+                }
+                diffs += 1;
+            }
+        }
+        if diffs > 10 {
+            out.push_str(&format!("  ... and {} more differences\n", diffs - 10));
+        }
+        if diffs == 0 {
+            out.push_str("  All bone names match in order!\n");
+        }
+    }
+
+    std::fs::create_dir_all("../target_test").ok();
+    std::fs::write("../target_test/eye_mesh_diag.txt", &out).unwrap();
+    println!("{}", out);
+}
+
+#[test]
+#[ignore]
+fn test_diagnose_eye_bones_all_races() {
+    use app_lib::parsers::mdb::MdbParser;
+    use app_lib::parsers::mdb::types::material_flags::CUTSCENE_MESH;
+
+    let race_skeletons = [
+        ("Human Male", "p_hhm_skel.gr2", "P_HHM_Head01.MDB"),
+        ("Human Female", "p_hhf_skel.gr2", "P_HHF_Head01.MDB"),
+        ("Dwarf Male", "p_ddm_skel.gr2", "P_DDM_Head01.MDB"),
+        ("Dwarf Female", "p_ddf_skel.gr2", "P_DDF_Head01.MDB"),
+        ("Gnome Male", "p_ggm_skel.gr2", "P_GGM_Head01.MDB"),
+        ("Gnome Female", "p_ggf_skel.gr2", "P_GGF_Head01.MDB"),
+        ("Orc Male", "p_oom_skel.gr2", "P_OOM_Head01.MDB"),
+        ("Orc Female", "p_oof_skel.gr2", "P_OOF_Head01.MDB"),
+    ];
+
+    let models_dir =
+        "C:/Program Files (x86)/Steam/steamapps/common/NWN2 Enhanced Edition/data/nwn2_models";
+
+    for (label, skel_name, head_name) in &race_skeletons {
+        eprintln!("\n============================================================");
+        eprintln!("=== {} ({}) ===", label, skel_name);
+
+        let skel_data = match extract_file_from_zip(GAME_DATA_PATH, skel_name) {
+            Some(d) => d,
+            None => {
+                eprintln!("  SKELETON NOT FOUND: {}", skel_name);
+                continue;
+            }
+        };
+
+        let skeleton = match Gr2Parser::parse(&skel_data) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("  SKELETON PARSE ERROR: {}", e);
+                continue;
+            }
+        };
+
+        // Find eye/eyelid bones
+        let eye_names = ["eyeL", "eyeR", "eyeLlid", "eyeRlid"];
+        eprintln!("  Skeleton: {} bones total", skeleton.bones.len());
+        for name in &eye_names {
+            if let Some((i, b)) = skeleton
+                .bones
+                .iter()
+                .enumerate()
+                .find(|(_, b)| b.name == *name)
+            {
+                let t = &b.transform;
+                eprintln!(
+                    "  {} -> skel[{}] parent={} pos=[{:.2},{:.2},{:.2}] rot=[{:.4},{:.4},{:.4},{:.4}]",
+                    name,
+                    i,
+                    b.parent_index,
+                    t.position[0],
+                    t.position[1],
+                    t.position[2],
+                    t.rotation[0],
+                    t.rotation[1],
+                    t.rotation[2],
+                    t.rotation[3],
+                );
+            } else {
+                eprintln!("  {} -> NOT FOUND!", name);
+            }
+        }
+
+        // Build palettes
+        let mut body: Vec<(usize, &str)> = Vec::new();
+        let mut face: Vec<(usize, &str)> = Vec::new();
+        let mut ribcage: Option<(usize, &str)> = None;
+        for (i, b) in skeleton.bones.iter().enumerate() {
+            if b.name.starts_with("ap_") {
+                // skip
+            } else if b.name.starts_with("f_") {
+                face.push((i, &b.name));
+            } else if b.name == "Ribcage" {
+                ribcage = Some((i, &b.name));
+            } else {
+                body.push((i, &b.name));
+            }
+        }
+        if let Some(rc) = ribcage {
+            body.push(rc);
+        }
+
+        eprintln!(
+            "  Body palette: {} bones, Face palette: {} bones",
+            body.len(),
+            face.len()
+        );
+
+        // Show eye bone positions in body palette
+        for name in &eye_names {
+            if let Some((pal_idx, (skel_idx, _))) =
+                body.iter().enumerate().find(|(_, (_, n))| *n == *name)
+            {
+                eprintln!("  {} -> body[{}] = skel[{}]", name, pal_idx, skel_idx);
+            }
+        }
+
+        // Check head MDB
+        let head_path = format!("{}/{}", models_dir, head_name);
+        match std::fs::read(&head_path) {
+            Ok(mdb_data) => match MdbParser::parse(&mdb_data) {
+                Ok(mdb) => {
+                    for sm in &mdb.skin_meshes {
+                        let is_cutscene = sm.material.flags & CUTSCENE_MESH != 0;
+                        let has_eye = sm.name.to_lowercase().contains("eye");
+                        if !has_eye && !is_cutscene {
+                            continue;
+                        }
+                        let mut unique_bones = std::collections::BTreeSet::new();
+                        for v in &sm.vertices {
+                            for j in 0..4 {
+                                if v.bone_weights[j] > 0.0 {
+                                    unique_bones.insert(v.bone_indices[j]);
+                                }
+                            }
+                        }
+                        eprintln!(
+                            "  Head mesh: {} cutscene={} bones={:?}",
+                            sm.name, is_cutscene, unique_bones
+                        );
+
+                        if is_cutscene {
+                            for &idx in &unique_bones {
+                                let i = idx as usize;
+                                let resolved = if i < face.len() {
+                                    format!("face[{}] = skel[{}] {}", i, face[i].0, face[i].1)
+                                } else if i < body.len() {
+                                    format!("body[{}] = skel[{}] {}", i, body[i].0, body[i].1)
+                                } else {
+                                    format!("OUT OF RANGE (body.len={})", body.len())
+                                };
+                                eprintln!("    bone_idx {} -> {}", idx, resolved);
+                            }
+                        }
+                    }
+                }
+                Err(e) => eprintln!("  HEAD MDB PARSE ERROR: {}", e),
+            },
+            Err(_) => eprintln!("  HEAD MDB NOT FOUND: {}", head_path),
+        }
+
+        // Check idle animation for eye tracks
+        let prefix = skel_name.strip_suffix("_skel.gr2").unwrap_or(skel_name);
+        let idle_name = format!("{}_idle.gr2", prefix);
+        if let Some(idle_data) = extract_file_from_zip(GAME_DATA_PATH, &idle_name) {
+            match Gr2Parser::parse_animations(&idle_data) {
+                Ok(anims) => {
+                    for anim in &anims {
+                        let eye_tracks: Vec<_> = anim
+                            .tracks
+                            .iter()
+                            .filter(|t| {
+                                let n = t.bone_name.to_lowercase();
+                                n.contains("eye") || n.contains("lid")
+                            })
+                            .collect();
+                        eprintln!(
+                            "  Idle '{}': {} total tracks, {} eye/lid tracks",
+                            anim.name,
+                            anim.tracks.len(),
+                            eye_tracks.len()
+                        );
+                        for t in &eye_tracks {
+                            eprintln!(
+                                "    {} rot={} pos={} scale={}",
+                                t.bone_name,
+                                t.rotation_keys.len(),
+                                t.position_keys.len(),
+                                t.scale_keys.len()
+                            );
+                        }
+                    }
+                }
+                Err(e) => eprintln!("  IDLE ANIMATION PARSE ERROR: {}", e),
+            }
+        } else {
+            eprintln!("  IDLE ANIMATION NOT FOUND: {}", idle_name);
+        }
     }
 }
