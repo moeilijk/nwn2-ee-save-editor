@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Callout, Checkbox, Dialog, DialogBody, DialogFooter } from '@blueprintjs/core';
 import { GiHazardSign, GiPlayButton } from 'react-icons/gi';
+import { invoke } from '@tauri-apps/api/core';
 import { GameIcon } from './GameIcon';
 import { T } from '../theme';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -17,6 +18,18 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
   const t = useTranslations();
   const [closeEditor, setCloseEditor] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    invoke<{ auto_close_on_launch: boolean }>('get_app_config')
+      .then(config => setCloseEditor(config.auto_close_on_launch))
+      .catch(() => {});
+  }, [isOpen]);
+
+  const handleCloseEditorChange = (next: boolean) => {
+    setCloseEditor(next);
+    invoke('update_app_config', { updates: { auto_close_on_launch: next } }).catch(() => {});
+  };
 
   const handleLaunch = async () => {
     setIsLaunching(true);
@@ -59,7 +72,7 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
 
         <Checkbox
           checked={closeEditor}
-          onChange={e => setCloseEditor((e.target as HTMLInputElement).checked)}
+          onChange={e => handleCloseEditorChange((e.target as HTMLInputElement).checked)}
           label={t('actions.closeEditorAfterLaunch')}
           disabled={isLaunching}
           className="t-md"

@@ -57,9 +57,8 @@ export function Navbar({ onBack }: NavbarProps) {
   };
 
   const handleLaunchGame = async (closeEditor: boolean) => {
-    const config = await invoke<{ auto_close_on_launch: boolean }>('get_app_config');
     await TauriAPI.launchNWN2Game();
-    if (closeEditor || config.auto_close_on_launch) {
+    if (closeEditor) {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().close();
     }
