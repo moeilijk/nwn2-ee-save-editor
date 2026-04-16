@@ -43,7 +43,15 @@ const ABILITY_DEFS = [
 export function OverviewPanel() {
   const t = useTranslations();
   const { handleError } = useErrorHandler();
-  const { character, characterId, isLoading, updateCharacterPartial, refreshAll } = useCharacterContext();
+  const { character, characterId, isLoading, updateCharacterPartial, refreshAll, refreshCharacter } = useCharacterContext();
+
+  useEffect(() => {
+    if (characterId) {
+      refreshCharacter();
+    }
+    // Refresh on mount so HP/abilities/saves reflect changes made in other tabs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characterId]);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [firstName, setFirstName] = useState('');

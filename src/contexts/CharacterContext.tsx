@@ -157,6 +157,7 @@ interface CharacterContextState {
   clearCharacter: () => void;
 
   refreshAll: () => Promise<void>;
+  refreshCharacter: () => Promise<void>;
   loadMetadata: () => Promise<void>;
   updateCharacterPartial: (data: Partial<CharacterData>) => void;
 }
@@ -500,6 +501,16 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     await Promise.all(loadPromises);
   }, [characterId, loadCharacter, loadSubsystem]);
 
+  const refreshCharacter = useCallback(async () => {
+    if (!characterId) return;
+    try {
+      const data = await CharacterAPI.getCharacterState(characterId);
+      setCharacter(data);
+    } catch (err) {
+      console.error('Failed to refresh character:', err);
+    }
+  }, [characterId]);
+
   const updateCharacterPartial = useCallback((data: Partial<CharacterData>) => {
     setCharacter(prev => prev ? { ...prev, ...data } : null);
   }, []);
@@ -523,6 +534,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     invalidateSubsystems,
     clearCharacter,
     refreshAll,
+    refreshCharacter,
     loadMetadata,
     totalFeats,
     totalSpells,
