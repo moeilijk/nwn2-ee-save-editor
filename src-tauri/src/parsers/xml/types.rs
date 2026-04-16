@@ -1,22 +1,13 @@
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct XmlData {
-    pub integers: HashMap<String, i32>,
-    pub strings: HashMap<String, String>,
-    pub floats: HashMap<String, f32>,
-    pub vectors: HashMap<String, Vector3>,
+    pub integers: IndexMap<String, i32>,
+    pub booleans: IndexMap<String, i32>,
+    pub floats: IndexMap<String, f32>,
+    pub strings: IndexMap<String, String>,
 }
-
-// Intermediate structs for XML Serialization/Deserialization
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IntegerEntry {
@@ -26,10 +17,43 @@ pub struct IntegerEntry {
     pub value: i32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct IntegersWrapper {
     #[serde(rename = "Integer", default)]
     pub entries: Vec<IntegerEntry>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BooleanEntry {
+    #[serde(rename = "Name")]
+    pub name: String,
+    #[serde(rename = "Value")]
+    pub value: i32,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct BooleansWrapper {
+    #[serde(rename = "Boolean", default)]
+    pub entries: Vec<BooleanEntry>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FloatEntry {
+    #[serde(rename = "Name")]
+    pub name: String,
+    #[serde(rename = "Value", serialize_with = "serialize_f32_fixed")]
+    pub value: f32,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn serialize_f32_fixed<S: serde::Serializer>(v: &f32, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&format!("{v:.6}"))
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct FloatsWrapper {
+    #[serde(rename = "Float", default)]
+    pub entries: Vec<FloatEntry>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -40,138 +64,86 @@ pub struct StringEntry {
     pub value: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct StringsWrapper {
     #[serde(rename = "String", default)]
     pub entries: Vec<StringEntry>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct FloatEntry {
-    #[serde(rename = "Name")]
-    pub name: String,
-    #[serde(rename = "Value")]
-    pub value: f32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct FloatsWrapper {
-    #[serde(rename = "Float", default)]
-    pub entries: Vec<FloatEntry>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct VectorEntry {
-    #[serde(rename = "Name")]
-    pub name: String,
-    #[serde(rename = "X")]
-    pub x: f32,
-    #[serde(rename = "Y")]
-    pub y: f32,
-    #[serde(rename = "Z")]
-    pub z: f32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct VectorsWrapper {
-    #[serde(rename = "Vector", default)]
-    pub entries: Vec<VectorEntry>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(rename = "Globals")]
 pub struct GlobalsXml {
     #[serde(rename = "Integers", default)]
-    pub integers: Option<IntegersWrapper>,
-    #[serde(rename = "Strings", default)]
-    pub strings: Option<StringsWrapper>,
+    pub integers: IntegersWrapper,
+    #[serde(rename = "Booleans", default)]
+    pub booleans: BooleansWrapper,
     #[serde(rename = "Floats", default)]
-    pub floats: Option<FloatsWrapper>,
-    #[serde(rename = "Vectors", default)]
-    pub vectors: Option<VectorsWrapper>,
+    pub floats: FloatsWrapper,
+    #[serde(rename = "Strings", default)]
+    pub strings: StringsWrapper,
 }
 
 impl XmlData {
     pub fn from_xml_struct(xml: GlobalsXml) -> Self {
         let mut data = XmlData::default();
 
-        if let Some(wrapper) = xml.integers {
-            for entry in wrapper.entries {
-                data.integers.insert(entry.name, entry.value);
-            }
+        for entry in xml.integers.entries {
+            data.integers.insert(entry.name, entry.value);
         }
-        if let Some(wrapper) = xml.strings {
-            for entry in wrapper.entries {
-                data.strings.insert(entry.name, entry.value);
-            }
+        for entry in xml.booleans.entries {
+            data.booleans.insert(entry.name, entry.value);
         }
-        if let Some(wrapper) = xml.floats {
-            for entry in wrapper.entries {
-                data.floats.insert(entry.name, entry.value);
-            }
+        for entry in xml.floats.entries {
+            data.floats.insert(entry.name, entry.value);
         }
-        if let Some(wrapper) = xml.vectors {
-            for entry in wrapper.entries {
-                data.vectors.insert(
-                    entry.name,
-                    Vector3 {
-                        x: entry.x,
-                        y: entry.y,
-                        z: entry.z,
-                    },
-                );
-            }
+        for entry in xml.strings.entries {
+            data.strings.insert(entry.name, entry.value);
         }
         data
     }
 
     pub fn to_xml_struct(&self) -> GlobalsXml {
-        let mut integers = Vec::new();
-        for (k, v) in &self.integers {
-            integers.push(IntegerEntry {
+        let integers = self
+            .integers
+            .iter()
+            .map(|(k, v)| IntegerEntry {
                 name: k.clone(),
                 value: *v,
-            });
-        }
-        // Sort for consistent output? The python one doesn't seem to strictly sort,
-        // but it iterates over dict items. Python > 3.7 maintains insertion order.
-        // HashMaps don't. Maybe we should sort by name to be nice.
-        integers.sort_by(|a, b| a.name.cmp(&b.name));
+            })
+            .collect();
 
-        let mut strings = Vec::new();
-        for (k, v) in &self.strings {
-            strings.push(StringEntry {
+        let booleans = self
+            .booleans
+            .iter()
+            .map(|(k, v)| BooleanEntry {
+                name: k.clone(),
+                value: *v,
+            })
+            .collect();
+
+        let floats = self
+            .floats
+            .iter()
+            .map(|(k, v)| FloatEntry {
+                name: k.clone(),
+                value: *v,
+            })
+            .collect();
+
+        let strings = self
+            .strings
+            .iter()
+            .map(|(k, v)| StringEntry {
                 name: k.clone(),
                 value: v.clone(),
-            });
-        }
-        strings.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut floats = Vec::new();
-        for (k, v) in &self.floats {
-            floats.push(FloatEntry {
-                name: k.clone(),
-                value: *v,
-            });
-        }
-        floats.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut vectors = Vec::new();
-        for (k, v) in &self.vectors {
-            vectors.push(VectorEntry {
-                name: k.clone(),
-                x: v.x,
-                y: v.y,
-                z: v.z,
-            });
-        }
-        vectors.sort_by(|a, b| a.name.cmp(&b.name));
+            })
+            .collect();
 
         GlobalsXml {
-            integers: Some(IntegersWrapper { entries: integers }),
-            strings: Some(StringsWrapper { entries: strings }),
-            floats: Some(FloatsWrapper { entries: floats }),
-            vectors: Some(VectorsWrapper { entries: vectors }),
+            integers: IntegersWrapper { entries: integers },
+            booleans: BooleansWrapper { entries: booleans },
+            floats: FloatsWrapper { entries: floats },
+            strings: StringsWrapper { entries: strings },
         }
     }
 }

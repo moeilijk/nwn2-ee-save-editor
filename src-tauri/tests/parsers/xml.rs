@@ -253,7 +253,10 @@ fn test_xml_round_trip() {
     let xml_output = parser.to_xml_string().expect("Failed to serialize to XML");
 
     assert!(!xml_output.is_empty(), "Output should not be empty");
-    assert!(xml_output.contains("<?xml"), "Should have XML declaration");
+    assert!(
+        !xml_output.contains("<?xml"),
+        "NWN2 globals.xml has no XML declaration"
+    );
 
     let parser2 =
         RustXmlParser::from_string(&xml_output).expect("Failed to re-parse generated XML");
@@ -266,6 +269,52 @@ fn test_xml_round_trip() {
         info2.len(),
         "General info should match after round-trip"
     );
+}
+
+/// Byte-for-byte round-trip: parse a pristine NWN2 globals.xml and re-emit
+/// it, asserting that the output exactly matches the input. This locks in the
+/// format (section order, indent, line endings, float precision, no XML decl)
+/// and guards against silent data-drop bugs like booleans being ignored.
+#[test]
+fn test_xml_round_trip_byte_exact_classic_campaign() {
+    let path = fixtures_path().join("saves/Classic_Campaign/globals.xml");
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        println!("Classic_Campaign globals.xml not found, skipping");
+        return;
+    };
+
+    let parser = RustXmlParser::from_string(&content).expect("parse");
+    let output = parser.to_xml_string().expect("serialize");
+
+    assert_eq!(
+        output, content,
+        "Round-trip output must match source byte-for-byte"
+    );
+}
+
+#[test]
+fn test_xml_round_trip_preserves_booleans() {
+    let path = fixtures_path().join("saves/Classic_Campaign/globals.xml");
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        println!("Classic_Campaign globals.xml not found, skipping");
+        return;
+    };
+
+    let parser = RustXmlParser::from_string(&content).expect("parse");
+    assert!(
+        !parser.data.booleans.is_empty(),
+        "Classic_Campaign globals.xml contains Booleans; parser must load them"
+    );
+    assert_eq!(parser.data.booleans.get("ShowCheatsWarning"), Some(&1));
+
+    let output = parser.to_xml_string().expect("serialize");
+    assert!(
+        output.contains("<Boolean>"),
+        "Serialized output must include Boolean entries"
+    );
+
+    let reparsed = RustXmlParser::from_string(&output).expect("reparse");
+    assert_eq!(reparsed.data.booleans, parser.data.booleans);
 }
 
 #[test]

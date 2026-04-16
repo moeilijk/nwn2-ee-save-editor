@@ -1,12 +1,9 @@
 use super::types::{GlobalsXml, XmlData};
 use chrono::{TimeZone, Utc};
-use quick_xml::Writer;
 use quick_xml::de::from_str;
-use quick_xml::events::{BytesDecl, Event};
 use regex::Regex;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::io::Cursor;
 use std::sync::OnceLock;
 
 // Constants
@@ -266,20 +263,15 @@ impl RustXmlParser {
     pub fn to_xml_string(&self) -> Result<String, String> {
         let xml_struct = self.data.to_xml_struct();
 
-        // Manually write the declaration using custom approach or standard way to ensure it's clean
-        // quick-xml's Writer can write the declaration.
-        let mut writer = Writer::new(Cursor::new(Vec::new()));
-        writer
-            .write_event(Event::Decl(BytesDecl::new("1.0", None, None)))
-            .map_err(|e| e.to_string())?;
-
-        let mut result =
-            String::from_utf8(writer.into_inner().into_inner()).map_err(|e| e.to_string())?;
-        result.push('\n'); // Add newline after declaration
-
-        let mut ser = quick_xml::se::Serializer::new(&mut result);
-        ser.indent(' ', 2);
+        let mut buffer = String::new();
+        let mut ser = quick_xml::se::Serializer::new(&mut buffer);
+        ser.indent(' ', 4);
         xml_struct.serialize(ser).map_err(|e| e.to_string())?;
+
+        // NWN2 writes globals.xml with CRLF line endings and a trailing newline,
+        // with no XML declaration. Match that byte-for-byte.
+        let mut result = buffer.replace('\n', "\r\n");
+        result.push_str("\r\n");
 
         Ok(result)
     }
@@ -504,9 +496,9 @@ impl RustXmlParser {
             quest_overview: self.get_quest_overview_struct(),
             raw_data_counts: HashMap::from([
                 ("integers".to_string(), self.data.integers.len()),
-                ("strings".to_string(), self.data.strings.len()),
+                ("booleans".to_string(), self.data.booleans.len()),
                 ("floats".to_string(), self.data.floats.len()),
-                ("vectors".to_string(), self.data.vectors.len()),
+                ("strings".to_string(), self.data.strings.len()),
             ]),
         }
     }

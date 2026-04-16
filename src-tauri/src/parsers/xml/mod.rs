@@ -5,4 +5,4 @@ pub use parser::{
     CompanionDefinition, CompanionStatus, FullSummary, QuestGroup, QuestOverview, RustXmlParser,
     get_companion_definitions,
 };
-pub use types::{Vector3, XmlData};
+pub use types::XmlData;
