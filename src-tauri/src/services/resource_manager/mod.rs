@@ -1227,9 +1227,18 @@ impl ResourceManager {
     ) -> ResourceManagerResult<Vec<u8>> {
         let key = resource_key(&resref.to_lowercase(), &extension.to_lowercase());
 
+        debug!(
+            "ResourceManager: get_resource_bytes searching for key: {}",
+            key
+        );
+
         if let Some(locations) = self.resource_index.get(&key)
             && let Some(location) = locations.iter().max_by_key(|l| l.source.priority())
         {
+            debug!(
+                "ResourceManager: Found resource '{}' in source: {:?}",
+                key, location.source
+            );
             return match &location.container_type {
                 ContainerType::Directory => Ok(std::fs::read(&location.container_path)?),
                 ContainerType::Zip => {
@@ -1303,10 +1312,19 @@ impl ResourceManager {
         let mut results = Vec::new();
         let mut zip_reader = self.zip_reader.lock();
 
+        debug!(
+            "ResourceManager: list_resources_by_prefix searching for prefix: '{}' in zips",
+            prefix
+        );
         for path in &self.data_zip_paths {
             if let Ok(files) =
                 zip_reader.list_files_by_prefix(&path.to_string_lossy(), prefix, extension)
             {
+                debug!(
+                    "ResourceManager: Found {} files in zip: {:?}",
+                    files.len(),
+                    path
+                );
                 results.extend(files);
             }
         }

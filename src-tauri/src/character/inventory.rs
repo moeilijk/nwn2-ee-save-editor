@@ -1,5 +1,6 @@
 use crate::character::CharacterError;
 use crate::character::gff_helpers::gff_value_to_i32;
+use crate::character::item_appearance::ItemAppearance;
 use crate::character::types::BaseItemId;
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
@@ -238,6 +239,7 @@ pub struct FullInventoryItem {
     pub equippable_slots: Vec<String>,
     pub default_slot: Option<String>,
     pub decoded_properties: Vec<DecodedPropertyInfo>,
+    pub appearance: ItemAppearance,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -263,6 +265,7 @@ pub struct FullEquippedItem {
     pub item_data: RawItemData,
     pub base_ac: Option<i32>,
     pub decoded_properties: Vec<DecodedPropertyInfo>,
+    pub appearance: ItemAppearance,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -765,6 +768,7 @@ impl super::Character {
                 let item_data = gff_struct_to_json(item_struct);
 
                 let icon = resolve_item_icon(item_struct, game_data);
+                let appearance = ItemAppearance::from_gff(item_struct);
 
                 inventory_items.push(FullInventoryItem {
                     index,
@@ -789,6 +793,7 @@ impl super::Character {
                     equippable_slots,
                     default_slot,
                     decoded_properties,
+                    appearance,
                 });
             }
         } else {
@@ -876,6 +881,7 @@ impl super::Character {
                     item_data: RawItemData(item_data),
                     base_ac,
                     decoded_properties,
+                    appearance: ItemAppearance::from_gff(item_struct),
                 });
             }
         }
@@ -2198,6 +2204,52 @@ impl super::Character {
         Ok(())
     }
 
+    pub fn apply_inventory_item_appearance(
+        &mut self,
+        index: usize,
+        appearance: &crate::character::ItemAppearance,
+    ) -> Result<(), CharacterError> {
+        let mut inv_list = self
+            .get_list_owned("ItemList")
+            .ok_or(CharacterError::FieldMissing { field: "ItemList" })?;
+        if index >= inv_list.len() {
+            return Err(CharacterError::InvalidOperation(format!(
+                "No item at index {index}"
+            )));
+        }
+        write_appearance_into_item(&mut inv_list[index], appearance);
+        self.set_list("ItemList", inv_list);
+        Ok(())
+    }
+
+    pub fn apply_equipped_item_appearance(
+        &mut self,
+        slot: EquipmentSlot,
+        appearance: &crate::character::ItemAppearance,
+    ) -> Result<(), CharacterError> {
+        let mut equip_list = self.get_list_owned("Equip_ItemList").ok_or(
+            CharacterError::FieldMissing {
+                field: "Equip_ItemList",
+            },
+        )?;
+        let slot_bitmask = slot.to_bitmask();
+        let item_idx = equip_list
+            .iter()
+            .position(|item| {
+                item.get("__struct_id__")
+                    .and_then(gff_value_to_i32)
+                    .unwrap_or(0) as u32
+                    == slot_bitmask
+            })
+            .ok_or(CharacterError::InvalidOperation(format!(
+                "No equipped item in slot {}",
+                slot.display_name()
+            )))?;
+        write_appearance_into_item(&mut equip_list[item_idx], appearance);
+        self.set_list("Equip_ItemList", equip_list);
+        Ok(())
+    }
+
     pub fn add_item_by_base_type(
         &mut self,
         base_item_id: i32,
@@ -2589,9 +2641,23 @@ fn coerce_json_to_gff_type(
         GffValue::ListOwned(existing_list) => json_val
             .as_array()
             .map(|arr| GffValue::ListOwned(merge_json_list_into_gff_list(&existing_list, arr))),
-        GffValue::StructOwned(_) => json_to_struct_owned(json_val),
+        GffValue::StructOwned(existing_struct) => {
+            coerce_json_to_struct(json_val, *existing_struct)
+        }
+        GffValue::Struct(lazy) => coerce_json_to_struct(json_val, lazy.force_load()),
         _ => json_to_gff_best_guess(json_val),
     }
+}
+
+fn coerce_json_to_struct(
+    json_val: &JsonValue,
+    mut existing: IndexMap<String, GffValue<'static>>,
+) -> Option<GffValue<'static>> {
+    let obj = json_val.as_object()?;
+    let updates: HashMap<String, JsonValue> =
+        obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    merge_json_into_gff_struct(&mut existing, &updates);
+    Some(GffValue::StructOwned(Box::new(existing)))
 }
 
 fn json_to_locstring(json_val: &JsonValue) -> Option<GffValue<'static>> {
@@ -2676,6 +2742,49 @@ fn json_to_gff_best_guess(json_val: &JsonValue) -> Option<GffValue<'static>> {
     }
 }
 
+fn write_appearance_into_item(
+    item: &mut IndexMap<String, GffValue<'static>>,
+    appearance: &crate::character::ItemAppearance,
+) {
+    // Preserve existing numeric type where possible; fall back to the NWN2 schema defaults
+    // (Variation: Int, ModelPartN: Byte).
+    let typed_int = |existing: Option<&GffValue<'static>>, v: i32| -> GffValue<'static> {
+        match existing {
+            Some(GffValue::Byte(_)) => GffValue::Byte(v as u8),
+            Some(GffValue::Short(_)) => GffValue::Short(v as i16),
+            Some(GffValue::Word(_)) => GffValue::Word(v as u16),
+            Some(GffValue::Int(_)) | None => GffValue::Int(v),
+            _ => GffValue::Int(v),
+        }
+    };
+    let typed_byte = |existing: Option<&GffValue<'static>>, v: i32| -> GffValue<'static> {
+        match existing {
+            Some(GffValue::Int(_)) => GffValue::Int(v),
+            Some(GffValue::Short(_)) => GffValue::Short(v as i16),
+            Some(GffValue::Word(_)) => GffValue::Word(v as u16),
+            _ => GffValue::Byte(v as u8),
+        }
+    };
+
+    let new_variation = typed_int(item.get("Variation"), appearance.variation);
+    let new_mp1 = typed_byte(item.get("ModelPart1"), appearance.model_parts[0]);
+    let new_mp2 = typed_byte(item.get("ModelPart2"), appearance.model_parts[1]);
+    let new_mp3 = typed_byte(item.get("ModelPart3"), appearance.model_parts[2]);
+
+    item.insert("Variation".to_string(), new_variation);
+    item.insert("ModelPart1".to_string(), new_mp1);
+    item.insert("ModelPart2".to_string(), new_mp2);
+    item.insert("ModelPart3".to_string(), new_mp3);
+
+    let tint = crate::character::appearance_helpers::build_tint_struct(&appearance.tints);
+    let mut tintable_outer = IndexMap::new();
+    tintable_outer.insert("Tint".to_string(), GffValue::StructOwned(Box::new(tint)));
+    item.insert(
+        "Tintable".to_string(),
+        GffValue::StructOwned(Box::new(tintable_outer)),
+    );
+}
+
 fn merge_json_into_gff_struct(
     existing: &mut IndexMap<String, GffValue<'static>>,
     updates: &HashMap<String, JsonValue>,
@@ -2738,6 +2847,67 @@ mod tests {
     use super::*;
     use crate::character::Character;
     use std::borrow::Cow;
+
+    #[test]
+    fn test_coerce_nested_struct_preserves_byte_type() {
+        // Build an existing Tintable like the one loaded from GFF:
+        //   Tintable.Tint."1".{r,g,b,a}: Byte
+        let mut channel = IndexMap::new();
+        channel.insert("r".to_string(), GffValue::Byte(0));
+        channel.insert("g".to_string(), GffValue::Byte(0));
+        channel.insert("b".to_string(), GffValue::Byte(0));
+        channel.insert("a".to_string(), GffValue::Byte(0));
+
+        let mut tint = IndexMap::new();
+        tint.insert(
+            "1".to_string(),
+            GffValue::StructOwned(Box::new(channel.clone())),
+        );
+
+        let mut tintable = IndexMap::new();
+        tintable.insert("Tint".to_string(), GffValue::StructOwned(Box::new(tint)));
+
+        let mut existing = IndexMap::new();
+        existing.insert(
+            "Tintable".to_string(),
+            GffValue::StructOwned(Box::new(tintable)),
+        );
+
+        // Frontend-shaped update
+        let updates: HashMap<String, JsonValue> = [(
+            "Tintable".to_string(),
+            serde_json::json!({ "Tint": { "1": { "r": 200, "g": 100, "b": 50, "a": 0 } } }),
+        )]
+        .into_iter()
+        .collect();
+
+        merge_json_into_gff_struct(&mut existing, &updates);
+
+        // Walk back down and assert the numbers stayed Byte-typed
+        let tintable_v = existing.get("Tintable").expect("Tintable missing");
+        let tintable_map = match tintable_v {
+            GffValue::StructOwned(m) => m,
+            _ => panic!("Tintable not StructOwned"),
+        };
+        let tint_v = tintable_map.get("Tint").expect("Tint missing");
+        let tint_map = match tint_v {
+            GffValue::StructOwned(m) => m,
+            _ => panic!("Tint not StructOwned"),
+        };
+        let ch1_v = tint_map.get("1").expect("Channel 1 missing");
+        let ch1 = match ch1_v {
+            GffValue::StructOwned(m) => m,
+            _ => panic!("Channel 1 not StructOwned"),
+        };
+        assert!(
+            matches!(ch1.get("r"), Some(GffValue::Byte(200))),
+            "r not Byte(200): {:?}",
+            ch1.get("r")
+        );
+        assert!(matches!(ch1.get("g"), Some(GffValue::Byte(100))));
+        assert!(matches!(ch1.get("b"), Some(GffValue::Byte(50))));
+        assert!(matches!(ch1.get("a"), Some(GffValue::Byte(0))));
+    }
 
     fn create_test_fields() -> IndexMap<String, GffValue<'static>> {
         let mut fields = IndexMap::new();

@@ -87,6 +87,20 @@ export interface TintChannels {
   channel3: TintChannel;
 }
 
+export interface ItemAppearance {
+  variation: number;
+  model_parts: [number, number, number];
+  tints: TintChannels;
+  armor_visual_type: number | null;
+}
+
+export interface ItemAppearanceOptions {
+  available_variations: number[];
+  available_part1: number[];
+  available_part2: number[];
+  available_part3: number[];
+}
+
 export interface AppearanceState {
   race_id: number;
   race_name: string;
@@ -652,6 +666,7 @@ export interface FullInventoryItem {
   equippable_slots: string[];
   default_slot: string | null;
   decoded_properties: DecodedPropertyInfo[];
+  appearance: ItemAppearance;
 }
 
 export interface FullEquippedItem {
@@ -667,6 +682,7 @@ export interface FullEquippedItem {
   item_data: Record<string, unknown>;
   base_ac: number | null;
   decoded_properties: DecodedPropertyInfo[];
+  appearance: ItemAppearance;
 }
 
 export interface FullEncumbrance {

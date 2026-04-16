@@ -14,7 +14,7 @@ import { useSubsystem } from '@/contexts/CharacterContext';
 import { useInventoryManagement } from '@/hooks/useInventoryManagement';
 import { inventoryAPI } from '@/services/inventoryApi';
 import { useCharacterContext } from '@/contexts/CharacterContext';
-import type { FullEquippedItem, FullInventoryItem } from '@/lib/bindings';
+import type { FullEquippedItem, FullInventoryItem, ItemAppearance } from '@/lib/bindings';
 import { resolveEquipSlot } from '@/utils/inventoryUtils';
 import { useIcon } from '@/hooks/useIcon';
 
@@ -130,6 +130,7 @@ export function InventoryPanel() {
   const [editItemData, setEditItemData] = useState<Record<string, unknown> | null>(null);
   const [editItemIndex, setEditItemIndex] = useState<number | null>(null);
   const [editItemSlot, setEditItemSlot] = useState<string | null>(null);
+  const [editAppearance, setEditAppearance] = useState<ItemAppearance | null>(null);
   const [editResolvedName, setEditResolvedName] = useState<string | undefined>(undefined);
   const [editResolvedDescription, setEditResolvedDescription] = useState<string | undefined>(undefined);
 
@@ -159,6 +160,7 @@ export function InventoryPanel() {
       setEditItemData(newItem.item);
       setEditItemIndex(newItem.index);
       setEditItemSlot(null);
+      setEditAppearance(newItem.appearance);
       setEditResolvedName(newItem.name || undefined);
       setEditResolvedDescription(newItem.description || undefined);
       setEditItemOpen(true);
@@ -396,10 +398,12 @@ export function InventoryPanel() {
                 setEditItemData(selectedItem.item_data);
                 setEditItemIndex(null);
                 setEditItemSlot(selectedItem.slot);
+                setEditAppearance(selectedItem.appearance);
               } else {
                 setEditItemData((selectedItem as FullInventoryItem).item);
                 setEditItemIndex((selectedItem as FullInventoryItem).index);
                 setEditItemSlot(null);
+                setEditAppearance((selectedItem as FullInventoryItem).appearance);
               }
               setEditResolvedName(selectedItem.name || undefined);
               setEditResolvedDescription(selectedItem.description || undefined);
@@ -422,6 +426,7 @@ export function InventoryPanel() {
         resolvedName={editResolvedName}
         resolvedDescription={editResolvedDescription}
         preloadedMetadata={itemEditorMetadata}
+        appearance={editAppearance}
       />
     </div>
   );

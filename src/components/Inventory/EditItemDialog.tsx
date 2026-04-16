@@ -10,6 +10,8 @@ import { useCharacterContext } from '@/contexts/CharacterContext';
 import { useInventoryManagement } from '@/hooks/useInventoryManagement';
 import { type ItemEditorMetadataResponse, type PropertyMetadata } from '@/services/inventoryApi';
 import { stripNwn2Tags, nwn2ToHtml, htmlToNwn2 } from '@/utils/nwn2Markup';
+import { ItemAppearanceTab } from './ItemAppearanceTab';
+import type { ItemAppearance } from '@/lib/bindings';
 
 function sortCostTableEntries(entries: [string, string][]): [string, string][] {
   return entries.sort(([, a], [, b]) => {
@@ -65,6 +67,7 @@ export interface EditItemDialogProps {
   resolvedName?: string;
   resolvedDescription?: string;
   preloadedMetadata?: ItemEditorMetadataResponse | null;
+  appearance?: ItemAppearance | null;
 }
 
 export function EditItemDialog({
@@ -77,6 +80,7 @@ export function EditItemDialog({
   resolvedName,
   resolvedDescription,
   preloadedMetadata,
+  appearance,
 }: EditItemDialogProps) {
   const t = useTranslations();
   const { handleError } = useErrorHandler();
@@ -85,12 +89,17 @@ export function EditItemDialog({
 
   const [tab, setTab] = useState<string>('basic');
   const [localData, setLocalData] = useState<Record<string, unknown> | null>(null);
+  const [localAppearance, setLocalAppearance] = useState<ItemAppearance | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [editorInitialized, setEditorInitialized] = useState(false);
 
   const nameRef = useRef<HTMLDivElement>(null);
   const descRef = useRef<HTMLDivElement>(null);
   const prevItemKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) setTab('basic');
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !itemData || !characterId) return;
@@ -119,6 +128,7 @@ export function EditItemDialog({
     }
 
     setLocalData(data);
+    setLocalAppearance(appearance ? structuredClone(appearance) : null);
     setEditorInitialized(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, itemData, characterId, resolvedName, resolvedDescription]);
@@ -216,6 +226,7 @@ export function EditItemDialog({
         item_index: itemIndex ?? undefined,
         slot: slot ?? undefined,
         item_data: localData,
+        appearance: localAppearance,
       });
       onClose();
       onSaved?.();
@@ -249,8 +260,8 @@ export function EditItemDialog({
       onClose={onClose}
       onOpened={undefined}
       title={itemName ? `${t('inventory.editItem')}: ${itemName}` : t('inventory.editItem')}
-      width={960}
-      minHeight={560}
+      width={1160}
+      minHeight={720}
       footerActions={
         <Button
           intent="primary"
@@ -459,6 +470,18 @@ export function EditItemDialog({
                   </div>
                 )}
               </div>
+            </div>
+          } />
+
+          <Tab id="appearance" title={t('appearance.title')} panel={
+            <div style={{ paddingTop: 4 }}>
+              {localAppearance && localData && (
+                <ItemAppearanceTab 
+                  appearance={localAppearance}
+                  baseItemId={Number(localData.BaseItem || 0)}
+                  onChange={setLocalAppearance}
+                />
+              )}
             </div>
           } />
         </Tabs>

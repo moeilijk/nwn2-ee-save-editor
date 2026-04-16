@@ -11,20 +11,9 @@ use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
 use crate::utils::parsing::row_str;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
-pub struct TintChannel {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
-pub struct TintChannels {
-    pub channel1: TintChannel,
-    pub channel2: TintChannel,
-    pub channel3: TintChannel,
-}
+use super::appearance_helpers::{
+    TintChannels, build_nested_tint, read_tint_from_tintable, resolve_armor_prefix,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct AppearanceState {
@@ -194,41 +183,6 @@ impl Character {
 
     // -- Tint reading --
 
-    fn read_tint_channel(fields: &IndexMap<String, GffValue<'_>>) -> TintChannel {
-        let get_byte = |key: &str| -> u8 {
-            match fields.get(key) {
-                Some(GffValue::Byte(v)) => *v,
-                _ => 0,
-            }
-        };
-        TintChannel {
-            r: get_byte("r"),
-            g: get_byte("g"),
-            b: get_byte("b"),
-            a: get_byte("a"),
-        }
-    }
-
-    fn read_tint_from_tintable(tintable: &IndexMap<String, GffValue<'_>>) -> TintChannels {
-        let tint = match tintable.get("Tint") {
-            Some(GffValue::StructOwned(s)) => s.as_ref().clone(),
-            Some(GffValue::Struct(lazy)) => lazy.force_load(),
-            _ => return TintChannels::default(),
-        };
-        let ch = |key: &str| -> TintChannel {
-            match tint.get(key) {
-                Some(GffValue::StructOwned(s)) => Self::read_tint_channel(s),
-                Some(GffValue::Struct(lazy)) => Self::read_tint_channel(&lazy.force_load()),
-                _ => TintChannel::default(),
-            }
-        };
-        TintChannels {
-            channel1: ch("1"),
-            channel2: ch("2"),
-            channel3: ch("3"),
-        }
-    }
-
     fn read_tint_channels_nested(&self, field: &str) -> TintChannels {
         let Some(outer) = self.get_struct_owned(field) else {
             return TintChannels::default();
@@ -238,7 +192,7 @@ impl Character {
             Some(GffValue::Struct(lazy)) => lazy.force_load(),
             _ => return TintChannels::default(),
         };
-        Self::read_tint_from_tintable(&tintable)
+        read_tint_from_tintable(&tintable)
     }
 
     pub fn tint_head(&self) -> TintChannels {
@@ -251,53 +205,13 @@ impl Character {
 
     // -- Tint writing --
 
-    fn build_tint_channel_struct(ch: &TintChannel) -> IndexMap<String, GffValue<'static>> {
-        let mut map = IndexMap::new();
-        map.insert("r".to_string(), GffValue::Byte(ch.r));
-        map.insert("g".to_string(), GffValue::Byte(ch.g));
-        map.insert("b".to_string(), GffValue::Byte(ch.b));
-        map.insert("a".to_string(), GffValue::Byte(ch.a));
-        map
-    }
-
-    fn build_tint_struct(tints: &TintChannels) -> IndexMap<String, GffValue<'static>> {
-        let mut tint_map = IndexMap::new();
-        tint_map.insert(
-            "1".to_string(),
-            GffValue::StructOwned(Box::new(Self::build_tint_channel_struct(&tints.channel1))),
-        );
-        tint_map.insert(
-            "2".to_string(),
-            GffValue::StructOwned(Box::new(Self::build_tint_channel_struct(&tints.channel2))),
-        );
-        tint_map.insert(
-            "3".to_string(),
-            GffValue::StructOwned(Box::new(Self::build_tint_channel_struct(&tints.channel3))),
-        );
-        tint_map
-    }
-
-    fn build_nested_tint(tints: &TintChannels) -> IndexMap<String, GffValue<'static>> {
-        let mut tintable = IndexMap::new();
-        tintable.insert(
-            "Tint".to_string(),
-            GffValue::StructOwned(Box::new(Self::build_tint_struct(tints))),
-        );
-        let mut outer = IndexMap::new();
-        outer.insert(
-            "Tintable".to_string(),
-            GffValue::StructOwned(Box::new(tintable)),
-        );
-        outer
-    }
-
     pub fn set_tint_head(&mut self, tints: &TintChannels) {
-        let nested = Self::build_nested_tint(tints);
+        let nested = build_nested_tint(tints);
         self.set_struct("Tint_Head", nested);
     }
 
     pub fn set_tint_hair(&mut self, tints: &TintChannels) {
-        let nested = Self::build_nested_tint(tints);
+        let nested = build_nested_tint(tints);
         self.set_struct("Tint_Hair", nested);
     }
 
@@ -652,42 +566,6 @@ impl Character {
         })
     }
 
-    fn resolve_armor_prefix(
-        game_data: &GameData,
-        visual_type: i32,
-        one_indexed: bool,
-    ) -> Vec<String> {
-        let mut prefixes = Vec::new();
-        let Some(armor_table) = game_data.get_table("armor") else {
-            return prefixes;
-        };
-
-        // Primary index based on context, then try the other as fallback
-        let primary = if one_indexed {
-            visual_type - 1
-        } else {
-            visual_type
-        };
-        let fallback = if one_indexed {
-            visual_type
-        } else {
-            visual_type - 1
-        };
-
-        for row_id in [primary, fallback] {
-            if row_id >= 0 {
-                if let Some(row) = armor_table.get_by_id(row_id)
-                    && let Some(prefix) = row_str(&row, "prefix")
-                {
-                    if !prefixes.contains(&prefix) {
-                        prefixes.push(prefix);
-                    }
-                }
-            }
-        }
-        prefixes
-    }
-
     fn build_part_candidates(
         body_prefix: &str,
         chest_armor_prefixes: &[String],
@@ -739,7 +617,7 @@ impl Character {
         }
 
         let armor_prefixes = if visual_type > 0 {
-            Self::resolve_armor_prefix(game_data, visual_type, false)
+            resolve_armor_prefix(game_data, visual_type, false)
         } else {
             Vec::new()
         };
@@ -814,7 +692,7 @@ impl Character {
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
 
-                result.armor_prefixes = Self::resolve_armor_prefix(game_data, visual_type, false);
+                result.armor_prefixes = resolve_armor_prefix(game_data, visual_type, false);
                 // Variation is 0-indexed in GFF, body mesh files are 1-indexed (Body01, Body02...)
                 result.armor_variation = item_struct
                     .get("Variation")
@@ -850,7 +728,7 @@ impl Character {
                 };
                 if let Some(ref t) = tintable {
                     debug!("Tintable has Tint key: {}", t.contains_key("Tint"));
-                    let tint = Self::read_tint_from_tintable(t);
+                    let tint = read_tint_from_tintable(t);
                     debug!(
                         "Read tint: ch1.a={}, ch2.a={}, ch3.a={}",
                         tint.channel1.a, tint.channel2.a, tint.channel3.a
@@ -951,7 +829,7 @@ impl Character {
                         _ => None,
                     };
                     if let Some(ref t) = tintable {
-                        result.cloak_tint = Some(Self::read_tint_from_tintable(t));
+                        result.cloak_tint = Some(read_tint_from_tintable(t));
                     }
                     debug!(
                         "Cloak variation: {variation}, tint: {:?}",
@@ -979,7 +857,7 @@ impl Character {
             Some(GffValue::Struct(lazy)) => lazy.force_load(),
             _ => return None,
         };
-        let tint = Self::read_tint_from_tintable(&tintable);
+        let tint = read_tint_from_tintable(&tintable);
         let has_color = [&tint.channel1, &tint.channel2, &tint.channel3]
             .iter()
             .any(|ch| ch.r > 0 || ch.g > 0 || ch.b > 0);
@@ -1026,7 +904,7 @@ impl Character {
         }
 
         let armor_prefixes = if visual_type > 0 {
-            Self::resolve_armor_prefix(game_data, visual_type, false)
+            resolve_armor_prefix(game_data, visual_type, false)
         } else {
             Vec::new()
         };
@@ -1042,6 +920,7 @@ impl Character {
 mod tests {
     use super::*;
     use crate::character::Character;
+    use crate::character::appearance_helpers::TintChannel;
     use crate::parsers::gff::GffValue;
     use indexmap::IndexMap;
 

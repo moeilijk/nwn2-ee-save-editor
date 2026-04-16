@@ -801,6 +801,15 @@
     "none": "None",
     "equipment": "Equipment",
     "showHelmet": "Show Helmet",
-    "noFacialHair": "No facial hair available for this head"
+    "noFacialHair": "No facial hair available for this head",
+    "model_parts": "Model Parts",
+    "part": "Variant",
+    "part1": "Part A (Blade)",
+    "part2": "Part B (Hilt)",
+    "part3": "Part C (Pommel)",
+    "variation": "Variation",
+    "color1": "Color 1",
+    "color2": "Color 2",
+    "color3": "Color 3"
   }
 }

@@ -9,6 +9,7 @@ pub mod error;
 pub mod feats;
 pub mod gamedata;
 pub mod inventory;
+pub mod item_appearance;
 pub mod models;
 pub mod overview;
 pub mod paths;

@@ -9,6 +9,7 @@ use tracing::{debug, instrument};
 
 pub mod abilities;
 mod appearance;
+pub(crate) mod appearance_helpers;
 pub mod classes;
 pub mod combat;
 pub mod combat_summary;
@@ -17,6 +18,7 @@ pub(crate) mod feats;
 pub mod gff_helpers;
 mod identity;
 mod inventory;
+mod item_appearance;
 pub mod overview;
 mod race;
 pub mod save_summary;
@@ -26,9 +28,8 @@ mod spells;
 pub mod types;
 
 pub use abilities::{AbilitiesState, AbilityIncrease, AbilityPointsSummary};
-pub use appearance::{
-    AppearanceOption, AppearanceState, CharacterModelParts, TintChannel, TintChannels,
-};
+pub use appearance::{AppearanceOption, AppearanceState, CharacterModelParts};
+pub use appearance_helpers::{TintChannel, TintChannels};
 pub use classes::ClassesState;
 pub use classes::{
     AlignmentRestriction, BabType, ClassEntry, ClassInfo, ClassSummaryEntry, LevelHistoryEntry,
@@ -46,12 +47,11 @@ pub use feats::{
 };
 pub use identity::Alignment;
 pub use inventory::{
-    AddItemResult, BaseItemData as CharacterBaseItemData, BasicItemInfo, DecodedPropertyInfo,
-    EncumbranceInfo, EncumbranceStatus, EquipResult, EquipmentSlot, EquipmentSlotInfo,
-    EquipmentSummary, FullEncumbrance, FullEquippedItem, FullInventoryItem, FullInventorySummary,
-    InventoryItem, ItemProficiencyInfo, ProficiencyRequirement, RemoveItemResult, UnequipResult,
-    WeightStatus,
+    AddItemResult, BasicItemInfo, EncumbranceInfo, EquipResult, EquipmentSlot, EquipmentSummary,
+    FullEncumbrance, FullEquippedItem, FullInventoryItem, FullInventorySummary, InventoryItem,
+    ItemProficiencyInfo, ProficiencyRequirement, RemoveItemResult, UnequipResult, WeightStatus,
 };
+pub use item_appearance::{ItemAppearance, ItemAppearanceOptions};
 pub use overview::OverviewState;
 pub use race::{SizeCategory, SubraceInfo};
 pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};

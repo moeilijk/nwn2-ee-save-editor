@@ -46,6 +46,7 @@ export interface UpdateItemRequest {
   item_index?: number;
   slot?: string;
   item_data: Record<string, unknown>;
+  appearance?: import('@/lib/bindings').ItemAppearance | null;
 }
 
 export interface UpdateItemResponse {

@@ -826,6 +826,11 @@ pub struct UpdateItemRequest {
     pub item_index: Option<usize>,
     pub slot: Option<String>,
     pub item_data: HashMap<String, JsonValue>,
+    /// Optional typed appearance patch. When present, the backend writes Variation,
+    /// ModelPart1/2/3, and Tintable via the typed GFF builders so byte-typed fields
+    /// survive the update even if the original item never had a Tintable struct.
+    #[serde(default)]
+    pub appearance: Option<crate::character::ItemAppearance>,
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -853,6 +858,9 @@ pub async fn update_item(
             actual: slot_str.clone(),
         })?;
         character.update_equipped_item(slot, &request.item_data)?;
+        if let Some(appearance) = &request.appearance {
+            character.apply_equipped_item_appearance(slot, appearance)?;
+        }
         Ok(UpdateItemResponse {
             success: true,
             message: format!("Updated equipped item in {}", slot.display_name()),
@@ -860,6 +868,9 @@ pub async fn update_item(
         })
     } else if let Some(index) = request.item_index {
         character.update_inventory_item(index, &request.item_data)?;
+        if let Some(appearance) = &request.appearance {
+            character.apply_inventory_item_appearance(index, appearance)?;
+        }
         Ok(UpdateItemResponse {
             success: true,
             message: "Updated inventory item".to_string(),
