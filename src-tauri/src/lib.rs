@@ -263,6 +263,7 @@ pub fn run() {
             crate::commands::gamedata::get_available_spells,
             crate::commands::gamedata::get_available_races,
             crate::commands::gamedata::get_subraces_for_race,
+            crate::commands::gamedata::get_all_playable_subraces,
             crate::commands::gamedata::get_available_genders,
             crate::commands::gamedata::get_available_alignments,
             crate::commands::gamedata::get_available_deities,

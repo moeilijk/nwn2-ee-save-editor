@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Button, Card, Elevation, HTMLSelect, InputGroup, NonIdealState, Slider, Spinner, Switch } from '@blueprintjs/core';
+import { Fragment, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Button, Card, Elevation, InputGroup, Menu, MenuItem, NonIdealState, Popover, Slider, Spinner, Switch } from '@blueprintjs/core';
 import { GiMirrorMirror, GiMagnifyingGlass } from 'react-icons/gi';
 import { GameIcon } from '../shared/GameIcon';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -8,7 +8,8 @@ import { useCharacterContext, useSubsystem } from '@/contexts/CharacterContext';
 import { CharacterStateAPI } from '@/lib/api/character-state';
 import { T } from '../theme';
 import { KVRow } from '../shared';
-import type { AppearanceOption, AppearanceUpdates, TintChannel, TintChannels, VoiceSetInfo } from '@/lib/bindings';
+import type { AppearanceOption, AppearanceUpdates, AvailableRace, AvailableSubrace, TintChannel, TintChannels, VoiceSetInfo } from '@/lib/bindings';
+import { invoke } from '@tauri-apps/api/core';
 import { CharacterViewer3D } from './CharacterViewer3D';
 import { VariantStepper } from './VariantStepper';
 import { ColorPicker } from './ColorPicker';
@@ -31,6 +32,8 @@ export function AppearancePanel() {
 
   const [wingOptions, setWingOptions] = useState<AppearanceOption[]>([]);
   const [tailOptions, setTailOptions] = useState<AppearanceOption[]>([]);
+  const [raceOptions, setRaceOptions] = useState<AvailableRace[]>([]);
+  const [subraceOptions, setSubraceOptions] = useState<AvailableSubrace[]>([]);
   const [modelRefreshKey, setModelRefreshKey] = useState(0);
   const [partRefresh, setPartRefresh] = useState<{ parts: PartType[]; key: number } | null>(null);
   const [liveHeight, setLiveHeight] = useState(0.95);
@@ -57,14 +60,18 @@ export function AppearancePanel() {
   useEffect(() => {
     async function loadOptions() {
       try {
-        const [wings, tails, voices] = await Promise.all([
+        const [wings, tails, voices, races, subraces] = await Promise.all([
           CharacterStateAPI.getAvailableWings(),
           CharacterStateAPI.getAvailableTails(),
           CharacterStateAPI.getAvailableVoicesets(),
+          invoke<AvailableRace[]>('get_available_races'),
+          invoke<AvailableSubrace[]>('get_all_playable_subraces'),
         ]);
         setWingOptions(wings);
         setTailOptions(tails);
         setVoicesets(voices);
+        setRaceOptions(races);
+        setSubraceOptions(subraces);
       } catch (err) {
         handleError(err);
       }
@@ -171,6 +178,75 @@ export function AppearancePanel() {
     return () => { cleanupAudio(); };
   }, [cleanupAudio]);
 
+  const raceGroups = useMemo(() => {
+    type Group = { baseRaceId: number; groupName: string; race: AvailableRace | null; subraces: AvailableSubrace[] };
+    const byId = new Map<number, Group>();
+    for (const r of raceOptions) {
+      byId.set(r.id, { baseRaceId: r.id, groupName: r.name, race: r, subraces: [] });
+    }
+    for (const s of subraceOptions) {
+      let g = byId.get(s.base_race);
+      if (!g) {
+        g = { baseRaceId: s.base_race, groupName: s.base_race_name || `Race ${s.base_race}`, race: null, subraces: [] };
+        byId.set(s.base_race, g);
+      }
+      g.subraces.push(s);
+    }
+    for (const g of byId.values()) {
+      g.subraces.sort((a, b) => a.name.localeCompare(b.name));
+      if (g.race && g.subraces.length > 0) {
+        g.race = null;
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => {
+      if (!!a.race !== !!b.race) return a.race ? -1 : 1;
+      return a.baseRaceId - b.baseRaceId;
+    });
+  }, [raceOptions, subraceOptions]);
+
+  const currentAppearanceType = appearanceSubsystem.data?.appearance_type;
+  const [pickedRaceKey, setPickedRaceKey] = useState<string | null>(null);
+
+  const activeRaceKey = useMemo(() => {
+    if (currentAppearanceType === undefined) return null;
+    if (pickedRaceKey) {
+      const [kind, idStr] = pickedRaceKey.split(':');
+      const id = Number(idStr);
+      if (kind === 'race') {
+        const r = raceOptions.find(x => x.id === id);
+        if (r && r.appearance === currentAppearanceType) return pickedRaceKey;
+      } else if (kind === 'sub') {
+        const s = subraceOptions.find(x => x.id === id);
+        if (s && s.appearance === currentAppearanceType) return pickedRaceKey;
+      }
+    }
+    for (const g of raceGroups) {
+      if (g.race && g.race.appearance === currentAppearanceType) return `race:${g.race.id}`;
+      const s = g.subraces.find(sr => sr.appearance === currentAppearanceType);
+      if (s) return `sub:${s.id}`;
+    }
+    return null;
+  }, [raceGroups, raceOptions, subraceOptions, currentAppearanceType, pickedRaceKey]);
+
+  const currentRaceLabel = useMemo(() => {
+    if (!activeRaceKey) return currentAppearanceType !== undefined ? `#${currentAppearanceType}` : null;
+    const [kind, idStr] = activeRaceKey.split(':');
+    const id = Number(idStr);
+    if (kind === 'race') return raceOptions.find(r => r.id === id)?.name ?? null;
+    return subraceOptions.find(s => s.id === id)?.name ?? null;
+  }, [activeRaceKey, raceOptions, subraceOptions, currentAppearanceType]);
+
+  const applyAppearanceType = useCallback(async (appearanceId: number, key: string) => {
+    try {
+      setPickedRaceKey(key);
+      const result = await CharacterStateAPI.updateAppearance({ appearance_type: appearanceId });
+      appearanceSubsystem.updateData(result);
+      setModelRefreshKey(k => k + 1);
+    } catch (err) {
+      handleError(err);
+    }
+  }, [appearanceSubsystem, handleError]);
+
   const groupedVoicesets = useMemo(() => {
     const filtered = voicesets.filter(v =>
       voiceFilter === '' || v.name.toLowerCase().includes(voiceFilter.toLowerCase())
@@ -214,6 +290,45 @@ export function AppearancePanel() {
         {/* Head & Hair */}
         <Card elevation={Elevation.ONE} style={{ padding: '12px 16px', background: T.surface }}>
           <SectionHeader label={t('appearance.headAndHair')} />
+          <KVRow
+            label={t('appearance.race')}
+            value={
+              <Popover
+                content={
+                  <Menu style={{ maxHeight: 400, overflowY: 'auto' }}>
+                    {raceGroups.map(group => (
+                      <Fragment key={group.baseRaceId}>
+                        {group.race && (
+                          <MenuItem
+                            text={group.race.name}
+                            active={activeRaceKey === `race:${group.race.id}`}
+                            onClick={() => applyAppearanceType(group.race!.appearance, `race:${group.race!.id}`)}
+                          />
+                        )}
+                        {group.subraces.map(s => (
+                          <MenuItem
+                            key={s.id}
+                            text={s.name}
+                            active={activeRaceKey === `sub:${s.id}`}
+                            onClick={() => applyAppearanceType(s.appearance, `sub:${s.id}`)}
+                          />
+                        ))}
+                      </Fragment>
+                    ))}
+                  </Menu>
+                }
+                placement="bottom-end"
+                minimal
+              >
+                <Button
+                  minimal
+                  rightIcon="caret-down"
+                  text={currentRaceLabel ?? `#${data.appearance_type}`}
+                  className="t-semibold"
+                />
+              </Popover>
+            }
+          />
           <KVRow
             label={t('appearance.head')}
             value={<VariantStepper value={data.appearance_head} variants={data.available_heads} onChange={(v) => updateField({ appearance_head: v }, ['head', 'fhair'])} />}
@@ -468,29 +583,57 @@ export function AppearancePanel() {
             <KVRow
               label={t('appearance.wings')}
               value={
-                <HTMLSelect
-                  value={data.wings}
-                  onChange={(e) => updateField({ wings: Number(e.target.value) }, 'wings')}
+                <Popover
+                  content={
+                    <Menu style={{ maxHeight: 300, overflowY: 'auto' }}>
+                      {wingOptions.map(opt => (
+                        <MenuItem
+                          key={opt.id}
+                          text={opt.name}
+                          active={data.wings === opt.id}
+                          onClick={() => updateField({ wings: Number(opt.id) }, 'wings')}
+                        />
+                      ))}
+                    </Menu>
+                  }
+                  placement="bottom-end"
                   minimal
                 >
-                  {wingOptions.map(opt => (
-                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                  ))}
-                </HTMLSelect>
+                  <Button
+                    minimal
+                    rightIcon="caret-down"
+                    text={wingOptions.find(o => o.id === data.wings)?.name ?? `#${data.wings}`}
+                    className="t-semibold"
+                  />
+                </Popover>
               }
             />
             <KVRow
               label={t('appearance.tail')}
               value={
-                <HTMLSelect
-                  value={data.tail}
-                  onChange={(e) => updateField({ tail: Number(e.target.value) }, 'tail')}
+                <Popover
+                  content={
+                    <Menu style={{ maxHeight: 300, overflowY: 'auto' }}>
+                      {tailOptions.map(opt => (
+                        <MenuItem
+                          key={opt.id}
+                          text={opt.name}
+                          active={data.tail === opt.id}
+                          onClick={() => updateField({ tail: Number(opt.id) }, 'tail')}
+                        />
+                      ))}
+                    </Menu>
+                  }
+                  placement="bottom-end"
                   minimal
                 >
-                  {tailOptions.map(opt => (
-                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                  ))}
-                </HTMLSelect>
+                  <Button
+                    minimal
+                    rightIcon="caret-down"
+                    text={tailOptions.find(o => o.id === data.tail)?.name ?? `#${data.tail}`}
+                    className="t-semibold"
+                  />
+                </Popover>
               }
             />
           </div>

@@ -219,7 +219,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
           let lastFidgetIdx = -1;
           let lastWasFidget = false;
           const playNext = () => {
-            const useFidget = !lastWasFidget && Math.random() < 0.5 && fidgetActions.length > 0;
+            const useFidget = !lastWasFidget && Math.random() < 0.1 && fidgetActions.length > 0;
             const pool = useFidget ? fidgetActions : actions;
             
             let idx = Math.floor(Math.random() * pool.length);

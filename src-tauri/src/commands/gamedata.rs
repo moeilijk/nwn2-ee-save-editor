@@ -347,6 +347,7 @@ pub struct AvailableRace {
     pub ability_adjustments: crate::character::types::AbilityModifiers,
     pub favored_class: Option<String>,
     pub default_subrace: Option<i32>,
+    pub appearance: i32,
 }
 
 fn resolve_class_name(class_id: i32, game_data: &crate::loaders::GameData) -> Option<String> {
@@ -438,6 +439,9 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
 
             let icon = row_str(&row, "male_race_icon");
 
+            let appearance = row_int(&row, "appearance", -1);
+            let appearance = if appearance < 0 { i as i32 } else { appearance };
+
             races.push(AvailableRace {
                 id: i as i32,
                 name,
@@ -446,6 +450,7 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
                 ability_adjustments,
                 favored_class,
                 default_subrace,
+                appearance,
             });
         }
     }
@@ -462,6 +467,95 @@ pub struct AvailableSubrace {
     pub ability_adjustments: crate::character::types::AbilityModifiers,
     pub favored_class: Option<String>,
     pub size: Option<String>,
+    pub base_race: i32,
+    pub base_race_name: String,
+    pub appearance: i32,
+}
+
+fn lookup_race_name(game_data: &crate::loaders::GameData, race_id: i32) -> String {
+    if race_id < 0 {
+        return String::new();
+    }
+    let Some(table) = game_data.get_table("racialtypes") else {
+        return format!("Race {race_id}");
+    };
+    let Some(row) = table.get_by_id(race_id) else {
+        return format!("Race {race_id}");
+    };
+    let name_ref = row_int(&row, "name", -1);
+    if name_ref >= 0 {
+        if let Some(s) = game_data.get_string(name_ref) {
+            return s;
+        }
+    }
+    row_str(&row, "label").unwrap_or_else(|| format!("Race {race_id}"))
+}
+
+fn build_subrace(
+    game_data: &crate::loaders::GameData,
+    row: &crate::utils::parsing::Row,
+    row_idx: usize,
+) -> AvailableSubrace {
+    let base_race = row_int(row, "baserace", -1);
+    let base_race_name = lookup_race_name(game_data, base_race);
+
+    let name_ref = row_int(row, "name", -1);
+    let name = if name_ref >= 0 {
+        game_data.get_string(name_ref)
+    } else {
+        None
+    }
+    .or_else(|| row_str(row, "label"))
+    .unwrap_or_else(|| format!("Subrace {row_idx}"));
+
+    let label = row_str(row, "label").unwrap_or_else(|| name.clone());
+
+    let desc_ref = row_int(row, "description", -1);
+    let description = if desc_ref >= 0 {
+        game_data.get_string(desc_ref)
+    } else {
+        None
+    };
+
+    let ability_adjustments = crate::character::types::AbilityModifiers::new(
+        row_int(row, "stradjust", 0),
+        row_int(row, "dexadjust", 0),
+        row_int(row, "conadjust", 0),
+        row_int(row, "intadjust", 0),
+        row_int(row, "wisadjust", 0),
+        row_int(row, "chaadjust", 0),
+    );
+
+    let has_favored = row_int(row, "hasfavoredclass", 1);
+    let favored_class = if has_favored == 0 {
+        Some("Any".to_string())
+    } else {
+        resolve_class_name(row_int(row, "favored", -1), game_data)
+    };
+
+    let appearance_idx = row_int(row, "appearanceindex", -1);
+    let size = resolve_size_from_appearance(appearance_idx, game_data);
+    let appearance = if appearance_idx < 0 {
+        base_race
+    } else {
+        appearance_idx
+    };
+
+    let icon = row_str(row, "male_race_icon");
+
+    AvailableSubrace {
+        id: row_idx as i32,
+        name,
+        label,
+        icon,
+        description,
+        ability_adjustments,
+        favored_class,
+        size,
+        base_race,
+        base_race_name,
+        appearance,
+    }
 }
 
 #[tauri::command]
@@ -482,65 +576,38 @@ pub async fn get_subraces_for_race(
             continue;
         };
 
-        let base_race = row_int(&row, "baserace", -1);
-        if base_race != race_id {
+        if row_int(&row, "baserace", -1) != race_id {
+            continue;
+        }
+        if row_int(&row, "playerrace", 1) == 0 {
             continue;
         }
 
-        let player_race = row_int(&row, "playerrace", 1);
-        if player_race == 0 {
+        subraces.push(build_subrace(&game_data, &row, row_idx));
+    }
+    Ok(subraces)
+}
+
+#[tauri::command]
+pub async fn get_all_playable_subraces(
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<AvailableSubrace>> {
+    let game_data = state.game_data.read();
+    let table = game_data
+        .get_table("racialsubtypes")
+        .ok_or_else(|| CommandError::NotFound {
+            item: "Racialsubtypes table".to_string(),
+        })?;
+
+    let mut subraces = Vec::new();
+    for row_idx in 0..table.row_count() {
+        let Ok(row) = table.parser.get_row_dict(row_idx) else {
+            continue;
+        };
+        if row_int(&row, "playerrace", 1) == 0 {
             continue;
         }
-
-        let name_ref = row_int(&row, "name", -1);
-        let name = if name_ref >= 0 {
-            game_data.get_string(name_ref)
-        } else {
-            None
-        }
-        .or_else(|| row_str(&row, "label"))
-        .unwrap_or_else(|| format!("Subrace {row_idx}"));
-
-        let label = row_str(&row, "label").unwrap_or_else(|| name.clone());
-
-        let desc_ref = row_int(&row, "description", -1);
-        let description = if desc_ref >= 0 {
-            game_data.get_string(desc_ref)
-        } else {
-            None
-        };
-
-        let ability_adjustments = crate::character::types::AbilityModifiers::new(
-            row_int(&row, "stradjust", 0),
-            row_int(&row, "dexadjust", 0),
-            row_int(&row, "conadjust", 0),
-            row_int(&row, "intadjust", 0),
-            row_int(&row, "wisadjust", 0),
-            row_int(&row, "chaadjust", 0),
-        );
-
-        let has_favored = row_int(&row, "hasfavoredclass", 1);
-        let favored_class = if has_favored == 0 {
-            Some("Any".to_string())
-        } else {
-            resolve_class_name(row_int(&row, "favored", -1), &game_data)
-        };
-
-        let appearance_idx = row_int(&row, "appearanceindex", -1);
-        let size = resolve_size_from_appearance(appearance_idx, &game_data);
-
-        let icon = row_str(&row, "male_race_icon");
-
-        subraces.push(AvailableSubrace {
-            id: row_idx as i32,
-            name,
-            label,
-            icon,
-            description,
-            ability_adjustments,
-            favored_class,
-            size,
-        });
+        subraces.push(build_subrace(&game_data, &row, row_idx));
     }
     Ok(subraces)
 }

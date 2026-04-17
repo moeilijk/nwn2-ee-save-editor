@@ -106,6 +106,7 @@ export interface AppearanceState {
   race_name: string;
   gender: number;
   gender_name: string;
+  appearance_type: number;
   appearance_head: number;
   appearance_hair: number;
   appearance_fhair: number;
@@ -143,6 +144,7 @@ export interface VoiceSetInfo {
 }
 
 export interface AppearanceUpdates {
+  appearance_type?: number;
   appearance_head?: number;
   appearance_hair?: number;
   appearance_fhair?: number;
@@ -907,6 +909,22 @@ export interface AvailableRace {
   icon: string | null;
   ability_adjustments: AbilityModifiers;
   favored_class: ClassId | null;
+  default_subrace: number | null;
+  appearance: number;
+}
+
+export interface AvailableSubrace {
+  id: number;
+  name: string;
+  label: string;
+  icon: string | null;
+  description: string | null;
+  ability_adjustments: AbilityModifiers;
+  favored_class: string | null;
+  size: string | null;
+  base_race: RaceId;
+  base_race_name: string;
+  appearance: number;
 }
 
 export interface AvailableClass {

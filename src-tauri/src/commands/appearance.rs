@@ -11,6 +11,7 @@ use crate::state::AppState;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct AppearanceUpdates {
+    pub appearance_type: Option<i32>,
     pub appearance_head: Option<i32>,
     pub appearance_hair: Option<i32>,
     pub appearance_fhair: Option<i32>,
@@ -61,6 +62,9 @@ pub fn update_appearance(
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
+    if let Some(v) = updates.appearance_type {
+        character.set_appearance_type(v);
+    }
     if let Some(v) = updates.appearance_head {
         character.set_appearance_head(v);
     }
@@ -102,7 +106,31 @@ pub fn update_appearance(
     }
 
     let game_data = state.game_data.read();
-    Ok(character.get_appearance_state(&game_data, &rm))
+
+    let mut appearance_state = character.get_appearance_state(&game_data, &rm);
+
+    // On appearance_type change, stored head/hair may not exist for the new
+    // race prefix — clamp to the first available to keep the model resolvable.
+    if updates.appearance_type.is_some() {
+        if !appearance_state
+            .available_heads
+            .contains(&character.appearance_head())
+            && let Some(&first) = appearance_state.available_heads.first()
+        {
+            character.set_appearance_head(first);
+            appearance_state.appearance_head = first;
+        }
+        if !appearance_state
+            .available_hairs
+            .contains(&character.appearance_hair())
+            && let Some(&first) = appearance_state.available_hairs.first()
+        {
+            character.set_appearance_hair(first);
+            appearance_state.appearance_hair = first;
+        }
+    }
+
+    Ok(appearance_state)
 }
 
 #[tauri::command]

@@ -22,6 +22,8 @@ pub struct AppearanceState {
     pub gender: i32,
     pub gender_name: String,
 
+    pub appearance_type: i32,
+
     pub appearance_head: i32,
     pub appearance_hair: i32,
     pub appearance_fhair: i32,
@@ -95,6 +97,10 @@ struct EquippedVisuals {
 impl Character {
     pub fn appearance_type(&self) -> i32 {
         self.get_i32("Appearance_Type").unwrap_or(0)
+    }
+
+    pub fn set_appearance_type(&mut self, value: i32) {
+        self.set_u16("Appearance_Type", value as u16);
     }
 
     pub fn appearance_head(&self) -> i32 {
@@ -326,6 +332,8 @@ impl Character {
             race_name: self.race_name(game_data),
             gender: gender_id,
             gender_name,
+
+            appearance_type: self.appearance_type(),
 
             appearance_head: self.appearance_head(),
             appearance_hair: self.appearance_hair(),
