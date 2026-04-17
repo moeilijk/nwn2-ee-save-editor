@@ -4,9 +4,9 @@ use std::collections::HashSet;
 use tracing::debug;
 
 use super::{Character, CharacterError};
-use crate::character::feats::FeatSource;
+use crate::character::feats::{FeatSource, FeatType};
 use crate::character::types::{AbilityIndex, AbilityModifiers, ClassId, FeatId, RaceId};
-use crate::loaders::GameData;
+use crate::loaders::{GameData, LoadedTable};
 use crate::utils::parsing::{row_int, row_str};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -594,7 +594,7 @@ impl Character {
         }
 
         let old_race_id = self.race_id().0;
-        let old_subrace = self.subrace();
+        let old_subrace = self.subrace_name(game_data);
         let old_race_name = self.race_name(game_data);
 
         let mut result = RaceChangeResult {
@@ -671,6 +671,22 @@ impl Character {
                     });
                 }
             }
+
+            if let Some(ref old_sub_name) = old_subrace
+                && let Some(old_sub_data) = self.get_subrace_data(old_sub_name, game_data)
+                && let Some(feats_table_name) = old_sub_data.feats_table
+                && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
+            {
+                for feat_id in featstable_feats(feats_table) {
+                    if self.has_feat(feat_id) && self.remove_feat(feat_id).is_ok() {
+                        result.feats_removed.push(FeatChange {
+                            feat_id: feat_id.0,
+                            feat_name: self.get_feat_name(feat_id, game_data),
+                            source: "subrace".to_string(),
+                        });
+                    }
+                }
+            }
         }
 
         let new_racial_feats = self.get_racial_feats_for_race(new_race_id, game_data);
@@ -691,30 +707,79 @@ impl Character {
             && let Some(feats_table_name) = new_sub_data.feats_table
             && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
         {
-            for row_idx in 0..feats_table.row_count() {
-                if let Ok(feat_row) = feats_table.parser.get_row_dict(row_idx)
-                    && let Some(feat_id) = feat_row
-                        .get("featindex")
-                        .and_then(|v| v.as_ref())
-                        .and_then(|s| s.parse::<i32>().ok())
-                        .filter(|&v| v >= 0)
+            for feat_id in featstable_feats(feats_table) {
+                if !self.has_feat(feat_id)
+                    && self.add_feat_with_source(feat_id, FeatSource::Race).is_ok()
                 {
-                    let feat = FeatId(feat_id);
-                    if !self.has_feat(feat)
-                        && self.add_feat_with_source(feat, FeatSource::Race).is_ok()
-                    {
-                        result.feats_added.push(FeatChange {
-                            feat_id,
-                            feat_name: self.get_feat_name(feat, game_data),
-                            source: "subrace".to_string(),
-                        });
-                    }
+                    result.feats_added.push(FeatChange {
+                        feat_id: feat_id.0,
+                        feat_name: self.get_feat_name(feat_id, game_data),
+                        source: "subrace".to_string(),
+                    });
                 }
             }
         }
 
+        if !preserve_feats {
+            self.remove_stale_racial_feats(
+                new_race_id,
+                new_subrace.as_deref(),
+                game_data,
+                &mut result,
+            );
+        }
+
         debug!("Race change complete: {:?}", result);
         Ok(result)
+    }
+
+    fn remove_stale_racial_feats(
+        &mut self,
+        new_race_id: i32,
+        new_subrace: Option<&str>,
+        game_data: &GameData,
+        result: &mut RaceChangeResult,
+    ) {
+        let mut new_race_feats: HashSet<FeatId> = self
+            .get_racial_feats_for_race(new_race_id, game_data)
+            .into_iter()
+            .collect();
+
+        if let Some(sub_name) = new_subrace
+            && let Some(sub_data) = self.get_subrace_data(sub_name, game_data)
+            && let Some(feats_table_name) = sub_data.feats_table
+            && let Some(feats_table) = game_data.get_table(&feats_table_name.to_lowercase())
+        {
+            new_race_feats.extend(featstable_feats(feats_table));
+        }
+
+        let Some(feats_table) = game_data.get_table("feat") else {
+            return;
+        };
+
+        let stale: Vec<FeatId> = self
+            .feat_entries()
+            .iter()
+            .filter(|e| !new_race_feats.contains(&e.feat_id))
+            .filter(|e| matches!(e.source, FeatSource::Race | FeatSource::Unknown))
+            .filter_map(|e| {
+                let row = feats_table.get_by_id(e.feat_id.0)?;
+                let cat = row
+                    .get("featcategory")
+                    .and_then(|s: &Option<String>| s.as_ref())?;
+                (FeatType::from_string(cat) == FeatType::RACIAL).then_some(e.feat_id)
+            })
+            .collect();
+
+        for feat_id in stale {
+            if self.remove_feat(feat_id).is_ok() {
+                result.feats_removed.push(FeatChange {
+                    feat_id: feat_id.0,
+                    feat_name: self.get_feat_name(feat_id, game_data),
+                    source: "stale_racial".to_string(),
+                });
+            }
+        }
     }
 
     fn apply_ability_modifier_changes(
@@ -933,6 +998,22 @@ impl Character {
         );
         mods
     }
+}
+
+fn featstable_feats(table: &LoadedTable) -> Vec<FeatId> {
+    let mut feats = Vec::new();
+    for row_idx in 0..table.row_count() {
+        if let Ok(row) = table.parser.get_row_dict(row_idx)
+            && let Some(id) = row
+                .get("featindex")
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .filter(|&v| v >= 0)
+        {
+            feats.push(FeatId(id));
+        }
+    }
+    feats
 }
 
 #[cfg(test)]
