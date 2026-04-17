@@ -7,6 +7,7 @@ interface ParchmentDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onOpened?: () => void;
+  onClosed?: () => void;
   title: string;
   width?: number;
   minHeight?: number;
@@ -16,7 +17,7 @@ interface ParchmentDialogProps {
 }
 
 export function ParchmentDialog({
-  isOpen, onClose, onOpened, title, width = 480, minHeight,
+  isOpen, onClose, onOpened, onClosed, title, width = 480, minHeight,
   children, footerActions, footerLeft,
 }: ParchmentDialogProps) {
   const t = useTranslations();
@@ -25,6 +26,7 @@ export function ParchmentDialog({
       isOpen={isOpen}
       onClose={onClose}
       onOpened={onOpened}
+      onClosed={onClosed}
       title={title}
       className="bp-app"
       style={{ width, minHeight, paddingBottom: 0, background: T.surface }}

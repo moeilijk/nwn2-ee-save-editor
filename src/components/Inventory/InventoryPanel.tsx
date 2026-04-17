@@ -333,10 +333,8 @@ export function InventoryPanel() {
               </div>
               <Button
                 icon="add"
-                small
-                minimal
+                intent="primary"
                 text={t('inventory.addItem')}
-                style={{ color: T.textMuted }}
                 onClick={() => setAddItemOpen(true)}
               />
             </div>

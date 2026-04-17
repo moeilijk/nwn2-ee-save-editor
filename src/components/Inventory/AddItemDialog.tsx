@@ -64,8 +64,8 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
     if (!containerNode) return;
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
-        setListWidth(entry.contentRect.width);
-        if (entry.contentRect.height > 0) {
+        if (entry.contentRect.width > 0) setListWidth(entry.contentRect.width);
+        if (entry.contentRect.height >= LIST_HEIGHT) {
           setListHeight(entry.contentRect.height);
         }
       }
@@ -81,6 +81,8 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
     setSelectedBaseId(null);
     setSelectedResref(null);
     setTab('base');
+    setListHeight(LIST_HEIGHT);
+    setListWidth(680);
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -264,7 +266,7 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
     <ParchmentDialog
       isOpen={isOpen}
       onClose={onClose}
-      onOpened={handleReset}
+      onClosed={handleReset}
       title={t('inventory.addItem')}
       width={720}
       minHeight={560}
@@ -330,7 +332,7 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
           </div>
         )}
 
-        <div ref={setContainerNode} style={{ flex: 1, minHeight: 0 }}>
+        <div ref={setContainerNode} style={{ flex: 1, minHeight: LIST_HEIGHT }}>
           {isLoading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: listHeight, gap: 10 }}>
               <Spinner size={20} />
