@@ -2170,6 +2170,7 @@ impl super::Character {
         }
 
         merge_json_into_gff_struct(&mut inv_list[index], updated_data);
+        normalize_item_properties_list(&mut inv_list[index]);
         self.set_list("ItemList", inv_list);
         Ok(())
     }
@@ -2200,6 +2201,7 @@ impl super::Character {
             )))?;
 
         merge_json_into_gff_struct(&mut equip_list[item_idx], updated_data);
+        normalize_item_properties_list(&mut equip_list[item_idx]);
         self.set_list("Equip_ItemList", equip_list);
         Ok(())
     }
@@ -2227,11 +2229,11 @@ impl super::Character {
         slot: EquipmentSlot,
         appearance: &crate::character::ItemAppearance,
     ) -> Result<(), CharacterError> {
-        let mut equip_list = self.get_list_owned("Equip_ItemList").ok_or(
-            CharacterError::FieldMissing {
-                field: "Equip_ItemList",
-            },
-        )?;
+        let mut equip_list =
+            self.get_list_owned("Equip_ItemList")
+                .ok_or(CharacterError::FieldMissing {
+                    field: "Equip_ItemList",
+                })?;
         let slot_bitmask = slot.to_bitmask();
         let item_idx = equip_list
             .iter()
@@ -2641,9 +2643,7 @@ fn coerce_json_to_gff_type(
         GffValue::ListOwned(existing_list) => json_val
             .as_array()
             .map(|arr| GffValue::ListOwned(merge_json_list_into_gff_list(&existing_list, arr))),
-        GffValue::StructOwned(existing_struct) => {
-            coerce_json_to_struct(json_val, *existing_struct)
-        }
+        GffValue::StructOwned(existing_struct) => coerce_json_to_struct(json_val, *existing_struct),
         GffValue::Struct(lazy) => coerce_json_to_struct(json_val, lazy.force_load()),
         _ => json_to_gff_best_guess(json_val),
     }
@@ -2785,6 +2785,51 @@ fn write_appearance_into_item(
     );
 }
 
+/// Enforce NWN2 GFF schema types on every entry of an item's PropertiesList.
+///
+/// The frontend sends new property entries as generic JSON, which the merge path
+/// coerces into GffValue::Int for numeric fields when no existing entry exists.
+/// The engine reads the GFF with per-field type tags and silently drops properties
+/// whose types don't match the expected schema on the next load, so every numeric
+/// field must be re-typed to Byte/Word before writing.
+fn normalize_item_properties_list(item: &mut IndexMap<String, GffValue<'static>>) {
+    if let Some(GffValue::ListOwned(entries)) = item.get_mut("PropertiesList") {
+        for entry in entries {
+            normalize_item_property_entry(entry);
+        }
+    }
+}
+
+fn normalize_item_property_entry(prop: &mut IndexMap<String, GffValue<'static>>) {
+    prop.shift_remove("ChancesAppear");
+    prop.shift_remove("SpellID");
+
+    const WORD_FIELDS: &[&str] = &["PropertyName", "Subtype", "CostValue"];
+    const BYTE_FIELDS: &[&str] = &[
+        "CostTable",
+        "Param1",
+        "Param1Value",
+        "ChanceAppear",
+        "Useable",
+        "UsesPerDay",
+    ];
+
+    for key in WORD_FIELDS {
+        if let Some(slot) = prop.get_mut(*key)
+            && let Some(n) = gff_value_to_i32(slot)
+        {
+            *slot = GffValue::Word(n as u16);
+        }
+    }
+    for key in BYTE_FIELDS {
+        if let Some(slot) = prop.get_mut(*key)
+            && let Some(n) = gff_value_to_i32(slot)
+        {
+            *slot = GffValue::Byte(n as u8);
+        }
+    }
+}
+
 fn merge_json_into_gff_struct(
     existing: &mut IndexMap<String, GffValue<'static>>,
     updates: &HashMap<String, JsonValue>,
@@ -2847,6 +2892,87 @@ mod tests {
     use super::*;
     use crate::character::Character;
     use std::borrow::Cow;
+
+    #[test]
+    fn test_normalize_item_property_entry_types_and_aliases() {
+        // Simulate what merge_json_into_gff_struct produces for a brand-new property
+        // added from the frontend: every numeric field is coerced to GffValue::Int,
+        // and the frontend typo ChancesAppear leaks through.
+        let mut prop = IndexMap::new();
+        prop.insert("PropertyName".to_string(), GffValue::Int(52));
+        prop.insert("Subtype".to_string(), GffValue::Int(21));
+        prop.insert("CostTable".to_string(), GffValue::Int(25));
+        prop.insert("CostValue".to_string(), GffValue::Int(8));
+        prop.insert("Param1".to_string(), GffValue::Int(255));
+        prop.insert("Param1Value".to_string(), GffValue::Int(0));
+        prop.insert("ChancesAppear".to_string(), GffValue::Int(100));
+        prop.insert("Useable".to_string(), GffValue::Byte(1));
+        prop.insert("UsesPerDay".to_string(), GffValue::Int(255));
+        prop.insert("SpellID".to_string(), GffValue::Int(65535));
+
+        normalize_item_property_entry(&mut prop);
+
+        assert!(matches!(prop.get("PropertyName"), Some(GffValue::Word(52))));
+        assert!(matches!(prop.get("Subtype"), Some(GffValue::Word(21))));
+        assert!(matches!(prop.get("CostValue"), Some(GffValue::Word(8))));
+        assert!(matches!(prop.get("CostTable"), Some(GffValue::Byte(25))));
+        assert!(matches!(prop.get("Param1"), Some(GffValue::Byte(255))));
+        assert!(matches!(prop.get("Param1Value"), Some(GffValue::Byte(0))));
+        assert!(matches!(prop.get("ChanceAppear"), None));
+        assert!(matches!(prop.get("ChancesAppear"), None));
+        assert!(matches!(prop.get("Useable"), Some(GffValue::Byte(1))));
+        assert!(matches!(prop.get("UsesPerDay"), Some(GffValue::Byte(255))));
+        assert!(prop.get("SpellID").is_none());
+    }
+
+    #[test]
+    fn test_normalize_item_property_entry_fixes_chance_appear_typo() {
+        let mut prop = IndexMap::new();
+        prop.insert("ChanceAppear".to_string(), GffValue::Int(100));
+        normalize_item_property_entry(&mut prop);
+        assert!(matches!(
+            prop.get("ChanceAppear"),
+            Some(GffValue::Byte(100))
+        ));
+    }
+
+    #[test]
+    fn test_normalize_item_properties_list_walks_all_entries() {
+        let mut item = IndexMap::new();
+        let mut entry1 = IndexMap::new();
+        entry1.insert("PropertyName".to_string(), GffValue::Int(1));
+        entry1.insert("ChanceAppear".to_string(), GffValue::Int(100));
+        let mut entry2 = IndexMap::new();
+        entry2.insert("PropertyName".to_string(), GffValue::Int(2));
+        entry2.insert("ChanceAppear".to_string(), GffValue::Int(50));
+        item.insert(
+            "PropertiesList".to_string(),
+            GffValue::ListOwned(vec![entry1, entry2]),
+        );
+
+        normalize_item_properties_list(&mut item);
+
+        let GffValue::ListOwned(entries) = item.get("PropertiesList").expect("list missing") else {
+            panic!("PropertiesList not ListOwned");
+        };
+        assert_eq!(entries.len(), 2);
+        assert!(matches!(
+            entries[0].get("PropertyName"),
+            Some(GffValue::Word(1))
+        ));
+        assert!(matches!(
+            entries[1].get("PropertyName"),
+            Some(GffValue::Word(2))
+        ));
+        assert!(matches!(
+            entries[0].get("ChanceAppear"),
+            Some(GffValue::Byte(100))
+        ));
+        assert!(matches!(
+            entries[1].get("ChanceAppear"),
+            Some(GffValue::Byte(50))
+        ));
+    }
 
     #[test]
     fn test_coerce_nested_struct_preserves_byte_type() {

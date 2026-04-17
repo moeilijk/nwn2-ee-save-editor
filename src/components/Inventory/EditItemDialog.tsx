@@ -181,9 +181,8 @@ export function EditItemDialog({
       CostValue: 0,
       Param1: firstProp.param1_idx ?? 255,
       Param1Value: 0,
-      ChancesAppear: 100,
+      ChanceAppear: 100,
       Useable: true,
-      SpellID: 65535,
       UsesPerDay: 255,
     };
     setLocalData(prev => prev ? { ...prev, PropertiesList: [...((prev.PropertiesList as unknown[]) || []), newProp] } : prev);
