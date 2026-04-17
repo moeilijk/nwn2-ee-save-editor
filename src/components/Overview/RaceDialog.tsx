@@ -186,6 +186,7 @@ export function RaceDialog({ isOpen, currentRaceId, currentSubrace, onClose, onS
       onOpened={handleOpen}
       title={t('race.selectTitle')}
       width={780}
+      height={720}
       footerActions={
         <Button
           text={t('race.confirm')}

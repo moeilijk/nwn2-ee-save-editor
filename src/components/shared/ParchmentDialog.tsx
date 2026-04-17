@@ -11,13 +11,14 @@ interface ParchmentDialogProps {
   title: string;
   width?: number;
   minHeight?: number;
+  height?: number | string;
   children: ReactNode;
   footerActions: ReactNode;
   footerLeft?: ReactNode;
 }
 
 export function ParchmentDialog({
-  isOpen, onClose, onOpened, onClosed, title, width = 480, minHeight,
+  isOpen, onClose, onOpened, onClosed, title, width = 480, minHeight, height,
   children, footerActions, footerLeft,
 }: ParchmentDialogProps) {
   const t = useTranslations();
@@ -29,11 +30,11 @@ export function ParchmentDialog({
       onClosed={onClosed}
       title={title}
       className="bp-app"
-      style={{ width, minHeight, paddingBottom: 0, background: T.surface }}
+      style={{ width, minHeight, height, paddingBottom: 0, background: T.surface }}
       canOutsideClickClose
     >
       <div style={{ background: T.surface, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <DialogBody style={{ padding: 16, margin: 0, background: T.surface, flex: 1 }}>
+        <DialogBody style={{ padding: 16, margin: 0, background: T.surface, flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {children}
         </DialogBody>
         <DialogFooter
