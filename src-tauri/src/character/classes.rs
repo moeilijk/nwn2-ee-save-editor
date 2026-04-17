@@ -453,7 +453,7 @@ impl Character {
         let mut class_list = self.get_list_owned("ClassList").unwrap_or_default();
 
         let mut new_entry = IndexMap::new();
-        new_entry.insert("Class".to_string(), GffValue::Byte(class_id.0 as u8));
+        new_entry.insert("Class".to_string(), GffValue::Int(class_id.0));
         new_entry.insert("ClassLevel".to_string(), GffValue::Short(level as i16));
         class_list.push(new_entry);
 
@@ -1836,7 +1836,7 @@ impl Character {
                 });
             }
             let mut new_entry = IndexMap::new();
-            new_entry.insert("Class".to_string(), GffValue::Byte(class_id.0 as u8));
+            new_entry.insert("Class".to_string(), GffValue::Int(class_id.0));
             new_entry.insert("ClassLevel".to_string(), GffValue::Short(1));
             class_list.push(new_entry);
             class_level_gained = 1;
@@ -1959,7 +1959,10 @@ impl Character {
         let mut new_hist = IndexMap::new();
         new_hist.insert("LvlStatClass".to_string(), GffValue::Byte(class_id.0 as u8));
         new_hist.insert("LvlStatHitDie".to_string(), GffValue::Byte(hp_gained as u8));
-        new_hist.insert("SkillPoints".to_string(), GffValue::Short(sp_gained as i16));
+        new_hist.insert(
+            "SkillPoints".to_string(),
+            GffValue::Word(sp_gained.max(0) as u16),
+        );
         new_hist.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
         new_hist.insert("FeatList".to_string(), GffValue::ListOwned(vec![]));
         new_hist.insert("SkillList".to_string(), GffValue::ListOwned(vec![]));
@@ -2753,7 +2756,7 @@ impl Character {
         }
 
         // Update Slot 0
-        class_list[0].insert("Class".to_string(), GffValue::Byte(new_class_id.0 as u8));
+        class_list[0].insert("Class".to_string(), GffValue::Int(new_class_id.0));
         self.set_list("ClassList", class_list);
 
         // Update 'Class' field

@@ -173,8 +173,10 @@ impl Character {
         let clamped_law_chaos = new_law_chaos.clamp(ALIGNMENT_MIN, ALIGNMENT_MAX);
         let clamped_good_evil = new_good_evil.clamp(ALIGNMENT_MIN, ALIGNMENT_MAX);
 
-        self.set_i32("LawfulChaotic", clamped_law_chaos);
-        self.set_i32("GoodEvil", clamped_good_evil);
+        // NWN2 stores LawfulChaotic/GoodEvil as Byte fields; writing as Int
+        // causes the game to reset them to 0 on load (schema type mismatch).
+        self.set_byte("LawfulChaotic", clamped_law_chaos as u8);
+        self.set_byte("GoodEvil", clamped_good_evil as u8);
 
         Ok(())
     }
@@ -421,6 +423,21 @@ mod tests {
         let alignment = character.alignment();
         assert_eq!(alignment.law_chaos, 100);
         assert_eq!(alignment.good_evil, 0);
+    }
+
+    #[test]
+    fn test_set_alignment_preserves_byte_type() {
+        let mut character = create_test_character();
+        character.set_alignment(Some(42), Some(73)).unwrap();
+
+        match character.gff.get("LawfulChaotic") {
+            Some(GffValue::Byte(v)) => assert_eq!(*v, 42),
+            other => panic!("LawfulChaotic must be Byte, got {other:?}"),
+        }
+        match character.gff.get("GoodEvil") {
+            Some(GffValue::Byte(v)) => assert_eq!(*v, 73),
+            other => panic!("GoodEvil must be Byte, got {other:?}"),
+        }
     }
 
     #[test]

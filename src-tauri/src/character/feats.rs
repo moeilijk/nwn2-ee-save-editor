@@ -866,7 +866,7 @@ impl Character {
         for entry in &mut feat_list {
             let id = entry.get("Feat").and_then(gff_value_to_i32);
             if id == Some(feat_id.0) {
-                entry.insert("Uses".to_string(), GffValue::Int(uses));
+                entry.insert("Uses".to_string(), GffValue::Byte(uses.clamp(0, 255) as u8));
                 self.set_list("FeatList", feat_list);
                 return true;
             }

@@ -158,7 +158,11 @@ impl Character {
     }
 
     pub fn set_wings(&mut self, value: i32) {
+        // NWN2-EE stores wings in both the original Byte field (Wings) and the
+        // extended Int field (Wings_NewID). The engine reads Wings; writing only
+        // _NewID leaves the stale Byte value in place.
         self.set_i32("Wings_NewID", value);
+        self.set_byte("Wings", value.clamp(0, 255) as u8);
     }
 
     pub fn tail(&self) -> i32 {
@@ -169,6 +173,7 @@ impl Character {
 
     pub fn set_tail(&mut self, value: i32) {
         self.set_i32("Tail_NewID", value);
+        self.set_byte("Tail", value.clamp(0, 255) as u8);
     }
 
     pub fn never_draw_helmet(&self) -> bool {

@@ -276,7 +276,7 @@ impl Character {
         }
 
         let mut new_spell = IndexMap::new();
-        new_spell.insert("Spell".to_string(), GffValue::Short(spell_id.0 as i16));
+        new_spell.insert("Spell".to_string(), GffValue::Word(spell_id.0 as u16));
         known_list.push(new_spell);
 
         class_entry.insert(field_name, GffValue::ListOwned(known_list));
@@ -379,13 +379,13 @@ impl Character {
         };
 
         let mut new_spell = IndexMap::new();
+        new_spell.insert("Spell".to_string(), GffValue::Word(spell.spell_id.0 as u16));
+        // NWN2-EE renamed SpellMetaMagic (Byte) to SpellMetaMagicN2 (Dword) to
+        // support more metamagic flags; writing the old name/type leaves a
+        // phantom field that the engine ignores.
         new_spell.insert(
-            "Spell".to_string(),
-            GffValue::Short(spell.spell_id.0 as i16),
-        );
-        new_spell.insert(
-            "SpellMetaMagic".to_string(),
-            GffValue::Byte(spell.meta_magic),
+            "SpellMetaMagicN2".to_string(),
+            GffValue::Dword(u32::from(spell.meta_magic)),
         );
         new_spell.insert("Ready".to_string(), GffValue::Byte(u8::from(spell.ready)));
         mem_list.push(new_spell);
@@ -2259,17 +2259,17 @@ mod tests {
         wizard_class.insert("ClassLevel".to_string(), GffValue::Short(5));
 
         let mut known0 = IndexMap::new();
-        known0.insert("Spell".to_string(), GffValue::Short(0));
+        known0.insert("Spell".to_string(), GffValue::Word(0));
         let mut known1 = IndexMap::new();
-        known1.insert("Spell".to_string(), GffValue::Short(1));
+        known1.insert("Spell".to_string(), GffValue::Word(1));
         wizard_class.insert(
             "KnownList0".to_string(),
             GffValue::ListOwned(vec![known0, known1]),
         );
 
         let mut mem0 = IndexMap::new();
-        mem0.insert("Spell".to_string(), GffValue::Short(0));
-        mem0.insert("SpellMetaMagic".to_string(), GffValue::Byte(0));
+        mem0.insert("Spell".to_string(), GffValue::Word(0));
+        mem0.insert("SpellMetaMagicN2".to_string(), GffValue::Dword(0));
         mem0.insert("Ready".to_string(), GffValue::Byte(1));
         wizard_class.insert(
             "MemorizedList0".to_string(),
