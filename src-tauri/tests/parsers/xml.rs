@@ -271,10 +271,9 @@ fn test_xml_round_trip() {
     );
 }
 
-/// Byte-for-byte round-trip: parse a pristine NWN2 globals.xml and re-emit
-/// it, asserting that the output exactly matches the input. This locks in the
-/// format (section order, indent, line endings, float precision, no XML decl)
-/// and guards against silent data-drop bugs like booleans being ignored.
+/// Round-trip from a pristine NWN2 globals.xml: verifies format preservation
+/// (no XML decl, CRLF line endings, 4-space indent, trailing newline) and
+/// that all non-cheat data survives parse -> serialize -> reparse.
 #[test]
 fn test_xml_round_trip_byte_exact_classic_campaign() {
     let path = fixtures_path().join("saves/Classic_Campaign/globals.xml");
@@ -286,31 +285,46 @@ fn test_xml_round_trip_byte_exact_classic_campaign() {
     let parser = RustXmlParser::from_string(&content).expect("parse");
     let output = parser.to_xml_string().expect("serialize");
 
-    assert_eq!(
-        output, content,
-        "Round-trip output must match source byte-for-byte"
+    assert!(!output.contains("<?xml"), "must not emit XML declaration");
+    assert!(output.contains("\r\n"), "must use CRLF line endings");
+    assert!(output.ends_with("\r\n"), "must end with trailing newline");
+    assert!(
+        output.contains("    <Integers>"),
+        "must use 4-space indentation"
     );
+
+    let reparsed = RustXmlParser::from_string(&output).expect("reparse");
+
+    // Data loss check: everything round-trips except the intentionally
+    // stripped cheat booleans.
+    assert_eq!(reparsed.data.integers, parser.data.integers);
+    assert_eq!(reparsed.data.floats, parser.data.floats);
+    assert_eq!(reparsed.data.strings, parser.data.strings);
+
+    let mut expected_booleans = parser.data.booleans.clone();
+    expected_booleans.shift_remove("Cheater");
+    expected_booleans.shift_remove("ShowCheatsWarning");
+    assert_eq!(reparsed.data.booleans, expected_booleans);
 }
 
 #[test]
 fn test_xml_round_trip_preserves_booleans() {
-    let path = fixtures_path().join("saves/Classic_Campaign/globals.xml");
-    let Ok(content) = std::fs::read_to_string(&path) else {
-        println!("Classic_Campaign globals.xml not found, skipping");
-        return;
-    };
-
-    let parser = RustXmlParser::from_string(&content).expect("parse");
-    assert!(
-        !parser.data.booleans.is_empty(),
-        "Classic_Campaign globals.xml contains Booleans; parser must load them"
-    );
-    assert_eq!(parser.data.booleans.get("ShowCheatsWarning"), Some(&1));
+    // Cheater / ShowCheatsWarning are intentionally stripped on write, so
+    // inject a non-cheat boolean to verify the writer still emits booleans.
+    let mut parser = RustXmlParser::new();
+    parser
+        .data
+        .booleans
+        .insert("00_bSomeQuestFlag".to_string(), 1);
 
     let output = parser.to_xml_string().expect("serialize");
     assert!(
         output.contains("<Boolean>"),
         "Serialized output must include Boolean entries"
+    );
+    assert!(
+        output.contains("<Name>00_bSomeQuestFlag</Name>"),
+        "Non-cheat booleans must survive round-trip"
     );
 
     let reparsed = RustXmlParser::from_string(&output).expect("reparse");
@@ -521,4 +535,73 @@ fn test_parse_all_campaign_globals() {
             println!("{} globals.xml not found, skipping", campaign);
         }
     }
+}
+
+// =============================================================================
+// CHEAT FLAG STRIPPING
+// =============================================================================
+
+#[test]
+fn test_cheat_flags_stripped_on_write() {
+    let cheat_path = fixtures_path().join("saves/cheatdebug/000062 - 16-04-2026-23-04/globals.xml");
+    if !cheat_path.exists() {
+        println!("cheatdebug cheat save not available, skipping");
+        return;
+    }
+
+    let content = std::fs::read_to_string(&cheat_path).expect("Failed to read cheat globals.xml");
+    assert!(
+        content.contains("<Name>Cheater</Name>"),
+        "Fixture must contain Cheater boolean for this test to be meaningful"
+    );
+    assert!(
+        content.contains("<Name>ShowCheatsWarning</Name>"),
+        "Fixture must contain ShowCheatsWarning boolean for this test to be meaningful"
+    );
+
+    let parser = RustXmlParser::from_string(&content).expect("Failed to parse cheat globals.xml");
+    assert!(
+        parser.data.booleans.contains_key("Cheater"),
+        "Parser should load Cheater boolean from XML"
+    );
+    assert!(
+        parser.data.booleans.contains_key("ShowCheatsWarning"),
+        "Parser should load ShowCheatsWarning boolean from XML"
+    );
+
+    let written = parser
+        .to_xml_string()
+        .expect("Failed to serialize globals.xml");
+    assert!(
+        !written.contains("<Name>Cheater</Name>"),
+        "Cheater boolean must be stripped on write"
+    );
+    assert!(
+        !written.contains("<Name>ShowCheatsWarning</Name>"),
+        "ShowCheatsWarning boolean must be stripped on write"
+    );
+
+    // Verify no collateral damage: integers/floats/strings untouched, and
+    // every non-cheat boolean survives the round-trip.
+    let reparsed = RustXmlParser::from_string(&written).expect("reparse stripped output");
+    assert_eq!(
+        reparsed.data.integers, parser.data.integers,
+        "Integers must not be affected by cheat-flag stripping"
+    );
+    assert_eq!(
+        reparsed.data.floats, parser.data.floats,
+        "Floats must not be affected by cheat-flag stripping"
+    );
+    assert_eq!(
+        reparsed.data.strings, parser.data.strings,
+        "Strings must not be affected by cheat-flag stripping"
+    );
+
+    let mut expected_booleans = parser.data.booleans.clone();
+    expected_booleans.shift_remove("Cheater");
+    expected_booleans.shift_remove("ShowCheatsWarning");
+    assert_eq!(
+        reparsed.data.booleans, expected_booleans,
+        "Only Cheater/ShowCheatsWarning may be stripped; every other boolean must survive"
+    );
 }

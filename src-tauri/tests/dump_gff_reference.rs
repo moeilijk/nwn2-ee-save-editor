@@ -487,6 +487,81 @@ fn dump_ifo_structured() {
     println!("\nIFO dump complete: {} top-level fields", owned.len());
 }
 
+fn cheatdebug_dir(save_name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/saves/cheatdebug")
+        .join(save_name)
+}
+
+fn dump_ifo_to(save_name: &str, out_subdir: &str) {
+    let handler = SaveGameHandler::new(&cheatdebug_dir(save_name), false, false)
+        .expect("Failed to open save");
+
+    let ifo_bytes = handler
+        .extract_file("playerlist.ifo")
+        .expect("Failed to extract playerlist.ifo");
+
+    let parser = GffParser::from_bytes(ifo_bytes).expect("Failed to parse IFO");
+    let root_fields = parser
+        .read_struct_fields(0)
+        .expect("Failed to read root struct");
+
+    let owned: IndexMap<String, GffValue<'static>> = root_fields
+        .into_iter()
+        .map(|(k, v)| (k, v.force_owned()))
+        .collect();
+
+    let ifo_dir = output_dir().join("cheatdebug").join(out_subdir);
+    fs::create_dir_all(&ifo_dir).expect("Failed to create ifo dir");
+
+    let index: BTreeMap<&str, &str> = owned
+        .iter()
+        .map(|(k, v)| (k.as_str(), gff_type_name(v)))
+        .collect();
+    let index_json = serde_json::to_value(&index).expect("serialize");
+    write_json(&ifo_dir.join("_field_index.json"), &index_json);
+
+    if let Some(GffValue::ListOwned(players)) = owned.get("Mod_PlayerList") {
+        println!("[{out_subdir}] IFO has {} player(s)", players.len());
+        for (i, player_fields) in players.iter().enumerate() {
+            let name = player_fields
+                .get("FirstName")
+                .and_then(|v| match v {
+                    GffValue::LocString(ls) => ls.substrings.first().map(|s| s.string.to_string()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| format!("player_{i}"));
+
+            let slug = name.to_lowercase().replace(' ', "_");
+            let player_dir = ifo_dir.join(&slug);
+
+            println!("[{out_subdir}] Dumping player {i}: {name}");
+            dump_character_fields(player_fields, &player_dir);
+        }
+    }
+
+    let other_scalars: IndexMap<String, &GffValue<'static>> = owned
+        .iter()
+        .filter(|(k, _)| k.as_str() != "Mod_PlayerList")
+        .map(|(k, v)| (k.clone(), v))
+        .collect();
+
+    if !other_scalars.is_empty() {
+        let json = serde_json::to_value(&other_scalars).expect("serialize");
+        write_json(&ifo_dir.join("scalars.json"), &json);
+    }
+}
+
+#[test]
+fn dump_cheatdebug_noncheat_ifo() {
+    dump_ifo_to("000061 - 16-04-2026-23-01", "noncheat");
+}
+
+#[test]
+fn dump_cheatdebug_cheat_ifo() {
+    dump_ifo_to("000062 - 16-04-2026-23-04", "cheat");
+}
+
 #[test]
 fn copy_globals_xml() {
     let xml_dir = output_dir().join("xml");

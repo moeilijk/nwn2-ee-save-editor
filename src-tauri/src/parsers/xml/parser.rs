@@ -261,7 +261,13 @@ impl RustXmlParser {
     }
 
     pub fn to_xml_string(&self) -> Result<String, String> {
-        let xml_struct = self.data.to_xml_struct();
+        let mut xml_struct = self.data.to_xml_struct();
+
+        // Strip cheat markers on write so saves loaded in the editor come out clean.
+        xml_struct
+            .booleans
+            .entries
+            .retain(|entry| entry.name != "Cheater" && entry.name != "ShowCheatsWarning");
 
         let mut buffer = String::new();
         let mut ser = quick_xml::se::Serializer::new(&mut buffer);
