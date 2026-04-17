@@ -19,6 +19,7 @@ const SPELL_META_LABELS = [
 const FEAT_LABELS = [
   'Type of Feat:',
   'Prerequisite:',
+  'Effects:',
   'Required For:',
   'Specifics:',
   'Normal:',

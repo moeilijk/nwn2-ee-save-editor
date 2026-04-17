@@ -1807,14 +1807,22 @@ impl Character {
                 .and_then(|s| s.as_ref().map(String::as_str))
                 .unwrap_or("unknown");
 
-            if is_conditional_feat(&feat_data, &description_lower, SKILL_CONDITIONAL_KEYWORDS) {
-                debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
-                continue;
-            }
-
-            if description_lower.contains("effects:") {
-                let effects_start = description_lower.find("effects:").unwrap();
+            // Explicit `Effects:` line is authoritative. Scope the conditional
+            // check to the effects text so narrative prose words ("when", "if",
+            // etc.) don't suppress unconditional bonuses — e.g. TheFlirt's prose
+            // says "...when you try to act tough" but its effects are flat.
+            if let Some(effects_start) = description_lower.find("effects:") {
                 let effects_text = &description[effects_start..];
+                let effects_lower = effects_text.to_lowercase();
+
+                if is_conditional_feat(&feat_data, &effects_lower, SKILL_CONDITIONAL_KEYWORDS) {
+                    debug!(
+                        "[feat_skill] Skipping conditional effects feat '{}'",
+                        feat_label
+                    );
+                    continue;
+                }
+
                 debug!(
                     "[feat_skill] Feat '{}' has effects line: {:?}",
                     feat_label, effects_text
@@ -1836,6 +1844,11 @@ impl Character {
                         *skill_bonuses.entry(normalized).or_insert(0) += bonus_value;
                     }
                 }
+                continue;
+            }
+
+            if is_conditional_feat(&feat_data, &description_lower, SKILL_CONDITIONAL_KEYWORDS) {
+                debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
                 continue;
             }
 
