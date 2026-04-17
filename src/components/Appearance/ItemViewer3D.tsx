@@ -7,7 +7,7 @@ import { useTranslations } from '@/hooks/useTranslations';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
 import type { MeshData, ModelData } from '../ModelViewer/types';
 import type { ItemAppearance, TintChannels } from '@/lib/bindings';
-import { Spinner } from '@blueprintjs/core';
+import { NonIdealState, Spinner } from '@blueprintjs/core';
 
 interface ItemViewer3DProps {
   appearance: ItemAppearance;
@@ -58,10 +58,16 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
   const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [noPreview, setNoPreview] = useState(false);
 
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const loadCounterRef = useRef(0);
+  // Camera is framed on the very first successful load and then kept on
+  // subsequent reloads (variation changes, tint edits) — swapping meshes
+  // shouldn't blow away the user's manual zoom/orbit. Reset when the item
+  // itself changes (different baseItemId).
+  const framedForItemRef = useRef<number | null>(null);
 
   const { container: containerRef, scene: sceneRef, camera: cameraRef, controls: controlsRef } = useThreeScene();
 
@@ -90,6 +96,7 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
     const requestId = ++loadCounterRef.current;
     setLoading(true);
     setError(null);
+    setNoPreview(false);
 
     try {
       const modelData = await invoke<ModelData>('load_item_model', {
@@ -98,6 +105,15 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
       });
 
       if (requestId !== loadCounterRef.current || !sceneRef.current) return;
+
+      // Backend returns an empty ModelData for items with no in-world model
+      // (amulets, rings, misc. accessories). Show a placeholder instead of
+      // leaving a blank canvas.
+      if (modelData.meshes.length === 0) {
+        clearSceneModels(sceneRef.current);
+        setNoPreview(true);
+        return;
+      }
 
       const rootGroup = new THREE.Group();
       rootGroup.name = '__model';
@@ -130,26 +146,42 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
 
       for (const g of groups) rootGroup.add(g);
 
-      // Yaw off-axis so flat weapon faces aren't grazing the sun (which would leave both
-      // sides dark) and aren't razor-thin to the camera.
-      rootGroup.rotation.y = Math.PI / 5;
+      // Weapons are flat, so yaw the model off-axis to avoid razor-thin silhouettes and
+      // grazing-sun shading. Armour meshes are skinned full-body forms viewed from a
+      // fixed side profile, so we leave their yaw at 0 and move the camera instead.
+      const isSkinnedArmor = modelData.skeleton != null;
+      rootGroup.rotation.y = isSkinnedArmor ? 0 : Math.PI / 5;
 
       clearSceneModels(sceneRef.current);
       sceneRef.current.add(rootGroup);
 
-      if (cameraRef.current && controlsRef.current) {
+      const shouldFrameCamera = framedForItemRef.current !== baseItemId;
+      if (shouldFrameCamera && cameraRef.current && controlsRef.current) {
         frameBounds(cameraRef.current, controlsRef.current, sceneRef.current, rootGroup);
         const box = new THREE.Box3().setFromObject(rootGroup);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const distance = Math.max(size.x, size.y, size.z) * 1.6;
-        cameraRef.current.position.set(
-          center.x + distance,
-          center.y + distance * 0.25,
-          center.z - distance * 0.6,
-        );
+
+        if (isSkinnedArmor) {
+          // Armour: front view. Stand in front of the model (camera on -Z) with a
+          // slight upward tilt. Full-body skinned meshes are tall in Y, so Y-offset
+          // is kept small to keep the figure roughly centred in frame.
+          cameraRef.current.position.set(
+            center.x,
+            center.y + distance * 0.1,
+            center.z - distance,
+          );
+        } else {
+          cameraRef.current.position.set(
+            center.x + distance,
+            center.y + distance * 0.25,
+            center.z - distance * 0.6,
+          );
+        }
         controlsRef.current.target.copy(center);
         controlsRef.current.update();
+        framedForItemRef.current = baseItemId;
       }
     } catch (err: any) {
       if (requestId === loadCounterRef.current) {
@@ -214,6 +246,12 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
       {loading && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', zIndex: 10 }}>
           <Spinner size={50} />
+        </div>
+      )}
+
+      {noPreview && !loading && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9 }}>
+          <NonIdealState icon="info-sign" title={t('inventory.noPreviewAvailable')} />
         </div>
       )}
 

@@ -251,6 +251,7 @@
     "destroy": "Destroy",
     "backpackEmpty": "Backpack is empty",
     "backpackEmptyDescription": "No items in backpack.",
+    "noPreviewAvailable": "No 3D model available for this item",
     "item": "Item",
     "qty": "Qty",
     "editor": {

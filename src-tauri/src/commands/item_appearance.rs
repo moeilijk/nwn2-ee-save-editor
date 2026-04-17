@@ -32,6 +32,14 @@ pub fn load_item_model(
 
     let resrefs = appearance.resolve_model_resrefs(base_item_id, &game_data);
 
+    // Items with no in-world model (amulets, rings, misc.) resolve to zero resrefs.
+    // Return an empty ModelData so the frontend can render a "no preview" placeholder
+    // rather than surfacing a load error.
+    if resrefs.is_empty() {
+        info!("No model resrefs for base item {base_item_id}; returning empty ModelData");
+        return Ok(ModelData::default());
+    }
+
     let mut combined_data = ModelData::default();
 
     for resref in resrefs {
@@ -61,10 +69,13 @@ pub fn load_item_model(
         }
     }
 
+    // If every candidate resref failed to load, treat this as "no preview" —
+    // frontend renders a placeholder instead of a red error overlay. Items that
+    // legitimately have no model (wands, accessories with unknown ItemClass)
+    // land here naturally.
     if combined_data.meshes.is_empty() {
-        return Err(format!(
-            "Could not load any meshes for base item {base_item_id}"
-        ));
+        info!("No meshes loaded for base item {base_item_id}; returning empty ModelData");
+        return Ok(ModelData::default());
     }
 
     info!(

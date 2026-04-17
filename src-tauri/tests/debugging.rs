@@ -9,3 +9,6 @@
 
 #[path = "debugging/diagnostic_list_types.rs"]
 mod diagnostic_list_types;
+
+#[path = "debugging/dump_armor_meshes.rs"]
+mod dump_armor_meshes;

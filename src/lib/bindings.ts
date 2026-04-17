@@ -87,11 +87,18 @@ export interface TintChannels {
   channel3: TintChannel;
 }
 
+export interface NestedArmorPart {
+  armor_visual_type: number | null;
+  variation: number;
+}
+
 export interface ItemAppearance {
   variation: number;
   model_parts: [number, number, number];
   tints: TintChannels;
   armor_visual_type: number | null;
+  boots: NestedArmorPart | null;
+  gloves: NestedArmorPart | null;
 }
 
 export interface ItemAppearanceOptions {
