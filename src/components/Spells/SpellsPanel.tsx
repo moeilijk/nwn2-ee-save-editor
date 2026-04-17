@@ -53,6 +53,7 @@ export function SpellsPanel() {
   const [_allSpellsHasPrev, setAllSpellsHasPrev] = useState(false);
   const [usedCache, setUsedCache] = useState(false);
   const [abilitiesOpen, setAbilitiesOpen] = useState(true);
+  const [abilitySelected, setAbilitySelected] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -296,7 +297,7 @@ export function SpellsPanel() {
     <>
       <Tabs
         id="spell-tabs" selectedTabId={tab}
-        onChange={(id) => { setTab(id as TabId); setSelectedSpell(null); setAllSpellsPage(1); }}
+        onChange={(id) => { setTab(id as TabId); setSelectedSpell(null); setAbilitySelected(false); setAllSpellsPage(1); }}
         renderActiveTabPanelOnly
       >
         <Tab id="known" title={`${t('spells.known')} (${totalKnown})`} />
@@ -365,8 +366,8 @@ export function SpellsPanel() {
     return (
       <GroupedList
         sections={sections}
-        selectedId={selectedSpell?.id ?? null}
-        onSelect={setSelectedSpell}
+        selectedId={abilitySelected ? null : (selectedSpell?.id ?? null)}
+        onSelect={(s) => { setSelectedSpell(s); setAbilitySelected(false); }}
         renderItem={renderSpellItem}
       />
     );
@@ -397,19 +398,45 @@ export function SpellsPanel() {
             <span className="t-bold" style={{ color: T.accent, flex: 1 }}>{t('spells.specialAbilities')}</span>
             <span style={{ color: T.textMuted }}>{abilitySpells.length}</span>
           </div>
-          {abilitiesOpen && abilitySpells.map(a => (
-            <div key={a.spell_id} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '5px 12px 5px 28px',
-              borderBottom: `1px solid ${T.borderLight}`,
-            }}>
-              <span style={{ color: T.text, flex: 1 }}>{display(a.name)}</span>
-              {a.school_name && (
-                <span style={{ color: T.textMuted, flexShrink: 0 }}>{t(`spells.schools.${a.school_name.toLowerCase()}`)}</span>
-              )}
-              <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>Lv {a.innate_level}</span>
+          {abilitiesOpen && (
+            <div style={{ maxHeight: '35%', overflowY: 'auto', flexShrink: 0 }}>
+              {abilitySpells.map(a => {
+                const isSelected = abilitySelected && selectedSpell?.id === a.spell_id;
+                return (
+                  <div
+                    key={a.spell_id}
+                    onClick={() => {
+                      setSelectedSpell({
+                        id: a.spell_id,
+                        name: a.name,
+                        icon: a.icon,
+                        description: a.description,
+                        school_name: a.school_name,
+                        level: a.innate_level,
+                        innate_level: a.innate_level,
+                        available_classes: [],
+                      });
+                      setAbilitySelected(true);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '5px 12px 5px 26px',
+                      borderBottom: `1px solid ${T.borderLight}`,
+                      borderLeft: isSelected ? `2px solid ${T.accent}` : '2px solid transparent',
+                      background: isSelected ? `${T.accent}12` : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span className={isSelected ? 't-semibold' : undefined} style={{ color: T.text, flex: 1 }}>{display(a.name)}</span>
+                    {a.school_name && (
+                      <span style={{ color: T.textMuted, flexShrink: 0 }}>{t(`spells.schools.${a.school_name.toLowerCase()}`)}</span>
+                    )}
+                    <span className="t-medium" style={{ color: T.accent, flexShrink: 0 }}>Lv {a.innate_level}</span>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </>
       )}
     </div>
@@ -425,7 +452,7 @@ export function SpellsPanel() {
         <SpellDetail
           spell={selectedSpell}
           memorizedCount={detailMemoizedCount}
-          isOwned={tab !== 'all'}
+          isOwned={abilitySelected || tab !== 'all'}
           editableClasses={editableClasses}
           onAdd={handleAddSpell}
           onRemove={handleRemoveSpell}
