@@ -149,8 +149,14 @@ export function FeatsPanel() {
   const handleAddFeat = useCallback(async (featId: number) => {
     try {
       const response = await addFeat(featId);
+
+      if (!response.success) {
+        showToast(response.message, 'error');
+        return;
+      }
+
       let toastMsg = t('placeholders.featAdded') as string;
-      
+
       const parts: string[] = [];
       if (response.auto_added_feats && response.auto_added_feats.length > 0) {
         const featNames = response.auto_added_feats.map(f => f.label).join(', ');
@@ -160,13 +166,13 @@ export function FeatsPanel() {
         const abilityChanges = response.auto_modified_abilities.map(a => `${a.ability} ${a.old_value} -> ${a.new_value}`).join(', ');
         parts.push(t('placeholders.autoModifiedAbilities', { abilities: abilityChanges }) as string);
       }
-      
+
       if (parts.length > 0) {
         toastMsg = t('placeholders.featAddedWithPrereqs', { details: parts.join('; ') }) as string;
       } else if (response.message && response.message !== 'Feat added successfully') {
         toastMsg = response.message;
       }
-      
+
       showToast(toastMsg, 'success');
       setAllFeats(prev => prev.filter(f => f.id !== featId));
       setAllFeatsTotal(prev => prev - 1);
@@ -177,6 +183,12 @@ export function FeatsPanel() {
   const handleRemoveFeat = useCallback(async (featId: number) => {
     try {
       const response = await removeFeat(featId);
+
+      if (!response.success) {
+        showToast(response.message, 'error');
+        return;
+      }
+
       const isSimple = response.message === 'Feat removed successfully';
       showToast(isSimple ? t('placeholders.featRemoved') : response.message, 'success');
       setAllFeats(prev => [...prev, response.character_feats?.find(f => f.id === featId) || { id: featId, label: 'Removed', name: 'Unknown', protected: false, custom: false, type: 0 }]);

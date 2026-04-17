@@ -1006,7 +1006,7 @@ impl Character {
             });
         };
 
-        let mut added_feats = Vec::new();
+        self.assign_domain_slot(domain_id, game_data)?;
 
         let granted_feat = domain_data
             .get("grantedfeat")
@@ -1026,6 +1026,7 @@ impl Character {
             .filter(|&id| id >= 0)
             .map(FeatId);
 
+        let mut added_feats = Vec::new();
         for feat_id in [granted_feat, castable_feat, epithet_feat]
             .into_iter()
             .flatten()
@@ -1058,7 +1059,7 @@ impl Character {
             });
         };
 
-        let mut removed_feats = Vec::new();
+        self.clear_domain_slot(domain_id);
 
         let granted_feat = domain_data
             .get("grantedfeat")
@@ -1078,6 +1079,7 @@ impl Character {
             .filter(|&id| id >= 0)
             .map(FeatId);
 
+        let mut removed_feats = Vec::new();
         for feat_id in [granted_feat, castable_feat, epithet_feat]
             .into_iter()
             .flatten()
@@ -1089,6 +1091,105 @@ impl Character {
         }
 
         Ok(removed_feats)
+    }
+
+    /// Domain slots (`Domain1`, `Domain2`) are stored as GFF `Byte` per NWN2 schema;
+    /// the game engine checks these fields on the divine-caster class entry, not the feat list.
+    fn assign_domain_slot(
+        &mut self,
+        domain_id: DomainId,
+        game_data: &GameData,
+    ) -> Result<(), CharacterError> {
+        let divine_idx = {
+            let class_list = self
+                .get_list("ClassList")
+                .ok_or(CharacterError::FieldMissing { field: "ClassList" })?;
+            let class_ids: Vec<(usize, i32)> = class_list
+                .iter()
+                .enumerate()
+                .filter_map(|(i, e)| {
+                    e.get("Class")
+                        .and_then(gff_value_to_i32)
+                        .map(|cid| (i, cid))
+                })
+                .collect();
+            class_ids
+                .into_iter()
+                .find(|&(_, cid)| self.is_divine_caster(ClassId(cid), game_data))
+                .map(|(i, _)| i)
+        };
+
+        let Some(idx) = divine_idx else {
+            return Err(CharacterError::ValidationFailed {
+                field: "ClassList",
+                message: "No divine-caster class found for domain assignment".to_string(),
+            });
+        };
+
+        let class_list = self.get_list_mut("ClassList").unwrap();
+        let entry = &mut class_list[idx];
+
+        let d1 = entry
+            .get("Domain1")
+            .and_then(gff_value_to_i32)
+            .unwrap_or(-1);
+        let d2 = entry
+            .get("Domain2")
+            .and_then(gff_value_to_i32)
+            .unwrap_or(-1);
+
+        if d1 == domain_id.0 || d2 == domain_id.0 {
+            return Ok(());
+        }
+
+        let value = GffValue::Byte(domain_id.0 as u8);
+        if d1 < 0 {
+            entry.insert("Domain1".to_string(), value);
+        } else if d2 < 0 {
+            entry.insert("Domain2".to_string(), value);
+        } else {
+            return Err(CharacterError::ValidationFailed {
+                field: "Domain",
+                message: format!("Both domain slots are occupied (Domain1={d1}, Domain2={d2})"),
+            });
+        }
+
+        Ok(())
+    }
+
+    fn clear_domain_slot(&mut self, domain_id: DomainId) {
+        let Some(class_list) = self.get_list_mut("ClassList") else {
+            return;
+        };
+
+        for entry in class_list.iter_mut() {
+            if entry.get("Domain1").and_then(gff_value_to_i32) == Some(domain_id.0) {
+                entry.shift_remove("Domain1");
+            }
+            if entry.get("Domain2").and_then(gff_value_to_i32) == Some(domain_id.0) {
+                entry.shift_remove("Domain2");
+            }
+        }
+    }
+
+    /// If feat_id is a granted/castable/epithet feat for any domain, return that domain's ID.
+    pub fn find_domain_for_feat(&self, feat_id: FeatId, game_data: &GameData) -> Option<DomainId> {
+        let domains_table = game_data.get_table("domains")?;
+        for row_id in 0..domains_table.row_count() {
+            let Some(domain_data) = domains_table.get_by_id(row_id as i32) else {
+                continue;
+            };
+            for field in ["grantedfeat", "castablefeat", "epithetfeat"] {
+                let owned = domain_data
+                    .get(field)
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                    .filter(|&id| id >= 0);
+                if owned == Some(feat_id.0) {
+                    return Some(DomainId(row_id as i32));
+                }
+            }
+        }
+        None
     }
 
     pub fn remove_all_domain_feats(&mut self, game_data: &GameData) -> Vec<FeatId> {

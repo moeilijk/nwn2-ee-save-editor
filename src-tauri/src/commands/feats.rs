@@ -105,6 +105,65 @@ pub async fn validate_feat_prerequisites(
 pub async fn add_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult<FeatActionResult> {
     let game_data = state.game_data.read();
     let mut session = state.session.write();
+
+    // Domain feats reach the game engine via Domain1/Domain2 class fields, not the feat list;
+    // routing through add_domain keeps both in sync.
+    let domain_id = {
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.find_domain_for_feat(FeatId(feat_id), &game_data)
+    };
+
+    if let Some(domain_id) = domain_id {
+        let domain_result = {
+            let character = session
+                .character
+                .as_mut()
+                .ok_or(CommandError::NoCharacterLoaded)?;
+            character.add_domain(domain_id, &game_data)
+        };
+        session.invalidate_feat_cache();
+        return match domain_result {
+            Ok(added_feats) => {
+                let character = session
+                    .character
+                    .as_ref()
+                    .ok_or(CommandError::NoCharacterLoaded)?;
+                let auto_added_feats: Vec<AutoAddedFeat> = added_feats
+                    .iter()
+                    .filter(|f| f.0 != feat_id)
+                    .map(|f| AutoAddedFeat {
+                        feat_id: *f,
+                        label: character.get_feat_name(*f, &game_data),
+                    })
+                    .collect();
+                let message = if auto_added_feats.is_empty() {
+                    "Domain added".to_string()
+                } else {
+                    let names: Vec<&str> =
+                        auto_added_feats.iter().map(|f| f.label.as_str()).collect();
+                    format!("Domain added with feats: {}", names.join(", "))
+                };
+                Ok(FeatActionResult {
+                    success: true,
+                    message,
+                    feat_id,
+                    auto_added_feats,
+                    auto_modified_abilities: vec![],
+                })
+            }
+            Err(e) => Ok(FeatActionResult {
+                success: false,
+                message: e.to_string(),
+                feat_id,
+                auto_added_feats: vec![],
+                auto_modified_abilities: vec![],
+            }),
+        };
+    }
+
     let result = {
         let character = session
             .character
@@ -164,7 +223,46 @@ pub async fn remove_feat(
     state: State<'_, AppState>,
     feat_id: i32,
 ) -> CommandResult<FeatActionResult> {
+    let game_data = state.game_data.read();
     let mut session = state.session.write();
+
+    // Domain feats reach the game engine via Domain1/Domain2 class fields, not the feat list;
+    // routing through remove_domain keeps both in sync and cascades to domain spells.
+    let domain_id = {
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.find_domain_for_feat(FeatId(feat_id), &game_data)
+    };
+
+    if let Some(domain_id) = domain_id {
+        let domain_result = {
+            let character = session
+                .character
+                .as_mut()
+                .ok_or(CommandError::NoCharacterLoaded)?;
+            character.remove_domain(domain_id, &game_data)
+        };
+        session.invalidate_feat_cache();
+        return match domain_result {
+            Ok(_removed_feats) => Ok(FeatActionResult {
+                success: true,
+                message: "Domain removed".to_string(),
+                feat_id,
+                auto_added_feats: vec![],
+                auto_modified_abilities: vec![],
+            }),
+            Err(e) => Ok(FeatActionResult {
+                success: false,
+                message: e.to_string(),
+                feat_id,
+                auto_added_feats: vec![],
+                auto_modified_abilities: vec![],
+            }),
+        };
+    }
+
     let result = {
         let character = session
             .character
