@@ -207,6 +207,54 @@ impl Character {
         row.get("label").and_then(|v| v.clone())
     }
 
+    /// Resolves a subrace string (2DA label or TLK name) to its TLK display name.
+    pub fn get_subrace_display_name_by_string(
+        &self,
+        raw: &str,
+        game_data: &GameData,
+    ) -> Option<String> {
+        let subrace_table = game_data.get_table("racialsubtypes")?;
+
+        for row_idx in 0..subrace_table.row_count() {
+            let Ok(row_data) = subrace_table.parser.get_row_dict(row_idx) else {
+                continue;
+            };
+
+            let row_label = row_str(&row_data, "label").unwrap_or_default();
+            let tlk_name: Option<String> = row_data
+                .get("name")
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .and_then(|strref| game_data.get_string(strref));
+
+            if row_label.eq_ignore_ascii_case(raw)
+                || tlk_name
+                    .as_ref()
+                    .is_some_and(|n| n.eq_ignore_ascii_case(raw))
+            {
+                return tlk_name.or(Some(row_label));
+            }
+        }
+        None
+    }
+
+    /// TLK-resolved subrace name if present, else race name. Matches the
+    /// format NWN2 writes to playerinfo.bin for the load-menu race display.
+    pub fn race_display_name(&self, game_data: &GameData) -> String {
+        if let Some(idx) = self.subrace_index()
+            && let Some(name) = self.get_subrace_name_by_index(idx, game_data)
+        {
+            return name;
+        }
+        if let Some(raw) = self.subrace_string() {
+            if let Some(name) = self.get_subrace_display_name_by_string(&raw, game_data) {
+                return name;
+            }
+            return raw;
+        }
+        self.get_race_name_by_id(self.race_id().0, game_data)
+    }
+
     pub fn set_subrace(&mut self, subrace: Option<String>) {
         match subrace {
             Some(name) if !name.is_empty() => {

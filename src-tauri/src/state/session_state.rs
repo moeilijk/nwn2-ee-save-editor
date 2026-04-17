@@ -130,7 +130,9 @@ impl SessionState {
             .map_err(|e| format!("Failed to sync player.bic: {e}"))?;
 
         // Step 3: Sync playerinfo.bin
-        let subrace = character.subrace().unwrap_or_default();
+        // playerinfo.bin's subrace field is the load-menu display text; NWN2
+        // matches the icon by TLK name, so resolve labels/indices here.
+        let subrace = character.race_display_name(game_data);
         let alignment_name = character.alignment().alignment_string();
         let class_entries = character.class_entries();
         let classes: Vec<(String, u8)> = class_entries
