@@ -6,6 +6,7 @@ use specta::Type;
 
 const CLASS_ID_BARBARIAN: i32 = 0;
 const CLASS_ID_MONK: i32 = 5;
+const CLASS_ID_SACRED_FIST: i32 = 45;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct ArmorClass {
@@ -174,6 +175,7 @@ impl Character {
         let size_mod = self.size_modifier();
         let natural_ac = self.natural_ac();
         let feat_ac = self.get_feat_ac_bonuses(game_data);
+        let class_ac = self.get_class_ac_bonus(game_data, item_bonuses.ac_shield_bonus > 0);
 
         let max_dex = self.get_equipped_armor_max_dex(game_data);
         let capped_dex = dex_mod.min(max_dex);
@@ -187,7 +189,7 @@ impl Character {
             dodge: item_bonuses.ac_dodge_bonus,
             deflection: item_bonuses.ac_deflection_bonus + item_bonuses.ac_bonus,
             size: size_mod,
-            misc: feat_ac,
+            misc: feat_ac + class_ac,
         };
 
         let total = breakdown.base
@@ -221,6 +223,39 @@ impl Character {
             flat_footed,
             breakdown,
         }
+    }
+
+    /// Monk and Sacred Fist grant an AC bonus when unarmored and unshielded.
+    /// Monk: WIS mod (if positive) + floor(monk_level / 5), unarmored only.
+    /// Sacred Fist: +1 at lvl 1, +2 at lvl 5, +3 at lvl 10, light-or-no armor.
+    fn get_class_ac_bonus(&self, game_data: &GameData, shield_equipped: bool) -> i32 {
+        if shield_equipped {
+            return 0;
+        }
+        let armor_rank = self.get_equipped_armor_rank(game_data);
+        let unarmored = armor_rank == "None";
+        let light_or_none = unarmored || armor_rank == "Light";
+
+        let mut bonus = 0;
+
+        let monk_level = self.get_class_level(ClassId(CLASS_ID_MONK));
+        if monk_level > 0 && unarmored {
+            let wis_mod = calculate_modifier(self.base_ability(AbilityIndex::WIS));
+            bonus += wis_mod.max(0) + (monk_level / 5);
+        }
+
+        let sfist_level = self.get_class_level(ClassId(CLASS_ID_SACRED_FIST));
+        if sfist_level > 0 && light_or_none {
+            bonus += if sfist_level >= 10 {
+                3
+            } else if sfist_level >= 5 {
+                2
+            } else {
+                1
+            };
+        }
+
+        bonus
     }
 
     pub fn get_attack_bonuses(
