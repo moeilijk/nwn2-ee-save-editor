@@ -17,6 +17,40 @@ use crate::services::campaign::backup::backup_module_z;
 use crate::services::campaign::journal::{QuestDefinition, parse_journal_gff};
 use crate::services::savegame_handler::SaveGameHandler;
 
+/// Write a `VarTable` entry's Type/Value, preserving the existing `Value`
+/// variant when updating an int (real `module.ifo` files mix `Int` and `Dword`
+/// for integer values; the engine cares which one).
+fn apply_var_entry_update(
+    entry: &mut IndexMap<String, GffValue<'static>>,
+    var_name: &str,
+    value: &str,
+    var_type: &str,
+) -> Result<(), String> {
+    let (type_id, new_value): (u32, GffValue<'static>) = match var_type {
+        "int" => {
+            let v: i32 = value
+                .parse()
+                .map_err(|e| format!("Invalid int value for '{var_name}': {e}"))?;
+            let value = match entry.get("Value") {
+                Some(GffValue::Dword(_)) => GffValue::Dword(v as u32),
+                _ => GffValue::Int(v),
+            };
+            (1, value)
+        }
+        "float" => {
+            let v: f32 = value
+                .parse()
+                .map_err(|e| format!("Invalid float value for '{var_name}': {e}"))?;
+            (2, GffValue::Float(v))
+        }
+        "string" => (3, GffValue::String(Cow::Owned(value.to_string()))),
+        _ => return Err(format!("Unknown variable type: {var_type}")),
+    };
+    entry.insert("Type".to_string(), GffValue::Dword(type_id));
+    entry.insert("Value".to_string(), new_value);
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModuleInfo {
     pub module_name: String,
@@ -434,58 +468,36 @@ fn update_module_variable_inner(
         .map(|(k, v)| (k, v.force_owned()))
         .collect();
 
-    let (type_id, gff_value): (u32, GffValue<'static>) = match var_type {
-        "int" => {
-            let v: i32 = value
-                .parse()
-                .map_err(|e| format!("Invalid int value: {e}"))?;
-            (1, GffValue::Int(v))
-        }
-        "float" => {
-            let v: f32 = value
-                .parse()
-                .map_err(|e| format!("Invalid float value: {e}"))?;
-            (2, GffValue::Float(v))
-        }
-        "string" => (3, GffValue::String(Cow::Owned(value.to_string()))),
-        _ => return Err(format!("Unknown variable type: {var_type}")),
-    };
-
     let var_table = owned_fields
         .entry("VarTable".to_string())
         .or_insert_with(|| GffValue::ListOwned(Vec::new()));
 
-    if let GffValue::ListOwned(entries) = var_table {
-        let mut found = false;
-        for entry in entries.iter_mut() {
-            let name_matches = matches!(
-                entry.get("Name"),
-                Some(GffValue::String(s)) if s.as_ref() == var_name
-            );
-            if name_matches {
-                entry.insert("Type".to_string(), GffValue::Dword(type_id));
-                entry.insert("Value".to_string(), gff_value.clone());
-                found = true;
-                info!("Updated existing VarTable entry '{}'", var_name);
-                break;
-            }
-        }
-        if !found {
-            let mut new_entry = IndexMap::new();
-            new_entry.insert(
-                "Name".to_string(),
-                GffValue::String(Cow::Owned(var_name.to_string())),
-            );
-            new_entry.insert("Type".to_string(), GffValue::Dword(type_id));
-            new_entry.insert("Value".to_string(), gff_value);
-            entries.push(new_entry);
-            info!("Added new VarTable entry '{}'", var_name);
-        }
-    } else {
+    let GffValue::ListOwned(entries) = var_table else {
         return Err(format!(
             "VarTable is not a ListOwned, got: {:?}",
             std::mem::discriminant(var_table)
         ));
+    };
+
+    let existing = entries.iter_mut().find(|e| {
+        matches!(
+            e.get("Name"),
+            Some(GffValue::String(s)) if s.as_ref() == var_name
+        )
+    });
+
+    if let Some(entry) = existing {
+        apply_var_entry_update(entry, var_name, value, var_type)?;
+        info!("Updated existing VarTable entry '{}'", var_name);
+    } else {
+        let mut new_entry = IndexMap::new();
+        new_entry.insert(
+            "Name".to_string(),
+            GffValue::String(Cow::Owned(var_name.to_string())),
+        );
+        apply_var_entry_update(&mut new_entry, var_name, value, var_type)?;
+        entries.push(new_entry);
+        info!("Added new VarTable entry '{}'", var_name);
     }
 
     let new_ifo_bytes = GffWriter::new("IFO ", "V3.2")
@@ -586,45 +598,23 @@ pub fn batch_update_module_variables(
     };
 
     for (var_name, value, var_type) in updates {
-        let (type_id, gff_value): (u32, GffValue<'static>) = match var_type.as_str() {
-            "int" => {
-                let v: i32 = value
-                    .parse()
-                    .map_err(|e| format!("Invalid int value for '{var_name}': {e}"))?;
-                (1, GffValue::Int(v))
-            }
-            "float" => {
-                let v: f32 = value
-                    .parse()
-                    .map_err(|e| format!("Invalid float value for '{var_name}': {e}"))?;
-                (2, GffValue::Float(v))
-            }
-            "string" => (3, GffValue::String(Cow::Owned(value.clone()))),
-            _ => return Err(format!("Unknown variable type: {var_type}")),
-        };
-
-        let mut found = false;
-        for entry in entries.iter_mut() {
-            let name_matches = matches!(
-                entry.get("Name"),
+        let existing = entries.iter_mut().find(|e| {
+            matches!(
+                e.get("Name"),
                 Some(GffValue::String(s)) if s.as_ref() == var_name.as_str()
-            );
-            if name_matches {
-                entry.insert("Type".to_string(), GffValue::Dword(type_id));
-                entry.insert("Value".to_string(), gff_value.clone());
-                found = true;
-                info!("Updated existing VarTable entry '{}'", var_name);
-                break;
-            }
-        }
-        if !found {
+            )
+        });
+
+        if let Some(entry) = existing {
+            apply_var_entry_update(entry, var_name, value, var_type)?;
+            info!("Updated existing VarTable entry '{}'", var_name);
+        } else {
             let mut new_entry = IndexMap::new();
             new_entry.insert(
                 "Name".to_string(),
                 GffValue::String(Cow::Owned(var_name.clone())),
             );
-            new_entry.insert("Type".to_string(), GffValue::Dword(type_id));
-            new_entry.insert("Value".to_string(), gff_value);
+            apply_var_entry_update(&mut new_entry, var_name, value, var_type)?;
             entries.push(new_entry);
             info!("Added new VarTable entry '{}'", var_name);
         }

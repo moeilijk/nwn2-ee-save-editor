@@ -1,5 +1,7 @@
 use crate::config::NWN2Paths;
-use crate::parsers::gff::{GffParser, GffValue, GffWriter};
+use crate::parsers::gff::{
+    GffParser, GffValue, GffWriter, insert_bool_preserving_type, insert_u32_preserving_type,
+};
 use chrono::Local;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -7,8 +9,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
-// Forward declaration if we can't import it yet, but we will fix content.rs shortly.
-// For now, let's assume we can import it.
 use super::content::find_campaign_path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -159,9 +159,8 @@ pub fn update_campaign_settings(
         .map(|(k, v)| (k, v.force_owned()))
         .collect();
 
-    // Update fields
-    owned_fields.insert("LvlCap".to_string(), GffValue::Dword(settings.level_cap));
-    owned_fields.insert("XPCap".to_string(), GffValue::Dword(settings.xp_cap));
+    insert_u32_preserving_type(&mut owned_fields, "LvlCap", settings.level_cap);
+    insert_u32_preserving_type(&mut owned_fields, "XPCap", settings.xp_cap);
     owned_fields.insert(
         "CompXPWt".to_string(),
         GffValue::Float(settings.companion_xp_weight),
@@ -170,25 +169,18 @@ pub fn update_campaign_settings(
         "HenchXPWt".to_string(),
         GffValue::Float(settings.henchman_xp_weight),
     );
-    owned_fields.insert(
-        "AttackNeut".to_string(),
-        GffValue::Byte(u8::from(settings.attack_neutrals)),
+    insert_bool_preserving_type(&mut owned_fields, "AttackNeut", settings.attack_neutrals);
+    insert_bool_preserving_type(&mut owned_fields, "AutoXPAwd", settings.auto_xp_award);
+    insert_bool_preserving_type(&mut owned_fields, "JournalSynch", settings.journal_sync);
+    insert_bool_preserving_type(
+        &mut owned_fields,
+        "NoCharChanging",
+        settings.no_char_changing,
     );
-    owned_fields.insert(
-        "AutoXPAwd".to_string(),
-        GffValue::Byte(u8::from(settings.auto_xp_award)),
-    );
-    owned_fields.insert(
-        "JournalSynch".to_string(),
-        GffValue::Byte(u8::from(settings.journal_sync)),
-    );
-    owned_fields.insert(
-        "NoCharChanging".to_string(),
-        GffValue::Byte(u8::from(settings.no_char_changing)),
-    );
-    owned_fields.insert(
-        "UsePersonalRep".to_string(),
-        GffValue::Byte(u8::from(settings.use_personal_reputation)),
+    insert_bool_preserving_type(
+        &mut owned_fields,
+        "UsePersonalRep",
+        settings.use_personal_reputation,
     );
 
     // Write back

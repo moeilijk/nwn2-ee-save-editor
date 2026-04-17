@@ -60,4 +60,115 @@ mod tests {
         assert_eq!(settings.companion_xp_weight, 1.0);
         assert_eq!(settings.display_name, "My Campaign");
     }
+
+    #[test]
+    fn update_campaign_settings_preserves_gff_field_types() {
+        use crate::parsers::gff::{GffParser, GffValue, variant_name};
+
+        let fixture_src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/saves/STORM_Campaign/campaign.cam");
+        if !fixture_src.exists() {
+            eprintln!("STORM_Campaign fixture not found, skipping");
+            return;
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let campaign_dir = temp_dir.path().join("Campaigns/StormCampaign");
+        fs::create_dir_all(&campaign_dir).unwrap();
+        let cam_file = campaign_dir.join("campaign.cam");
+        fs::copy(&fixture_src, &cam_file).unwrap();
+
+        let mut paths = NWN2Paths::new();
+        let _ = paths.set_game_folder(temp_dir.path().to_str().unwrap());
+
+        let original_bytes = fs::read(&cam_file).unwrap();
+        let original = GffParser::from_bytes(original_bytes)
+            .unwrap()
+            .read_struct_fields(0)
+            .unwrap();
+        let snapshot = |fields: &indexmap::IndexMap<String, GffValue<'_>>, key: &str| -> String {
+            fields.get(key).map_or("missing", variant_name).to_string()
+        };
+
+        let watched_keys = [
+            "LvlCap",
+            "XPCap",
+            "CompXPWt",
+            "HenchXPWt",
+            "AttackNeut",
+            "AutoXPAwd",
+            "JournalSynch",
+            "NoCharChanging",
+            "UsePersonalRep",
+        ];
+        let before: Vec<(String, String)> = watched_keys
+            .iter()
+            .map(|k| ((*k).to_string(), snapshot(&original, k)))
+            .collect();
+
+        let mut settings = read_campaign_settings_from_path(&cam_file).expect("read settings");
+        settings.campaign_file_path = cam_file.to_string_lossy().to_string();
+        update_campaign_settings(&settings, &paths).expect("write settings");
+
+        let after_bytes = fs::read(&cam_file).unwrap();
+        let after = GffParser::from_bytes(after_bytes)
+            .unwrap()
+            .read_struct_fields(0)
+            .unwrap();
+
+        for (key, before_variant) in &before {
+            let after_variant = snapshot(&after, key);
+            assert_eq!(
+                before_variant, &after_variant,
+                "field '{key}' GFF type mutated by writer: was {before_variant}, now {after_variant}"
+            );
+        }
+    }
+
+    /// Mirrors `read_campaign_settings` without the GUID-based campaign-folder
+    /// lookup, so the test can point at a fixture file directly.
+    fn read_campaign_settings_from_path(
+        cam_file: &std::path::Path,
+    ) -> Result<CampaignSettings, String> {
+        use crate::parsers::gff::{GffParser, GffValue};
+
+        let parser = GffParser::new(cam_file).map_err(|e| e.to_string())?;
+        let root = parser.read_struct_fields(0).map_err(|e| e.to_string())?;
+
+        let get_u32 = |key: &str| -> u32 {
+            match root.get(key) {
+                Some(GffValue::Dword(v)) => *v,
+                Some(GffValue::Int(v)) => *v as u32,
+                Some(GffValue::Byte(v)) => u32::from(*v),
+                _ => 0,
+            }
+        };
+        let get_bool = |key: &str| -> bool {
+            match root.get(key) {
+                Some(GffValue::Byte(v)) => *v != 0,
+                Some(GffValue::Int(v)) => *v != 0,
+                _ => false,
+            }
+        };
+        let get_f32 = |key: &str| -> f32 {
+            match root.get(key) {
+                Some(GffValue::Float(v)) => *v,
+                _ => 0.0,
+            }
+        };
+
+        Ok(CampaignSettings {
+            campaign_file_path: cam_file.to_string_lossy().to_string(),
+            level_cap: get_u32("LvlCap"),
+            xp_cap: get_u32("XPCap"),
+            companion_xp_weight: get_f32("CompXPWt"),
+            henchman_xp_weight: get_f32("HenchXPWt"),
+            attack_neutrals: get_bool("AttackNeut"),
+            auto_xp_award: get_bool("AutoXPAwd"),
+            journal_sync: get_bool("JournalSynch"),
+            no_char_changing: get_bool("NoCharChanging"),
+            use_personal_reputation: get_bool("UsePersonalRep"),
+            ..Default::default()
+        })
+    }
 }
