@@ -79,9 +79,15 @@ export function SpellsPanel() {
     const characterId = character?.id;
     if (!characterId || tab !== 'all') return;
 
-    // Skip fetch if we can use the cache (no filters active, page 1)
+    // Restore from cache when filters cleared on page 1 (allSpells may hold filtered data from a prior fetch)
     const hasFilters = activeSchool !== 'all' || activeLevel !== 'all' || activeClass !== 'all' || debouncedSearch.length >= 3;
-    if (!hasFilters && allSpellsPage === 1 && usedCache) return;
+    if (!hasFilters && allSpellsPage === 1 && allSpellsCache) {
+      setAllSpells(allSpellsCache.spells);
+      setAllSpellsTotal(allSpellsCache.pagination.total);
+      setAllSpellsHasNext(allSpellsCache.pagination.has_next);
+      setAllSpellsHasPrev(allSpellsCache.pagination.has_previous);
+      return;
+    }
 
     const loadAllSpells = async () => {
       setAllSpellsLoading(true);
@@ -130,8 +136,6 @@ export function SpellsPanel() {
       const response = await addSpell(spellId, classIndex, spellLevel);
       const isSimple = response.message === 'Spell added successfully';
       showToast(isSimple ? t('placeholders.spellAdded') : response.message, 'success');
-      setAllSpells(prev => prev.filter(s => s.id !== spellId));
-      setAllSpellsTotal(prev => prev - 1);
       setSelectedSpell(null);
     } catch (error) { handleError(error); }
   }, [addSpell, showToast, handleError, t]);
@@ -166,6 +170,17 @@ export function SpellsPanel() {
 
   const knownSpells = useMemo(() => mapKnownSpellsToSpellInfo(spellsData?.known_spells), [spellsData?.known_spells]);
   const preparedSpells = useMemo(() => groupMemorizedSpells(spellsData?.memorized_spells), [spellsData?.memorized_spells]);
+
+  const knownSpellIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const ks of spellsData?.known_spells ?? []) ids.add(ks.spell_id);
+    return ids;
+  }, [spellsData?.known_spells]);
+
+  const allSpellsAvailable = useMemo(
+    () => allSpells.filter(s => !knownSpellIds.has(s.id)),
+    [allSpells, knownSpellIds]
+  );
 
   const levelLabel = (l: number) => l === 0 ? t('spells.cantrips') : t('spells.levelSpells', { level: l });
 
@@ -203,7 +218,7 @@ export function SpellsPanel() {
 
   const allSections: ListSection<SpellInfo>[] = useMemo(() => {
     const grouped = new Map<number, SpellInfo[]>();
-    for (const s of allSpells) {
+    for (const s of allSpellsAvailable) {
       if (!grouped.has(s.level)) grouped.set(s.level, []);
       grouped.get(s.level)!.push(s);
     }
@@ -214,7 +229,7 @@ export function SpellsPanel() {
         title: levelLabel(level),
         items,
       }));
-  }, [allSpells]);
+  }, [allSpellsAvailable]);
 
   const hasFilters = search.length > 0 || activeSchool !== 'all' || activeLevel !== 'all' || activeClass !== 'all';
 
@@ -288,7 +303,7 @@ export function SpellsPanel() {
   const totalKnown = knownSpells.length;
   const totalPrepared = preparedSpells.length;
 
-  const allSpellsCount = allSpellsTotal || allSpellsCache?.pagination.total || 0;
+  const allSpellsCount = allSpellsAvailable.length;
   const allTabTitle = allSpellsCount > 0
     ? `${t('spells.allSpells')} (${allSpellsCount})`
     : t('spells.allSpells');

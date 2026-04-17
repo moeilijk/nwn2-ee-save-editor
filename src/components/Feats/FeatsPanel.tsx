@@ -173,8 +173,6 @@ export function FeatsPanel() {
       }
 
       showToast(toastMsg, 'success');
-      setAllFeats(prev => prev.filter(f => f.id !== featId));
-      setAllFeatsTotal(prev => prev - 1);
       setSelectedFeat(null);
     } catch (error) { handleError(error); }
   }, [addFeat, showToast, handleError, t]);
@@ -190,11 +188,21 @@ export function FeatsPanel() {
 
       const isSimple = response.message === 'Feat removed successfully';
       showToast(isSimple ? t('placeholders.featRemoved') : response.message, 'success');
-      setAllFeats(prev => [...prev, response.character_feats?.find(f => f.id === featId) || { id: featId, label: 'Removed', name: 'Unknown', protected: false, custom: false, type: 0 }]);
     } catch (error) { handleError(error); }
   }, [removeFeat, showToast, handleError, t]);
 
   const allMyFeats = useMemo(() => aggregateFeats(featsData?.summary), [featsData]);
+
+  const ownedFeatIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const f of allMyFeats) ids.add(f.id);
+    return ids;
+  }, [allMyFeats]);
+
+  const allFeatsAvailable = useMemo(
+    () => allFeats.filter(f => !ownedFeatIds.has(f.id)),
+    [allFeats, ownedFeatIds]
+  );
 
   const mySections: ListSection<FeatInfo>[] = useMemo(() => {
     const typeFilter = activeTypeBit !== null ? new Set([activeTypeBit]) : new Set<number>();
@@ -214,7 +222,7 @@ export function FeatsPanel() {
 
   const allSections: ListSection<FeatInfo>[] = useMemo(() => {
     const grouped = new Map<string, FeatInfo[]>();
-    for (const f of allFeats) {
+    for (const f of allFeatsAvailable) {
       const labelKey = getFeatTypeLabel(f.type);
       if (!grouped.has(labelKey)) grouped.set(labelKey, []);
       grouped.get(labelKey)!.push(f);
@@ -224,7 +232,7 @@ export function FeatsPanel() {
       title: `${t(labelKey)} ${t('feats.feats')}`,
       items,
     }));
-  }, [allFeats, t]);
+  }, [allFeatsAvailable, t]);
 
   const totalOwned = allMyFeats.length;
   const hasFilters = search.length > 0 || activeTypeBit !== null;
@@ -274,7 +282,7 @@ export function FeatsPanel() {
     </Menu>
   );
 
-  const allFeatsCount = allFeatsTotal || allFeatsCache?.pagination.total || 0;
+  const allFeatsCount = allFeatsAvailable.length;
   const allTabTitle = allFeatsCount > 0
     ? `${t('feats.allFeats')} (${allFeatsCount})`
     : t('feats.allFeats');
