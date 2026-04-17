@@ -68,7 +68,9 @@ pub struct CharacterModelParts {
     pub show_fhair: bool,
     pub skeleton_resref: String,
     pub wings_resref: Option<String>,
+    pub wings_skeleton_resref: Option<String>,
     pub tail_resref: Option<String>,
+    pub tail_skeleton_resref: Option<String>,
     pub helm_candidates: Vec<String>,
     pub show_helmet: bool,
     pub boots_candidates: Vec<String>,
@@ -409,8 +411,12 @@ impl Character {
         (available_heads, available_hairs, true)
     }
 
-    pub fn get_available_options_from_2da(
+    /// Enumerate rows from a 2DA table, skipping any whose `model` MDB is
+    /// missing from the resource index. Row 0 ("None") is kept regardless, so
+    /// the user can still clear the selection.
+    pub fn get_available_model_options(
         game_data: &GameData,
+        resource_manager: &crate::services::resource_manager::ResourceManager,
         table_name: &str,
     ) -> Vec<AppearanceOption> {
         let Some(table) = game_data.get_table(table_name) else {
@@ -420,11 +426,23 @@ impl Character {
         let mut options = Vec::new();
         for i in 0..table.row_count() {
             let id = i as i32;
-            if let Some(row) = table.get_by_id(id)
-                && let Some(label) = row_str(&row, "label")
-            {
+            let Some(row) = table.get_by_id(id) else {
+                continue;
+            };
+            let Some(label) = row_str(&row, "label") else {
+                continue;
+            };
+            if id == 0 {
                 options.push(AppearanceOption { id, name: label });
+                continue;
             }
+            let Some(model) = row_str(&row, "model") else {
+                continue;
+            };
+            if !resource_manager.has_resource(&model, "mdb") {
+                continue;
+            }
+            options.push(AppearanceOption { id, name: label });
         }
         options
     }
@@ -511,22 +529,26 @@ impl Character {
 
         let show_fhair = self.appearance_fhair() > 0;
 
-        let wings_resref = if self.wings() > 0 {
-            game_data
+        let (wings_resref, wings_skeleton_resref) = if self.wings() > 0 {
+            let row = game_data
                 .get_table("wingmodel")
-                .and_then(|t| t.get_by_id(self.wings()))
-                .and_then(|r| row_str(&r, "model"))
+                .and_then(|t| t.get_by_id(self.wings()));
+            let model = row.as_ref().and_then(|r| row_str(r, "model"));
+            let skel = row.as_ref().and_then(|r| row_str(r, "NWN2_Skeleton_File"));
+            (model, skel)
         } else {
-            None
+            (None, None)
         };
 
-        let tail_resref = if self.tail() > 0 {
-            game_data
+        let (tail_resref, tail_skeleton_resref) = if self.tail() > 0 {
+            let row = game_data
                 .get_table("tailmodel")
-                .and_then(|t| t.get_by_id(self.tail()))
-                .and_then(|r| row_str(&r, "model"))
+                .and_then(|t| t.get_by_id(self.tail()));
+            let model = row.as_ref().and_then(|r| row_str(r, "model"));
+            let skel = row.as_ref().and_then(|r| row_str(r, "NWN2_Skeleton_File"));
+            (model, skel)
         } else {
-            None
+            (None, None)
         };
 
         // Build candidate lists: try part's own prefix(es), then chest armor prefix(es)
@@ -568,7 +590,9 @@ impl Character {
             show_fhair,
             skeleton_resref,
             wings_resref,
+            wings_skeleton_resref,
             tail_resref,
+            tail_skeleton_resref,
             helm_candidates,
             show_helmet,
             boots_candidates,

@@ -64,6 +64,14 @@ export interface AnimationData {
   tracks: TrackData[];
 }
 
+export interface AttachedPart {
+  name: string;
+  meshes: MeshData[];
+  skeleton: { bones: BoneData[] } | null;
+  animations: AnimationData[];
+  attach_bone: string | null;
+}
+
 export interface ModelData {
   meshes: MeshData[];
   hooks: HookData[];
@@ -71,4 +79,5 @@ export interface ModelData {
   helm: HelmData[];
   skeleton: { bones: BoneData[] } | null;
   animations: AnimationData[];
+  attached_parts?: AttachedPart[];
 }

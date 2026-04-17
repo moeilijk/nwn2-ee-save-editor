@@ -6,8 +6,38 @@ use tracing::{debug, info, warn};
 
 use crate::character::{AppearanceOption, AppearanceState, Character, TintChannels};
 use crate::commands::{CommandError, CommandResult};
-use crate::services::model_loader::{self, MeshData, ModelData};
+use crate::services::model_loader::{self, AttachedPart, MeshData, ModelData};
+use crate::services::resource_manager::ResourceManager;
 use crate::state::AppState;
+
+/// Load a wing/tail as an AttachedPart with its own skeleton (from the 2DA
+/// NWN2_Skeleton_File column when available, else from the MDB's stored name).
+/// Binding them to the body skeleton scrambles deformation.
+fn load_attached_part(
+    rm: &ResourceManager,
+    name: &str,
+    resref: &str,
+    skeleton_resref: Option<&str>,
+    attach_bone: &str,
+) -> Option<AttachedPart> {
+    let result = match skeleton_resref {
+        Some(skel) => model_loader::load_model_with_skeleton(rm, resref, skel, name, "none"),
+        None => model_loader::load_model(rm, resref, name, "none"),
+    };
+    match result {
+        Ok(data) => Some(AttachedPart {
+            name: name.to_string(),
+            meshes: data.meshes,
+            skeleton: data.skeleton,
+            animations: data.animations,
+            attach_bone: Some(attach_bone.to_string()),
+        }),
+        Err(e) => {
+            warn!("Failed to load {name} model '{resref}': {e}");
+            None
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct AppearanceUpdates {
@@ -137,9 +167,11 @@ pub fn update_appearance(
 pub async fn get_available_wings(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<AppearanceOption>> {
+    let rm = state.resource_manager.read().await;
     let game_data = state.game_data.read();
-    Ok(Character::get_available_options_from_2da(
+    Ok(Character::get_available_model_options(
         &game_data,
+        &rm,
         "wingmodel",
     ))
 }
@@ -148,9 +180,11 @@ pub async fn get_available_wings(
 pub async fn get_available_tails(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<AppearanceOption>> {
+    let rm = state.resource_manager.read().await;
     let game_data = state.game_data.read();
-    Ok(Character::get_available_options_from_2da(
+    Ok(Character::get_available_model_options(
         &game_data,
+        &rm,
         "tailmodel",
     ))
 }
@@ -241,20 +275,24 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
-    // Wings
-    if let Some(ref wing_resref) = parts.wings_resref {
-        match model_loader::load_model(&rm, wing_resref, "wings", "none") {
-            Ok(wing_data) => all_meshes.extend(wing_data.meshes),
-            Err(e) => warn!("Failed to load wing model '{}': {}", wing_resref, e),
-        }
+    let mut attached_parts: Vec<AttachedPart> = Vec::new();
+    if let Some(ref resref) = parts.wings_resref {
+        attached_parts.extend(load_attached_part(
+            &rm,
+            "wings",
+            resref,
+            parts.wings_skeleton_resref.as_deref(),
+            "ap_wings",
+        ));
     }
-
-    // Tail
-    if let Some(ref tail_resref) = parts.tail_resref {
-        match model_loader::load_model(&rm, tail_resref, "tail", "none") {
-            Ok(tail_data) => all_meshes.extend(tail_data.meshes),
-            Err(e) => warn!("Failed to load tail model '{}': {}", tail_resref, e),
-        }
+    if let Some(ref resref) = parts.tail_resref {
+        attached_parts.extend(load_attached_part(
+            &rm,
+            "tail",
+            resref,
+            parts.tail_skeleton_resref.as_deref(),
+            "ap_tail",
+        ));
     }
 
     // Helm
@@ -324,6 +362,7 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         helm: Vec::new(),
         skeleton,
         animations,
+        attached_parts,
     })
 }
 
@@ -358,6 +397,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         };
 
     let mut meshes: Vec<MeshData> = Vec::new();
+    let mut attached_parts: Vec<AttachedPart> = Vec::new();
 
     match part.as_str() {
         "head" => {
@@ -388,17 +428,25 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
             }
         }
         "wings" => {
-            if let Some(ref resref) = parts.wings_resref
-                && let Ok(data) = model_loader::load_model(&rm, resref, "wings", "none")
-            {
-                meshes.extend(data.meshes);
+            if let Some(ref resref) = parts.wings_resref {
+                attached_parts.extend(load_attached_part(
+                    &rm,
+                    "wings",
+                    resref,
+                    parts.wings_skeleton_resref.as_deref(),
+                    "ap_wings",
+                ));
             }
         }
         "tail" => {
-            if let Some(ref resref) = parts.tail_resref
-                && let Ok(data) = model_loader::load_model(&rm, resref, "tail", "none")
-            {
-                meshes.extend(data.meshes);
+            if let Some(ref resref) = parts.tail_resref {
+                attached_parts.extend(load_attached_part(
+                    &rm,
+                    "tail",
+                    resref,
+                    parts.tail_skeleton_resref.as_deref(),
+                    "ap_tail",
+                ));
             }
         }
         "helm" => {
@@ -445,6 +493,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         helm: Vec::new(),
         skeleton: None,
         animations: Vec::new(),
+        attached_parts,
     })
 }
 

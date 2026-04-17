@@ -32,14 +32,7 @@ pub fn load_item_model(
 
     let resrefs = appearance.resolve_model_resrefs(base_item_id, &game_data);
 
-    let mut combined_data = ModelData {
-        meshes: Vec::new(),
-        hooks: Vec::new(),
-        hair: Vec::new(),
-        helm: Vec::new(),
-        skeleton: None,
-        animations: Vec::new(),
-    };
+    let mut combined_data = ModelData::default();
 
     for resref in resrefs {
         // Tag meshes with their part letter (a/b/c) so the frontend can swap them individually.

@@ -5,7 +5,7 @@ import { createMaterial, updateTintUniforms, type TintColors } from '../ModelVie
 import { buildSkeleton, buildMesh, buildAnimationClips } from '../ModelViewer/meshBuilder';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
-import type { MeshData, ModelData } from '../ModelViewer/types';
+import type { AttachedPart, MeshData, ModelData } from '../ModelViewer/types';
 import type { TintChannels } from '@/lib/bindings';
 import { Spinner } from '@blueprintjs/core';
 
@@ -37,6 +37,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
   const skeletonRef = useRef<{ skeleton: THREE.Skeleton; rootBone: THREE.Bone } | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const attachedMixersRef = useRef<Map<string, THREE.AnimationMixer>>(new Map());
   const timerRef = useRef<THREE.Timer>(new THREE.Timer());
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,10 +59,10 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     if (model) {
       model.scale.set(girthRef.current, heightRef.current, girthRef.current);
     }
-    if (mixerRef.current) {
-      timerRef.current.update();
-      mixerRef.current.update(timerRef.current.getDelta());
-    }
+    timerRef.current.update();
+    const delta = timerRef.current.getDelta();
+    if (mixerRef.current) mixerRef.current.update(delta);
+    for (const m of attachedMixersRef.current.values()) m.update(delta);
   }, []);
 
   const { container: containerRef, scene: sceneRef, camera: cameraRef, controls: controlsRef } = useThreeScene(onAnimate);
@@ -97,6 +98,37 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     return group;
   }
 
+  async function buildAttachedPart(
+    attached: AttachedPart,
+    tintMap: Record<string, TintColors>,
+  ): Promise<{ group: THREE.Group; mixer: THREE.AnimationMixer | null } | null> {
+    if (!attached.skeleton) return null;
+    const { skeleton: attSkel, rootBone: attRoot } = buildSkeleton(attached.skeleton);
+    const group = await buildPartGroup(attached.meshes, attached.name, tintMap, attSkel, attRoot);
+
+    let mixer: THREE.AnimationMixer | null = null;
+    if (attached.animations.length > 0) {
+      const boneNames = attSkel.bones.map((b) => b.name);
+      const clips = buildAnimationClips(attached.animations, boneNames);
+      const idleClip = clips.find((c) => c.name.toLowerCase().includes('idle')) ?? clips[0];
+      if (idleClip) {
+        mixer = new THREE.AnimationMixer(group);
+        const action = mixer.clipAction(idleClip);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.play();
+      }
+    }
+    return { group, mixer };
+  }
+
+  function disposeAttachedMixer(partName: string) {
+    const mixer = attachedMixersRef.current.get(partName);
+    if (mixer) {
+      mixer.stopAllAction();
+      attachedMixersRef.current.delete(partName);
+    }
+  }
+
   const loadCharacter = useCallback(async () => {
     const scene = sceneRef.current;
     const camera = cameraRef.current;
@@ -111,6 +143,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       mixerRef.current.stopAllAction();
       mixerRef.current = null;
     }
+    for (const m of attachedMixersRef.current.values()) m.stopAllAction();
+    attachedMixersRef.current.clear();
 
     clearSceneModels(scene);
     setLoading(true);
@@ -171,6 +205,13 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         group.add(obj);
       }
 
+
+      for (const attached of data.attached_parts ?? []) {
+        const built = await buildAttachedPart(attached, tintMap);
+        if (!built) continue;
+        modelGroup.add(built.group);
+        if (built.mixer) attachedMixersRef.current.set(attached.name, built.mixer);
+      }
 
       scene.add(modelGroup);
       frameBounds(camera, controls, scene, modelGroup);
@@ -269,13 +310,21 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       const tintMap = getTintColors();
       const skel = skeletonRef.current;
 
-      const newGroup = data.meshes.length > 0
-        ? await buildPartGroup(data.meshes, part, tintMap, skel?.skeleton, skel?.rootBone)
-        : null;
-
       const old = modelGroup.getObjectByName(partGroupName(part));
       if (old) modelGroup.remove(old);
-      if (newGroup) modelGroup.add(newGroup);
+      disposeAttachedMixer(part);
+
+      const attached = data.attached_parts?.find((p) => p.name === part);
+      if (attached) {
+        const built = await buildAttachedPart(attached, tintMap);
+        if (built) {
+          modelGroup.add(built.group);
+          if (built.mixer) attachedMixersRef.current.set(part, built.mixer);
+        }
+      } else if (data.meshes.length > 0) {
+        const newGroup = await buildPartGroup(data.meshes, part, tintMap, skel?.skeleton, skel?.rootBone);
+        modelGroup.add(newGroup);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err));
     }

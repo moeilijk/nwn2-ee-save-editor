@@ -80,7 +80,7 @@ fn resolve_skeleton_name(mesh_name: &str, stored_skeleton: &str) -> String {
     stored_skeleton.to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModelData {
     pub meshes: Vec<MeshData>,
     pub hooks: Vec<HookData>,
@@ -88,6 +88,19 @@ pub struct ModelData {
     pub helm: Vec<HelmData>,
     pub skeleton: Option<SkeletonData>,
     pub animations: Vec<AnimationData>,
+    #[serde(default)]
+    pub attached_parts: Vec<AttachedPart>,
+}
+
+/// A model segment rendered with its own skeleton (e.g. creature wings/tails)
+/// and optionally parented to a body bone at `attach_bone`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachedPart {
+    pub name: String,
+    pub meshes: Vec<MeshData>,
+    pub skeleton: Option<SkeletonData>,
+    pub animations: Vec<AnimationData>,
+    pub attach_bone: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -305,6 +318,7 @@ fn parse_mdb(
         helm,
         skeleton: None,
         animations: Vec::new(),
+        attached_parts: Vec::new(),
     };
 
     Ok((data, mdb))

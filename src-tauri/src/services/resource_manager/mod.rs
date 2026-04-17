@@ -1220,6 +1220,11 @@ impl ResourceManager {
         self.icon_file_paths.get(&resref.to_lowercase()).cloned()
     }
 
+    pub fn has_resource(&self, resref: &str, extension: &str) -> bool {
+        let key = resource_key(&resref.to_lowercase(), &extension.to_lowercase());
+        self.resource_index.contains_key(&key)
+    }
+
     pub fn get_resource_bytes(
         &self,
         resref: &str,
