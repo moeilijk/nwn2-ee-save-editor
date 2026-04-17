@@ -12,3 +12,9 @@ mod diagnostic_list_types;
 
 #[path = "debugging/dump_armor_meshes.rs"]
 mod dump_armor_meshes;
+
+#[path = "debugging/diagnose_item_models.rs"]
+mod diagnose_item_models;
+
+#[path = "debugging/diagnose_model_scale.rs"]
+mod diagnose_model_scale;

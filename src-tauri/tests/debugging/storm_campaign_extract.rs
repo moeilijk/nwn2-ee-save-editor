@@ -175,9 +175,6 @@ async fn extract_storm_campaign_character() {
     for f in &feats.summary.class_feats {
         println!("  [class   {:>4}] {}", f.id.0, f.name);
     }
-    for f in &feats.summary.protected_feats {
-        println!("  [prot    {:>4}] {}", f.id.0, f.name);
-    }
     for f in &feats.summary.custom_feats {
         println!("  [custom  {:>4}] {}", f.id.0, f.name);
     }
