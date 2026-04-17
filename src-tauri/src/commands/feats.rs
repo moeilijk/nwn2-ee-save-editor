@@ -398,7 +398,7 @@ pub(super) fn build_feat_list(
         item: "Feat table".to_string(),
     })?;
 
-    let (domain_feats, epithet_feats) = build_domain_feat_sets(game_data);
+    let (_, epithet_feats) = build_domain_feat_sets(game_data);
 
     let feat_entries = character.feat_entries();
     let mut feat_sources = std::collections::HashMap::with_capacity(feat_entries.len());
@@ -428,7 +428,6 @@ pub(super) fn build_feat_list(
         if let Some(feat_info) = character.get_feat_info_display(
             feat_id,
             game_data,
-            &domain_feats,
             &epithet_feats,
             &feat_sources,
             &owned_feats,

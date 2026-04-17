@@ -18,13 +18,29 @@ export const FEAT_TYPE_LABELS: Record<number, string> = {
   [FEAT_TYPES.DOMAIN]: 'feats.categories.domain',
 };
 
+const FEAT_TYPE_PRIORITY: number[] = [
+  FEAT_TYPES.DOMAIN,
+  FEAT_TYPES.EPIC,
+  FEAT_TYPES.RACIAL,
+  FEAT_TYPES.CLASS,
+  FEAT_TYPES.HERITAGE,
+  FEAT_TYPES.HISTORY,
+  FEAT_TYPES.BACKGROUND,
+  FEAT_TYPES.ITEM_CREATION,
+  FEAT_TYPES.SPELLCASTING,
+  FEAT_TYPES.METAMAGIC,
+  FEAT_TYPES.DIVINE,
+  FEAT_TYPES.SKILL_SAVE,
+  FEAT_TYPES.PROFICIENCY,
+  FEAT_TYPES.GENERAL,
+];
+
 export function getFeatTypeLabel(type: number): string {
-  const match = Object.entries(FEAT_TYPE_LABELS).find(([bit]) => (type & Number(bit)) !== 0);
-  return match ? match[1] : 'General';
+  const bit = FEAT_TYPE_PRIORITY.find(b => (type & b) !== 0);
+  return bit ? FEAT_TYPE_LABELS[bit] : 'General';
 }
 
 interface FeatsSummary {
-  protected?: FeatInfo[];
   class_feats?: FeatInfo[];
   general_feats?: FeatInfo[];
   custom_feats?: FeatInfo[];
@@ -36,7 +52,6 @@ export function aggregateFeats(summary: FeatsSummary | null | undefined): FeatIn
   if (!summary) return [];
 
   const allFeats = [
-    ...(summary.protected || []),
     ...(summary.class_feats || []),
     ...(summary.general_feats || []),
     ...(summary.custom_feats || []),

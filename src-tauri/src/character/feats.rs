@@ -59,7 +59,7 @@ impl FeatType {
     pub fn from_string(s: &str) -> Self {
         let upper = s.to_uppercase();
         let value = match upper.as_str() {
-            "GENERAL" | "GENERAL_FT_CAT" => 1,
+            "GENERAL" | "GENERAL_FT_CAT" | "TEAMWORK" | "TEAMWORK_FT_CAT" => 1,
             "PROFICIENCY" | "COMBAT" | "PROFICIENCY_FT_CAT" | "COMBAT_FT_CAT" => 2,
             "SKILLNSAVE" | "SKILL" | "SAVE" | "SKILLNSAVE_FT_CAT" | "SKILL_FT_CAT" => 4,
             "METAMAGIC" | "METAMAGIC_FT_CAT" => 8,
@@ -100,7 +100,7 @@ impl FeatType {
                     1024
                 } else if upper.contains("DOMAIN") {
                     8192
-                } else if upper.contains("GENERAL") {
+                } else if upper.contains("GENERAL") || upper.contains("TEAMWORK") {
                     1
                 } else {
                     match s.parse::<i32>() {
@@ -258,8 +258,6 @@ pub struct PrereqAbility {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct FeatSummary {
     pub total: i32,
-    #[serde(rename = "protected")]
-    pub protected_feats: Vec<FeatInfo>,
     pub class_feats: Vec<FeatInfo>,
     pub general_feats: Vec<FeatInfo>,
     pub custom_feats: Vec<FeatInfo>,
@@ -577,6 +575,27 @@ pub fn build_domain_feat_sets(game_data: &GameData) -> (HashSet<i32>, HashSet<i3
     }
 
     (all_domain_feats, epithet_feats)
+}
+
+/// Obsidian never added a DOMAIN_FT_CAT; all domain abilities/epithets use
+/// CLASSABILITY_FT_CAT. We bucket a feat as Domain when any of:
+/// (a) the character acquired it via FeatSource::Domain, (b) it's an epithet
+/// referenced in domains.2da, or (c) its label names a domain while being a
+/// class ability — this catches orphan epithets that feat.2da defines but
+/// domains.2da never wires up.
+fn compute_is_domain(
+    feat_type: FeatType,
+    label: &str,
+    from_domain_source: bool,
+    is_epithet: bool,
+) -> bool {
+    if is_epithet {
+        return true;
+    }
+    if !feat_type.contains(FeatType::CLASS) {
+        return false;
+    }
+    from_domain_source || label.to_uppercase().contains("DOMAIN")
 }
 
 impl Character {
@@ -2261,7 +2280,9 @@ impl Character {
 
         let mut feat_type = Self::parse_feat_type(&feat_data, &description);
 
-        let is_domain = self.is_domain_feat(feat_id, game_data);
+        let from_domain_source = matches!(self.feat_source(feat_id), Some(FeatSource::Domain));
+        let is_epithet = self.is_domain_epithet_feat(feat_id, game_data);
+        let is_domain = compute_is_domain(feat_type, &label, from_domain_source, is_epithet);
         if is_domain {
             feat_type = FeatType(feat_type.0 | FeatType::DOMAIN.0);
         }
@@ -2300,7 +2321,6 @@ impl Character {
         &self,
         feat_id: FeatId,
         game_data: &GameData,
-        domain_feats: &HashSet<i32>,
         epithet_feats: &HashSet<i32>,
         feat_sources: &HashMap<FeatId, FeatSource>,
         owned_feats: &HashSet<FeatId>,
@@ -2322,7 +2342,9 @@ impl Character {
 
         let mut feat_type = Self::parse_feat_type(&feat_data, &description);
 
-        let is_domain = domain_feats.contains(&feat_id.0);
+        let from_domain_source = matches!(feat_sources.get(&feat_id), Some(FeatSource::Domain));
+        let is_epithet = epithet_feats.contains(&feat_id.0);
+        let is_domain = compute_is_domain(feat_type, &label, from_domain_source, is_epithet);
         if is_domain {
             feat_type = FeatType(feat_type.0 | FeatType::DOMAIN.0);
         }
@@ -2528,9 +2550,7 @@ impl Character {
                 continue;
             };
 
-            if feat_info.is_protected {
-                summary.protected_feats.push(feat_info);
-            } else if feat_info.is_custom {
+            if feat_info.is_custom {
                 summary.custom_feats.push(feat_info);
             } else {
                 match feat_info.category {

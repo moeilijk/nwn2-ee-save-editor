@@ -73,7 +73,6 @@ export interface FeatInfo {
 export interface FeatsState {
   summary: {
     total: number;
-    protected: FeatInfo[];
     class_feats: FeatInfo[];
     general_feats: FeatInfo[];
     custom_feats: FeatInfo[];

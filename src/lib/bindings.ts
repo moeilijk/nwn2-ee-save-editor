@@ -346,7 +346,6 @@ export interface FeatEntry {
 
 export interface FeatSummary {
   total: number;
-  protected: FeatInfo[];
   class_feats: FeatInfo[];
   general_feats: FeatInfo[];
   custom_feats: FeatInfo[];

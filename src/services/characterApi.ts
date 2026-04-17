@@ -109,7 +109,6 @@ export interface FeatResponse {
 export interface FeatsStateResponse {
   summary: {
     total: number;
-    protected: FeatResponse[];
     class_feats: FeatResponse[];
     general_feats: FeatResponse[];
     custom_feats: FeatResponse[];

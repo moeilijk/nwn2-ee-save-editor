@@ -44,7 +44,6 @@ const MY_FEATS_SECTIONS: { key: keyof FeatsState['summary']; titleKey: string }[
   { key: 'background_feats', titleKey: 'feats.backgroundFeats' },
   { key: 'domain_feats', titleKey: 'feats.domainFeats' },
   { key: 'custom_feats', titleKey: 'feats.customFeats' },
-  { key: 'protected', titleKey: 'feats.protectedFeats' },
 ];
 
 const FEATS_PER_PAGE = 10000;

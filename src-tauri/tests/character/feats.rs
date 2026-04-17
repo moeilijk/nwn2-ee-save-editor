@@ -251,8 +251,7 @@ async fn test_feat_summary() {
 
         println!("{}: {} total feats", name, summary.total);
         println!(
-            "  Protected: {}, Class: {}, General: {}, Custom: {}, Background: {}, Domain: {}",
-            summary.protected_feats.len(),
+            "  Class: {}, General: {}, Custom: {}, Background: {}, Domain: {}",
             summary.class_feats.len(),
             summary.general_feats.len(),
             summary.custom_feats.len(),
@@ -266,8 +265,7 @@ async fn test_feat_summary() {
             "Summary total should match feat_count()"
         );
 
-        let categorized_total = summary.protected_feats.len()
-            + summary.class_feats.len()
+        let categorized_total = summary.class_feats.len()
             + summary.general_feats.len()
             + summary.custom_feats.len()
             + summary.background_feats.len()

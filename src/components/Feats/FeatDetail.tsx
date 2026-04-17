@@ -86,7 +86,7 @@ export function FeatDetail({ feat, isOwned, onAdd, onRemove }: FeatDetailProps) 
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {isOwned && !feat.protected && onRemove && (
+          {isOwned && onRemove && (
             <Button
               small
               intent="danger"

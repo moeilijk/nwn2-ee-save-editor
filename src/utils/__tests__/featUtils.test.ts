@@ -14,7 +14,6 @@ const makeFeat = (id: number, name: string, type = 0): FeatInfo => ({
 describe('aggregateFeats', () => {
   it('flattens all feat categories and deduplicates by id', () => {
     const summary = {
-      protected: [makeFeat(1, 'Power Attack')],
       class_feats: [makeFeat(2, 'Cleave')],
       general_feats: [makeFeat(1, 'Power Attack')],
       custom_feats: [],
