@@ -32,6 +32,11 @@ pub struct SkillId(pub i32);
 pub struct DomainId(pub i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, Type)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct BackgroundId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, Type)]
 #[repr(transparent)]
 pub struct ItemId(pub i32);
 
@@ -445,6 +450,10 @@ pub const SAVE_BONUS_MIN: i32 = -35;
 pub const SAVE_BONUS_MAX: i32 = 255;
 pub const ALIGNMENT_MIN: i32 = 0;
 pub const ALIGNMENT_MAX: i32 = 100;
+/// Values at or below this are Evil/Chaotic.
+pub const ALIGNMENT_EVIL_THRESHOLD: i32 = 30;
+/// Values at or above this are Good/Lawful.
+pub const ALIGNMENT_GOOD_THRESHOLD: i32 = 70;
 
 pub const MAX_TOTAL_LEVEL: i32 = 60;
 pub const MAX_CLASSES: usize = 3;

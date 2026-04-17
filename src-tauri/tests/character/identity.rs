@@ -978,27 +978,41 @@ async fn test_multiple_modifications() {
 
 #[tokio::test]
 async fn test_background_retrieval() {
-    println!("\n=== Background Retrieval ===");
+    use app_lib::character::BackgroundId;
 
-    // We need game data for background lookup (feats)
     let ctx = create_test_context().await;
     let loader = ctx.loader;
-
-    // Ensure data is loaded
     assert!(loader.is_ready());
     let game_data = loader.game_data().expect("Game data should be loaded");
+    let bg_table = loader
+        .get_table("backgrounds")
+        .expect("backgrounds.2da should be loaded");
 
-    let fixtures = [
-        "ryathstrongarm/ryathstrongarm1.bic",
-        "occidiooctavon/occidiooctavon1.bic",
-    ];
+    // Pick a selectable row and confirm background() resolves to its Name/Label.
+    let target_row = (1..bg_table.row_count())
+        .find(|&r| bg_table.get_cell(r, "REMOVED").ok().flatten().as_deref() != Some("1"))
+        .expect("No selectable background in 2DA");
 
-    for path in fixtures {
-        let character = load_character(path);
-        let background = character.background(game_data);
+    let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
+    character
+        .add_background(BackgroundId(target_row as i32), game_data)
+        .expect("add_background should succeed");
 
-        println!("{}: Background = {:?}", character.first_name(), background);
+    let resolved = character
+        .background(game_data)
+        .expect("background() must resolve once CharBackground is set");
+    assert!(
+        !resolved.is_empty(),
+        "Resolved background name must be non-empty"
+    );
+    println!("Row {target_row}: background() = {resolved:?}");
 
-        // Background presence depends on the fixture; verify the method returns without panicking.
-    }
+    character
+        .remove_background(game_data)
+        .expect("remove_background should succeed");
+    assert_eq!(
+        character.background(game_data),
+        None,
+        "background() must be None after remove"
+    );
 }

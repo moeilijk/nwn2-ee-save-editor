@@ -106,6 +106,28 @@ pub async fn add_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult
     let game_data = state.game_data.read();
     let mut session = state.session.write();
 
+    // Background feats only take effect when CharBackground (Dword on the character root)
+    // points at the matching backgrounds.2da row; adding the feat alone is not enough.
+    let background_id = {
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.find_background_for_feat(FeatId(feat_id), &game_data)
+    };
+
+    if let Some(background_id) = background_id {
+        let bg_result = {
+            let character = session
+                .character
+                .as_mut()
+                .ok_or(CommandError::NoCharacterLoaded)?;
+            character.add_background(background_id, &game_data)
+        };
+        session.invalidate_feat_cache();
+        return build_feat_group_add_result(&session, &game_data, feat_id, "Background", bg_result);
+    }
+
     // Domain feats reach the game engine via Domain1/Domain2 class fields, not the feat list;
     // routing through add_domain keeps both in sync.
     let domain_id = {
@@ -125,43 +147,7 @@ pub async fn add_feat(state: State<'_, AppState>, feat_id: i32) -> CommandResult
             character.add_domain(domain_id, &game_data)
         };
         session.invalidate_feat_cache();
-        return match domain_result {
-            Ok(added_feats) => {
-                let character = session
-                    .character
-                    .as_ref()
-                    .ok_or(CommandError::NoCharacterLoaded)?;
-                let auto_added_feats: Vec<AutoAddedFeat> = added_feats
-                    .iter()
-                    .filter(|f| f.0 != feat_id)
-                    .map(|f| AutoAddedFeat {
-                        feat_id: *f,
-                        label: character.get_feat_name(*f, &game_data),
-                    })
-                    .collect();
-                let message = if auto_added_feats.is_empty() {
-                    "Domain added".to_string()
-                } else {
-                    let names: Vec<&str> =
-                        auto_added_feats.iter().map(|f| f.label.as_str()).collect();
-                    format!("Domain added with feats: {}", names.join(", "))
-                };
-                Ok(FeatActionResult {
-                    success: true,
-                    message,
-                    feat_id,
-                    auto_added_feats,
-                    auto_modified_abilities: vec![],
-                })
-            }
-            Err(e) => Ok(FeatActionResult {
-                success: false,
-                message: e.to_string(),
-                feat_id,
-                auto_added_feats: vec![],
-                auto_modified_abilities: vec![],
-            }),
-        };
+        return build_feat_group_add_result(&session, &game_data, feat_id, "Domain", domain_result);
     }
 
     let result = {
@@ -226,6 +212,43 @@ pub async fn remove_feat(
     let game_data = state.game_data.read();
     let mut session = state.session.write();
 
+    // Background feats only take effect when CharBackground points at the matching row;
+    // clearing that field is required for the game to treat the character as having no background.
+    let background_id = {
+        let character = session
+            .character
+            .as_ref()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.find_background_for_feat(FeatId(feat_id), &game_data)
+    };
+
+    if let Some(background_id) = background_id {
+        let current = {
+            let character = session
+                .character
+                .as_ref()
+                .ok_or(CommandError::NoCharacterLoaded)?;
+            character.get_character_background()
+        };
+
+        if current == Some(background_id) {
+            let bg_result = {
+                let character = session
+                    .character
+                    .as_mut()
+                    .ok_or(CommandError::NoCharacterLoaded)?;
+                character.remove_background(&game_data)
+            };
+            session.invalidate_feat_cache();
+            return Ok(build_feat_group_remove_result(
+                feat_id,
+                "Background",
+                bg_result,
+            ));
+        }
+        // CharBackground points elsewhere - fall through so the feat still gets dropped.
+    }
+
     // Domain feats reach the game engine via Domain1/Domain2 class fields, not the feat list;
     // routing through remove_domain keeps both in sync and cascades to domain spells.
     let domain_id = {
@@ -245,22 +268,11 @@ pub async fn remove_feat(
             character.remove_domain(domain_id, &game_data)
         };
         session.invalidate_feat_cache();
-        return match domain_result {
-            Ok(_removed_feats) => Ok(FeatActionResult {
-                success: true,
-                message: "Domain removed".to_string(),
-                feat_id,
-                auto_added_feats: vec![],
-                auto_modified_abilities: vec![],
-            }),
-            Err(e) => Ok(FeatActionResult {
-                success: false,
-                message: e.to_string(),
-                feat_id,
-                auto_added_feats: vec![],
-                auto_modified_abilities: vec![],
-            }),
-        };
+        return Ok(build_feat_group_remove_result(
+            feat_id,
+            "Domain",
+            domain_result,
+        ));
     }
 
     let result = {
@@ -388,6 +400,77 @@ pub async fn remove_domain(state: State<'_, AppState>, domain_id: i32) -> Comman
     };
     session.invalidate_feat_cache();
     Ok(feats.into_iter().map(|f| f.0).collect())
+}
+
+/// Build a `FeatActionResult` for an add-via-group operation (background or domain).
+/// On success, resolves the names of any auto-added feats (excluding the triggering feat).
+fn build_feat_group_add_result(
+    session: &SessionState,
+    game_data: &GameData,
+    feat_id: i32,
+    group_label: &str,
+    result: Result<Vec<FeatId>, crate::character::CharacterError>,
+) -> CommandResult<FeatActionResult> {
+    match result {
+        Ok(added_feats) => {
+            let character = session
+                .character
+                .as_ref()
+                .ok_or(CommandError::NoCharacterLoaded)?;
+            let auto_added_feats: Vec<AutoAddedFeat> = added_feats
+                .iter()
+                .filter(|f| f.0 != feat_id)
+                .map(|f| AutoAddedFeat {
+                    feat_id: *f,
+                    label: character.get_feat_name(*f, game_data),
+                })
+                .collect();
+            let message = if auto_added_feats.is_empty() {
+                format!("{group_label} added")
+            } else {
+                let names: Vec<&str> = auto_added_feats.iter().map(|f| f.label.as_str()).collect();
+                format!("{group_label} added with feats: {}", names.join(", "))
+            };
+            Ok(FeatActionResult {
+                success: true,
+                message,
+                feat_id,
+                auto_added_feats,
+                auto_modified_abilities: vec![],
+            })
+        }
+        Err(e) => Ok(FeatActionResult {
+            success: false,
+            message: e.to_string(),
+            feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
+        }),
+    }
+}
+
+/// Build a `FeatActionResult` for a remove-via-group operation (background or domain).
+fn build_feat_group_remove_result(
+    feat_id: i32,
+    group_label: &str,
+    result: Result<Vec<FeatId>, crate::character::CharacterError>,
+) -> FeatActionResult {
+    match result {
+        Ok(_) => FeatActionResult {
+            success: true,
+            message: format!("{group_label} removed"),
+            feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
+        },
+        Err(e) => FeatActionResult {
+            success: false,
+            message: e.to_string(),
+            feat_id,
+            auto_added_feats: vec![],
+            auto_modified_abilities: vec![],
+        },
+    }
 }
 
 pub(super) fn build_feat_list(

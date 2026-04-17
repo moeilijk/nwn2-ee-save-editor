@@ -52,7 +52,7 @@ export function useFeatManagement(
     enableValidation = true 
   } = options;
 
-  const { character, isLoading: characterLoading, error: characterError, invalidateSubsystems } = useCharacterContext();
+  const { character, isLoading: characterLoading, error: characterError, invalidateSubsystems, refreshCharacter } = useCharacterContext();
   const feats = useSubsystem('feats');
   
   const [categoryFeats, setCategoryFeats] = useState<FeatInfo[]>([]);
@@ -163,29 +163,35 @@ export function useFeatManagement(
     if (!character?.id) throw new Error('No character loaded');
 
     const response = await CharacterAPI.addFeat(character.id, featId);
-    await feats.load({ force: true });
     setValidationCache(prev => {
       const newCache = { ...prev };
       delete newCache[featId];
       return newCache;
     });
-    await invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]);
+    await Promise.all([
+      feats.load({ force: true }),
+      invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]),
+      refreshCharacter(),
+    ]);
     return response;
-  }, [character?.id, feats, invalidateSubsystems]);
+  }, [character?.id, feats, invalidateSubsystems, refreshCharacter]);
 
   const removeFeat = useCallback(async (featId: number): Promise<FeatActionResponse> => {
     if (!character?.id) throw new Error('No character loaded');
 
     const response = await CharacterAPI.removeFeat(character.id, featId);
-    await feats.load({ force: true });
     setValidationCache(prev => {
       const newCache = { ...prev };
       delete newCache[featId];
       return newCache;
     });
-    await invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]);
+    await Promise.all([
+      feats.load({ force: true }),
+      invalidateSubsystems([...FEAT_DEPENDENT_SUBSYSTEMS]),
+      refreshCharacter(),
+    ]);
     return response;
-  }, [character?.id, feats, invalidateSubsystems]);
+  }, [character?.id, feats, invalidateSubsystems, refreshCharacter]);
 
   const selectFeat = useCallback((feat: FeatInfo | null) => {
     setSelectedFeat(feat);

@@ -1,5 +1,5 @@
 use super::super::common::{create_test_context, load_test_gff};
-use app_lib::character::{AbilityIndex, Character, DomainId, FeatId, FeatSource};
+use app_lib::character::{AbilityIndex, BackgroundId, Character, DomainId, FeatId, FeatSource};
 use app_lib::loaders::types::LoadedTable;
 use app_lib::parsers::gff::GffParser;
 
@@ -945,4 +945,161 @@ async fn test_bonus_feat_slots_calculation() {
 
         assert!(bonus_slots >= 0, "Bonus slots should be non-negative");
     }
+}
+
+/// Locate a usable (non-None, non-REMOVED) background row with a DisplayFeat we can exercise.
+fn first_selectable_background(table: &LoadedTable) -> Option<(BackgroundId, FeatId)> {
+    for row in 1..table.row_count() {
+        if cell_value(table, row, "REMOVED").as_deref() == Some("1") {
+            continue;
+        }
+        if let Some(feat_id) = cell_int(table, row, "DisplayFeat") {
+            return Some((BackgroundId(row as i32), FeatId(feat_id)));
+        }
+    }
+    None
+}
+
+#[tokio::test]
+async fn test_find_background_for_feat() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let bg_table = ctx
+        .loader
+        .get_table("backgrounds")
+        .expect("backgrounds.2da should be loaded");
+
+    let (expected_bg, feat_id) =
+        first_selectable_background(bg_table).expect("No selectable background in 2DA");
+
+    let character = load_character("occidiooctavon/occidiooctavon1.bic");
+    let found = character.find_background_for_feat(feat_id, game_data);
+
+    assert_eq!(
+        found,
+        Some(expected_bg),
+        "find_background_for_feat should map DisplayFeat -> background row"
+    );
+
+    let bogus = character.find_background_for_feat(FeatId(-1), game_data);
+    assert_eq!(bogus, None, "Unknown feat must not match any background");
+}
+
+#[tokio::test]
+async fn test_char_background_is_dword_after_add() {
+    use app_lib::parsers::gff::GffValue;
+
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let bg_table = ctx
+        .loader
+        .get_table("backgrounds")
+        .expect("backgrounds.2da should be loaded");
+
+    let (bg_id, _) = first_selectable_background(bg_table).expect("No selectable background");
+
+    let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
+    character
+        .add_background(bg_id, game_data)
+        .expect("add_background should succeed");
+
+    match character.gff().get("CharBackground") {
+        Some(GffValue::Dword(v)) => {
+            assert_eq!(
+                *v as i32, bg_id.0,
+                "CharBackground Dword value must equal background id"
+            );
+        }
+        other => panic!("CharBackground must be GffValue::Dword per NWN2 schema, got {other:?}"),
+    }
+
+    character
+        .remove_background(game_data)
+        .expect("remove_background should succeed");
+
+    match character.gff().get("CharBackground") {
+        Some(GffValue::Dword(0)) => (),
+        other => panic!("After remove, CharBackground must be Dword(0), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_add_background_sets_field_and_feat() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let bg_table = ctx
+        .loader
+        .get_table("backgrounds")
+        .expect("backgrounds.2da should be loaded");
+
+    let (bg_id, feat_id) =
+        first_selectable_background(bg_table).expect("No selectable background in 2DA");
+
+    let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
+    if character.has_feat(feat_id) {
+        character.remove_feat(feat_id).ok();
+    }
+
+    let added = character
+        .add_background(bg_id, game_data)
+        .expect("add_background should succeed");
+
+    assert_eq!(
+        character.get_character_background(),
+        Some(bg_id),
+        "CharBackground must be set to the row id"
+    );
+    assert!(
+        character.has_feat(feat_id),
+        "The background's DisplayFeat must be in the feat list"
+    );
+    assert_eq!(
+        character.feat_source(feat_id),
+        Some(FeatSource::Background),
+        "Added background feat must be tagged with FeatSource::Background"
+    );
+    assert!(
+        added.contains(&feat_id),
+        "add_background should report the newly granted feat"
+    );
+}
+
+#[tokio::test]
+async fn test_remove_background_clears_field_and_feat() {
+    let ctx = create_test_context().await;
+    let game_data = ctx.loader.game_data().expect("Game data not loaded");
+    let bg_table = ctx
+        .loader
+        .get_table("backgrounds")
+        .expect("backgrounds.2da should be loaded");
+
+    let (bg_id, feat_id) =
+        first_selectable_background(bg_table).expect("No selectable background in 2DA");
+
+    let mut character = load_character("occidiooctavon/occidiooctavon1.bic");
+    if character.has_feat(feat_id) {
+        character.remove_feat(feat_id).ok();
+    }
+
+    character
+        .add_background(bg_id, game_data)
+        .expect("add_background should succeed");
+
+    let removed = character
+        .remove_background(game_data)
+        .expect("remove_background should succeed");
+
+    assert_eq!(
+        character.get_character_background(),
+        None,
+        "CharBackground must be cleared after remove"
+    );
+    assert!(
+        !character.has_feat(feat_id),
+        "The background feat must be gone after remove"
+    );
+    assert!(
+        removed.contains(&feat_id),
+        "remove_background should report the removed feat"
+    );
 }

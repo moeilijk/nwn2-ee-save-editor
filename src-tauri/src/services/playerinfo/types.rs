@@ -15,6 +15,9 @@ impl PlayerClassEntry {
     }
 }
 
+/// Layout per Arbos' playerinfo.bin reverse-engineering:
+/// <https://gist.github.com/Arbos/225c724f91309d3f515e0f110524feee>
+/// Verified against all 7 save fixtures in `tests/fixtures/saves/`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PlayerInfoData {
     pub first_name: String,
@@ -23,11 +26,15 @@ pub struct PlayerInfoData {
 
     pub subrace: String,
     pub alignment: String,
+    /// Padding `u32` written when last name is absent — otherwise unused.
     pub unknown1: u32,
 
-    pub unknown2: u32,
-    pub unknown3: u32,
-    pub unknown4: u32,
+    /// Good/Evil axis: 4 = Good, 1 = Neutral, 5 = Evil.
+    pub alignment_vertical: u32,
+    /// Law/Chaos axis: 2 = Lawful, 1 = Neutral, 3 = Chaotic.
+    pub alignment_horizontal: u32,
+    /// Row id in `backgrounds.2da` — drives the background shown in the load menu.
+    pub background_id: u32,
 
     pub classes: Vec<PlayerClassEntry>,
 
@@ -40,30 +47,26 @@ pub struct PlayerInfoData {
     pub wis_score: u32,
     pub cha_score: u32,
 
-    pub unknown5: i32,
-    pub unknown6: u32,
-    pub unknown7: u32,
-    pub unknown8: u32,
-    pub unknown9: u32,
-    pub unknown10: u32,
+    pub str_mod: i32,
+    pub dex_mod: i32,
+    pub con_mod: i32,
+    pub int_mod: i32,
+    pub wis_mod: i32,
+    pub cha_mod: i32,
 }
 
 impl PlayerInfoData {
     pub fn new() -> Self {
         Self {
-            unknown2: 1,
-            unknown3: 3,
-            unknown4: 3,
+            alignment_vertical: 1,
+            alignment_horizontal: 1,
+            background_id: 0,
             str_score: 10,
             dex_score: 10,
             con_score: 10,
             int_score: 10,
             wis_score: 10,
             cha_score: 10,
-            unknown5: -1,
-            unknown6: 2,
-            unknown7: 2,
-            unknown9: 6,
             ..Default::default()
         }
     }
@@ -106,8 +109,10 @@ mod tests {
     fn test_player_info_data_defaults() {
         let data = PlayerInfoData::new();
         assert_eq!(data.str_score, 10);
-        assert_eq!(data.unknown2, 1);
-        assert_eq!(data.unknown5, -1);
+        assert_eq!(data.alignment_vertical, 1);
+        assert_eq!(data.alignment_horizontal, 1);
+        assert_eq!(data.background_id, 0);
+        assert_eq!(data.str_mod, 0);
     }
 
     #[test]

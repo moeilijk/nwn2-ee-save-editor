@@ -1,3 +1,4 @@
+use super::types::{ALIGNMENT_EVIL_THRESHOLD, ALIGNMENT_GOOD_THRESHOLD};
 use super::{Character, CharacterError};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -40,27 +41,27 @@ impl Alignment {
     }
 
     pub fn is_lawful(&self) -> bool {
-        self.law_chaos >= 70
+        self.law_chaos >= ALIGNMENT_GOOD_THRESHOLD
     }
 
     pub fn is_chaotic(&self) -> bool {
-        self.law_chaos <= 30
+        self.law_chaos <= ALIGNMENT_EVIL_THRESHOLD
     }
 
     pub fn is_good(&self) -> bool {
-        self.good_evil >= 70
+        self.good_evil >= ALIGNMENT_GOOD_THRESHOLD
     }
 
     pub fn is_evil(&self) -> bool {
-        self.good_evil <= 30
+        self.good_evil <= ALIGNMENT_EVIL_THRESHOLD
     }
 
     pub fn is_neutral_law_chaos(&self) -> bool {
-        self.law_chaos > 30 && self.law_chaos < 70
+        self.law_chaos > ALIGNMENT_EVIL_THRESHOLD && self.law_chaos < ALIGNMENT_GOOD_THRESHOLD
     }
 
     pub fn is_neutral_good_evil(&self) -> bool {
-        self.good_evil > 30 && self.good_evil < 70
+        self.good_evil > ALIGNMENT_EVIL_THRESHOLD && self.good_evil < ALIGNMENT_GOOD_THRESHOLD
     }
 }
 
@@ -220,24 +221,22 @@ impl Character {
         Ok(())
     }
 
-    /// Get the character's background trait if present.
-    /// In NWN2, backgrounds are handled via history feats or traits.
+    /// Get the character's selected background name.
+    /// `CharBackground` (Dword) is authoritative — it indexes a row in `backgrounds.2da`.
+    /// Returns the TLK-resolved `Name`, falling back to `Label`.
     pub fn background(&self, game_data: &GameData) -> Option<String> {
-        let feats_table = game_data.get_table("feat")?;
+        let bg_id = self.get_character_background()?;
+        let bg_table = game_data.get_table("backgrounds")?;
+        let row = bg_table.get_by_id(bg_id.0)?;
 
-        for feat_id in self.feat_ids() {
-            if let Some(_feat_data) = feats_table.get_by_id(feat_id.0) {
-                let label_opt = _feat_data.get("label").and_then(|v| v.clone());
+        let name = row
+            .get("name")
+            .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+            .filter(|&s| s >= 0)
+            .and_then(|strref| game_data.get_string(strref))
+            .filter(|s| !s.is_empty());
 
-                if let Some(label) = label_opt
-                    && label.to_uppercase().contains("BACKGROUND")
-                {
-                    return Some(self.get_feat_name(feat_id, game_data));
-                }
-            }
-        }
-
-        None
+        name.or_else(|| row.get("label").and_then(|s| s.clone()))
     }
 }
 

@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 use tracing::debug;
 
 use super::gff_helpers::gff_value_to_i32;
-use super::types::{ClassId, DomainId, FeatId, SaveBonuses};
+use super::types::{BackgroundId, ClassId, DomainId, FeatId, SaveBonuses};
 use super::{Character, CharacterError};
 use crate::loaders::GameData;
 use crate::parsers::gff::GffValue;
@@ -1248,6 +1248,123 @@ impl Character {
         }
 
         removed
+    }
+
+    // ========== BACKGROUND METHODS ==========
+
+    const CHAR_BACKGROUND_FIELD: &'static str = "CharBackground";
+
+    /// Feat columns in `backgrounds.2da` whose values tie a row to the character's feat list.
+    /// Column lookups are lowercased by the 2DA loader, so these are the stored keys.
+    const BACKGROUND_FEAT_COLUMNS: [&'static str; 3] =
+        ["displayfeat", "featgained", "masterfeatgained"];
+
+    /// If `feat_id` appears in any non-removed background row, return that background's ID.
+    pub fn find_background_for_feat(
+        &self,
+        feat_id: FeatId,
+        game_data: &GameData,
+    ) -> Option<BackgroundId> {
+        let bg_table = game_data.get_table("backgrounds")?;
+        for row_id in 0..bg_table.row_count() {
+            let Some(row) = bg_table.get_by_id(row_id as i32) else {
+                continue;
+            };
+            if row_bool(&row, "removed", false) {
+                continue;
+            }
+            for field in Self::BACKGROUND_FEAT_COLUMNS {
+                let owned = row
+                    .get(field)
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                    .filter(|&id| id >= 0);
+                if owned == Some(feat_id.0) {
+                    return Some(BackgroundId(row_id as i32));
+                }
+            }
+        }
+        None
+    }
+
+    /// Return the feat IDs (DisplayFeat, FeatGained, MasterFeatGained) declared on a background row.
+    fn background_feats(
+        background_id: BackgroundId,
+        game_data: &GameData,
+    ) -> Result<Vec<FeatId>, CharacterError> {
+        let bg_table = game_data
+            .get_table("backgrounds")
+            .ok_or_else(|| CharacterError::TableNotFound("backgrounds".to_string()))?;
+
+        let row = bg_table
+            .get_by_id(background_id.0)
+            .ok_or(CharacterError::NotFound {
+                entity: "Background",
+                id: background_id.0,
+            })?;
+
+        let feats = Self::BACKGROUND_FEAT_COLUMNS
+            .iter()
+            .filter_map(|field| {
+                row.get(*field)
+                    .and_then(|s| s.as_ref()?.parse::<i32>().ok())
+                    .filter(|&id| id >= 0)
+                    .map(FeatId)
+            })
+            .collect();
+
+        Ok(feats)
+    }
+
+    /// Currently selected background (row in `backgrounds.2da`), if any.
+    /// Row 0 is the "None" sentinel, so it returns `None` in that case.
+    pub fn get_character_background(&self) -> Option<BackgroundId> {
+        let id = self.get_i32(Self::CHAR_BACKGROUND_FIELD)?;
+        if id > 0 { Some(BackgroundId(id)) } else { None }
+    }
+
+    /// Set `CharBackground` and add any feats the background grants.
+    /// `CharBackground` is `Dword` on the character root per NWN2-EE schema.
+    pub fn add_background(
+        &mut self,
+        background_id: BackgroundId,
+        game_data: &GameData,
+    ) -> Result<Vec<FeatId>, CharacterError> {
+        let feats = Self::background_feats(background_id, game_data)?;
+
+        self.set_u32(Self::CHAR_BACKGROUND_FIELD, background_id.0 as u32);
+
+        let mut added = Vec::new();
+        for feat_id in feats {
+            if !self.has_feat(feat_id) {
+                self.add_feat_with_source(feat_id, FeatSource::Background)?;
+                added.push(feat_id);
+            }
+        }
+
+        Ok(added)
+    }
+
+    /// Clear `CharBackground` (to 0) and remove the current background's feats from the feat list.
+    pub fn remove_background(
+        &mut self,
+        game_data: &GameData,
+    ) -> Result<Vec<FeatId>, CharacterError> {
+        let Some(background_id) = self.get_character_background() else {
+            return Ok(Vec::new());
+        };
+
+        let feats = Self::background_feats(background_id, game_data)?;
+
+        self.set_u32(Self::CHAR_BACKGROUND_FIELD, 0);
+
+        let mut removed = Vec::new();
+        for feat_id in feats {
+            if self.has_feat(feat_id) && self.remove_feat(feat_id).is_ok() {
+                removed.push(feat_id);
+            }
+        }
+
+        Ok(removed)
     }
 
     pub fn change_cleric_domains(

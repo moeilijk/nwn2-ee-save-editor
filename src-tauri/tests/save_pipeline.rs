@@ -146,17 +146,13 @@ fn test_playerinfo_bin_sync() {
 
     let fixture_path = fixtures_dir().join("playerinfo.bin");
 
-    // Load original to capture unknown fields
+    // Load original to capture fields that `update_from_gff_data` should preserve
+    // when the matching GFF inputs are absent.
     let original = PlayerInfo::load(&fixture_path).expect("load original playerinfo.bin");
-    let original_unknown2 = original.data.unknown2;
-    let original_unknown3 = original.data.unknown3;
-    let original_unknown4 = original.data.unknown4;
-    let original_unknown5 = original.data.unknown5;
-    let original_unknown6 = original.data.unknown6;
-    let original_unknown7 = original.data.unknown7;
-    let original_unknown8 = original.data.unknown8;
-    let original_unknown9 = original.data.unknown9;
-    let original_unknown10 = original.data.unknown10;
+    let original_alignment_vertical = original.data.alignment_vertical;
+    let original_alignment_horizontal = original.data.alignment_horizontal;
+    let original_background_id = original.data.background_id;
+    let original_unknown1 = original.data.unknown1;
 
     // Copy fixture to temp file for modification
     let temp_dir = tempfile::tempdir().expect("create temp dir");
@@ -229,41 +225,30 @@ fn test_playerinfo_bin_sync() {
     assert_eq!(reloaded.data.classes[1].name, "Rogue");
     assert_eq!(reloaded.data.classes[1].level, 5);
 
-    // Unknown fields must be preserved exactly
+    // Fields that must be preserved: no LawfulChaotic/GoodEvil/CharBackground in the GFF
+    // inputs above, so their playerinfo.bin counterparts must stay at fixture values.
     assert_eq!(
-        reloaded.data.unknown2, original_unknown2,
-        "unknown2 changed"
+        reloaded.data.alignment_vertical, original_alignment_vertical,
+        "alignment_vertical must be preserved when GoodEvil is absent"
     );
     assert_eq!(
-        reloaded.data.unknown3, original_unknown3,
-        "unknown3 changed"
+        reloaded.data.alignment_horizontal, original_alignment_horizontal,
+        "alignment_horizontal must be preserved when LawfulChaotic is absent"
     );
     assert_eq!(
-        reloaded.data.unknown4, original_unknown4,
-        "unknown4 changed"
+        reloaded.data.background_id, original_background_id,
+        "background_id must be preserved when CharBackground is absent"
     );
     assert_eq!(
-        reloaded.data.unknown5, original_unknown5,
-        "unknown5 changed"
+        reloaded.data.unknown1, original_unknown1,
+        "unknown1 (no-last-name padding) must be preserved"
     );
-    assert_eq!(
-        reloaded.data.unknown6, original_unknown6,
-        "unknown6 changed"
-    );
-    assert_eq!(
-        reloaded.data.unknown7, original_unknown7,
-        "unknown7 changed"
-    );
-    assert_eq!(
-        reloaded.data.unknown8, original_unknown8,
-        "unknown8 changed"
-    );
-    assert_eq!(
-        reloaded.data.unknown9, original_unknown9,
-        "unknown9 changed"
-    );
-    assert_eq!(
-        reloaded.data.unknown10, original_unknown10,
-        "unknown10 changed"
-    );
+
+    // Ability modifiers must be recomputed from the supplied scores.
+    assert_eq!(reloaded.data.str_mod, 4); // (18-10)/2
+    assert_eq!(reloaded.data.dex_mod, 2); // (14-10)/2
+    assert_eq!(reloaded.data.con_mod, 3); // (16-10)/2
+    assert_eq!(reloaded.data.int_mod, 1); // (12-10)/2
+    assert_eq!(reloaded.data.wis_mod, 0); // (10-10)/2
+    assert_eq!(reloaded.data.cha_mod, -1); // (8-10)/2
 }

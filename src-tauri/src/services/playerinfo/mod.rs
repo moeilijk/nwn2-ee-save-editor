@@ -10,6 +10,10 @@ use encoding_rs::{UTF_8, WINDOWS_1252};
 use indexmap::IndexMap;
 use tracing::{debug, warn};
 
+use crate::character::gff_helpers::gff_value_to_u32;
+use crate::character::types::{
+    ALIGNMENT_EVIL_THRESHOLD, ALIGNMENT_GOOD_THRESHOLD, calculate_modifier,
+};
 use crate::parsers::gff::GffValue;
 
 pub use error::{PlayerInfoParseError, PlayerInfoResult};
@@ -130,6 +134,17 @@ impl PlayerInfo {
         self.data.subrace = subrace_name.to_string();
         self.data.alignment = alignment_name.to_string();
 
+        if let Some(good_evil) = extract_byte(fields, "GoodEvil") {
+            self.data.alignment_vertical = good_evil_to_axis(good_evil);
+        }
+        if let Some(law_chaos) = extract_byte(fields, "LawfulChaotic") {
+            self.data.alignment_horizontal = law_chaos_to_axis(law_chaos);
+        }
+
+        if let Some(bg) = fields.get("CharBackground").and_then(gff_value_to_u32) {
+            self.data.background_id = bg;
+        }
+
         if let Some(deity) = extract_string(fields, "Deity") {
             self.data.deity = deity;
         }
@@ -152,6 +167,13 @@ impl PlayerInfo {
         if let Some(cha_val) = extract_byte(fields, "Cha") {
             self.data.cha_score = u32::from(cha_val);
         }
+
+        self.data.str_mod = calculate_modifier(self.data.str_score as i32);
+        self.data.dex_mod = calculate_modifier(self.data.dex_score as i32);
+        self.data.con_mod = calculate_modifier(self.data.con_score as i32);
+        self.data.int_mod = calculate_modifier(self.data.int_score as i32);
+        self.data.wis_mod = calculate_modifier(self.data.wis_score as i32);
+        self.data.cha_mod = calculate_modifier(self.data.cha_score as i32);
 
         self.data.classes = classes
             .iter()
@@ -183,9 +205,9 @@ impl PlayerInfo {
         data.subrace = read_string(cursor)?;
         data.alignment = read_string(cursor)?;
 
-        data.unknown2 = cursor.read_u32::<LittleEndian>()?;
-        data.unknown3 = cursor.read_u32::<LittleEndian>()?;
-        data.unknown4 = cursor.read_u32::<LittleEndian>()?;
+        data.alignment_vertical = cursor.read_u32::<LittleEndian>()?;
+        data.alignment_horizontal = cursor.read_u32::<LittleEndian>()?;
+        data.background_id = cursor.read_u32::<LittleEndian>()?;
 
         let class_count = cursor.read_u32::<LittleEndian>()?;
         if class_count > 20 {
@@ -219,12 +241,12 @@ impl PlayerInfo {
         data.cha_score = cursor.read_u32::<LittleEndian>()?;
 
         if cursor.position() < cursor.get_ref().len() as u64 {
-            data.unknown5 = cursor.read_i32::<LittleEndian>().unwrap_or(-1);
-            data.unknown6 = cursor.read_u32::<LittleEndian>().unwrap_or(2);
-            data.unknown7 = cursor.read_u32::<LittleEndian>().unwrap_or(2);
-            data.unknown8 = cursor.read_u32::<LittleEndian>().unwrap_or(0);
-            data.unknown9 = cursor.read_u32::<LittleEndian>().unwrap_or(6);
-            data.unknown10 = cursor.read_u32::<LittleEndian>().unwrap_or(0);
+            data.str_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
+            data.dex_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
+            data.con_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
+            data.int_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
+            data.wis_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
+            data.cha_mod = cursor.read_i32::<LittleEndian>().unwrap_or(0);
         }
 
         Ok(data)
@@ -288,9 +310,9 @@ impl PlayerInfo {
 
         write_string(writer, &self.data.subrace)?;
         write_string(writer, &self.data.alignment)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown2)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown3)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown4)?;
+        writer.write_u32::<LittleEndian>(self.data.alignment_vertical)?;
+        writer.write_u32::<LittleEndian>(self.data.alignment_horizontal)?;
+        writer.write_u32::<LittleEndian>(self.data.background_id)?;
 
         writer.write_u32::<LittleEndian>(self.data.classes.len() as u32)?;
         for class in &self.data.classes {
@@ -307,12 +329,12 @@ impl PlayerInfo {
         writer.write_u32::<LittleEndian>(self.data.wis_score)?;
         writer.write_u32::<LittleEndian>(self.data.cha_score)?;
 
-        writer.write_i32::<LittleEndian>(self.data.unknown5)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown6)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown7)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown8)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown9)?;
-        writer.write_u32::<LittleEndian>(self.data.unknown10)?;
+        writer.write_i32::<LittleEndian>(self.data.str_mod)?;
+        writer.write_i32::<LittleEndian>(self.data.dex_mod)?;
+        writer.write_i32::<LittleEndian>(self.data.con_mod)?;
+        writer.write_i32::<LittleEndian>(self.data.int_mod)?;
+        writer.write_i32::<LittleEndian>(self.data.wis_mod)?;
+        writer.write_i32::<LittleEndian>(self.data.cha_mod)?;
 
         Ok(())
     }
@@ -383,6 +405,30 @@ fn extract_byte(fields: &IndexMap<String, GffValue<'_>>, key: &str) -> Option<u8
         GffValue::Dword(v) => Some(*v as u8),
         GffValue::Int(v) => Some(*v as u8),
         _ => None,
+    }
+}
+
+/// Good/Evil GFF byte (0-100) -> playerinfo.bin encoding: 4=Good, 1=Neutral, 5=Evil.
+fn good_evil_to_axis(good_evil: u8) -> u32 {
+    let v = i32::from(good_evil);
+    if v >= ALIGNMENT_GOOD_THRESHOLD {
+        4
+    } else if v <= ALIGNMENT_EVIL_THRESHOLD {
+        5
+    } else {
+        1
+    }
+}
+
+/// Law/Chaos GFF byte (0-100) -> playerinfo.bin encoding: 2=Lawful, 1=Neutral, 3=Chaotic.
+fn law_chaos_to_axis(law_chaos: u8) -> u32 {
+    let v = i32::from(law_chaos);
+    if v >= ALIGNMENT_GOOD_THRESHOLD {
+        2
+    } else if v <= ALIGNMENT_EVIL_THRESHOLD {
+        3
+    } else {
+        1
     }
 }
 
