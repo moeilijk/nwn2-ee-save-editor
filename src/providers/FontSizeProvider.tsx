@@ -24,11 +24,10 @@ const FontSizeContext = createContext<FontSizeContextValue>({
 export const useFontSize = () => useContext(FontSizeContext);
 
 function applyFontSizeClass(size: FontSize) {
-  document.querySelectorAll('.bp-app').forEach((el) => {
-    el.classList.remove('font-size-small', 'font-size-large');
-    const cls = CSS_CLASSES[size];
-    if (cls) el.classList.add(cls);
-  });
+  const root = document.documentElement;
+  root.classList.remove('font-size-small', 'font-size-large');
+  const cls = CSS_CLASSES[size];
+  if (cls) root.classList.add(cls);
 }
 
 export function FontSizeProvider({ children }: { children: React.ReactNode }) {

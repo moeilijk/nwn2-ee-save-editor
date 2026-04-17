@@ -21,7 +21,7 @@
   --font-4xl: 28px;
 }
 
-.bp-app.font-size-small {
+html.font-size-small .bp-app {
   font-size: 12px;
   --font-xs: 9px;
   --font-sm: 10px;
@@ -34,7 +34,7 @@
   --font-4xl: 24px;
 }
 
-.bp-app.font-size-large {
+html.font-size-large .bp-app {
   font-size: 16px;
   --font-xs: 12px;
   --font-sm: 13px;
