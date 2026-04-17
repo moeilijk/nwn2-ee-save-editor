@@ -57,6 +57,7 @@ export interface UpdateItemResponse {
 
 export interface AddItemByBaseTypeRequest {
   base_item_id: number;
+  icon_template_resref?: string;
 }
 
 export interface AddToInventoryResponse {
@@ -276,9 +277,10 @@ export class InventoryAPI {
 
   async addItemByBaseType(characterId: number, request: AddItemByBaseTypeRequest): Promise<AddToInventoryResponse> {
       try {
-          const result = await invoke<any>('add_to_inventory', { 
-              baseItemId: request.base_item_id, 
-              stackSize: 1 
+          const result = await invoke<any>('add_to_inventory', {
+              baseItemId: request.base_item_id,
+              stackSize: 1,
+              iconTemplateResref: request.icon_template_resref ?? null,
           });
           return {
               success: result.success,

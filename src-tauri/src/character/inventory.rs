@@ -1412,6 +1412,7 @@ impl super::Character {
         &mut self,
         base_item_id: i32,
         stack_size: i32,
+        icon_id: Option<u32>,
         game_data: &GameData,
     ) -> Result<AddItemResult, CharacterError> {
         let base_item_data = self.get_base_item_data(base_item_id, game_data);
@@ -1461,6 +1462,9 @@ impl super::Character {
         new_item.insert("Identified".to_string(), GffValue::Byte(1));
         new_item.insert("Charges".to_string(), GffValue::Byte(0));
         new_item.insert("Cost".to_string(), GffValue::Int(0));
+        if let Some(id) = icon_id {
+            new_item.insert("Icon".to_string(), GffValue::Dword(id));
+        }
 
         let inventory_index = inv_list.len();
         inv_list.push(new_item);
@@ -2266,7 +2270,7 @@ impl super::Character {
             });
         }
 
-        self.add_item(base_item_id, 1, game_data)
+        self.add_item(base_item_id, 1, None, game_data)
     }
 
     pub fn get_all_base_items(&self, game_data: &GameData) -> Vec<BaseItemInfo> {

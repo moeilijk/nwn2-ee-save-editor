@@ -935,6 +935,17 @@ impl ResourceManager {
         modified
     }
 
+    pub fn get_item_template(&self, resref: &str) -> Option<TemplateInfo> {
+        let location = self.template_locations.get(resref)?;
+        Some(TemplateInfo {
+            resref: resref.to_string(),
+            container_type: location.container_type.clone(),
+            container_path: location.container_path.clone(),
+            internal_path: location.internal_path.clone(),
+            source: location.source.clone(),
+        })
+    }
+
     pub fn get_all_item_templates(&self) -> HashMap<String, TemplateInfo> {
         let mut templates = HashMap::new();
 

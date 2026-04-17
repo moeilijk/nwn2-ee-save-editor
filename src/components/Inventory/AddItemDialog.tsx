@@ -171,7 +171,8 @@ export function AddItemDialog({ isOpen, onClose, onItemAdded }: AddItemDialogPro
     try {
       let itemIndex: number | undefined;
       if (tab === 'base' && selectedBaseId !== null) {
-        const response = await addItemByBaseType(selectedBaseId);
+        const iconTemplate = templates.find(t => t.base_item === selectedBaseId);
+        const response = await addItemByBaseType(selectedBaseId, iconTemplate?.resref);
         itemIndex = response.item_index;
       } else if (tab === 'template' && selectedResref) {
         const response = await addItemFromTemplate(selectedResref);

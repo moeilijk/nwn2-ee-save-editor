@@ -40,10 +40,13 @@ export function useInventoryManagement() {
     return response;
   }, [character?.id, inventoryData]);
 
-  const addItemByBaseType = useCallback(async (baseItemId: number) => {
+  const addItemByBaseType = useCallback(async (baseItemId: number, iconTemplateResref?: string) => {
     if (!character?.id) throw new Error('No character loaded');
 
-    const response = await inventoryAPI.addItemByBaseType(character.id, { base_item_id: baseItemId });
+    const response = await inventoryAPI.addItemByBaseType(character.id, {
+      base_item_id: baseItemId,
+      icon_template_resref: iconTemplateResref,
+    });
     if (response.success) {
       await inventoryData.load({ silent: true });
     }

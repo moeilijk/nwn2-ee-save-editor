@@ -333,6 +333,10 @@ pub fn gff_value_to_i32(value: &GffValue<'_>) -> Option<i32> {
     }
 }
 
+pub fn gff_value_to_u32(value: &GffValue<'_>) -> Option<u32> {
+    gff_value_to_i32(value).and_then(|n| u32::try_from(n).ok())
+}
+
 pub fn gff_value_to_string(value: &GffValue<'_>) -> Option<String> {
     match value {
         GffValue::String(s) => Some(s.to_string()),

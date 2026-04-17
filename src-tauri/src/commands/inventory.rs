@@ -225,14 +225,31 @@ pub async fn add_to_inventory(
     state: State<'_, AppState>,
     base_item_id: i32,
     stack_size: i32,
+    icon_template_resref: Option<String>,
 ) -> CommandResult<AddItemResult> {
+    // Base-type creation produces a minimal item; without a real Icon the engine
+    // renders a red question mark or "MISSING 2D TEXTURE" in-game, so we borrow
+    // one from a .uti template matching this base item.
+    let icon_id: Option<u32> = if let Some(resref) = icon_template_resref {
+        let rm = state.resource_manager.read().await;
+        rm.get_item_template(&resref)
+            .and_then(|info| rm.get_item_template_fields(&info).ok())
+            .and_then(|fields| {
+                fields
+                    .get("Icon")
+                    .and_then(crate::character::gff_helpers::gff_value_to_u32)
+            })
+    } else {
+        None
+    };
+
     let game_data = state.game_data.read();
     let mut session = state.session.write();
     let character = session
         .character
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.add_item(base_item_id, stack_size, &game_data)?)
+    Ok(character.add_item(base_item_id, stack_size, icon_id, &game_data)?)
 }
 
 #[tauri::command]
