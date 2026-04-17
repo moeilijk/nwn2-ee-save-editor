@@ -35,9 +35,10 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const skeletonRef = useRef<{ skeleton: THREE.Skeleton; rootBone: THREE.Bone } | null>(null);
+  const skeletonsRef = useRef<Map<string, { skeleton: THREE.Skeleton; rootBone: THREE.Bone }>>(new Map());
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const attachedMixersRef = useRef<Map<string, THREE.AnimationMixer>>(new Map());
+  const playNextRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<THREE.Timer>(new THREE.Timer());
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -79,12 +80,16 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
   const partGroupName = (part: string) => `__part_${part}`;
 
+  const getSkeletonFor = (ref: string | null | undefined) => {
+    const key = ref ?? 'primary';
+    return skeletonsRef.current.get(key) ?? null;
+  };
+
   async function buildPartGroup(
     meshes: MeshData[],
     partName: string,
     tintMap: Record<string, TintColors>,
-    skeleton?: THREE.Skeleton,
-    rootBone?: THREE.Bone,
+    overrideSkeleton?: { skeleton: THREE.Skeleton; rootBone: THREE.Bone },
   ): Promise<THREE.Group> {
     const group = new THREE.Group();
     group.name = partGroupName(partName);
@@ -92,7 +97,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       if (/_L\d+$/i.test(meshData.name)) continue;
       const colors = tintMap[meshData.tint_group];
       const material = await createMaterial(meshData.material, colors);
-      const obj = buildMesh(meshData, material, skeleton, rootBone);
+      const bound = overrideSkeleton ?? getSkeletonFor(meshData.skeleton_ref);
+      const obj = buildMesh(meshData, material, bound?.skeleton, bound?.rootBone);
       group.add(obj);
     }
     return group;
@@ -103,12 +109,12 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     tintMap: Record<string, TintColors>,
   ): Promise<{ group: THREE.Group; mixer: THREE.AnimationMixer | null } | null> {
     if (!attached.skeleton) return null;
-    const { skeleton: attSkel, rootBone: attRoot } = buildSkeleton(attached.skeleton);
-    const group = await buildPartGroup(attached.meshes, attached.name, tintMap, attSkel, attRoot);
+    const built = buildSkeleton(attached.skeleton);
+    const group = await buildPartGroup(attached.meshes, attached.name, tintMap, built);
 
     let mixer: THREE.AnimationMixer | null = null;
     if (attached.animations.length > 0) {
-      const boneNames = attSkel.bones.map((b) => b.name);
+      const boneNames = new Set(built.skeleton.bones.map((b) => b.name));
       const clips = buildAnimationClips(attached.animations, boneNames);
       const idleClip = clips.find((c) => c.name.toLowerCase().includes('idle')) ?? clips[0];
       if (idleClip) {
@@ -145,6 +151,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     }
     for (const m of attachedMixersRef.current.values()) m.stopAllAction();
     attachedMixersRef.current.clear();
+    playNextRef.current = null;
 
     clearSceneModels(scene);
     setLoading(true);
@@ -155,14 +162,12 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
       const tintMap = getTintColors();
 
-      let skeleton: THREE.Skeleton | undefined;
-      let rootBone: THREE.Bone | undefined;
-
+      skeletonsRef.current.clear();
       if (data.skeleton) {
-        const result = buildSkeleton(data.skeleton);
-        skeleton = result.skeleton;
-        rootBone = result.rootBone;
-        skeletonRef.current = result;
+        skeletonsRef.current.set('primary', buildSkeleton(data.skeleton));
+      }
+      for (const ns of data.secondary_skeletons ?? []) {
+        skeletonsRef.current.set(ns.name, buildSkeleton(ns.skeleton));
       }
 
       const partBuckets: Record<string, MeshData[]> = {};
@@ -170,7 +175,6 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         (partBuckets[meshData.part] ??= []).push(meshData);
       }
 
-      // Pre-compute all materials in parallel
       const allMeshEntries: { meshData: MeshData; partName: string }[] = [];
       for (const [partName, meshes] of Object.entries(partBuckets)) {
         for (const meshData of meshes) {
@@ -188,6 +192,15 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       const modelGroup = new THREE.Group();
       modelGroup.name = '__model';
 
+      // Attach all skeleton root bones to modelGroup BEFORE building meshes,
+      // so buildMesh's `if (!rootBone.parent) skinnedMesh.add(rootBone)`
+      // fallback doesn't re-parent any skeleton onto a mesh.
+      for (const entry of skeletonsRef.current.values()) {
+        if (!entry.rootBone.parent) {
+          modelGroup.add(entry.rootBone);
+        }
+      }
+
       const partGroups = new Map<string, THREE.Group>();
       for (let i = 0; i < allMeshEntries.length; i++) {
         const { meshData, partName } = allMeshEntries[i];
@@ -201,7 +214,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
           modelGroup.add(group);
         }
 
-        const obj = buildMesh(meshData, material, skeleton, rootBone);
+        const bound = getSkeletonFor(meshData.skeleton_ref);
+        const obj = buildMesh(meshData, material, bound?.skeleton, bound?.rootBone);
         group.add(obj);
       }
 
@@ -217,8 +231,13 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       frameBounds(camera, controls, scene, modelGroup);
 
       // Set up idle animation with fidget rotation
-      if (data.animations && data.animations.length > 0 && skeletonRef.current) {
-        const boneNames = skeletonRef.current.skeleton.bones.map((b) => b.name);
+      if (data.animations && data.animations.length > 0 && skeletonsRef.current.size > 0) {
+        const boneNames = new Set<string>();
+        for (const entry of skeletonsRef.current.values()) {
+          for (const b of entry.skeleton.bones) {
+            boneNames.add(b.name);
+          }
+        }
 
         const clips = buildAnimationClips(data.animations, boneNames);
         if (clips.length > 0) {
@@ -285,6 +304,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
             }
           });
 
+          playNextRef.current = playNext;
           playNext();
         }
       }
@@ -308,11 +328,42 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     try {
       const data: ModelData = await invoke('load_character_part', { part });
       const tintMap = getTintColors();
-      const skel = skeletonRef.current;
 
       const old = modelGroup.getObjectByName(partGroupName(part));
       if (old) modelGroup.remove(old);
       disposeAttachedMixer(part);
+
+      // Reconcile cape skeleton when swapping the cloak. Body/head/etc. never
+      // change their skeleton mid-session, so only the 'cloak' part path
+      // touches secondary skeletons.
+      let capeTopologyChanged = false;
+      if (part === 'cloak') {
+        const newCape = (data.secondary_skeletons ?? []).find((s) => s.name === 'cape') ?? null;
+        const existingCape = skeletonsRef.current.get('cape') ?? null;
+
+        if (newCape && !existingCape) {
+          const built = buildSkeleton(newCape.skeleton);
+          skeletonsRef.current.set('cape', built);
+          if (!built.rootBone.parent) modelGroup.add(built.rootBone);
+          capeTopologyChanged = true;
+        } else if (!newCape && existingCape) {
+          existingCape.rootBone.parent?.remove(existingCape.rootBone);
+          skeletonsRef.current.delete('cape');
+          capeTopologyChanged = true;
+        } else if (newCape && existingCape) {
+          const sameCount = newCape.skeleton.bones.length === existingCape.skeleton.bones.length;
+          const sameNames = sameCount && newCape.skeleton.bones.every(
+            (b, i) => b.name === existingCape.skeleton.bones[i].name,
+          );
+          if (!sameNames) {
+            existingCape.rootBone.parent?.remove(existingCape.rootBone);
+            const built = buildSkeleton(newCape.skeleton);
+            skeletonsRef.current.set('cape', built);
+            if (!built.rootBone.parent) modelGroup.add(built.rootBone);
+            capeTopologyChanged = true;
+          }
+        }
+      }
 
       const attached = data.attached_parts?.find((p) => p.name === part);
       if (attached) {
@@ -322,8 +373,12 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
           if (built.mixer) attachedMixersRef.current.set(part, built.mixer);
         }
       } else if (data.meshes.length > 0) {
-        const newGroup = await buildPartGroup(data.meshes, part, tintMap, skel?.skeleton, skel?.rootBone);
+        const newGroup = await buildPartGroup(data.meshes, part, tintMap);
         modelGroup.add(newGroup);
+      }
+
+      if (capeTopologyChanged && playNextRef.current) {
+        playNextRef.current();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : typeof err === 'object' ? JSON.stringify(err) : String(err));

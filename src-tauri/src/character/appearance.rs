@@ -854,20 +854,26 @@ impl Character {
             }
 
             if is_cloak {
-                let variation = item_struct
-                    .get("Variation")
+                // For cloaks, the mesh variation lives in ModelPart1 — the
+                // top-level Variation field holds an item sub-type and does
+                // not map to `P_???_CL_Cloak{NN}.mdb`. Fall back to Variation
+                // only if ModelPart1 is missing/zero.
+                let model_part1 = item_struct
+                    .get("ModelPart1")
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
+                let variation = if model_part1 > 0 {
+                    model_part1
+                } else {
+                    item_struct
+                        .get("Variation")
+                        .and_then(gff_value_to_i32)
+                        .unwrap_or(0)
+                };
                 if variation > 0 {
                     result.cloak_variation = Some(variation);
-                    let tintable = match item_struct.get("Tintable") {
-                        Some(GffValue::StructOwned(s)) => Some(s.as_ref().clone()),
-                        Some(GffValue::Struct(lazy)) => Some(lazy.force_load()),
-                        _ => None,
-                    };
-                    if let Some(ref t) = tintable {
-                        result.cloak_tint = Some(read_tint_from_tintable(t));
-                    }
+                    result.cloak_tint =
+                        Self::read_item_tint_with_fallback(item_struct, resource_manager);
                     debug!(
                         "Cloak variation: {variation}, tint: {:?}",
                         result.cloak_tint
@@ -877,6 +883,29 @@ impl Character {
         }
 
         result
+    }
+
+    /// Read an item's tint from its `Tintable` struct, falling back to the
+    /// item template (.uti) when the saved tint is all zero.
+    fn read_item_tint_with_fallback(
+        item_struct: &IndexMap<String, GffValue<'static>>,
+        resource_manager: &crate::services::resource_manager::ResourceManager,
+    ) -> Option<TintChannels> {
+        let tintable = match item_struct.get("Tintable") {
+            Some(GffValue::StructOwned(s)) => Some(s.as_ref().clone()),
+            Some(GffValue::Struct(lazy)) => Some(lazy.force_load()),
+            _ => None,
+        };
+        if let Some(ref t) = tintable {
+            let tint = read_tint_from_tintable(t);
+            let has_color = [&tint.channel1, &tint.channel2, &tint.channel3]
+                .iter()
+                .any(|ch| ch.r > 0 || ch.g > 0 || ch.b > 0);
+            if has_color {
+                return Some(tint);
+            }
+        }
+        Self::load_template_tint(item_struct, resource_manager)
     }
 
     fn load_template_tint(

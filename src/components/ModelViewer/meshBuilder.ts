@@ -89,14 +89,14 @@ export function buildMesh(
 
 export function buildAnimationClips(
   animations: AnimationData[],
-  boneNames: string[],
+  knownBoneNames: Set<string>,
 ): THREE.AnimationClip[] {
   return animations
     .map((anim) => {
       const tracks: THREE.KeyframeTrack[] = [];
 
       for (const track of anim.tracks) {
-        if (!boneNames.includes(track.bone_name)) continue;
+        if (!knownBoneNames.has(track.bone_name)) continue;
 
         const bonePath = track.bone_name;
 

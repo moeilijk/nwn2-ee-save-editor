@@ -6,7 +6,7 @@ use tracing::{debug, info, warn};
 
 use crate::character::{AppearanceOption, AppearanceState, Character, TintChannels};
 use crate::commands::{CommandError, CommandResult};
-use crate::services::model_loader::{self, AttachedPart, MeshData, ModelData};
+use crate::services::model_loader::{self, AttachedPart, MeshData, ModelData, NamedSkeleton};
 use crate::services::resource_manager::ResourceManager;
 use crate::state::AppState;
 
@@ -341,11 +341,19 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
-    // Cloak
-    if let Some(ref cloak_resref) = parts.cloak_resref {
-        match load_part(cloak_resref, "cloak", "cloak") {
-            Ok(meshes) => all_meshes.extend(meshes),
-            Err(e) => warn!("Failed to load cloak model '{}': {}", cloak_resref, e),
+    let mut secondary_skeletons: Vec<NamedSkeleton> = Vec::new();
+    if let (Some(cloak_resref), Some(body_skel), Some(body_pal)) =
+        (&parts.cloak_resref, skeleton.as_ref(), palettes.as_ref())
+    {
+        let cape = model_loader::load_cape_skeleton_for_body(&rm, &parts.naked_body_resref);
+        match model_loader::load_cloak(&rm, cloak_resref, body_skel, body_pal, cape) {
+            Ok((meshes, cape_ns)) => {
+                all_meshes.extend(meshes);
+                if let Some(ns) = cape_ns {
+                    secondary_skeletons.push(ns);
+                }
+            }
+            Err(e) => warn!("Failed to load cloak '{}': {}", cloak_resref, e),
         }
     }
 
@@ -363,6 +371,7 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         skeleton,
         animations,
         attached_parts,
+        secondary_skeletons,
     })
 }
 
@@ -398,6 +407,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
 
     let mut meshes: Vec<MeshData> = Vec::new();
     let mut attached_parts: Vec<AttachedPart> = Vec::new();
+    let mut secondary_skeletons: Vec<NamedSkeleton> = Vec::new();
 
     match part.as_str() {
         "head" => {
@@ -475,10 +485,19 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
             }
         }
         "cloak" => {
-            if let Some(ref resref) = parts.cloak_resref
-                && let Ok(cloak_meshes) = load_with_skel(resref, "cloak", "cloak")
+            if let (Some(resref), Some(body_skel), Some(body_pal)) =
+                (&parts.cloak_resref, skeleton.as_ref(), palettes.as_ref())
             {
-                meshes.extend(cloak_meshes);
+                let cape = model_loader::load_cape_skeleton_for_body(&rm, &parts.naked_body_resref);
+                match model_loader::load_cloak(&rm, resref, body_skel, body_pal, cape) {
+                    Ok((ms, cape_ns)) => {
+                        meshes.extend(ms);
+                        if let Some(ns) = cape_ns {
+                            secondary_skeletons.push(ns);
+                        }
+                    }
+                    Err(e) => warn!("Failed to load cloak '{}': {}", resref, e),
+                }
             }
         }
         _ => {
@@ -494,6 +513,7 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
         skeleton: None,
         animations: Vec::new(),
         attached_parts,
+        secondary_skeletons,
     })
 }
 

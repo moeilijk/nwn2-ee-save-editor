@@ -90,6 +90,8 @@ pub struct ModelData {
     pub animations: Vec<AnimationData>,
     #[serde(default)]
     pub attached_parts: Vec<AttachedPart>,
+    #[serde(default)]
+    pub secondary_skeletons: Vec<NamedSkeleton>,
 }
 
 /// A model segment rendered with its own skeleton (e.g. creature wings/tails)
@@ -101,6 +103,15 @@ pub struct AttachedPart {
     pub skeleton: Option<SkeletonData>,
     pub animations: Vec<AnimationData>,
     pub attach_bone: Option<String>,
+}
+
+/// Secondary skeleton attached to the same animated model as the primary body
+/// skeleton. Cape bones live here so they can be animated by the shared body
+/// idle/fidget tracks without being part of the body bone palette.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamedSkeleton {
+    pub name: String,
+    pub skeleton: SkeletonData,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,6 +144,8 @@ pub struct MeshData {
     pub bone_weights: Option<Vec<f32>>,
     pub bone_indices: Option<Vec<u8>>,
     pub material: MaterialData,
+    #[serde(default)]
+    pub skeleton_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,6 +193,22 @@ pub struct HelmData {
     pub hiding_behavior: u32,
     pub position: [f32; 3],
     pub orientation: [[f32; 3]; 3],
+}
+
+/// Resolve and load the cape skeleton for a character body resref
+/// (e.g. `"P_HHM_NK_Body01"`). Returns `None` if the prefix has no cape
+/// skeleton (non-humanoid races) or the GR2 is missing.
+pub fn load_cape_skeleton_for_body(
+    rm: &ResourceManager,
+    body_resref: &str,
+) -> Option<(String, SkeletonData)> {
+    let upper = body_resref.to_uppercase();
+    if upper.len() < 6 {
+        return None;
+    }
+    let cape_name = guess_cloak_skeleton(&upper[..6])?;
+    let skel = load_skeleton(rm, cape_name)?;
+    Some((cape_name.to_string(), skel))
 }
 
 pub fn head_has_fhair_meshes(resource_manager: &ResourceManager, head_resref: &str) -> bool {
@@ -258,6 +287,75 @@ pub fn load_meshes_with_existing_skeleton(
     Ok(data.meshes)
 }
 
+/// Load a cloak MDB, routing it to the cape skeleton when the MDB declares a
+/// `*capewing_skel` AND a cape skeleton is provided. Otherwise the cloak is
+/// rigged against the body skeleton (unique full-body cloaks).
+///
+/// Returns the meshes and, when the cape path was taken, the cape skeleton
+/// (consumed from the input) wrapped as a `NamedSkeleton` for the caller to
+/// register as a secondary skeleton. Parses the MDB exactly once.
+pub fn load_cloak(
+    rm: &ResourceManager,
+    resref: &str,
+    body_skeleton: &SkeletonData,
+    body_palettes: &BonePalettes,
+    cape: Option<(String, SkeletonData)>,
+) -> Result<(Vec<MeshData>, Option<NamedSkeleton>), String> {
+    let (mut data, mdb) = parse_mdb(rm, resref, "cloak", "cloak")?;
+
+    let wants_cape = mdb
+        .skin_meshes
+        .first()
+        .map(|sm| sm.skeleton_name.to_lowercase().contains("capewing"))
+        .unwrap_or(false);
+
+    if wants_cape && let Some((_cape_name, cape_skel)) = cape {
+        let palette = build_cape_bone_palette(&cape_skel);
+        remap_cloak_bone_indices(&mut data.meshes, &palette, cape_skel.bones.len());
+        return Ok((
+            data.meshes,
+            Some(NamedSkeleton {
+                name: "cape".to_string(),
+                skeleton: cape_skel,
+            }),
+        ));
+    }
+
+    remap_mesh_bone_indices(&mut data.meshes, body_palettes, body_skeleton);
+    Ok((data.meshes, None))
+}
+
+fn remap_cloak_bone_indices(meshes: &mut [MeshData], cape_palette: &[usize], bone_count: usize) {
+    for mesh in meshes.iter_mut() {
+        if let Some(ref mut indices) = mesh.bone_indices {
+            for idx in indices.iter_mut() {
+                let i = *idx as usize;
+                let skel_idx = if i < cape_palette.len() {
+                    cape_palette[i]
+                } else {
+                    i
+                };
+                *idx = skel_idx as u8;
+            }
+        }
+        if mesh.mesh_type == "skin" {
+            mesh.skeleton_ref = Some("cape".to_string());
+        }
+    }
+
+    for mesh in meshes.iter() {
+        if let Some(ref indices) = mesh.bone_indices {
+            let max = indices.iter().copied().max().unwrap_or(0) as usize;
+            if max >= bone_count {
+                warn!(
+                    "Cloak mesh '{}' has bone index {} >= cape skeleton bone count {}",
+                    mesh.name, max, bone_count
+                );
+            }
+        }
+    }
+}
+
 fn parse_mdb(
     resource_manager: &ResourceManager,
     resref: &str,
@@ -319,6 +417,7 @@ fn parse_mdb(
         skeleton: None,
         animations: Vec::new(),
         attached_parts: Vec::new(),
+        secondary_skeletons: Vec::new(),
     };
 
     Ok((data, mdb))
@@ -534,6 +633,7 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> Mes
         bone_weights: None,
         bone_indices: None,
         material: convert_material(&rm.material),
+        skeleton_ref: None,
     }
 }
 
@@ -567,6 +667,19 @@ pub fn build_bone_palettes(skeleton: &SkeletonData) -> BonePalettes {
     }
 
     BonePalettes { body, face }
+}
+
+/// Palette for secondary skeletons (cape, tail). Unlike the body palette,
+/// there is no face/Ribcage special casing — only `ap_*` attachment points
+/// are skipped. Order matches skeleton bone order.
+pub fn build_cape_bone_palette(skeleton: &SkeletonData) -> Vec<usize> {
+    skeleton
+        .bones
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| !b.name.starts_with("ap_"))
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// Remap MDB bone_indices from palette space to full-skeleton space.
@@ -688,5 +801,55 @@ fn flatten_skin_mesh(sm: &SkinMeshPacket, part: &str, tint_group: &str) -> MeshD
         bone_weights: Some(bone_weights),
         bone_indices: Some(bone_indices),
         material: convert_material(&sm.material),
+        skeleton_ref: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bone(name: &str, parent: i32) -> BoneData {
+        BoneData {
+            name: name.to_string(),
+            parent_index: parent,
+            position: [0.0, 0.0, 0.0],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            scale: [1.0, 1.0, 1.0],
+            inverse_world_4x4: vec![
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            ],
+        }
+    }
+
+    #[test]
+    fn test_build_cape_bone_palette_skips_ap_prefix() {
+        let skel = SkeletonData {
+            bones: vec![
+                bone("P_HHMcapewing_skel", -1),
+                bone("ap_tail", 0),
+                bone("MCape1", 0),
+                bone("MCape2", 2),
+                bone("ap_wings", 0),
+                bone("LCape1", 0),
+            ],
+        };
+
+        let palette = build_cape_bone_palette(&skel);
+        assert_eq!(palette, vec![0, 2, 3, 5]);
+    }
+
+    #[test]
+    fn test_build_cape_bone_palette_empty_skeleton() {
+        let skel = SkeletonData { bones: Vec::new() };
+        assert!(build_cape_bone_palette(&skel).is_empty());
+    }
+
+    #[test]
+    fn test_build_cape_bone_palette_only_ap_bones() {
+        let skel = SkeletonData {
+            bones: vec![bone("ap_wings", -1), bone("ap_tail", -1)],
+        };
+        assert!(build_cape_bone_palette(&skel).is_empty());
     }
 }

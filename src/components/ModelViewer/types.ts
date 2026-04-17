@@ -19,6 +19,7 @@ export interface MeshData {
   bone_weights: number[] | null;
   bone_indices: number[] | null;
   material: MaterialData;
+  skeleton_ref?: string | null;
 }
 
 export interface BoneData {
@@ -72,6 +73,11 @@ export interface AttachedPart {
   attach_bone: string | null;
 }
 
+export interface NamedSkeleton {
+  name: string;
+  skeleton: { bones: BoneData[] };
+}
+
 export interface ModelData {
   meshes: MeshData[];
   hooks: HookData[];
@@ -80,4 +86,5 @@ export interface ModelData {
   skeleton: { bones: BoneData[] } | null;
   animations: AnimationData[];
   attached_parts?: AttachedPart[];
+  secondary_skeletons?: NamedSkeleton[];
 }
