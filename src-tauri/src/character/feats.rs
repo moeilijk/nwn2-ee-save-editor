@@ -988,25 +988,7 @@ impl Character {
     }
 
     pub fn is_domain_epithet_feat(&self, feat_id: FeatId, game_data: &GameData) -> bool {
-        let Some(domains_table) = game_data.get_table("domains") else {
-            return false;
-        };
-
-        for row_id in 0..domains_table.row_count() {
-            let Some(domain_data) = domains_table.get_by_id(row_id as i32) else {
-                continue;
-            };
-
-            let epithet = domain_data
-                .get("epithetfeat")
-                .and_then(|s| s.as_ref()?.parse::<i32>().ok());
-
-            if epithet == Some(feat_id.0) {
-                return true;
-            }
-        }
-
-        false
+        self.find_domain_for_feat(feat_id, game_data).is_some()
     }
 
     pub fn add_domain(
@@ -1113,37 +1095,23 @@ impl Character {
     }
 
     /// Domain slots (`Domain1`, `Domain2`) are stored as GFF `Byte` per NWN2 schema;
-    /// the game engine checks these fields on the divine-caster class entry, not the feat list.
+    /// the engine reads them from the divine-caster class entry. When no divine caster is
+    /// present we fall back to the first class entry - the granted feats still land in
+    /// `FeatList`, though the engine may ignore the slot itself.
     fn assign_domain_slot(
         &mut self,
         domain_id: DomainId,
         game_data: &GameData,
     ) -> Result<(), CharacterError> {
-        let divine_idx = {
-            let class_list = self
-                .get_list("ClassList")
-                .ok_or(CharacterError::FieldMissing { field: "ClassList" })?;
-            let class_ids: Vec<(usize, i32)> = class_list
-                .iter()
-                .enumerate()
-                .filter_map(|(i, e)| {
-                    e.get("Class")
-                        .and_then(gff_value_to_i32)
-                        .map(|cid| (i, cid))
-                })
-                .collect();
-            class_ids
-                .into_iter()
-                .find(|&(_, cid)| self.is_divine_caster(ClassId(cid), game_data))
-                .map(|(i, _)| i)
-        };
-
-        let Some(idx) = divine_idx else {
-            return Err(CharacterError::ValidationFailed {
-                field: "ClassList",
-                message: "No divine-caster class found for domain assignment".to_string(),
-            });
-        };
+        let idx = self
+            .get_list("ClassList")
+            .ok_or(CharacterError::FieldMissing { field: "ClassList" })?
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| e.get("Class").and_then(gff_value_to_i32).map(|cid| (i, cid)))
+            .find(|&(_, cid)| self.is_divine_caster(ClassId(cid), game_data))
+            .map(|(i, _)| i)
+            .unwrap_or(0);
 
         let class_list = self.get_list_mut("ClassList").unwrap();
         let entry = &mut class_list[idx];
@@ -1191,21 +1159,19 @@ impl Character {
         }
     }
 
-    /// If feat_id is a granted/castable/epithet feat for any domain, return that domain's ID.
+    /// If feat_id is the epithet feat for a domain, return that domain's ID. Only epithet feats
+    /// uniquely identify a domain - granted/castable feats are frequently general-purpose feats
+    /// (e.g. Iron Will granted by LAW, Improved Initiative granted by Time) that would otherwise
+    /// hijack plain feat adds/removes.
     pub fn find_domain_for_feat(&self, feat_id: FeatId, game_data: &GameData) -> Option<DomainId> {
         let domains_table = game_data.get_table("domains")?;
         for row_id in 0..domains_table.row_count() {
             let Some(domain_data) = domains_table.get_by_id(row_id as i32) else {
                 continue;
             };
-            for field in ["grantedfeat", "castablefeat", "epithetfeat"] {
-                let owned = domain_data
-                    .get(field)
-                    .and_then(|s| s.as_ref()?.parse::<i32>().ok())
-                    .filter(|&id| id >= 0);
-                if owned == Some(feat_id.0) {
-                    return Some(DomainId(row_id as i32));
-                }
+            let epithet = row_int(&domain_data, "epithetfeat", -1);
+            if epithet >= 0 && epithet == feat_id.0 {
+                return Some(DomainId(row_id as i32));
             }
         }
         None
