@@ -78,6 +78,9 @@ pub struct CharacterModelParts {
     pub cloak_resref: Option<String>,
     pub cloak_tint: Option<TintChannels>,
     pub armor_tint: Option<TintChannels>,
+    /// Accessories parsed off the equipped chest item (pauldrons, bracers, …).
+    /// Empty / defaulted when no chest armor is equipped.
+    pub chest_accessories: super::item_appearance::ArmorAccessories,
 }
 
 struct PartVisual {
@@ -94,6 +97,7 @@ struct EquippedVisuals {
     cloak_variation: Option<i32>,
     cloak_tint: Option<TintChannels>,
     armor_tint: Option<TintChannels>,
+    chest_accessories: super::item_appearance::ArmorAccessories,
 }
 
 impl Character {
@@ -447,6 +451,24 @@ impl Character {
         options
     }
 
+    /// Resolve this character's race/gender body prefix
+    /// (e.g. `P_EEM` for elf male, `P_HHF` for human female).
+    /// Returns `None` if the appearance/gender lookup tables are missing.
+    /// Drives the item viewer so previewed armor sits on the same body the
+    /// character actually has in-game — drow uses the elf model so a
+    /// hardcoded `P_HHM` would produce a totally different silhouette.
+    pub fn body_prefix(&self, game_data: &GameData) -> Option<String> {
+        let appearance_id = self.appearance_type();
+        let row = game_data
+            .get_table("appearance")?
+            .get_by_id(appearance_id)?;
+        let gender_id = self.gender();
+        let gender_row = game_data.get_table("gender")?.get_by_id(gender_id)?;
+        let gender_letter = row_str(&gender_row, "gender").unwrap_or_else(|| "M".to_string());
+        let body_template = row_str(&row, "nwn2_model_body")?;
+        Some(body_template.replace('?', &gender_letter))
+    }
+
     pub fn resolve_model_parts(
         &self,
         game_data: &GameData,
@@ -600,6 +622,7 @@ impl Character {
             cloak_resref,
             cloak_tint: equip_visuals.cloak_tint,
             armor_tint: equip_visuals.armor_tint,
+            chest_accessories: equip_visuals.chest_accessories,
         })
     }
 
@@ -679,6 +702,7 @@ impl Character {
             cloak_variation: None,
             cloak_tint: None,
             armor_tint: None,
+            chest_accessories: super::item_appearance::ArmorAccessories::default(),
         };
 
         let Some(equip_list) = self.get_list_owned("Equip_ItemList") else {
@@ -730,7 +754,11 @@ impl Character {
                     .unwrap_or(0);
 
                 result.armor_prefixes = resolve_armor_prefix(game_data, visual_type, false);
-                // Variation is 0-indexed in GFF, body mesh files are 1-indexed (Body01, Body02...)
+                // GFF stores Variation 0-indexed (toolset displays the raw
+                // value as "Variation 0", "Variation 1", ...) while the on-
+                // disk mesh filenames are 1-indexed (Body01 is the first
+                // variant). The engine adds 1 at render time; mirror that
+                // here so the character viewer matches the in-game look.
                 result.armor_variation = item_struct
                     .get("Variation")
                     .and_then(gff_value_to_i32)
@@ -788,6 +816,12 @@ impl Character {
                     }
                 }
                 debug!("Armor tint: {:?}", result.armor_tint);
+
+                // Parse all 22 AC* accessory slots (pauldrons, bracers, greaves,
+                // …) so the character viewer can render them the same way the
+                // item viewer does.
+                result.chest_accessories =
+                    super::item_appearance::ItemAppearance::from_gff(item_struct).accessories;
 
                 // Boots and Gloves are nested structs with their own ArmorVisualType + Variation
                 let boots_fields = match item_struct.get("Boots") {

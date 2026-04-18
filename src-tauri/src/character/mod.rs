@@ -51,7 +51,10 @@ pub use inventory::{
     FullEncumbrance, FullEquippedItem, FullInventoryItem, FullInventorySummary, InventoryItem,
     ItemProficiencyInfo, ProficiencyRequirement, RemoveItemResult, UnequipResult, WeightStatus,
 };
-pub use item_appearance::{ItemAppearance, ItemAppearanceOptions};
+pub use item_appearance::{
+    AccessorySlot, AccessorySlotData, ArmorAccessories, ItemAppearance, ItemAppearanceOptions,
+    RenderableAccessory, resref_attach_bone_and_slot,
+};
 pub use overview::OverviewState;
 pub use race::{SizeCategory, SubraceInfo};
 pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};

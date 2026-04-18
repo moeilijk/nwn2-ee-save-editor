@@ -246,7 +246,7 @@ async fn diagnose_item_models() {
             .unwrap();
 
             // Show the actual resref groups the resolver produces
-            let groups = appearance.resolve_model_resrefs(base_item, game_data);
+            let groups = appearance.resolve_model_resrefs(base_item, game_data, None);
             writeln!(out, "  resolved groups:").unwrap();
             for (gi, g) in groups.iter().enumerate() {
                 writeln!(out, "    group[{gi}]: {g:?}").unwrap();

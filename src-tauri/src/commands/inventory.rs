@@ -876,7 +876,8 @@ pub async fn update_item(
         })?;
         character.update_equipped_item(slot, &request.item_data)?;
         if let Some(appearance) = &request.appearance {
-            character.apply_equipped_item_appearance(slot, appearance)?;
+            let game_data = state.game_data.read();
+            character.apply_equipped_item_appearance(slot, appearance, &game_data)?;
         }
         Ok(UpdateItemResponse {
             success: true,
@@ -886,7 +887,8 @@ pub async fn update_item(
     } else if let Some(index) = request.item_index {
         character.update_inventory_item(index, &request.item_data)?;
         if let Some(appearance) = &request.appearance {
-            character.apply_inventory_item_appearance(index, appearance)?;
+            let game_data = state.game_data.read();
+            character.apply_inventory_item_appearance(index, appearance, &game_data)?;
         }
         Ok(UpdateItemResponse {
             success: true,

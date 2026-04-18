@@ -9,12 +9,36 @@ use crate::state::AppState;
 pub fn get_item_appearance_options(
     state: State<'_, AppState>,
     base_item_id: i32,
+    armor_visual_type: Option<i32>,
 ) -> Result<ItemAppearanceOptions, String> {
-    debug!("Getting appearance options for base item: {}", base_item_id);
     let game_data = state.game_data.read();
     let rm = state.resource_manager.blocking_read();
+    let body_prefix = current_body_prefix(&state, &game_data);
+    debug!(
+        "Getting appearance options for base item: {} (vt={:?}, body={:?})",
+        base_item_id, armor_visual_type, body_prefix
+    );
 
-    Ok(ItemAppearance::get_options(base_item_id, &game_data, &rm))
+    Ok(ItemAppearance::get_options(
+        base_item_id,
+        armor_visual_type,
+        body_prefix.as_deref(),
+        &game_data,
+        &rm,
+    ))
+}
+
+/// Look up the loaded character's race/gender body prefix (e.g. `P_EEM`)
+/// so the item viewer previews armor on the same body it sits on in-game.
+/// Returns `None` when there's no character loaded — the resolver then
+/// falls back to its `P_HHM` default.
+fn current_body_prefix(
+    state: &State<'_, AppState>,
+    game_data: &crate::loaders::GameData,
+) -> Option<String> {
+    let session = state.session.read();
+    let character = session.character.as_ref()?;
+    character.body_prefix(game_data)
 }
 
 #[tauri::command]
@@ -23,51 +47,98 @@ pub fn load_item_model(
     appearance: ItemAppearance,
     base_item_id: i32,
 ) -> Result<ModelData, String> {
-    info!(
-        "Loading item model for base item {}, appearance: {:?}",
-        base_item_id, appearance
-    );
     let game_data = state.game_data.read();
     let rm = state.resource_manager.blocking_read();
 
-    let resrefs = appearance.resolve_model_resrefs(base_item_id, &game_data);
+    // Snapshot the base item label up front so the per-item summary stays on a
+    // single line regardless of how many fallbacks we try.
+    let base_label = game_data
+        .get_table("baseitems")
+        .and_then(|t| t.get_by_id(base_item_id))
+        .and_then(|row| {
+            crate::utils::parsing::row_str(&row, "label")
+                .or_else(|| crate::utils::parsing::row_str(&row, "modeltype"))
+        })
+        .unwrap_or_else(|| format!("base_item_{base_item_id}"));
 
-    // Items with no in-world model (amulets, rings, misc.) resolve to zero resrefs.
-    // Return an empty ModelData so the frontend can render a "no preview" placeholder
-    // rather than surfacing a load error.
-    if resrefs.is_empty() {
-        info!("No model resrefs for base item {base_item_id}; returning empty ModelData");
+    let body_prefix = current_body_prefix(&state, &game_data);
+    let groups = appearance.resolve_model_resrefs(base_item_id, &game_data, body_prefix.as_deref());
+
+    if groups.is_empty() {
+        info!(
+            target: "item_model",
+            "ITEM base={base_label}(#{base_item_id}) BODY={:?} VARIATION={} MP={:?} VT={:?} -> NO_MODEL",
+            body_prefix, appearance.variation, appearance.model_parts, appearance.armor_visual_type
+        );
         return Ok(ModelData::default());
     }
 
     let mut combined_data = ModelData::default();
+    let mut loaded_resrefs: Vec<String> = Vec::new();
 
-    for resref in resrefs {
-        // Tag meshes with their part letter (a/b/c) so the frontend can swap them individually.
-        let part_tag = match resref.to_lowercase().as_bytes() {
-            [.., b'_', b'a'] => "item_a",
-            [.., b'_', b'b'] => "item_b",
-            [.., b'_', b'c'] => "item_c",
-            _ => "item",
-        };
-        debug!("Adding part to item model: {} (part={})", resref, part_tag);
-        match model_loader::load_model(&rm, &resref, part_tag, "item") {
-            Ok(data) => {
-                combined_data.meshes.extend(data.meshes);
-                combined_data.hooks.extend(data.hooks);
-                combined_data.hair.extend(data.hair);
-                combined_data.helm.extend(data.helm);
-                // Items usually don't have skeletons, but if they do (rare), we'll take the first one
-                if combined_data.skeleton.is_none() {
-                    combined_data.skeleton = data.skeleton;
-                    combined_data.animations = data.animations;
+    // Each outer group represents an independent model part (e.g. the _a/_b/_c
+    // pieces of a 3-part weapon, or the body/nested-boots/nested-gloves of an
+    // armor set). Within a group the candidates are ordered fallbacks — the
+    // first one that loads wins, the rest are skipped.
+    for group in &groups {
+        let mut group_hit: Option<String> = None;
+        for resref in group {
+            let part_tag = match resref.to_lowercase().as_bytes() {
+                [.., b'_', b'a'] => "item_a",
+                [.., b'_', b'b'] => "item_b",
+                [.., b'_', b'c'] => "item_c",
+                _ => "item",
+            };
+            match model_loader::load_model(&rm, resref, part_tag, "item") {
+                Ok(mut data) => {
+                    // Accessory resrefs: pull the slot's bone + per-slot
+                    // tints off `appearance.accessories` so each accessory
+                    // parents correctly and keeps its own colour. Returns
+                    // None for non-accessory resrefs (body/boots/etc.).
+                    if let Some((bone, slot)) =
+                        crate::character::resref_attach_bone_and_slot(resref)
+                    {
+                        let tints = appearance.accessories.get_tints(slot).cloned();
+                        for m in &mut data.meshes {
+                            m.attach_bone = Some(bone.to_string());
+                            if let Some(ref t) = tints {
+                                m.override_tints = Some(t.clone());
+                            }
+                        }
+                    }
+                    combined_data.meshes.extend(data.meshes);
+                    combined_data.hooks.extend(data.hooks);
+                    combined_data.hair.extend(data.hair);
+                    combined_data.helm.extend(data.helm);
+                    if combined_data.skeleton.is_none() {
+                        combined_data.skeleton = data.skeleton;
+                        combined_data.animations = data.animations;
+                    }
+                    group_hit = Some(resref.clone());
+                    break;
+                }
+                Err(e) => {
+                    debug!("Candidate '{resref}' failed: {e}. Trying next in group.");
                 }
             }
-            Err(e) => {
-                debug!("Failed to load part '{}': {}. Skipping.", resref, e);
-            }
         }
+        loaded_resrefs.push(group_hit.unwrap_or_else(|| format!("MISS({group:?})")));
     }
+
+    // Single-line summary so filtering with RUST_LOG=item_model=info is enough
+    // to see exactly what each item viewer load decided on.
+    info!(
+        target: "item_model",
+        "ITEM base={base_label}(#{base_item_id}) BODY={:?} VARIATION={} MP={:?} VT={:?} BOOTS={:?} GLOVES={:?} GROUPS={} LOADED={:?}",
+        body_prefix,
+        appearance.variation,
+        appearance.model_parts,
+        appearance.armor_visual_type,
+        appearance.boots,
+        appearance.gloves,
+        groups.len(),
+        loaded_resrefs
+    );
 
     // If every candidate resref failed to load, treat this as "no preview" —
     // frontend renders a placeholder instead of a red error overlay. Items that

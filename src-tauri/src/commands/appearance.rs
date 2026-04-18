@@ -341,6 +341,28 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
+    // Armor accessories (pauldrons, bracers, greaves, …): same renderable
+    // iterator the item viewer uses, so resref format / bone mapping / tint
+    // source stay in one place.
+    let accessory_body_prefix = character
+        .body_prefix(&game_data)
+        .unwrap_or_else(|| "P_HHM".to_string());
+    for acc in parts
+        .chest_accessories
+        .iter_renderable(&accessory_body_prefix)
+    {
+        match load_part(&acc.resref, "accessory", "body") {
+            Ok(meshes) => {
+                for mut m in meshes {
+                    m.attach_bone = Some(acc.attach_bone.to_string());
+                    m.override_tints = Some(acc.tints.clone());
+                    all_meshes.push(m);
+                }
+            }
+            Err(e) => debug!("Accessory '{}' skipped: {e}", acc.resref),
+        }
+    }
+
     let mut secondary_skeletons: Vec<NamedSkeleton> = Vec::new();
     if let (Some(cloak_resref), Some(body_skel), Some(body_pal)) =
         (&parts.cloak_resref, skeleton.as_ref(), palettes.as_ref())

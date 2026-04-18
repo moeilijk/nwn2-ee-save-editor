@@ -1108,7 +1108,11 @@ impl Character {
             .ok_or(CharacterError::FieldMissing { field: "ClassList" })?
             .iter()
             .enumerate()
-            .filter_map(|(i, e)| e.get("Class").and_then(gff_value_to_i32).map(|cid| (i, cid)))
+            .filter_map(|(i, e)| {
+                e.get("Class")
+                    .and_then(gff_value_to_i32)
+                    .map(|cid| (i, cid))
+            })
             .find(|&(_, cid)| self.is_divine_caster(ClassId(cid), game_data))
             .map(|(i, _)| i)
             .unwrap_or(0);

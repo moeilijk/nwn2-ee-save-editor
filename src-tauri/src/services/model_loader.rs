@@ -146,6 +146,16 @@ pub struct MeshData {
     pub material: MaterialData,
     #[serde(default)]
     pub skeleton_ref: Option<String>,
+    /// Skeleton bone this mesh should be parented to at render time.
+    /// Used for rigid accessory meshes (pauldrons, bracers, greaves) that
+    /// have no skin weights and instead ride a specific body bone.
+    #[serde(default)]
+    pub attach_bone: Option<String>,
+    /// Per-mesh tint channels that override the top-level item tint.
+    /// Set for armor accessories so each slot (pauldron, bracer, greave)
+    /// can carry its own colour independently from the chest's tint.
+    #[serde(default)]
+    pub override_tints: Option<crate::character::appearance_helpers::TintChannels>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -634,6 +644,8 @@ fn flatten_rigid_mesh(rm: &RigidMeshPacket, part: &str, tint_group: &str) -> Mes
         bone_indices: None,
         material: convert_material(&rm.material),
         skeleton_ref: None,
+        attach_bone: None,
+        override_tints: None,
     }
 }
 
@@ -802,6 +814,8 @@ fn flatten_skin_mesh(sm: &SkinMeshPacket, part: &str, tint_group: &str) -> MeshD
         bone_indices: Some(bone_indices),
         material: convert_material(&sm.material),
         skeleton_ref: None,
+        attach_bone: None,
+        override_tints: None,
     }
 }
 

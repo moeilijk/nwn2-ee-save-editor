@@ -371,7 +371,7 @@ function VariableTable({ variables, search, type, edits, onEdit, onRevert }: {
 }
 
 function VariableSection({
-  integers, strings, floats, edits, onEdit, onRevert, onRevertAll, onSave, changeCount, warningText,
+  integers, strings, floats, edits, onEdit, onRevert, onRevertAll, onSave, isSaving, changeCount, warningText,
   onRestoreClick,
 }: {
   integers: VarEntry[];
@@ -382,6 +382,7 @@ function VariableSection({
   onRevert: (name: string) => void;
   onRevertAll: () => void;
   onSave: () => void;
+  isSaving: boolean;
   changeCount: number;
   warningText?: string;
   onRestoreClick?: () => void;
@@ -395,11 +396,11 @@ function VariableSection({
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="t-semibold" style={{ color: T.textMuted }}>{total} {t('common.variables')}</span>
-          {changeCount > 0 && (
+          {(changeCount > 0 || isSaving) && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span className="t-semibold" style={{ color: MODIFIED }}>{changeCount} {t('common.modified')}</span>
-              <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }}>{t('common.revertAll')}</Button>
-              <Button small intent="primary" onClick={onSave}>{t('common.save')}</Button>
+              <Button small minimal icon={<GameIcon icon={GiAnticlockwiseRotation} size={14} />} onClick={onRevertAll} style={{ color: MODIFIED }} disabled={isSaving}>{t('common.revertAll')}</Button>
+              <Button small intent="primary" loading={isSaving} onClick={onSave}>{t('common.save')}</Button>
             </div>
           )}
         </div>
@@ -710,11 +711,11 @@ function ModuleVariablesSection({ characterId, moduleId }: { characterId: number
   const strings = vars ? recordToVarEntries(vars.strings) : [];
   const floats = vars ? recordToVarEntries(vars.floats) : [];
 
-  if (isLoading) {
+  if (isLoading && !vars) {
     return <div style={{ padding: 16, textAlign: 'center' }}><Spinner size={20} /></div>;
   }
 
-  if (error) {
+  if (error && !vars) {
     return <div style={{ padding: 16, color: T.negative }}>{error}</div>;
   }
 
@@ -968,11 +969,11 @@ function CampaignVariablesSection({ characterId }: { characterId: number }) {
   const strings = vars ? recordToVarEntries(vars.strings) : [];
   const floats = vars ? recordToVarEntries(vars.floats) : [];
 
-  if (isLoading) {
+  if (isLoading && !vars) {
     return <div style={{ padding: 16, textAlign: 'center' }}><Spinner size={20} /></div>;
   }
 
-  if (error) {
+  if (error && !vars) {
     return <div style={{ padding: 16, color: T.negative }}>{error}</div>;
   }
 

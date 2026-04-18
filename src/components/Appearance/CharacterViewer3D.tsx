@@ -1,21 +1,13 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { invoke } from '@tauri-apps/api/core';
-import { createMaterial, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
+import { createMaterial, tintChannelsToColors, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
 import { buildSkeleton, buildMesh, buildAnimationClips } from '../ModelViewer/meshBuilder';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
 import type { AttachedPart, MeshData, ModelData } from '../ModelViewer/types';
 import type { TintChannels } from '@/lib/bindings';
 import { Spinner } from '@blueprintjs/core';
-
-function tintChannelsToColors(tc: TintChannels): TintColors {
-  return {
-    channel1: [tc.channel1.r / 255, tc.channel1.g / 255, tc.channel1.b / 255],
-    channel2: [tc.channel2.r / 255, tc.channel2.g / 255, tc.channel2.b / 255],
-    channel3: [tc.channel3.r / 255, tc.channel3.g / 255, tc.channel3.b / 255],
-  };
-}
 
 type PartType = 'head' | 'hair' | 'fhair' | 'wings' | 'tail' | 'helm' | 'body' | 'cloak';
 
@@ -95,10 +87,19 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
     group.name = partGroupName(partName);
     for (const meshData of meshes) {
       if (/_L\d+$/i.test(meshData.name)) continue;
-      const colors = tintMap[meshData.tint_group];
+      const colors = meshData.override_tints
+        ? tintChannelsToColors(meshData.override_tints)
+        : tintMap[meshData.tint_group];
       const material = await createMaterial(meshData.material, colors);
       const bound = overrideSkeleton ?? getSkeletonFor(meshData.skeleton_ref);
       const obj = buildMesh(meshData, material, bound?.skeleton, bound?.rootBone);
+      if (meshData.attach_bone && bound?.rootBone) {
+        const bone = bound.rootBone.getObjectByName(meshData.attach_bone);
+        if (bone) {
+          bone.add(obj);
+          continue;
+        }
+      }
       group.add(obj);
     }
     return group;
@@ -184,7 +185,9 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       }
 
       const materialPromises = allMeshEntries.map(({ meshData }) => {
-        const colors = tintMap[meshData.tint_group];
+        const colors = meshData.override_tints
+          ? tintChannelsToColors(meshData.override_tints)
+          : tintMap[meshData.tint_group];
         return createMaterial(meshData.material, colors);
       });
       const allMaterials = await Promise.all(materialPromises);
@@ -216,6 +219,13 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
 
         const bound = getSkeletonFor(meshData.skeleton_ref);
         const obj = buildMesh(meshData, material, bound?.skeleton, bound?.rootBone);
+        if (meshData.attach_bone && bound?.rootBone) {
+          const bone = bound.rootBone.getObjectByName(meshData.attach_bone);
+          if (bone) {
+            bone.add(obj);
+            continue;
+          }
+        }
         group.add(obj);
       }
 

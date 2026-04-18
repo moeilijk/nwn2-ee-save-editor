@@ -10,6 +10,20 @@ export interface TintColors {
   channel3: [number, number, number];
 }
 
+export interface TintChannelsRaw {
+  channel1: { r: number; g: number; b: number; a: number };
+  channel2: { r: number; g: number; b: number; a: number };
+  channel3: { r: number; g: number; b: number; a: number };
+}
+
+export function tintChannelsToColors(tc: TintChannelsRaw): TintColors {
+  return {
+    channel1: [tc.channel1.r / 255, tc.channel1.g / 255, tc.channel1.b / 255],
+    channel2: [tc.channel2.r / 255, tc.channel2.g / 255, tc.channel2.b / 255],
+    channel3: [tc.channel3.r / 255, tc.channel3.g / 255, tc.channel3.b / 255],
+  };
+}
+
 export async function loadDDSTexture(textureName: string): Promise<THREE.CompressedTexture | null> {
   if (!textureName) return null;
 

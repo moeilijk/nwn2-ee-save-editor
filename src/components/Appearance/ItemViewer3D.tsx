@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { invoke } from '@tauri-apps/api/core';
-import { createMaterial, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
+import { createMaterial, tintChannelsToColors, updateTintUniforms, type TintColors } from '../ModelViewer/materials';
 import { buildSkeleton, buildMesh } from '../ModelViewer/meshBuilder';
 import { useTranslations } from '@/hooks/useTranslations';
 import { useThreeScene, clearSceneModels, frameBounds } from '../ModelViewer/useThreeScene';
@@ -28,14 +28,6 @@ const meshPartLetter = (m: MeshData): string => {
   return '_';
 };
 
-function tintChannelsToColors(tc: TintChannels): TintColors {
-  return {
-    channel1: [tc.channel1.r / 255, tc.channel1.g / 255, tc.channel1.b / 255],
-    channel2: [tc.channel2.r / 255, tc.channel2.g / 255, tc.channel2.b / 255],
-    channel3: [tc.channel3.r / 255, tc.channel3.g / 255, tc.channel3.b / 255],
-  };
-}
-
 async function buildPartGroup(
   meshes: MeshData[],
   letter: string,
@@ -46,9 +38,19 @@ async function buildPartGroup(
   const group = new THREE.Group();
   group.name = partGroupName(letter);
   const visible = meshes.filter(m => !/_L\d+$/i.test(m.name));
-  const materials = await Promise.all(visible.map(m => createMaterial(m.material, tintColors)));
+  const materials = await Promise.all(
+    visible.map(m => createMaterial(m.material, m.override_tints ? tintChannelsToColors(m.override_tints) : tintColors))
+  );
   for (let i = 0; i < visible.length; i++) {
-    const obj = buildMesh(visible[i], materials[i], skeleton, rootBone);
+    const m = visible[i];
+    const obj = buildMesh(m, materials[i], skeleton, rootBone);
+    if (m.attach_bone && rootBone) {
+      const bone = rootBone.getObjectByName(m.attach_bone);
+      if (bone) {
+        bone.add(obj);
+        continue;
+      }
+    }
     group.add(obj);
   }
   return group;

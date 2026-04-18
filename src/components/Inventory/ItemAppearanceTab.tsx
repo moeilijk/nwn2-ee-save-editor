@@ -63,10 +63,13 @@ export function ItemAppearanceTab({ appearance, baseItemId, onChange }: ItemAppe
   const [refreshPart, setRefreshPart] = useState<{ partIndex: number; key: number } | null>(null);
 
   useEffect(() => {
-    invoke<ItemAppearanceOptions>('get_item_appearance_options', { baseItemId })
+    invoke<ItemAppearanceOptions>('get_item_appearance_options', {
+      baseItemId,
+      armorVisualType: appearance.armor_visual_type,
+    })
       .then(setOptions)
       .catch(err => console.error('Failed to load item appearance options:', err));
-  }, [baseItemId]);
+  }, [baseItemId, appearance.armor_visual_type]);
 
   const hasMultipleParts = useMemo(() => {
     return options && (options.available_part1.length > 0 || options.available_part2.length > 0 || options.available_part3.length > 0);

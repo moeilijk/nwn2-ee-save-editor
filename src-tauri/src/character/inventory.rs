@@ -768,7 +768,11 @@ impl super::Character {
                 let item_data = gff_struct_to_json(item_struct);
 
                 let icon = resolve_item_icon(item_struct, game_data);
-                let appearance = ItemAppearance::from_gff(item_struct);
+                let appearance = {
+                    let mut a = ItemAppearance::from_gff(item_struct);
+                    a.normalize_for_ui(base_item_id, game_data);
+                    a
+                };
 
                 inventory_items.push(FullInventoryItem {
                     index,
@@ -881,7 +885,11 @@ impl super::Character {
                     item_data: RawItemData(item_data),
                     base_ac,
                     decoded_properties,
-                    appearance: ItemAppearance::from_gff(item_struct),
+                    appearance: {
+                        let mut a = ItemAppearance::from_gff(item_struct);
+                        a.normalize_for_ui(base_item_id, game_data);
+                        a
+                    },
                 });
             }
         }
@@ -2214,6 +2222,7 @@ impl super::Character {
         &mut self,
         index: usize,
         appearance: &crate::character::ItemAppearance,
+        game_data: &GameData,
     ) -> Result<(), CharacterError> {
         let mut inv_list = self
             .get_list_owned("ItemList")
@@ -2223,7 +2232,13 @@ impl super::Character {
                 "No item at index {index}"
             )));
         }
-        write_appearance_into_item(&mut inv_list[index], appearance);
+        let base_item_id = inv_list[index]
+            .get("BaseItem")
+            .and_then(gff_value_to_i32)
+            .unwrap_or(-1);
+        let mut routed = appearance.clone();
+        routed.prepare_for_write(base_item_id, game_data);
+        write_appearance_into_item(&mut inv_list[index], &routed);
         self.set_list("ItemList", inv_list);
         Ok(())
     }
@@ -2232,6 +2247,7 @@ impl super::Character {
         &mut self,
         slot: EquipmentSlot,
         appearance: &crate::character::ItemAppearance,
+        game_data: &GameData,
     ) -> Result<(), CharacterError> {
         let mut equip_list =
             self.get_list_owned("Equip_ItemList")
@@ -2251,7 +2267,13 @@ impl super::Character {
                 "No equipped item in slot {}",
                 slot.display_name()
             )))?;
-        write_appearance_into_item(&mut equip_list[item_idx], appearance);
+        let base_item_id = equip_list[item_idx]
+            .get("BaseItem")
+            .and_then(gff_value_to_i32)
+            .unwrap_or(-1);
+        let mut routed = appearance.clone();
+        routed.prepare_for_write(base_item_id, game_data);
+        write_appearance_into_item(&mut equip_list[item_idx], &routed);
         self.set_list("Equip_ItemList", equip_list);
         Ok(())
     }

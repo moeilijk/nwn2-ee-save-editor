@@ -13,6 +13,15 @@ mod diagnostic_list_types;
 #[path = "debugging/dump_armor_meshes.rs"]
 mod dump_armor_meshes;
 
+#[path = "debugging/dump_armor_mdb_materials.rs"]
+mod dump_armor_mdb_materials;
+
+#[path = "debugging/dump_full_armor_item.rs"]
+mod dump_full_armor_item;
+
+#[path = "debugging/dump_skeleton_bones.rs"]
+mod dump_skeleton_bones;
+
 #[path = "debugging/diagnose_item_models.rs"]
 mod diagnose_item_models;
 
