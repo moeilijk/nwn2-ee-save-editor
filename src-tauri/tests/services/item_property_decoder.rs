@@ -32,11 +32,10 @@ async fn test_item_property_decoding_from_fixture() {
             let item_struct_fields = lazy_item.force_load();
             if let Some(app_lib::parsers::gff::GffValue::List(props)) =
                 item_struct_fields.get("PropertiesList")
+                && !props.is_empty()
             {
-                if !props.is_empty() {
-                    item_with_props = Some(props.clone());
-                    break;
-                }
+                item_with_props = Some(props.clone());
+                break;
             }
         }
     }
@@ -50,11 +49,10 @@ async fn test_item_property_decoding_from_fixture() {
                 let item_struct_fields = lazy_item.force_load();
                 if let Some(app_lib::parsers::gff::GffValue::List(props)) =
                     item_struct_fields.get("PropertiesList")
+                    && !props.is_empty()
                 {
-                    if !props.is_empty() {
-                        item_with_props = Some(props.clone());
-                        break;
-                    }
+                    item_with_props = Some(props.clone());
+                    break;
                 }
             }
         }
@@ -90,7 +88,7 @@ async fn test_item_property_decoding_from_fixture() {
 
         let decoded = decoder.decode_property(&prop_map);
         if let Some(d) = decoded {
-            println!("Decoded Property: {:?}", d);
+            println!("Decoded Property: {d:?}");
             assert!(!d.label.is_empty());
         }
     }

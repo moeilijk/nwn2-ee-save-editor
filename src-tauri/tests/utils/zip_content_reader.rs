@@ -99,7 +99,7 @@ fn test_archive_caching() {
             assert_eq!(opens1, opens2, "Should not reopen archive");
             assert!(hits2 > hits1, "Should get cache hit on second read");
 
-            println!("Archives opened: {}, Cache hits: {}", opens2, hits2);
+            println!("Archives opened: {opens2}, Cache hits: {hits2}");
         }
     }
 }
@@ -182,14 +182,14 @@ fn test_read_from_multiple_zips() {
 
         for zip_name in ["2da.zip", "2da_x1.zip", "2da_x2.zip"] {
             let zip_path = data_dir.join(zip_name);
-            if zip_path.exists() {
-                if let Some(internal_path) = get_internal_path_for_file(&zip_path, "classes.2da") {
-                    requests.push(ZipReadRequest {
-                        zip_path: zip_path.to_string_lossy().to_string(),
-                        internal_path,
-                        request_id: zip_name.to_string(),
-                    });
-                }
+            if zip_path.exists()
+                && let Some(internal_path) = get_internal_path_for_file(&zip_path, "classes.2da")
+            {
+                requests.push(ZipReadRequest {
+                    zip_path: zip_path.to_string_lossy().to_string(),
+                    internal_path,
+                    request_id: zip_name.to_string(),
+                });
             }
         }
 
@@ -264,7 +264,7 @@ fn test_preopen_and_close_archives() {
                 .get("open_archives")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
-            println!("Pre-opened {} archives", open_count);
+            println!("Pre-opened {open_count} archives");
             assert!(open_count > 0);
 
             reader.close_all_archives();
@@ -312,7 +312,7 @@ fn test_stats_tracking() {
             assert_eq!(files_read, 2, "Should have read 2 files");
             assert!(bytes_read > 0, "Should have read bytes");
 
-            println!("Stats: files={}, bytes={}", files_read, bytes_read);
+            println!("Stats: files={files_read}, bytes={bytes_read}");
         }
     }
 }

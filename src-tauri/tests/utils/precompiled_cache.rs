@@ -52,21 +52,21 @@ async fn test_cache_key_generation_with_real_install() {
         );
     }
 
-    if let Some(override_dir) = paths.override_dir() {
-        if override_dir.exists() {
-            let files: Vec<String> = std::fs::read_dir(&override_dir)
-                .ok()
-                .map(|entries| {
-                    entries
-                        .filter_map(|e| e.ok())
-                        .filter_map(|e| e.file_name().into_string().ok())
-                        .take(10)
-                        .collect()
-                })
-                .unwrap_or_default();
+    if let Some(override_dir) = paths.override_dir()
+        && override_dir.exists()
+    {
+        let files: Vec<String> = std::fs::read_dir(&override_dir)
+            .ok()
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .take(10)
+                    .collect()
+            })
+            .unwrap_or_default();
 
-            mod_state.insert("override_files".to_string(), json!(files));
-        }
+        mod_state.insert("override_files".to_string(), json!(files));
     }
 
     let key1 = builder.generate_cache_key(mod_state.clone()).unwrap();
@@ -75,7 +75,7 @@ async fn test_cache_key_generation_with_real_install() {
     assert_eq!(key1, key2, "Same input should produce same key");
     assert!(!key1.is_empty(), "Key should not be empty");
 
-    println!("Generated cache key: {}", key1);
+    println!("Generated cache key: {key1}");
 }
 
 #[tokio::test]
@@ -193,7 +193,7 @@ async fn test_cache_stats_with_real_data() {
             table_info.insert("section".to_string(), json!("base_game"));
             table_info.insert("data".to_string(), json!(data));
             table_info.insert("row_count".to_string(), json!(50));
-            tables_data.insert(format!("{}.2da", table_name), table_info);
+            tables_data.insert(format!("{table_name}.2da"), table_info);
         }
     }
 
@@ -209,7 +209,7 @@ async fn test_cache_stats_with_real_data() {
 
     println!("=== Cache Stats ===");
     for (key, value) in &stats {
-        println!("  {}: {}", key, value);
+        println!("  {key}: {value}");
     }
 
     assert!(stats.contains_key("valid"));
@@ -297,5 +297,5 @@ async fn test_cache_with_real_row_counts() {
     let manager = CacheManager::new(cache_path).unwrap();
     let stats = manager.get_cache_stats();
 
-    println!("Cache stats with real row counts: {:?}", stats);
+    println!("Cache stats with real row counts: {stats:?}");
 }

@@ -48,7 +48,7 @@ fn read_model_scale(label: &str, path: &std::path::Path) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "diagnostic: prints raw model scale values; run manually with --ignored"]
 fn diagnose_model_scale() {
     println!();
     read_model_scale("min", &fixture("min"));

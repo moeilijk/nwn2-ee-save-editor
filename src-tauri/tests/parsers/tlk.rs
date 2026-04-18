@@ -10,7 +10,7 @@ async fn test_tlk_lookup_strref_0() {
     let rm = ctx.resource_manager.read().await;
 
     let str_0 = rm.get_string(0);
-    println!("StrRef 0: {}", str_0);
+    println!("StrRef 0: {str_0}");
     assert!(!str_0.is_empty(), "StrRef 0 should not be empty");
 }
 
@@ -43,7 +43,7 @@ async fn test_tlk_strings_exist() {
         }
     }
 
-    println!("Found {} valid strings in first 100 StrRefs", found_count);
+    println!("Found {found_count} valid strings in first 100 StrRefs");
     assert!(found_count > 0, "Should find some valid strings");
 }
 
@@ -74,7 +74,7 @@ async fn test_tlk_high_strrefs() {
         } else {
             s.chars().take(50).collect::<String>()
         };
-        println!("  {}: {}", i, display_str);
+        println!("  {i}: {display_str}");
     }
 }
 
@@ -135,9 +135,9 @@ async fn test_tlk_varied_string_lengths() {
     }
 
     println!("String lengths in first 500 StrRefs:");
-    println!("  Short (<20 chars): {}", short_count);
-    println!("  Medium (20-99 chars): {}", medium_count);
-    println!("  Long (100+ chars): {}", long_count);
+    println!("  Short (<20 chars): {short_count}");
+    println!("  Medium (20-99 chars): {medium_count}");
+    println!("  Long (100+ chars): {long_count}");
 
     assert!(
         short_count > 0 || medium_count > 0 || long_count > 0,
@@ -165,7 +165,7 @@ async fn test_tlk_sequential_access() {
     }
 
     let elapsed = start.elapsed();
-    println!("Read {} strings in {:?}", count, elapsed);
+    println!("Read {count} strings in {elapsed:?}");
     assert!(
         elapsed.as_millis() < 5000,
         "Sequential access should be fast"
@@ -186,7 +186,7 @@ async fn test_tlk_random_access() {
         } else {
             s.chars().take(30).collect::<String>()
         };
-        println!("StrRef {}: {}", strref, display_str);
+        println!("StrRef {strref}: {display_str}");
     }
 }
 
@@ -200,7 +200,7 @@ async fn test_tlk_negative_strref() {
     let rm = ctx.resource_manager.read().await;
 
     let s = rm.get_string(-1);
-    println!("StrRef -1: {}", s);
+    println!("StrRef -1: {s}");
 }
 
 #[tokio::test]

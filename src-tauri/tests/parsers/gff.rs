@@ -57,7 +57,7 @@ async fn test_gff_byte_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::Byte(value)) = root.get("Gender") {
-        println!("Gender (Byte): {}", value);
+        println!("Gender (Byte): {value}");
         assert!(*value <= 2, "Gender should be 0-2");
     } else {
         println!("Gender field not found or not Byte type");
@@ -71,9 +71,9 @@ async fn test_gff_word_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::Word(value)) = root.get("Race") {
-        println!("Race (Word): {}", value);
+        println!("Race (Word): {value}");
     } else if let Some(GffValue::Byte(value)) = root.get("Race") {
-        println!("Race (Byte): {}", value);
+        println!("Race (Byte): {value}");
     } else {
         println!("Race field not found");
     }
@@ -86,7 +86,7 @@ async fn test_gff_dword_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::Dword(value)) = root.get("Experience") {
-        println!("Experience (Dword): {}", value);
+        println!("Experience (Dword): {value}");
     } else {
         println!("Experience field not found or not Dword");
     }
@@ -99,9 +99,9 @@ async fn test_gff_int_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::Int(value)) = root.get("HitPoints") {
-        println!("HitPoints (Int): {}", value);
+        println!("HitPoints (Int): {value}");
     } else if let Some(GffValue::Short(value)) = root.get("HitPoints") {
-        println!("HitPoints (Short): {}", value);
+        println!("HitPoints (Short): {value}");
     } else {
         println!("HitPoints field not found");
     }
@@ -114,7 +114,7 @@ async fn test_gff_float_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::Float(value)) = root.get("ChallengeRating") {
-        println!("ChallengeRating (Float): {}", value);
+        println!("ChallengeRating (Float): {value}");
         assert!(value.is_finite(), "Float should be finite");
     } else {
         println!("ChallengeRating field not found");
@@ -155,11 +155,11 @@ async fn test_gff_resref_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::ResRef(value)) = root.get("Portrait") {
-        println!("Portrait (ResRef): {}", value);
+        println!("Portrait (ResRef): {value}");
     }
 
     if let Some(GffValue::ResRef(value)) = root.get("Deity") {
-        println!("Deity (ResRef): {}", value);
+        println!("Deity (ResRef): {value}");
     }
 }
 
@@ -170,7 +170,7 @@ async fn test_gff_string_field() {
     let root = parser.read_struct_fields(0).expect("Failed to read root");
 
     if let Some(GffValue::String(value)) = root.get("Tag") {
-        println!("Tag (String): {}", value);
+        println!("Tag (String): {value}");
     }
 }
 
@@ -195,10 +195,10 @@ async fn test_gff_list_field() {
             let fields = lazy_struct.force_load();
             println!("  Class {}: {} fields", i, fields.len());
             if let Some(GffValue::Int(class_id)) = fields.get("Class") {
-                println!("    Class ID: {}", class_id);
+                println!("    Class ID: {class_id}");
             }
             if let Some(GffValue::Short(level)) = fields.get("ClassLevel") {
-                println!("    Level: {}", level);
+                println!("    Level: {level}");
             }
         }
     } else {
@@ -217,7 +217,7 @@ async fn test_gff_nested_struct() {
         for (i, feat) in feats.iter().take(5).enumerate() {
             let fields = feat.force_load();
             if let Some(GffValue::Word(feat_id)) = fields.get("Feat") {
-                println!("  Feat {}: ID {}", i, feat_id);
+                println!("  Feat {i}: ID {feat_id}");
             }
         }
     }
@@ -234,7 +234,7 @@ async fn test_gff_skill_list() {
         for (i, skill) in skills.iter().take(5).enumerate() {
             let fields = skill.force_load();
             if let Some(GffValue::Byte(rank)) = fields.get("Rank") {
-                println!("  Skill {}: Rank {}", i, rank);
+                println!("  Skill {i}: Rank {rank}");
             }
         }
     }
@@ -255,10 +255,10 @@ async fn test_gff_lvlstatlist() {
             println!("  Level {} entry has {} fields", i + 1, fields.len());
 
             if let Some(GffValue::Byte(class)) = fields.get("LvlStatClass") {
-                println!("    Class: {}", class);
+                println!("    Class: {class}");
             }
             if let Some(GffValue::Int(hp)) = fields.get("LvlStatHitDie") {
-                println!("    HP gained: {}", hp);
+                println!("    HP gained: {hp}");
             }
         }
     }
@@ -275,12 +275,12 @@ async fn test_gff_get_value_simple() {
 
     let exp_result = parser.get_value("Experience");
     if let Ok(GffValue::Dword(exp)) = exp_result {
-        println!("Experience via path: {}", exp);
+        println!("Experience via path: {exp}");
     }
 
     let gender_result = parser.get_value("Gender");
     if let Ok(GffValue::Byte(gender)) = gender_result {
-        println!("Gender via path: {}", gender);
+        println!("Gender via path: {gender}");
     }
 }
 
@@ -291,9 +291,9 @@ async fn test_gff_read_field_by_label() {
 
     let result = parser.read_field_by_label(0, "Str");
     if let Ok(GffValue::Byte(str_val)) = result {
-        println!("Str via read_field_by_label: {}", str_val);
+        println!("Str via read_field_by_label: {str_val}");
         assert!(
-            str_val >= 3 && str_val <= 50,
+            (3..=50).contains(&str_val),
             "Strength should be in reasonable range"
         );
     }
@@ -403,7 +403,7 @@ async fn test_gff_parse_multiple_characters() {
     ];
 
     for filename in characters {
-        println!("\n=== Parsing {} ===", filename);
+        println!("\n=== Parsing {filename} ===");
         let bytes = load_test_gff(filename);
         let parser = GffParser::from_bytes(bytes);
 
@@ -426,10 +426,10 @@ async fn test_gff_parse_multiple_characters() {
                     0
                 };
 
-                println!("  Name: {}, Classes: {}", name, class_count);
+                println!("  Name: {name}, Classes: {class_count}");
             }
             Err(e) => {
-                println!("  Failed to parse: {}", e);
+                println!("  Failed to parse: {e}");
             }
         }
     }
@@ -484,13 +484,13 @@ async fn test_gff_equipped_items() {
 
     if let Some(GffValue::List(items)) = root.get("Equip_ItemList") {
         println!("Equipped items: {}", items.len());
-        for item in items.iter() {
+        for item in items {
             let fields = item.force_load();
             println!("  Slot __struct_id__: {}", item.struct_id);
-            if let Some(GffValue::LocString(name)) = fields.get("LocalizedName") {
-                if let Some(sub) = name.substrings.first() {
-                    println!("    Name: {}", sub.string);
-                }
+            if let Some(GffValue::LocString(name)) = fields.get("LocalizedName")
+                && let Some(sub) = name.substrings.first()
+            {
+                println!("    Name: {}", sub.string);
             }
         }
     }
@@ -506,10 +506,10 @@ async fn test_gff_inventory_items() {
         println!("Inventory items: {}", items.len());
         for (i, item) in items.iter().take(10).enumerate() {
             let fields = item.force_load();
-            if let Some(GffValue::LocString(name)) = fields.get("LocalizedName") {
-                if let Some(sub) = name.substrings.first() {
-                    println!("  {}: {}", i, sub.string);
-                }
+            if let Some(GffValue::LocString(name)) = fields.get("LocalizedName")
+                && let Some(sub) = name.substrings.first()
+            {
+                println!("  {}: {}", i, sub.string);
             }
         }
     }
@@ -529,11 +529,10 @@ async fn test_gff_ability_scores() {
     println!("Ability Scores:");
     for ability in abilities {
         if let Some(GffValue::Byte(value)) = root.get(ability) {
-            println!("  {}: {}", ability, value);
+            println!("  {ability}: {value}");
             assert!(
                 *value >= 1 && *value <= 100,
-                "{} should be in valid range",
-                ability
+                "{ability} should be in valid range"
             );
         }
     }
@@ -576,6 +575,6 @@ async fn test_gff_enumerate_all_root_fields() {
             GffValue::StructRef(_) => "StructRef",
             GffValue::ListRef(_) => "ListRef",
         };
-        println!("  {}: {}", name, type_name);
+        println!("  {name}: {type_name}");
     }
 }

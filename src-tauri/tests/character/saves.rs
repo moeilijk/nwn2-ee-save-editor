@@ -203,18 +203,15 @@ async fn test_level_progression_saves() {
         // Saves should generally increase significantly
         assert!(
             saves_l30.fortitude > saves_l1.fortitude,
-            "{} L30 Fortitude should be higher",
-            name
+            "{name} L30 Fortitude should be higher"
         );
         assert!(
             saves_l30.reflex > saves_l1.reflex,
-            "{} L30 Reflex should be higher",
-            name
+            "{name} L30 Reflex should be higher"
         );
         assert!(
             saves_l30.will > saves_l1.will,
-            "{} L30 Will should be higher",
-            name
+            "{name} L30 Will should be higher"
         );
 
         // Base saves specifically should definitely increase

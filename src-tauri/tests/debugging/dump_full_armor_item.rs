@@ -117,10 +117,10 @@ async fn dump_full_armor_item() {
         let gff = GffParser::from_bytes(bic_data).expect("parse");
         let fields = gff.read_struct_fields(0).expect("read");
         if let Some(GffValue::ListOwned(equip)) = fields.get("Equip_ItemList") {
-            for item in equip.iter() {
+            for item in equip {
                 let base_item = match item.get("BaseItem") {
-                    Some(GffValue::Byte(v)) => *v as i32,
-                    Some(GffValue::Word(v)) => *v as i32,
+                    Some(GffValue::Byte(v)) => i32::from(*v),
+                    Some(GffValue::Word(v)) => i32::from(*v),
                     Some(GffValue::Dword(v)) => *v as i32,
                     Some(GffValue::Int(v)) => *v,
                     _ => -1,

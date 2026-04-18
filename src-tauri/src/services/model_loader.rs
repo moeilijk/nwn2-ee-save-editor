@@ -513,7 +513,7 @@ pub fn load_idle_animations(
         match Gr2Parser::parse_animations(&bytes) {
             Ok(gr2_anims) => {
                 info!("Parsed {resref}: {} animations", gr2_anims.len());
-                for anim in gr2_anims.iter() {
+                for anim in &gr2_anims {
                     let tag = format!("{resref} [{}]", anim.name);
                     info!(
                         "  '{}' -> '{}': {:.2}s, {} tracks",

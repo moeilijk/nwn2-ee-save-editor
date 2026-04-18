@@ -69,16 +69,13 @@ async fn test_dump_weapon_types() {
             let num_dice = cell_value(table, row_idx, "NumDice").unwrap_or_default();
 
             if weapon_count < 30 {
-                println!(
-                    "{:<4} {:<25} {:<10} {:<10}",
-                    row_idx, label, weapon_type, num_dice
-                );
+                println!("{row_idx:<4} {label:<25} {weapon_type:<10} {num_dice:<10}");
             }
             weapon_count += 1;
         }
     }
 
-    println!("\nTotal weapon types: {}", weapon_count);
+    println!("\nTotal weapon types: {weapon_count}");
 }
 
 #[tokio::test]
@@ -101,7 +98,7 @@ async fn test_armor_types() {
 
             if label.to_lowercase().contains("armor") || label.to_lowercase().contains("shield") {
                 let ac = cell_value(table, row_idx, "AC_Enchant").unwrap_or_default();
-                println!("  {} - AC: {}", label, ac);
+                println!("  {label} - AC: {ac}");
             }
         }
     }
@@ -152,7 +149,7 @@ async fn test_item_property_tables() {
         println!("Rows: {}", table.row_count());
         for row_idx in 0..table.row_count().min(10) {
             let label = cell_value(table, row_idx, "Label").unwrap_or_default();
-            println!("  {} - {}", row_idx, label);
+            println!("  {row_idx} - {label}");
         }
     }
 
@@ -192,7 +189,7 @@ async fn test_weapon_damage_types() {
         sorted.sort_by_key(|(k, _)| *k);
 
         for (wtype, count) in sorted {
-            println!("  Type {}: {} weapons", wtype, count);
+            println!("  Type {wtype}: {count} weapons");
         }
     }
 }
@@ -221,7 +218,7 @@ async fn test_critical_threat_ranges() {
         if let Some(row) = sword_row {
             let crit = cell_value(table, row, "CritThreat").unwrap_or_default();
             let mult = cell_value(table, row, "CritHitMult").unwrap_or_default();
-            println!("  Longsword: threat={}, mult={}", crit, mult);
+            println!("  Longsword: threat={crit}, mult={mult}");
         }
 
         let scythe_row = (0..table.row_count()).find(|&row| {
@@ -233,7 +230,7 @@ async fn test_critical_threat_ranges() {
         if let Some(row) = scythe_row {
             let crit = cell_value(table, row, "CritThreat").unwrap_or_default();
             let mult = cell_value(table, row, "CritHitMult").unwrap_or_default();
-            println!("  Scythe: threat={}, mult={}", crit, mult);
+            println!("  Scythe: threat={crit}, mult={mult}");
         }
     }
 }

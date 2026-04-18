@@ -130,19 +130,19 @@ fn test_compare_campaign_quest_counts() {
     ];
 
     for campaign in campaigns {
-        if let Some(content) = load_campaign_globals(campaign) {
-            if let Ok(parser) = RustXmlParser::from_string(&content) {
-                let overview = parser.get_quest_overview_struct();
-                let companions = parser.get_companion_status();
+        if let Some(content) = load_campaign_globals(campaign)
+            && let Ok(parser) = RustXmlParser::from_string(&content)
+        {
+            let overview = parser.get_quest_overview_struct();
+            let companions = parser.get_companion_status();
 
-                println!(
-                    "{}: {} vars, {} groups, {} companions",
-                    campaign,
-                    overview.total_quest_vars,
-                    overview.quest_groups.len(),
-                    companions.len()
-                );
-            }
+            println!(
+                "{}: {} vars, {} groups, {} companions",
+                campaign,
+                overview.total_quest_vars,
+                overview.quest_groups.len(),
+                companions.len()
+            );
         }
     }
 }

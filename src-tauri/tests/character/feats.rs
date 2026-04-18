@@ -40,22 +40,18 @@ async fn test_feat_count_across_fixtures() {
         let feat_count = character.feat_count();
         let total_level = character.total_level();
 
-        println!("{:<15}: {} feats (Level {})", name, feat_count, total_level);
+        println!("{name:<15}: {feat_count} feats (Level {total_level})");
 
-        assert!(feat_count >= 1, "{} should have at least 1 feat", name);
+        assert!(feat_count >= 1, "{name} should have at least 1 feat");
         assert!(
             feat_count <= 200,
-            "{} has unreasonable feat count: {}",
-            name,
-            feat_count
+            "{name} has unreasonable feat count: {feat_count}"
         );
 
         if name.contains("L30") {
             assert!(
                 feat_count >= 10,
-                "{} should have many feats at L30, got {}",
-                name,
-                feat_count
+                "{name} should have many feats at L30, got {feat_count}"
             );
         }
     }
@@ -179,8 +175,7 @@ async fn test_feat_progression_comparison() {
 
         assert!(
             feats_l30 >= feats_l1,
-            "{} L30 should have >= feats than L1",
-            name
+            "{name} L30 should have >= feats than L1"
         );
 
         let l1_feat_ids = char_l1.feat_ids();
@@ -229,7 +224,7 @@ async fn test_feat_info_resolution() {
         }
     }
 
-    println!("  Resolved {}/10 feats with info", resolved_count);
+    println!("  Resolved {resolved_count}/10 feats with info");
     assert!(resolved_count > 0, "Should resolve at least some feat info");
 }
 
@@ -488,20 +483,20 @@ async fn test_feat_save_bonuses_after_adding() {
             .get("label")
             .or_else(|| row.get("Label"))
             .or_else(|| row.get("LABEL"))
-            .and_then(|s| s.as_ref().map(|s| s.to_string()))
+            .and_then(|s| s.clone())
             .unwrap_or_default();
 
         let name = character.get_feat_name(FeatId(i as i32), game_data);
         let name_lower = name.to_lowercase();
 
         if name_lower == "great fortitude" && great_fort_id.is_none() {
-            println!("Found Great Fortitude: id={}, label='{}'", i, label);
+            println!("Found Great Fortitude: id={i}, label='{label}'");
             great_fort_id = Some(i as i32);
         } else if name_lower == "iron will" && iron_will_id.is_none() {
-            println!("Found Iron Will: id={}, label='{}'", i, label);
+            println!("Found Iron Will: id={i}, label='{label}'");
             iron_will_id = Some(i as i32);
         } else if name_lower == "lightning reflexes" && lightning_ref_id.is_none() {
-            println!("Found Lightning Reflexes: id={}, label='{}'", i, label);
+            println!("Found Lightning Reflexes: id={i}, label='{label}'");
             lightning_ref_id = Some(i as i32);
         }
     }
@@ -509,10 +504,7 @@ async fn test_feat_save_bonuses_after_adding() {
     let gf = great_fort_id.expect("Great Fortitude not found in feat.2da");
     let iw = iron_will_id.expect("Iron Will not found in feat.2da");
     let lr = lightning_ref_id.expect("Lightning Reflexes not found in feat.2da");
-    println!(
-        "Feat IDs: Great Fortitude={}, Iron Will={}, Lightning Reflexes={}",
-        gf, iw, lr
-    );
+    println!("Feat IDs: Great Fortitude={gf}, Iron Will={iw}, Lightning Reflexes={lr}");
 
     // Remove them first in case Qara already has them
     let _ = character.remove_feat(FeatId(gf));
@@ -641,8 +633,7 @@ async fn test_feat_source_tracking() {
     }
 
     println!(
-        "  Unknown: {}, Manual: {}, Class: {}, Race: {}, Domain: {}, Level: {}, Background: {}",
-        unknown, manual, class, race, domain, level, background
+        "  Unknown: {unknown}, Manual: {manual}, Class: {class}, Race: {race}, Domain: {domain}, Level: {level}, Background: {background}"
     );
 
     for entry in entries.iter().take(5) {
@@ -697,7 +688,7 @@ async fn test_protected_feats() {
         }
     }
 
-    println!("  {} protected feats found", protected_count);
+    println!("  {protected_count} protected feats found");
 }
 
 #[tokio::test]
@@ -731,7 +722,7 @@ async fn test_domain_feats() {
             }
         }
 
-        println!("  {} domain-related feats detected", domain_feat_count);
+        println!("  {domain_feat_count} domain-related feats detected");
     }
 }
 
@@ -751,34 +742,31 @@ async fn test_add_domain_and_feats() {
         initial_feat_count
     );
 
-    if let Some(domains_table) = game_data.get_table("domains") {
-        if domains_table.row_count() > 1 {
-            let domain_id = DomainId(1);
-            match character.add_domain(domain_id, game_data) {
-                Ok(added_feats) => {
-                    println!(
-                        "  Added Domain {}, granted {} feats",
-                        domain_id.0,
-                        added_feats.len()
-                    );
-                    for feat_id in &added_feats {
-                        println!("    - FeatId({})", feat_id.0);
-                        assert!(
-                            character.has_feat(*feat_id),
-                            "Granted feat should be present"
-                        );
-                    }
+    if let Some(domains_table) = game_data.get_table("domains")
+        && domains_table.row_count() > 1
+    {
+        let domain_id = DomainId(1);
+        match character.add_domain(domain_id, game_data) {
+            Ok(added_feats) => {
+                println!(
+                    "  Added Domain {}, granted {} feats",
+                    domain_id.0,
+                    added_feats.len()
+                );
+                for feat_id in &added_feats {
+                    println!("    - FeatId({})", feat_id.0);
                     assert!(
-                        character.feat_count() >= initial_feat_count,
-                        "Feat count should not decrease"
+                        character.has_feat(*feat_id),
+                        "Granted feat should be present"
                     );
                 }
-                Err(e) => {
-                    println!(
-                        "  Domain add failed (may be invalid ID for this data): {:?}",
-                        e
-                    );
-                }
+                assert!(
+                    character.feat_count() >= initial_feat_count,
+                    "Feat count should not decrease"
+                );
+            }
+            Err(e) => {
+                println!("  Domain add failed (may be invalid ID for this data): {e:?}");
             }
         }
     }
@@ -837,10 +825,7 @@ async fn test_feat_name_resolution() {
         );
     }
 
-    println!(
-        "  Labels resolved: {}/15, TLK names resolved: {}/15",
-        label_resolved, tlk_resolved
-    );
+    println!("  Labels resolved: {label_resolved}/15, TLK names resolved: {tlk_resolved}/15");
     assert!(
         label_resolved > 0,
         "Should resolve at least some feat labels from 2DA"
@@ -910,17 +895,12 @@ async fn test_general_feat_slots_calculation() {
         let general_slots = character.calculate_general_feat_slots();
         let total_level = character.total_level();
 
-        println!(
-            "{}: Level {} -> {} general feat slots",
-            name, total_level, general_slots
-        );
+        println!("{name}: Level {total_level} -> {general_slots} general feat slots");
 
         let base_slots = 1 + (total_level / 3);
         assert!(
             general_slots >= base_slots,
-            "{} should have at least {} general slots (1 + level/3)",
-            name,
-            base_slots
+            "{name} should have at least {base_slots} general slots (1 + level/3)"
         );
     }
 }
@@ -941,7 +921,7 @@ async fn test_bonus_feat_slots_calculation() {
         let character = load_character(path);
         let bonus_slots = character.calculate_bonus_feat_slots(game_data);
 
-        println!("{}: {} bonus feat slots from classes", name, bonus_slots);
+        println!("{name}: {bonus_slots} bonus feat slots from classes");
 
         assert!(bonus_slots >= 0, "Bonus slots should be non-negative");
     }

@@ -32,7 +32,7 @@ async fn test_wizard_progression() {
     // Check Spell Slots (Base)
     // Level 5 Wizard: L0=4, L1=3, L2=2, L3=1
     let slots = character.calculate_spell_slots(wizard_id, game_data);
-    println!("Wizard 5 Base Slots: {:?}", slots);
+    println!("Wizard 5 Base Slots: {slots:?}");
     assert!(slots[0] >= 4);
     assert!(slots[1] >= 2); // Tables might vary slightly with updates, but should have some
     assert!(slots[2] >= 1);
@@ -41,12 +41,12 @@ async fn test_wizard_progression() {
 
     // Check Known Spells
     let known_l1 = character.known_spells(wizard_id, 1);
-    println!("Wizard Known L1: {:?}", known_l1);
+    println!("Wizard Known L1: {known_l1:?}");
     assert!(!known_l1.is_empty(), "Wizard should have known L1 spells");
 
     // Check Memorized Spells (if any)
     let memory_l1 = character.memorized_spells(wizard_id, 1);
-    println!("Wizard Memorized L1: {:?}", memory_l1);
+    println!("Wizard Memorized L1: {memory_l1:?}");
     // Note: Fixture might not have memorized spells set if it's a fresh save or cleaned
 }
 
@@ -79,7 +79,7 @@ async fn test_cleric_domains() {
 
     // Domain Spells
     let domain_spells = character.get_domain_spells(cleric_id, game_data);
-    println!("Cleric Domain Spells: {:?}", domain_spells);
+    println!("Cleric Domain Spells: {domain_spells:?}");
     // Cleric 7 should have domain spells for levels 1, 2, 3, 4
     assert!(domain_spells.contains_key(&1));
     assert!(domain_spells.contains_key(&2));
@@ -118,18 +118,18 @@ async fn test_sorcerer_spells() {
 
     // Caster Level: Sorcerer 10 + prestige classes with full progression, expect at least 10.
     let cl = character.get_caster_level(sorcerer_id, game_data);
-    println!("Qara Sorcerer Caster Level: {}", cl);
+    println!("Qara Sorcerer Caster Level: {cl}");
     assert!(cl >= 10);
 
     // Check Spontaneous Casting Slots
     let slots = character.calculate_spell_slots(sorcerer_id, game_data);
-    println!("Qara Sorcerer Slots: {:?}", slots);
+    println!("Qara Sorcerer Slots: {slots:?}");
     assert!(slots[1] > 0);
     assert!(slots[5] > 0);
 
     // Known Spells
     let known_l5 = character.known_spells(sorcerer_id, 5);
-    println!("Qara Known L5: {:?}", known_l5);
+    println!("Qara Known L5: {known_l5:?}");
     assert!(!known_l5.is_empty());
 }
 
@@ -155,7 +155,7 @@ async fn test_paladin_spells() {
     assert!(character.is_spellcaster(paladin_id, game_data));
     assert!(character.is_prepared_caster(paladin_id, game_data)); // Paladins prepare
     let all_known = character.uses_all_spells_known(paladin_id, game_data);
-    println!("Paladin uses all spells known: {}", all_known);
+    println!("Paladin uses all spells known: {all_known}");
 
     // Caster Level: Paladin 2DA lookup uses class level directly for slot table.
     let cl = character.get_caster_level(paladin_id, game_data);
@@ -166,7 +166,7 @@ async fn test_paladin_spells() {
 
     // Slots
     let slots = character.calculate_spell_slots(paladin_id, game_data);
-    println!("Paladin Slots: {:?}", slots);
+    println!("Paladin Slots: {slots:?}");
     assert!(slots[1] > 0);
     assert!(slots[3] > 0);
     assert_eq!(slots[5], 0); // Pal only goes up to L4
@@ -174,7 +174,7 @@ async fn test_paladin_spells() {
     // Bonus Slots from Wisdom
     // Occidio L30 probably has high stats.
     let bonus = character.calculate_bonus_spell_slots(paladin_id, 1, game_data);
-    println!("Paladin Bonus Slots L1: {}", bonus);
+    println!("Paladin Bonus Slots L1: {bonus}");
 }
 
 #[tokio::test]
@@ -199,7 +199,7 @@ async fn test_wizard_slots_modification() {
     assert_eq!(initial_level, 5, "Melchior should start as Wizard 5");
 
     let initial_slots = character.calculate_spell_slots(wizard_id, game_data);
-    println!("Initial Wizard 5 Slots: {:?}", initial_slots);
+    println!("Initial Wizard 5 Slots: {initial_slots:?}");
     assert_eq!(initial_slots[5], 0, "Wizard 5 should not have L5 slots");
 
     // Modify to Wizard 10
@@ -215,7 +215,7 @@ async fn test_wizard_slots_modification() {
     // Wizard 10 should have L5 slots (Base progression)
     // L0:4, L1:4, L2:4, L3:3, L4:3, L5:2
     let new_slots = character.calculate_spell_slots(wizard_id, game_data);
-    println!("Modified Wizard 10 Slots: {:?}", new_slots);
+    println!("Modified Wizard 10 Slots: {new_slots:?}");
 
     assert!(
         new_slots[5] >= 2,
@@ -239,7 +239,7 @@ async fn test_aasimar_ability_spells() {
 
     // Verify this is an Aasimar
     let race_name = character.race_name(game_data);
-    println!("Race: {}", race_name);
+    println!("Race: {race_name}");
     assert_eq!(race_name, "Aasimar", "Fixture should be an Aasimar");
 
     // Get ability spells - Aasimar should have racial spell-like abilities
@@ -322,7 +322,7 @@ async fn test_non_caster_has_no_class_ability_spells_overlap() {
     let character = Character::from_gff(gff);
 
     let race_name = character.race_name(game_data);
-    println!("Race: {}", race_name);
+    println!("Race: {race_name}");
 
     let ability_spells = character.get_ability_spells(game_data);
     println!(

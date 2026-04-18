@@ -19,7 +19,7 @@ fn test_discover_nwn2_paths() {
     println!("GOG paths: {}", discovery.gog_paths.len());
 
     for path in &discovery.nwn2_paths {
-        println!("  Found: {}", path);
+        println!("  Found: {path}");
     }
 
     assert!(
@@ -58,11 +58,7 @@ fn test_steam_path_classification() {
         let in_steam_paths = result.steam_paths.contains(path);
 
         if is_steam {
-            assert!(
-                in_steam_paths,
-                "Steam path {} should be in steam_paths",
-                path
-            );
+            assert!(in_steam_paths, "Steam path {path} should be in steam_paths");
         }
     }
 }
@@ -76,7 +72,7 @@ fn test_gog_path_classification() {
         let in_gog_paths = result.gog_paths.contains(path);
 
         if is_gog {
-            assert!(in_gog_paths, "GOG path {} should be in gog_paths", path);
+            assert!(in_gog_paths, "GOG path {path} should be in gog_paths");
         }
     }
 }
@@ -109,7 +105,7 @@ fn test_discovered_path_is_valid_installation() {
 
     for path_str in &result.nwn2_paths {
         let path = std::path::Path::new(path_str);
-        assert!(path.exists(), "Discovered path should exist: {}", path_str);
+        assert!(path.exists(), "Discovered path should exist: {path_str}");
 
         let has_data = path.join("data").exists();
         let has_tlk = path.join("dialog.tlk").exists();
@@ -120,13 +116,11 @@ fn test_discovered_path_is_valid_installation() {
 
         assert!(
             is_valid,
-            "Discovered path should have NWN2 indicators: {}",
-            path_str
+            "Discovered path should have NWN2 indicators: {path_str}"
         );
 
         println!(
-            "Validated: {} (data={}, tlk={}, exe={}, enhanced={})",
-            path_str, has_data, has_tlk, has_exe, has_enhanced
+            "Validated: {path_str} (data={has_data}, tlk={has_tlk}, exe={has_exe}, enhanced={has_enhanced})"
         );
     }
 }
@@ -144,8 +138,7 @@ fn test_no_duplicate_paths() {
 
         assert!(
             seen.insert(canonical_str.clone()),
-            "Duplicate path found: {}",
-            path
+            "Duplicate path found: {path}"
         );
     }
 
@@ -171,7 +164,7 @@ fn test_discovered_paths_match_nwn2_paths() {
             }
         });
 
-        println!("NWN2Paths game folder: {}", game_folder_str);
+        println!("NWN2Paths game folder: {game_folder_str}");
         println!("Discovered paths: {:?}", discovery.nwn2_paths);
 
         assert!(found, "NWN2Paths game folder should be in discovered paths");
@@ -185,8 +178,8 @@ fn test_is_enhanced_edition() {
     let is_enhanced = paths.is_enhanced_edition();
     let has_enhanced_dir = paths.enhanced().map(|p| p.exists()).unwrap_or(false);
 
-    println!("Is Enhanced Edition: {}", is_enhanced);
-    println!("Has enhanced directory: {}", has_enhanced_dir);
+    println!("Is Enhanced Edition: {is_enhanced}");
+    println!("Has enhanced directory: {has_enhanced_dir}");
 
     assert_eq!(
         is_enhanced, has_enhanced_dir,
@@ -206,8 +199,8 @@ fn test_is_steam_installation() {
             .to_lowercase()
             .contains("steam");
 
-        println!("Is Steam installation: {}", is_steam);
-        println!("Path contains 'steam': {}", path_contains_steam);
+        println!("Is Steam installation: {is_steam}");
+        println!("Path contains 'steam': {path_contains_steam}");
     }
 }
 
@@ -220,7 +213,7 @@ fn test_is_gog_installation() {
     if let Some(game_folder) = paths.game_folder() {
         let path_contains_gog = game_folder.to_string_lossy().to_lowercase().contains("gog");
 
-        println!("Is GOG installation: {}", is_gog);
-        println!("Path contains 'gog': {}", path_contains_gog);
+        println!("Is GOG installation: {is_gog}");
+        println!("Path contains 'gog': {path_contains_gog}");
     }
 }

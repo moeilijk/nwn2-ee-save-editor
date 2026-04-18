@@ -12,8 +12,7 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::RwLock;
 
-    async fn setup_test_environment()
-    -> (Character, Arc<RwLock<ResourceManager>>, ItemPropertyDecoder) {
+    fn setup_test_environment() -> (Character, Arc<RwLock<ResourceManager>>, ItemPropertyDecoder) {
         let paths = Arc::new(RwLock::new(NWN2Paths::new()));
         let rm = Arc::new(RwLock::new(ResourceManager::new(paths)));
         let mut decoder = ItemPropertyDecoder::new(rm.clone());
@@ -41,7 +40,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_equipment_skill_bonus_application() {
-        let (mut char, _, decoder) = setup_test_environment().await;
+        let (mut char, _, decoder) = setup_test_environment();
 
         // 1. Create an item with Skill Bonus (Property 52), Subtype 0 (Concentration), Cost 5 (Value +5)
         let mut item = IndexMap::new();
@@ -83,12 +82,11 @@ mod tests {
         // Current Bug: Rank 5 + Ability 0 + Bonus 0 (ignored) = 5.
 
         let total = char.calculate_skill_modifier(SkillId(0), &game_data, Some(&decoder));
-        println!("Skill Total: {}", total);
+        println!("Skill Total: {total}");
 
         assert_eq!(
             total, 10,
-            "Skill bonus from equipment was not applied! Expected 10, got {}",
-            total
+            "Skill bonus from equipment was not applied! Expected 10, got {total}"
         );
     }
 }

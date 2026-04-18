@@ -29,7 +29,7 @@ async fn test_2da_column_names() {
 
     println!("classes.2da columns ({}):", cols.len());
     for col in &cols {
-        print!("{}, ", col);
+        print!("{col}, ");
     }
     println!();
 
@@ -57,7 +57,7 @@ async fn test_2da_cell_access_by_name() {
         .expect("classes.2da not found");
 
     let bard_label = table.get_cell(1, "Label").expect("Row 1 Label missing");
-    println!("Class 1 Label: {:?}", bard_label);
+    println!("Class 1 Label: {bard_label:?}");
     assert!(
         bard_label
             .as_deref()
@@ -98,7 +98,7 @@ async fn test_2da_row_dict() {
         .expect("classes.2da not found");
 
     let row0 = table.get_row(0).expect("Failed to get row dict");
-    println!("Row 0 as dict: {:?}", row0);
+    println!("Row 0 as dict: {row0:?}");
     assert!(!row0.is_empty(), "Row dict should not be empty");
 }
 
@@ -132,9 +132,9 @@ async fn test_2da_find_row() {
 
     let result = table.parser.find_row("Label", "Fighter");
     match result {
-        Ok(Some(row_idx)) => println!("Fighter found at row {}", row_idx),
+        Ok(Some(row_idx)) => println!("Fighter found at row {row_idx}"),
         Ok(None) => println!("Fighter not found"),
-        Err(e) => println!("Find error: {}", e),
+        Err(e) => println!("Find error: {e}"),
     }
 }
 
@@ -172,7 +172,7 @@ async fn test_2da_null_values() {
         let row = table.get_row(row_idx).unwrap();
         for (col, val) in &row {
             if val.is_none() {
-                println!("  Row {}, {}: NULL", row_idx, col);
+                println!("  Row {row_idx}, {col}: NULL");
             }
         }
     }
@@ -248,7 +248,7 @@ async fn test_2da_races_table() {
     println!("racialtypes.2da has {} rows", table.row_count());
 
     let cols = table.column_names();
-    println!("Columns: {:?}", cols);
+    println!("Columns: {cols:?}");
 }
 
 #[tokio::test]
@@ -281,7 +281,7 @@ async fn test_2da_cls_feat_fight() {
     println!("cls_feat_fight.2da has {} rows", table.row_count());
 
     let cols = table.column_names();
-    println!("Columns: {:?}", cols);
+    println!("Columns: {cols:?}");
 
     assert!(
         cols.iter().any(|c| c.to_lowercase() == "featindex"),
@@ -303,13 +303,13 @@ async fn test_2da_cls_feat_fight() {
 
 #[test]
 fn test_2da_parse_from_string_basic() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Name        Value
 0           test1       10
 1           test2       20
 2           test3       30
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser
@@ -335,18 +335,18 @@ Label       Description
         .expect("Failed to parse 2DA string");
 
     let desc0 = parser.get_cell_by_name(0, "Description").unwrap();
-    println!("Row 0 Description: {:?}", desc0);
+    println!("Row 0 Description: {desc0:?}");
     assert!(desc0.is_some());
 }
 
 #[test]
 fn test_2da_parse_null_values() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Value       Optional
 0           10          ****
 1           ****        Value2
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser
@@ -362,8 +362,8 @@ Label       Value       Optional
     let opt0 = parser.get_cell_by_name(0, "Optional").unwrap();
     let val1 = parser.get_cell_by_name(1, "Value").unwrap();
 
-    println!("Row 0 Optional: {:?}", opt0);
-    println!("Row 1 Value: {:?}", val1);
+    println!("Row 0 Optional: {opt0:?}");
+    println!("Row 1 Value: {val1:?}");
 
     // **** values are parsed as None or empty string depending on parser implementation
     let opt0_is_null = opt0.is_none() || opt0.map(|s| s == "****" || s.is_empty()).unwrap_or(false);
@@ -389,7 +389,7 @@ async fn test_2da_column_iteration() {
     if let Some(labels) = table.parser.iter_column_by_name("Label") {
         println!("First 10 class labels:");
         for (i, label) in labels.enumerate().take(10) {
-            println!("  {}: {:?}", i, label);
+            println!("  {i}: {label:?}");
         }
     } else {
         panic!("Should find Label column");
@@ -402,12 +402,12 @@ async fn test_2da_column_iteration() {
 
 #[test]
 fn test_2da_msgpack_round_trip() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Name        Value
 0           test1       100
 1           test2       200
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser.parse_from_string(content).expect("Failed to parse");
@@ -446,12 +446,12 @@ fn test_2da_invalid_header() {
 
 #[test]
 fn test_2da_out_of_bounds_access() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Value
 0           10
 1           20
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser.parse_from_string(content).expect("Failed to parse");
@@ -462,11 +462,11 @@ Label       Value
 
 #[test]
 fn test_2da_nonexistent_column() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Value
 0           10
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser.parse_from_string(content).expect("Failed to parse");
@@ -481,19 +481,19 @@ Label       Value
 
 #[test]
 fn test_2da_statistics() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Value
 0           10
 1           20
 2           30
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser.parse_from_string(content).expect("Failed to parse");
 
     let stats = parser.statistics();
-    println!("Parser stats: {:?}", stats);
+    println!("Parser stats: {stats:?}");
     assert!(stats.total_cells > 0, "Should have cells counted");
 }
 
@@ -503,13 +503,13 @@ Label       Value
 
 #[test]
 fn test_2da_row_count() {
-    let content = r#"2DA V2.0
+    let content = r"2DA V2.0
 
 Label       Value
 0           10
 1           20
 2           30
-"#;
+";
 
     let mut parser = TDAParser::new();
     parser.parse_from_string(content).expect("Failed to parse");
@@ -545,11 +545,11 @@ async fn test_2da_files_tab_character_usage() {
     for zip_name in BASE_GAME_ZIPS {
         let zip_path = nwn2_data_dir.join(zip_name);
         if !zip_path.exists() {
-            println!("Skipping {}, file not found", zip_name);
+            println!("Skipping {zip_name}, file not found");
             continue;
         }
 
-        println!("Scanning {} ...", zip_name);
+        println!("Scanning {zip_name} ...");
 
         let file = std::fs::File::open(&zip_path).expect("Failed to open zip");
         let mut archive = zip::ZipArchive::new(file).expect("Failed to read zip");
@@ -579,7 +579,7 @@ async fn test_2da_files_tab_character_usage() {
                     .map(|(idx, _)| idx + 1)
                     .collect();
 
-                println!("  TABS FOUND: {} (lines: {:?})", name, lines_with_tabs);
+                println!("  TABS FOUND: {name} (lines: {lines_with_tabs:?})");
             } else {
                 files_without_tabs += 1;
             }
@@ -587,14 +587,14 @@ async fn test_2da_files_tab_character_usage() {
     }
 
     println!("\n=== RESULTS ===");
-    println!("Total 2DA files scanned: {}", total_files);
+    println!("Total 2DA files scanned: {total_files}");
     println!("Files with tab characters: {}", files_with_tabs.len());
-    println!("Files without tabs: {}", files_without_tabs);
+    println!("Files without tabs: {files_without_tabs}");
 
     if !files_with_tabs.is_empty() {
         println!("\n=== Files containing tabs ===");
         for (zip, file) in &files_with_tabs {
-            println!("  {} -> {}", zip, file);
+            println!("  {zip} -> {file}");
         }
     } else {
         println!("\nNo 2DA files use tab characters - all use space-separated format");

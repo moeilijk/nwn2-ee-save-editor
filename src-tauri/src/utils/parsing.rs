@@ -60,7 +60,7 @@ mod tests {
         row.insert("hitdie".into(), Some("10".into()));
         row.insert("spellcaster".into(), Some("1".into()));
         row.insert("label".into(), Some("Fighter".into()));
-        row.insert("empty".into(), Some("".into()));
+        row.insert("empty".into(), Some(String::new()));
         row.insert("null".into(), None);
 
         assert_eq!(row_int(&row, "hitdie", 0), 10);

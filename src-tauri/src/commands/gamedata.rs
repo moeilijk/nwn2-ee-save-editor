@@ -483,10 +483,10 @@ fn lookup_race_name(game_data: &crate::loaders::GameData, race_id: i32) -> Strin
         return format!("Race {race_id}");
     };
     let name_ref = row_int(&row, "name", -1);
-    if name_ref >= 0 {
-        if let Some(s) = game_data.get_string(name_ref) {
-            return s;
-        }
+    if name_ref >= 0
+        && let Some(s) = game_data.get_string(name_ref)
+    {
+        return s;
     }
     row_str(&row, "label").unwrap_or_else(|| format!("Race {race_id}"))
 }

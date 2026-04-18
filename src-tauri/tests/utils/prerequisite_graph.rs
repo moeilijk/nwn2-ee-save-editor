@@ -38,28 +38,28 @@ async fn test_build_prerequisite_graph_from_real_feats() {
                 feat_row.insert("prereqfeat2".to_string(), serde_json::json!(id));
             }
 
-            if let Some(val) = cell_int(table, row_idx, "MINSTR") {
-                if val > 0 {
-                    feat_row.insert("minstr".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINSTR")
+                && val > 0
+            {
+                feat_row.insert("minstr".to_string(), serde_json::json!(val));
             }
 
-            if let Some(val) = cell_int(table, row_idx, "MINDEX") {
-                if val > 0 {
-                    feat_row.insert("mindex".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINDEX")
+                && val > 0
+            {
+                feat_row.insert("mindex".to_string(), serde_json::json!(val));
             }
 
-            if let Some(val) = cell_int(table, row_idx, "MINLEVEL") {
-                if val > 0 {
-                    feat_row.insert("minlevel".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINLEVEL")
+                && val > 0
+            {
+                feat_row.insert("minlevel".to_string(), serde_json::json!(val));
             }
 
-            if let Some(val) = cell_int(table, row_idx, "MINATTACKBONUS") {
-                if val > 0 {
-                    feat_row.insert("minattackbonus".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINATTACKBONUS")
+                && val > 0
+            {
+                feat_row.insert("minattackbonus".to_string(), serde_json::json!(val));
             }
 
             feat_data.push(feat_row);
@@ -73,7 +73,7 @@ async fn test_build_prerequisite_graph_from_real_feats() {
         let stats = graph.get_statistics();
         println!("=== Prerequisite Graph Statistics ===");
         for (key, value) in &stats {
-            println!("  {}: {}", key, value);
+            println!("  {key}: {value}");
         }
 
         let total_feats = stats
@@ -82,8 +82,7 @@ async fn test_build_prerequisite_graph_from_real_feats() {
             .unwrap_or(0);
         assert!(
             total_feats > 100,
-            "Should have many feats (got {})",
-            total_feats
+            "Should have many feats (got {total_feats})"
         );
     }
 }
@@ -106,8 +105,8 @@ async fn test_power_attack_cleave_chain() {
         });
 
         if let (Some(pa_idx), Some(cleave_idx)) = (power_attack_row, cleave_row) {
-            println!("Power Attack: row {}", pa_idx);
-            println!("Cleave: row {}", cleave_idx);
+            println!("Power Attack: row {pa_idx}");
+            println!("Cleave: row {cleave_idx}");
 
             let cleave_prereq = cell_int(table, cleave_idx, "PREREQFEAT1");
 
@@ -116,7 +115,7 @@ async fn test_power_attack_cleave_chain() {
                     prereq as usize, pa_idx,
                     "Cleave should require Power Attack"
                 );
-                println!("Verified: Cleave requires Power Attack (feat {})", prereq);
+                println!("Verified: Cleave requires Power Attack (feat {prereq})");
             }
         }
     }
@@ -162,7 +161,7 @@ async fn test_validate_feat_with_real_graph() {
             let (valid_without, reasons) =
                 graph.validate_feat_prerequisites_fast(cleave_idx as u32, &[], None);
             assert!(!valid_without, "Cleave should fail without Power Attack");
-            println!("Cleave without Power Attack: {:?}", reasons);
+            println!("Cleave without Power Attack: {reasons:?}");
 
             let (valid_with, _) =
                 graph.validate_feat_prerequisites_fast(cleave_idx as u32, &[pa_idx as u32], None);
@@ -205,10 +204,7 @@ async fn test_get_feat_requirements_chain() {
         if let Some(gc_idx) = great_cleave_row {
             let requirements = graph.get_all_feat_requirements(gc_idx as u32);
 
-            println!(
-                "Great Cleave (feat {}) requires feats: {:?}",
-                gc_idx, requirements
-            );
+            println!("Great Cleave (feat {gc_idx}) requires feats: {requirements:?}");
 
             assert!(
                 !requirements.is_empty(),
@@ -337,10 +333,10 @@ async fn test_direct_prerequisites_lookup() {
             if let Some(id) = cell_int(table, row_idx, "PREREQFEAT1") {
                 feat_row.insert("prereqfeat1".to_string(), serde_json::json!(id));
             }
-            if let Some(val) = cell_int(table, row_idx, "MINSTR") {
-                if val > 0 {
-                    feat_row.insert("minstr".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINSTR")
+                && val > 0
+            {
+                feat_row.insert("minstr".to_string(), serde_json::json!(val));
             }
 
             feat_data.push(feat_row);
@@ -360,7 +356,7 @@ async fn test_direct_prerequisites_lookup() {
 
             println!("Power Attack direct prerequisites:");
             for (key, value) in &prereqs {
-                println!("  {}: {}", key, value);
+                println!("  {key}: {value}");
             }
 
             assert!(prereqs.contains_key("feats"));
@@ -384,10 +380,10 @@ async fn test_epic_feat_prerequisites() {
             if let Some(id) = cell_int(table, row_idx, "PREREQFEAT1") {
                 feat_row.insert("prereqfeat1".to_string(), serde_json::json!(id));
             }
-            if let Some(val) = cell_int(table, row_idx, "MINLEVEL") {
-                if val > 0 {
-                    feat_row.insert("minlevel".to_string(), serde_json::json!(val));
-                }
+            if let Some(val) = cell_int(table, row_idx, "MINLEVEL")
+                && val > 0
+            {
+                feat_row.insert("minlevel".to_string(), serde_json::json!(val));
             }
 
             feat_data.push(feat_row);
@@ -411,7 +407,7 @@ async fn test_epic_feat_prerequisites() {
             let prereqs = graph.get_direct_prerequisites(row as u32);
             let level_req = prereqs.get("level").and_then(|v| v.as_u64()).unwrap_or(0);
 
-            println!("  {} (row {}): min level {}", label, row, level_req);
+            println!("  {label} (row {row}): min level {level_req}");
         }
     }
 }

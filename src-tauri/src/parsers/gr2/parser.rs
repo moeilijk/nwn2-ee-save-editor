@@ -601,7 +601,7 @@ impl Gr2Parser {
                 let header_end = (orient_ptr + 16).min(sd.len());
                 let _ = write!(out, "    RawHeader:");
                 for b in &sd[orient_ptr..header_end] {
-                    let _ = write!(out, " {:02x}", b);
+                    let _ = write!(out, " {b:02x}");
                 }
                 let _ = writeln!(out);
 

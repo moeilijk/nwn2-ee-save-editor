@@ -19,7 +19,7 @@ async fn test_inventory_loading() {
     // DEBUG: Print all keys and Gold
     println!("Character Fields Count: {}", character.field_names().len());
     if let Some(gold_val) = character.gff().get("Gold") {
-        println!("Gold Field: {:?}", gold_val);
+        println!("Gold Field: {gold_val:?}");
     }
 
     // Should have inventory items
@@ -30,13 +30,13 @@ async fn test_inventory_loading() {
 
     // Check gold - Relaxed
     let gold = character.gold();
-    println!("Gold: {}", gold);
+    println!("Gold: {gold}");
     // assert!(gold > 0, "High level character should have gold");
 
     // Check equipped items
 
     let equipped = character.equipped_count();
-    println!("Equipped count: {}", equipped);
+    println!("Equipped count: {equipped}");
     assert!(
         equipped > 0,
         "High level character should have equipped items"
@@ -65,7 +65,7 @@ async fn test_equipment_stats() {
     let summary = character.get_equipment_summary(game_data);
 
     // Verify meaningful stats
-    assert!(summary.slots.len() > 0, "Should list equipment slots");
+    assert!(!summary.slots.is_empty(), "Should list equipment slots");
 
     println!("Equipment Summary AC Bonus: {}", summary.total_ac_bonus);
     println!("Equipment Summary Weight: {}", summary.total_weight);
@@ -121,7 +121,7 @@ async fn test_encumbrance() {
     assert!(encumbrance.medium_load <= encumbrance.heavy_load);
     assert!(encumbrance.heavy_load <= encumbrance.max_load);
 
-    println!("Encumbrance: {:?}", encumbrance);
+    println!("Encumbrance: {encumbrance:?}");
 }
 
 #[tokio::test]
@@ -159,13 +159,13 @@ async fn test_progression_comparison() {
     let weight_high = char_high.calculate_total_weight(game_data);
 
     // Ryath Lvl 4 might be heavier than Lvl 1
-    println!("Weight Low: {}, Weight High: {}", weight_low, weight_high);
+    println!("Weight Low: {weight_low}, Weight High: {weight_high}");
 
     // Compare AC
     let ac_low = char_low.get_equipment_ac_bonus(game_data);
     let ac_high = char_high.get_equipment_ac_bonus(game_data);
 
-    println!("AC Low: {}, AC High: {}", ac_low, ac_high);
+    println!("AC Low: {ac_low}, AC High: {ac_high}");
 
     // High level gear should provide more AC (magical bonuses etc) or at least equal
     assert!(
@@ -189,8 +189,8 @@ async fn test_equip_unequip_flow() {
     let initial_ac = character.get_equipment_ac_bonus(game_data);
     let initial_equipped = character.equipped_count();
 
-    println!("Initial AC: {}", initial_ac);
-    println!("Initial Equipped Count: {}", initial_equipped);
+    println!("Initial AC: {initial_ac}");
+    println!("Initial Equipped Count: {initial_equipped}");
     assert!(initial_equipped > 0, "Should start with items equipped");
 
     // Find an equipped slot dynamically
@@ -212,7 +212,7 @@ async fn test_equip_unequip_flow() {
     for slot in slots_to_check {
         if character.get_equipped_item_by_slot(slot).is_some() {
             valid_slot = Some(slot);
-            println!("Found equipped item in slot: {:?}", slot);
+            println!("Found equipped item in slot: {slot:?}");
             break;
         }
     }
@@ -254,7 +254,7 @@ async fn test_equip_unequip_flow() {
 
     // 3. Verify changes
     let unequipped_ac = character.get_equipment_ac_bonus(game_data);
-    println!("AC after unequip: {}", unequipped_ac);
+    println!("AC after unequip: {unequipped_ac}");
 
     assert_eq!(
         character.equipped_count(),
@@ -325,61 +325,57 @@ async fn test_classic_campaign_inventory_equip() {
         );
 
         // Try to find a slot for this item
-        if let Some(baseitems) = game_data.get_table("baseitems") {
-            if let Some(row) = baseitems.get_by_id(item.base_item) {
-                // Logic to find slot bitmask
-                let equip_slots = row
-                    .get("EquipableSlots")
-                    .or_else(|| row.get("equipableslots"))
-                    .and_then(|s| s.as_ref())
-                    .and_then(|s| {
-                        if s.starts_with("0x") {
-                            u32::from_str_radix(&s[2..], 16).ok()
-                        } else {
-                            s.parse::<u32>().ok()
-                        }
-                    })
-                    .unwrap_or(0);
+        if let Some(baseitems) = game_data.get_table("baseitems")
+            && let Some(row) = baseitems.get_by_id(item.base_item)
+        {
+            // Logic to find slot bitmask
+            let equip_slots = row
+                .get("EquipableSlots")
+                .or_else(|| row.get("equipableslots"))
+                .and_then(|s| s.as_ref())
+                .and_then(|s| {
+                    if let Some(hex) = s.strip_prefix("0x") {
+                        u32::from_str_radix(hex, 16).ok()
+                    } else {
+                        s.parse::<u32>().ok()
+                    }
+                })
+                .unwrap_or(0);
 
-                println!("  Equipable Slots: 0x{:X}", equip_slots);
+            println!("  Equipable Slots: 0x{equip_slots:X}");
 
-                if equip_slots > 0 {
-                    // Find first matching slot
-                    let all_slots = [
-                        EquipmentSlot::Head,
-                        EquipmentSlot::Chest,
-                        EquipmentSlot::Boots,
-                        EquipmentSlot::Gloves,
-                        EquipmentSlot::RightHand,
-                        EquipmentSlot::LeftHand,
-                        EquipmentSlot::Cloak,
-                        EquipmentSlot::LeftRing,
-                        EquipmentSlot::RightRing,
-                        EquipmentSlot::Neck,
-                        EquipmentSlot::Belt,
-                        EquipmentSlot::Arrows,
-                        EquipmentSlot::Bullets,
-                        EquipmentSlot::Bolts,
-                    ];
+            if equip_slots > 0 {
+                // Find first matching slot
+                let all_slots = [
+                    EquipmentSlot::Head,
+                    EquipmentSlot::Chest,
+                    EquipmentSlot::Boots,
+                    EquipmentSlot::Gloves,
+                    EquipmentSlot::RightHand,
+                    EquipmentSlot::LeftHand,
+                    EquipmentSlot::Cloak,
+                    EquipmentSlot::LeftRing,
+                    EquipmentSlot::RightRing,
+                    EquipmentSlot::Neck,
+                    EquipmentSlot::Belt,
+                    EquipmentSlot::Arrows,
+                    EquipmentSlot::Bullets,
+                    EquipmentSlot::Bolts,
+                ];
 
-                    for slot in all_slots {
-                        let mask = slot.to_bitmask();
-                        if equip_slots & mask != 0 {
-                            item_to_equip_idx = Some(idx);
-                            target_slot = Some(slot);
-                            break;
-                        }
+                for slot in all_slots {
+                    let mask = slot.to_bitmask();
+                    if equip_slots & mask != 0 {
+                        item_to_equip_idx = Some(idx);
+                        target_slot = Some(slot);
+                        break;
                     }
                 }
             }
         }
 
-        if item_to_equip_idx.is_some() && target_slot.is_some() {
-            println!(
-                "Selected Item to Equip: {} into {:?}",
-                item.tag,
-                target_slot.unwrap()
-            );
+        if let (Some(_), Some(slot)) = (item_to_equip_idx, target_slot) {
+            println!("Selected Item to Equip: {} into {slot:?}", item.tag);
             break;
         }
     }

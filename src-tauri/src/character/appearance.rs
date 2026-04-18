@@ -807,13 +807,12 @@ impl Character {
                 }
 
                 // Fallback: when save item has no tints (all zero), use item template tints
-                if result.armor_tint.is_none() {
-                    if let Some(template_tint) =
+                if result.armor_tint.is_none()
+                    && let Some(template_tint) =
                         Self::load_template_tint(item_struct, resource_manager)
-                    {
-                        debug!("Using template tint fallback");
-                        result.armor_tint = Some(template_tint);
-                    }
+                {
+                    debug!("Using template tint fallback");
+                    result.armor_tint = Some(template_tint);
                 }
                 debug!("Armor tint: {:?}", result.armor_tint);
 

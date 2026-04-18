@@ -12,10 +12,10 @@ mod common;
 
 fn i32_of(fields: &indexmap::IndexMap<String, GffValue<'_>>, key: &str) -> Option<i32> {
     match fields.get(key)? {
-        GffValue::Byte(b) => Some(*b as i32),
+        GffValue::Byte(b) => Some(i32::from(*b)),
         GffValue::Char(c) => Some(*c as i32),
-        GffValue::Word(w) => Some(*w as i32),
-        GffValue::Short(s) => Some(*s as i32),
+        GffValue::Word(w) => Some(i32::from(*w)),
+        GffValue::Short(s) => Some(i32::from(*s)),
         GffValue::Dword(d) => Some(*d as i32),
         GffValue::Int(i) => Some(*i),
         _ => None,
@@ -56,23 +56,20 @@ fn dump_item(out: &mut String, item: &indexmap::IndexMap<String, GffValue<'_>>, 
     }
     // Nested boots/gloves
     for nested_key in ["Boots", "Gloves"] {
-        match item.get(nested_key) {
-            Some(val) => {
-                if let Some(nested) = resolve_struct(val) {
-                    writeln!(out, "  Nested {nested_key}:").unwrap();
-                    for k in ["ArmorVisualType", "Variation"] {
-                        writeln!(
-                            out,
-                            "    {k}: {:?}",
-                            i32_of(&nested, k)
-                                .map(|v| v.to_string())
-                                .unwrap_or_else(|| "?".into())
-                        )
-                        .unwrap();
-                    }
-                }
+        if let Some(val) = item.get(nested_key)
+            && let Some(nested) = resolve_struct(val)
+        {
+            writeln!(out, "  Nested {nested_key}:").unwrap();
+            for k in ["ArmorVisualType", "Variation"] {
+                writeln!(
+                    out,
+                    "    {k}: {:?}",
+                    i32_of(&nested, k)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "?".into())
+                )
+                .unwrap();
             }
-            None => {}
         }
     }
 }
@@ -262,11 +259,11 @@ async fn diagnose_item_models() {
                     if parts.is_empty() {
                         continue;
                     }
-                    if let Ok(row_id) = parts[0].parse::<i32>() {
-                        if row_id == base_item {
-                            writeln!(out, "  baseitems row {row_id}: {line}").unwrap();
-                            break;
-                        }
+                    if let Ok(row_id) = parts[0].parse::<i32>()
+                        && row_id == base_item
+                    {
+                        writeln!(out, "  baseitems row {row_id}: {line}").unwrap();
+                        break;
                     }
                 }
             }

@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use app_lib::parsers::xml::RustXmlParser;
@@ -207,7 +208,7 @@ fn test_motb_companions() {
 
     for name in motb_companion_names {
         if companions.contains_key(name) {
-            println!("Found MOTB companion: {}", name);
+            println!("Found MOTB companion: {name}");
         }
     }
 }
@@ -392,7 +393,7 @@ fn test_get_global_variable() {
     let info = parser.get_general_info();
     println!("Sample global variables:");
     for (key, value) in info.iter().take(10) {
-        println!("  {}: {:?}", key, value);
+        println!("  {key}: {value:?}");
     }
 }
 
@@ -430,7 +431,7 @@ fn test_xml_entity_handling() {
 fn test_xml_large_content() {
     let mut xml = String::from(r#"<?xml version="1.0" encoding="utf-8"?><Globals>"#);
     for i in 0..1000 {
-        xml.push_str(&format!("<Entry_{}>Value_{}</Entry_{}>", i, i, i));
+        let _ = write!(xml, "<Entry_{i}>Value_{i}</Entry_{i}>");
     }
     xml.push_str("</Globals>");
 
@@ -443,11 +444,11 @@ fn test_xml_deeply_nested() {
     let depth = 50;
     let mut xml = String::from(r#"<?xml version="1.0" encoding="utf-8"?>"#);
     for i in 0..depth {
-        xml.push_str(&format!("<Level{}>", i));
+        let _ = write!(xml, "<Level{i}>");
     }
     xml.push_str("DeepValue");
     for i in (0..depth).rev() {
-        xml.push_str(&format!("</Level{}>", i));
+        let _ = write!(xml, "</Level{i}>");
     }
 
     let result = RustXmlParser::from_string(&xml);
@@ -515,7 +516,7 @@ fn test_parse_all_campaign_globals() {
     for campaign in campaigns {
         let globals_path = saves_path.join(campaign).join("globals.xml");
         if globals_path.exists() {
-            println!("\n=== {} globals.xml ===", campaign);
+            println!("\n=== {campaign} globals.xml ===");
             let content = std::fs::read_to_string(&globals_path).expect("Failed to read");
             let parser = RustXmlParser::from_string(&content);
             match parser {
@@ -528,11 +529,11 @@ fn test_parse_all_campaign_globals() {
                     );
                 }
                 Err(e) => {
-                    println!("  Failed to parse: {}", e);
+                    println!("  Failed to parse: {e}");
                 }
             }
         } else {
-            println!("{} globals.xml not found, skipping", campaign);
+            println!("{campaign} globals.xml not found, skipping");
         }
     }
 }

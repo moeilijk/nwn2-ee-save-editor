@@ -14,6 +14,7 @@ pub enum PathSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct NWN2Paths {
     game_folder: Option<PathBuf>,
     documents_folder: Option<PathBuf>,
@@ -399,14 +400,13 @@ impl NWN2Paths {
     pub fn get_game_version(&self) -> Option<String> {
         self.game_folder.as_ref().and_then(|g| {
             let version_file = g.join("version.txt");
-            if version_file.exists() {
-                if let Some(v) = std::fs::read_to_string(version_file)
+            if version_file.exists()
+                && let Some(v) = std::fs::read_to_string(version_file)
                     .ok()
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
-                {
-                    return Some(v);
-                }
+            {
+                return Some(v);
             }
             Self::read_exe_version(&g.join("nwn2.exe"))
         })
@@ -461,14 +461,15 @@ impl NWN2Paths {
             if VerQueryValueW(
                 buffer.as_ptr(),
                 query.as_ptr(),
-                &mut info_ptr,
-                &mut info_len,
+                &raw mut info_ptr,
+                &raw mut info_len,
             ) == 0
             {
                 return None;
             }
 
-            let info = &*(info_ptr as *const VS_FIXEDFILEINFO);
+            #[allow(clippy::cast_ptr_alignment)]
+            let info = &*info_ptr.cast::<VS_FIXEDFILEINFO>();
             Some(format!(
                 "{}.{}.{}.{}",
                 (info.dwFileVersionMS >> 16) & 0xFFFF,

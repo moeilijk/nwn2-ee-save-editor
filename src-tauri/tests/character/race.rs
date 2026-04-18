@@ -17,8 +17,8 @@ async fn test_race_data_loading() {
 
     // Basic consistency checks
     let race_id = character.race_id();
-    let race_name = character.race_name(&game_data);
-    println!("Ryath race: {} (ID: {:?})", race_name, race_id);
+    let race_name = character.race_name(game_data);
+    println!("Ryath race: {race_name} (ID: {race_id:?})");
 
     assert_ne!(race_name, "", "Race name should not be empty");
     assert!(
@@ -28,8 +28,8 @@ async fn test_race_data_loading() {
 
     // Humans usually have race ID 6 (Human) or similar standard ID
     // Verify ability modifiers are reasonable
-    let mods = character.get_racial_ability_modifiers_for_race(race_id.0, &game_data);
-    println!("Racial Mods: {:?}", mods);
+    let mods = character.get_racial_ability_modifiers_for_race(race_id.0, game_data);
+    println!("Racial Mods: {mods:?}");
 
     // Humans generally have no ability modifiers
     if race_name == "Human" {
@@ -44,7 +44,7 @@ async fn test_race_data_loading() {
     // Size check
     let size = character.size_category();
     let size_val = character.creature_size();
-    println!("Size: {:?} ({})", size, size_val);
+    println!("Size: {size:?} ({size_val})");
     assert_eq!(size_val, size as i32);
 }
 
@@ -54,7 +54,7 @@ async fn test_race_progression_consistency() {
     let _game_data = ctx.loader.game_data().expect("Failed to load game data");
 
     // Compare Ryath at different stages/levels
-    let files = vec![
+    let files = [
         "ryathstrongarm/ryathstrongarm1.bic",
         "ryathstrongarm/ryathstrongarm2.bic",
         "ryathstrongarm/ryathstrongarm3.bic",
@@ -75,10 +75,7 @@ async fn test_race_progression_consistency() {
         let race_id = character.race_id();
         let subrace = character.subrace();
 
-        println!(
-            "Checking {} -> Race: {:?} Subrace: {:?}",
-            file, race_id, subrace
-        );
+        println!("Checking {file} -> Race: {race_id:?} Subrace: {subrace:?}");
 
         if i == 0 {
             first_race_id = Some(race_id);
@@ -120,31 +117,27 @@ async fn test_diverse_races() {
                 .expect("Failed to read top level struct");
             let character = Character::from_gff(fields);
 
-            let race_name = character.race_name(&game_data);
+            let race_name = character.race_name(game_data);
             let size = character.size_category();
 
-            println!(
-                "Character: {} ({}) - Race: {}, Size: {:?}",
-                name, file, race_name, size
-            );
+            println!("Character: {name} ({file}) - Race: {race_name}, Size: {size:?}");
 
             // Ensure we get valid data back
             assert!(!race_name.is_empty());
 
             // Check racial feats
-            let racial_feats = character.get_all_racial_feats(&game_data);
+            let racial_feats = character.get_all_racial_feats(game_data);
             println!("  Racial Feats: {}", racial_feats.len());
             for feat in &racial_feats {
                 // Verify we can resolve feat names
-                let feat_name = character.get_feat_name(*feat, &game_data);
+                let feat_name = character.get_feat_name(*feat, game_data);
                 assert!(
                     !feat_name.is_empty(),
-                    "Racial feat {:?} should have a name",
-                    feat
+                    "Racial feat {feat:?} should have a name"
                 );
             }
         } else {
-            println!("Skipping {}, file not found", file);
+            println!("Skipping {file}, file not found");
         }
     }
 }
@@ -164,11 +157,11 @@ async fn test_race_change_validation() {
 
     // Validate a known valid change (to Human, ID 6)
     let human_id = 6; // Standard Human ID in NWN2
-    let _validation = character.validate_race_change(human_id, None, &game_data);
+    let _validation = character.validate_race_change(human_id, None, game_data);
 
     // Ensure we can't change to a non-existent race
     let invalid_race_id = 99999;
-    let validation_invalid = character.validate_race_change(invalid_race_id, None, &game_data);
+    let validation_invalid = character.validate_race_change(invalid_race_id, None, game_data);
     assert!(!validation_invalid.valid, "Should reject invalid race ID");
 
     // Validate subrace check
@@ -177,9 +170,9 @@ async fn test_race_change_validation() {
     // "Drow" is subrace of Elf (1).
 
     // Drow base race is Elf; applying Drow subrace to a Human base race should fail.
-    let drow_validation = character.validate_subrace(6, "drow", &game_data);
+    let drow_validation = character.validate_subrace(6, "drow", game_data);
     if drow_validation.valid {
-        let drow_data = character.get_subrace_data("drow", &game_data);
+        let drow_data = character.get_subrace_data("drow", game_data);
         if drow_data.is_some() {
             assert!(
                 !drow_validation.valid,
@@ -209,16 +202,12 @@ async fn test_race_change_execution() {
     let initial_cha = character.base_ability(app_lib::character::AbilityIndex::CHA);
     let _initial_feats_count = character.feat_ids().len();
 
-    println!(
-        "Initial Race: {:?}, CON: {}, CHA: {}",
-        initial_race, initial_con, initial_cha
-    );
+    println!("Initial Race: {initial_race:?}, CON: {initial_con}, CHA: {initial_cha}");
 
     // Ensure we are starting with Human (ID 6) for this test to be predictable
     if initial_race.0 != 6 {
         println!(
-            "WARNING: Test character is not Human (ID 6), assertions might need adjustment. Actual: {:?}",
-            initial_race
+            "WARNING: Test character is not Human (ID 6), assertions might need adjustment. Actual: {initial_race:?}"
         );
     }
 
@@ -227,10 +216,10 @@ async fn test_race_change_execution() {
     let dwarf_id = 0;
 
     let result = character
-        .change_race(dwarf_id, None, false, &game_data)
+        .change_race(dwarf_id, None, false, game_data)
         .expect("Failed to change race to Dwarf");
 
-    println!("Race Change Result: {:?}", result);
+    println!("Race Change Result: {result:?}");
 
     // Verify Race ID
     assert_eq!(
@@ -243,7 +232,7 @@ async fn test_race_change_execution() {
     let new_con = character.base_ability(app_lib::character::AbilityIndex::CON);
     let new_cha = character.base_ability(app_lib::character::AbilityIndex::CHA);
 
-    println!("New CON: {}, New CHA: {}", new_con, new_cha);
+    println!("New CON: {new_con}, New CHA: {new_cha}");
 
     // Dwarves have +2 CON, -2 CHA (Humans have no adjustments)
     assert_eq!(
@@ -261,13 +250,13 @@ async fn test_race_change_execution() {
     // Darkvision (Feat 228) should be added
     let darkvision = app_lib::character::FeatId(228);
     let has_darkvision = character.has_feat(darkvision);
-    println!("Has Darkvision: {}", has_darkvision);
+    println!("Has Darkvision: {has_darkvision}");
     assert!(has_darkvision, "Dwarf should have Darkvision");
 
     // Verify Human "Quick to Master" (Feat 258) is removed
     let quick_to_master = app_lib::character::FeatId(258);
     let has_quick_to_master = character.has_feat(quick_to_master);
-    println!("Has Quick to Master: {}", has_quick_to_master);
+    println!("Has Quick to Master: {has_quick_to_master}");
     assert!(
         !has_quick_to_master,
         "Dwarf should NOT have Quick to Master (Human trait)"
@@ -304,19 +293,19 @@ async fn test_aasimar_subrace_from_byte_index() {
 
     // player.bic has Race=21 (Planetouched) and Subrace=13 (Byte index for Aasimar)
     let race_id = character.race_id();
-    println!("Race ID: {:?}", race_id);
+    println!("Race ID: {race_id:?}");
     assert_eq!(race_id.0, 21, "Should have Planetouched base race (21)");
 
     let subrace_idx = character.subrace_index();
-    println!("Subrace Index: {:?}", subrace_idx);
+    println!("Subrace Index: {subrace_idx:?}");
     assert_eq!(
         subrace_idx,
         Some(13),
         "Should have subrace index 13 (Aasimar)"
     );
 
-    let subrace_name = character.subrace_name(&game_data);
-    println!("Subrace Name: {:?}", subrace_name);
+    let subrace_name = character.subrace_name(game_data);
+    println!("Subrace Name: {subrace_name:?}");
     assert!(subrace_name.is_some(), "Should resolve subrace name");
     assert!(
         subrace_name
@@ -324,15 +313,13 @@ async fn test_aasimar_subrace_from_byte_index() {
             .unwrap()
             .to_lowercase()
             .contains("aasimar"),
-        "Subrace name should be Aasimar, got: {:?}",
-        subrace_name
+        "Subrace name should be Aasimar, got: {subrace_name:?}"
     );
 
-    let race_name = character.race_name(&game_data);
-    println!("Race Name (display): {}", race_name);
+    let race_name = character.race_name(game_data);
+    println!("Race Name (display): {race_name}");
     assert!(
         race_name.to_lowercase().contains("aasimar"),
-        "Race display name should be Aasimar, got: {}",
-        race_name
+        "Race display name should be Aasimar, got: {race_name}"
     );
 }

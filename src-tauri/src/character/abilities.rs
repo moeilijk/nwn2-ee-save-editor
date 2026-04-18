@@ -479,6 +479,7 @@ fn calculate_heavy_load(strength: i32) -> i32 {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use crate::parsers::gff::GffValue;

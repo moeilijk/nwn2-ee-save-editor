@@ -37,7 +37,7 @@ async fn test_races_columns() {
 
     println!("\n=== Racialtypes Columns ===");
     for col in &cols {
-        println!("  {}", col);
+        println!("  {col}");
     }
 
     let required_cols = [
@@ -84,8 +84,7 @@ async fn test_dump_playable_races() {
         let cha_adj = cell_value(table, row_idx, "ChaAdjust").unwrap_or_default();
 
         println!(
-            "{:<4} {:<15} {:>4} {:>4} {:>4} {:>4} {:>4} {:>4}",
-            row_idx, label, str_adj, dex_adj, con_adj, int_adj, wis_adj, cha_adj
+            "{row_idx:<4} {label:<15} {str_adj:>4} {dex_adj:>4} {con_adj:>4} {int_adj:>4} {wis_adj:>4} {cha_adj:>4}"
         );
     }
 }
@@ -152,7 +151,7 @@ async fn test_race_favored_class() {
         let label = cell_value(table, row_idx, "Label").unwrap_or_default();
         let favored = cell_value(table, row_idx, "Favored").unwrap_or_default();
 
-        println!("{}: favored class ID = {}", label, favored);
+        println!("{label}: favored class ID = {favored}");
     }
 }
 
@@ -173,7 +172,7 @@ async fn test_playable_races_count() {
             .filter(|&row| cell_int(table, row, "PlayerRace").unwrap_or(0) == 1)
             .count();
 
-        println!("Playable races: {}", playable_count);
+        println!("Playable races: {playable_count}");
         assert!(playable_count >= 7, "Should have at least 7 playable races");
     }
 }
@@ -191,7 +190,7 @@ async fn test_subraces_table_loaded() {
         println!("Rows: {}", table.row_count());
 
         let cols = table.column_names();
-        println!("Columns: {:?}", cols);
+        println!("Columns: {cols:?}");
     } else {
         println!("racialsubtypes.2da not loaded as priority table, trying subrace.2da");
 
@@ -227,8 +226,7 @@ async fn test_dump_subraces() {
             let con_adj = cell_value(table, row_idx, "ConAdjust").unwrap_or_default();
 
             println!(
-                "{:<4} {:<20} {:<15} {:>4} {:>4} {:>4}",
-                row_idx, label, base_race, str_adj, dex_adj, con_adj
+                "{row_idx:<4} {label:<20} {base_race:<15} {str_adj:>4} {dex_adj:>4} {con_adj:>4}"
             );
         }
     } else {
@@ -245,7 +243,7 @@ async fn test_subrace_columns() {
 
         println!("\n=== Racialsubtypes Columns ===");
         for col in &cols {
-            println!("  {}", col);
+            println!("  {col}");
         }
 
         assert!(
@@ -271,7 +269,7 @@ async fn test_playable_subraces() {
                 .filter(|&row| cell_int(table, row, col).unwrap_or(0) == 1)
                 .count();
 
-            println!("Playable subraces: {}", playable_count);
+            println!("Playable subraces: {playable_count}");
         }
 
         let mut by_base_race: std::collections::HashMap<String, Vec<String>> =
@@ -315,7 +313,7 @@ async fn test_drow_subrace() {
             for col in table.column_names() {
                 let val = cell_value(table, row, col).unwrap_or_default();
                 if !val.is_empty() && val != "****" {
-                    println!("  {}: {}", col, val);
+                    println!("  {col}: {val}");
                 }
             }
         } else {
@@ -348,8 +346,7 @@ async fn test_aasimar_tiefling_subraces() {
                 let cha_adj = cell_int(table, r, "ChaAdjust").unwrap_or(0);
 
                 println!(
-                    "  {}: STR={:+}, DEX={:+}, CON={:+}, INT={:+}, WIS={:+}, CHA={:+}",
-                    label, str_adj, dex_adj, con_adj, int_adj, wis_adj, cha_adj
+                    "  {label}: STR={str_adj:+}, DEX={dex_adj:+}, CON={con_adj:+}, INT={int_adj:+}, WIS={wis_adj:+}, CHA={cha_adj:+}"
                 );
             }
         }

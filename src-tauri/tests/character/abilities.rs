@@ -286,7 +286,7 @@ async fn test_ability_increase_history() {
         character.first_name(),
         total_level
     );
-    println!("Expected ability increases: {}", expected_increases);
+    println!("Expected ability increases: {expected_increases}");
     println!("Actual ability increases: {}", history.len());
 
     for increase in &history {
@@ -330,7 +330,7 @@ async fn test_ability_points_summary() {
         let summary = character.get_ability_points_summary();
         let total_level = character.total_level();
 
-        println!("{} (Level {}):", name, total_level);
+        println!("{name} (Level {total_level}):");
         println!(
             "  Base Scores: STR={} DEX={} CON={} INT={} WIS={} CHA={}",
             summary.base_scores.str_,
@@ -349,8 +349,7 @@ async fn test_ability_points_summary() {
         assert_eq!(
             summary.expected_increases,
             total_level / 4,
-            "Expected increases mismatch for {}",
-            name
+            "Expected increases mismatch for {name}"
         );
     }
 }
@@ -372,21 +371,21 @@ async fn test_constitution_cascade_real_character() {
 
     println!("Initial State:");
     println!("  CON: {} (mod: {})", initial_con, (initial_con - 10) / 2);
-    println!("  Max HP: {}", initial_max_hp);
-    println!("  Current HP: {}", initial_current_hp);
-    println!("  Level: {}", total_level);
+    println!("  Max HP: {initial_max_hp}");
+    println!("  Current HP: {initial_current_hp}");
+    println!("  Level: {total_level}");
 
     // Increase CON by 2 (should increase HP by level per +1 mod)
     let new_con = initial_con + 2;
     let result = character.set_ability_with_cascades(AbilityIndex::CON, new_con, game_data);
-    assert!(result.is_ok(), "Failed to set CON: {:?}", result);
+    assert!(result.is_ok(), "Failed to set CON: {result:?}");
 
     let new_max_hp = character.max_hp();
     let hp_change = new_max_hp - initial_max_hp;
 
-    println!("\nAfter CON {} -> {}:", initial_con, new_con);
-    println!("  Max HP: {} (was {})", new_max_hp, initial_max_hp);
-    println!("  HP Change: {:+}", hp_change);
+    println!("\nAfter CON {initial_con} -> {new_con}:");
+    println!("  Max HP: {new_max_hp} (was {initial_max_hp})");
+    println!("  HP Change: {hp_change:+}");
 
     // If modifier changed, HP should have changed
     let old_mod = (initial_con - 10) / 2;
@@ -492,7 +491,7 @@ async fn test_hit_points_consistency() {
         assert_eq!(hp.effective_current(), hp.current + hp.temp);
 
         // Max HP should be positive for any character
-        assert!(hp.max > 0, "{} should have positive max HP", name);
+        assert!(hp.max > 0, "{name} should have positive max HP");
     }
 }
 

@@ -399,8 +399,7 @@ pub fn gr2_decompress(
                 Err(()) => {
                     return Err(Gr2Error::DecompressFailed {
                         message: format!(
-                            "Decompression error at pass {}, offset {}/{}",
-                            pass, dpos, decompressed_size
+                            "Decompression error at pass {pass}, offset {dpos}/{decompressed_size}"
                         ),
                     });
                 }

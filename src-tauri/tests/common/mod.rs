@@ -30,8 +30,12 @@ pub fn load_test_gff(name: &str) -> Vec<u8> {
         fixtures_path().join("saves").join(name)
     };
 
-    std::fs::read(&path)
-        .unwrap_or_else(|_| panic!("Failed to load fixture: {} at {:?}", name, path))
+    std::fs::read(&path).unwrap_or_else(|_| {
+        panic!(
+            "Failed to load fixture: {name} at {path}",
+            path = path.display()
+        )
+    })
 }
 
 #[allow(dead_code)]

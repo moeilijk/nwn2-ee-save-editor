@@ -24,7 +24,7 @@ async fn test_resource_manager_resolution() {
     }
 
     let s = resource_manager.get_string(100);
-    println!("String 100: {}", s);
+    println!("String 100: {s}");
 }
 
 #[tokio::test]

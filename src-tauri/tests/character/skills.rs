@@ -51,15 +51,15 @@ async fn test_skills_progression() {
 
     // L1: Class Skill Max = 1 + 3 = 4
     // Using dynamic IDs
-    let max_conc = char_l1.get_max_skill_ranks(conc_id, &game_data);
-    let max_spell = char_l1.get_max_skill_ranks(spellcraft_id, &game_data);
+    let max_conc = char_l1.get_max_skill_ranks(conc_id, game_data);
+    let max_spell = char_l1.get_max_skill_ranks(spellcraft_id, game_data);
 
     assert_eq!(max_conc, 4, "Max ranks for Concentration (L1)");
     assert_eq!(max_spell, 4, "Max ranks for Spellcraft (L1)");
 
     // L30: Class Skill Max = 30 + 3 = 33
-    assert_eq!(char_l30.get_max_skill_ranks(conc_id, &game_data), 33);
-    assert_eq!(char_l30.get_max_skill_ranks(spellcraft_id, &game_data), 33);
+    assert_eq!(char_l30.get_max_skill_ranks(conc_id, game_data), 33);
+    assert_eq!(char_l30.get_max_skill_ranks(spellcraft_id, game_data), 33);
 
     // 2. Check Actual Ranks increasing
     let l1_conc = char_l1.skill_rank(conc_id);
@@ -69,27 +69,21 @@ async fn test_skills_progression() {
 
     assert!(
         l30_conc > l1_conc,
-        "Concentration rank should increase (L1: {}, L30: {})",
-        l1_conc,
-        l30_conc
+        "Concentration rank should increase (L1: {l1_conc}, L30: {l30_conc})"
     );
     assert!(
         l30_spell > l1_spell,
-        "Spellcraft rank should increase (L1: {}, L30: {})",
-        l1_spell,
-        l30_spell
+        "Spellcraft rank should increase (L1: {l1_spell}, L30: {l30_spell})"
     );
 
     // 3. Check Modifiers
     // Modifiers should also increase significantly due to ability bumps + items + ranks
-    let l1_conc_mod = char_l1.calculate_skill_modifier(conc_id, &game_data, Some(&ctx.decoder));
-    let l30_conc_mod = char_l30.calculate_skill_modifier(conc_id, &game_data, Some(&ctx.decoder));
+    let l1_conc_mod = char_l1.calculate_skill_modifier(conc_id, game_data, Some(&ctx.decoder));
+    let l30_conc_mod = char_l30.calculate_skill_modifier(conc_id, game_data, Some(&ctx.decoder));
 
     assert!(
         l30_conc_mod > l1_conc_mod,
-        "Concentration modifier should increase (L1: {}, L30: {})",
-        l1_conc_mod,
-        l30_conc_mod
+        "Concentration modifier should increase (L1: {l1_conc_mod}, L30: {l30_conc_mod})"
     );
 }
 
@@ -109,13 +103,13 @@ async fn test_skill_summary_parity() {
     let data = common::load_test_gff("occidiooctavon/occidiooctavon4.bic");
     let character = parse_char(data);
 
-    let summary = character.get_skill_summary(&game_data, Some(&ctx.decoder));
+    let summary = character.get_skill_summary(game_data, Some(&ctx.decoder));
 
     // Ensure we get a populated list
     assert!(!summary.is_empty(), "Skill summary should not be empty");
 
     for entry in &summary {
-        let expected_max = character.get_max_skill_ranks(entry.skill_id, &game_data);
+        let expected_max = character.get_max_skill_ranks(entry.skill_id, game_data);
         assert_eq!(
             entry.max_ranks, expected_max,
             "Max ranks mismatch for skill {}",
@@ -124,7 +118,7 @@ async fn test_skill_summary_parity() {
 
         if entry.untrained || entry.ranks > 0 {
             let calc_total =
-                character.calculate_skill_modifier(entry.skill_id, &game_data, Some(&ctx.decoder));
+                character.calculate_skill_modifier(entry.skill_id, game_data, Some(&ctx.decoder));
             let expected_total = calc_total + entry.feat_bonus;
             assert_eq!(
                 entry.total, expected_total,
@@ -183,25 +177,25 @@ async fn test_skill_costs_and_points() {
     }
 
     // Verify Class Skill Status
-    let is_spell_class = character.is_class_skill(spellcraft, &game_data);
+    let is_spell_class = character.is_class_skill(spellcraft, game_data);
 
     assert!(
         is_spell_class,
         "Spellcraft should be class skill for Sorcerer"
     );
-    let is_stealth_class = character.is_class_skill(stealth, &game_data);
+    let is_stealth_class = character.is_class_skill(stealth, game_data);
 
     // Verify Costs
     // Class Skill: 1 pt
     assert_eq!(
-        character.calculate_skill_cost(spellcraft, 1, false, &game_data),
+        character.calculate_skill_cost(spellcraft, 1, false, game_data),
         1
     );
 
     // Cross Class: 2 pts (if it is indeed cross class)
     if !is_stealth_class {
         assert_eq!(
-            character.calculate_skill_cost(stealth, 1, false, &game_data),
+            character.calculate_skill_cost(stealth, 1, false, game_data),
             2
         );
     }
@@ -209,7 +203,7 @@ async fn test_skill_costs_and_points() {
     // Verify Ability Learner Feat interaction (Feat 406)
     // We can simulate having the feat by passing true
     assert_eq!(
-        character.calculate_skill_cost(stealth, 1, true, &game_data),
+        character.calculate_skill_cost(stealth, 1, true, game_data),
         1,
         "Able Learner should reduce cross-class cost to 1"
     );
@@ -222,7 +216,7 @@ async fn test_skill_costs_and_points() {
     let new_rank = current_rank + 1;
 
     // Guard against exceeding max ranks
-    let max_rank = character.get_max_skill_ranks(spellcraft, &game_data);
+    let max_rank = character.get_max_skill_ranks(spellcraft, game_data);
     if new_rank <= max_rank {
         // Mock setting points if too low
         if initial_points < 10 {
@@ -230,7 +224,7 @@ async fn test_skill_costs_and_points() {
         }
 
         let cost = character
-            .set_skill_rank_with_cost(spellcraft, new_rank, &game_data)
+            .set_skill_rank_with_cost(spellcraft, new_rank, game_data)
             .expect("Failed to set rank");
         assert_eq!(cost, 1);
 

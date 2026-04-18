@@ -457,16 +457,14 @@ impl ResourceManager {
         }
 
         let resource_key = format!("{name_lower}.2da");
-        if let Some(locations) = self.resource_index.get(&resource_key) {
-            if let Some(location) = locations
+        if let Some(locations) = self.resource_index.get(&resource_key)
+            && let Some(location) = locations
                 .iter()
-                .filter(|l| matches!(l.source, OverrideSource::BaseGame))
-                .last()
-            {
-                let parser = self.load_2da_from_location(location.clone())?;
-                self.tda_cache.insert(cache_key, Arc::clone(&parser));
-                return Ok(parser);
-            }
+                .rfind(|l| matches!(l.source, OverrideSource::BaseGame))
+        {
+            let parser = self.load_2da_from_location(location.clone())?;
+            self.tda_cache.insert(cache_key, Arc::clone(&parser));
+            return Ok(parser);
         }
 
         self.cache_misses.fetch_add(1, Ordering::Relaxed);

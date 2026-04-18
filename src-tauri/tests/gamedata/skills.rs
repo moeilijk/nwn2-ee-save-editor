@@ -56,7 +56,7 @@ async fn test_dump_all_skills() {
         let ability = cell_value(table, row_idx, "KeyAbility").unwrap_or_default();
         let acp = cell_value(table, row_idx, "ArmorCheckPenalty").unwrap_or_default();
 
-        println!("{:<4} {:<20} {:<8} {:<6}", row_idx, label, ability, acp);
+        println!("{row_idx:<4} {label:<20} {ability:<8} {acp:<6}");
     }
 }
 
@@ -76,8 +76,7 @@ async fn test_skill_key_abilities() {
         let ability = cell_value(table, row, "KeyAbility").unwrap_or_default();
         assert!(
             ability == "DEX" || ability == "1",
-            "Hide should use DEX (got: {})",
-            ability
+            "Hide should use DEX (got: {ability})"
         );
     }
 
@@ -91,8 +90,7 @@ async fn test_skill_key_abilities() {
         let ability = cell_value(table, row, "KeyAbility").unwrap_or_default();
         assert!(
             ability == "CON" || ability == "2",
-            "Concentration should use CON (got: {})",
-            ability
+            "Concentration should use CON (got: {ability})"
         );
     }
 }
@@ -117,7 +115,7 @@ async fn test_armor_check_penalty_skills() {
         }
     }
 
-    println!("Skills with Armor Check Penalty: {:?}", acp_skills);
+    println!("Skills with Armor Check Penalty: {acp_skills:?}");
     println!("Skills without ACP: {} total", no_acp_skills.len());
 
     assert!(
@@ -139,7 +137,7 @@ async fn test_class_skills_table() {
         println!("Rows: {}", table.row_count());
 
         let cols = table.column_names();
-        println!("Columns: {:?}", cols);
+        println!("Columns: {cols:?}");
 
         let mut class_skills = Vec::new();
         for row_idx in 0..table.row_count() {
@@ -150,7 +148,7 @@ async fn test_class_skills_table() {
             }
         }
 
-        println!("Fighter class skill IDs: {:?}", class_skills);
+        println!("Fighter class skill IDs: {class_skills:?}");
     } else {
         println!("cls_skill_fight.2da not loaded as priority table");
     }
@@ -177,6 +175,6 @@ async fn test_skill_untrained_usage() {
             }
         }
 
-        println!("Skills requiring training: {:?}", trainable_only);
+        println!("Skills requiring training: {trainable_only:?}");
     }
 }

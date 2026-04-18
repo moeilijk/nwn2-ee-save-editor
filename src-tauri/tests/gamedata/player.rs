@@ -38,58 +38,57 @@ fn test_list_available_character_fixtures() {
 
                 if bic_path.extension().map(|e| e == "bic").unwrap_or(false) {
                     let file_name = bic_path.file_name().unwrap().to_string_lossy();
-                    let rel_path = format!("{}/{}", dir_name, file_name);
+                    let rel_path = format!("{dir_name}/{file_name}");
 
-                    if let Ok(parser) = GffParser::from_bytes(load_test_gff(&rel_path)) {
-                        if let Ok(root) = parser.read_struct_fields(0) {
-                            let name = match root.get("FirstName") {
-                                Some(GffValue::LocString(ls)) => ls
-                                    .substrings
+                    if let Ok(parser) = GffParser::from_bytes(load_test_gff(&rel_path))
+                        && let Ok(root) = parser.read_struct_fields(0)
+                    {
+                        let name = match root.get("FirstName") {
+                            Some(GffValue::LocString(ls)) => ls
+                                .substrings
+                                .first()
+                                .map(|s| s.string.to_string())
+                                .unwrap_or_default(),
+                            _ => String::new(),
+                        };
+
+                        let race_id = match root.get("Race") {
+                            Some(GffValue::Byte(r)) => *r,
+                            _ => 0,
+                        };
+
+                        let (class_id, total_levels) = match root.get("ClassList") {
+                            Some(GffValue::List(classes)) => {
+                                let first_class = classes
                                     .first()
-                                    .map(|s| s.string.to_string())
-                                    .unwrap_or_default(),
-                                _ => String::new(),
-                            };
+                                    .map(|c| {
+                                        let fields = c.force_load();
+                                        match fields.get("Class") {
+                                            Some(GffValue::Int(id)) => *id,
+                                            _ => 0,
+                                        }
+                                    })
+                                    .unwrap_or(0);
 
-                            let race_id = match root.get("Race") {
-                                Some(GffValue::Byte(r)) => *r,
-                                _ => 0,
-                            };
+                                let lvls = classes
+                                    .iter()
+                                    .map(|c| {
+                                        let fields = c.force_load();
+                                        match fields.get("ClassLevel") {
+                                            Some(GffValue::Short(l)) => i32::from(*l),
+                                            _ => 0,
+                                        }
+                                    })
+                                    .sum::<i32>();
 
-                            let (class_id, total_levels) = match root.get("ClassList") {
-                                Some(GffValue::List(classes)) => {
-                                    let first_class = classes
-                                        .first()
-                                        .map(|c| {
-                                            let fields = c.force_load();
-                                            match fields.get("Class") {
-                                                Some(GffValue::Int(id)) => *id,
-                                                _ => 0,
-                                            }
-                                        })
-                                        .unwrap_or(0);
+                                (first_class, lvls)
+                            }
+                            _ => (0, 0),
+                        };
 
-                                    let lvls = classes
-                                        .iter()
-                                        .map(|c| {
-                                            let fields = c.force_load();
-                                            match fields.get("ClassLevel") {
-                                                Some(GffValue::Short(l)) => *l as i32,
-                                                _ => 0,
-                                            }
-                                        })
-                                        .sum::<i32>();
-
-                                    (first_class, lvls)
-                                }
-                                _ => (0, 0),
-                            };
-
-                            println!(
-                                "{:<25} Race {:>2}       Class {:>2}       {:>3}",
-                                name, race_id, class_id, total_levels
-                            );
-                        }
+                        println!(
+                            "{name:<25} Race {race_id:>2}       Class {class_id:>2}       {total_levels:>3}"
+                        );
                     }
                 }
             }
@@ -116,7 +115,7 @@ fn test_character_root_structure() {
 
     println!("\n=== Character Root Fields ===");
     for key in root.keys().take(20) {
-        println!("  {}", key);
+        println!("  {key}");
     }
     println!("  ... ({} total fields)", root.len());
 }
@@ -135,15 +134,15 @@ fn test_character_identity() {
     }
 
     if let Some(GffValue::Byte(gender)) = root.get("Gender") {
-        println!("Gender: {}", gender);
+        println!("Gender: {gender}");
     }
 
     if let Some(GffValue::Byte(race)) = root.get("Race") {
-        println!("Race ID: {}", race);
+        println!("Race ID: {race}");
     }
 
     if let Some(GffValue::Word(subrace)) = root.get("Subrace") {
-        println!("Subrace: {}", subrace);
+        println!("Subrace: {subrace}");
     }
 }
 
@@ -172,7 +171,7 @@ fn test_class_list_structure() {
             _ => 0,
         };
 
-        println!("  Class {}: ID={}, Level={}", idx, class_id, class_level);
+        println!("  Class {idx}: ID={class_id}, Level={class_level}");
     }
 }
 
@@ -197,7 +196,7 @@ fn test_lvlstatlist_structure() {
         let level_entry = lazy_struct.force_load();
 
         let class_id = match level_entry.get("LvlStatClass") {
-            Some(GffValue::Byte(id)) => *id as i32,
+            Some(GffValue::Byte(id)) => i32::from(*id),
             _ => -1,
         };
         let hp_roll = match level_entry.get("LvlStatHitDie") {
@@ -232,7 +231,7 @@ fn test_feat_list_structure() {
     println!("Total feats: {}", feat_list.len());
 
     let mut feat_ids = Vec::new();
-    for lazy_struct in feat_list.iter() {
+    for lazy_struct in feat_list {
         let feat_entry = lazy_struct.force_load();
 
         if let Some(GffValue::Word(id)) = feat_entry.get("Feat") {
@@ -268,7 +267,7 @@ fn test_skill_list_structure() {
         };
 
         if rank > 0 {
-            println!("  Skill {}: {} ranks", idx, rank);
+            println!("  Skill {idx}: {rank} ranks");
         }
     }
 }
@@ -285,7 +284,7 @@ fn test_ability_scores() {
             Some(GffValue::Byte(v)) => *v,
             _ => 0,
         };
-        println!("  {}: {}", ability, value);
+        println!("  {ability}: {value}");
     }
 }
 
@@ -342,10 +341,10 @@ fn test_equipment_slots() {
     for (bitmask, slot_name) in slot_names {
         match equipped_slots.get(&bitmask) {
             Some((tag, base_item)) => {
-                println!("  {:<12}: {} (BaseItem {})", slot_name, tag, base_item);
+                println!("  {slot_name:<12}: {tag} (BaseItem {base_item})");
             }
             None => {
-                println!("  {:<12}: [empty]", slot_name);
+                println!("  {slot_name:<12}: [empty]");
             }
         }
     }
@@ -354,16 +353,17 @@ fn test_equipment_slots() {
         println!("\nInventory items: {}", items.len());
     }
 
-    if let Some(GffValue::List(equip_list)) = root.get("Equip_ItemList") {
-        if !equip_list.is_empty() && equipped_slots.is_empty() {
-            println!(
-                "\nDebug: Equip_ItemList has {} entries but no items detected",
-                equip_list.len()
-            );
+    if let Some(GffValue::List(equip_list)) = root.get("Equip_ItemList")
+        && !equip_list.is_empty()
+        && equipped_slots.is_empty()
+    {
+        println!(
+            "\nDebug: Equip_ItemList has {} entries but no items detected",
+            equip_list.len()
+        );
 
-            let first = equip_list.first().unwrap().force_load();
-            println!("First entry fields: {:?}", first.keys().collect::<Vec<_>>());
-        }
+        let first = equip_list.first().unwrap().force_load();
+        println!("First entry fields: {:?}", first.keys().collect::<Vec<_>>());
     }
 }
 
@@ -404,10 +404,7 @@ fn test_equipment_across_characters() {
             _ => 0,
         };
 
-        println!(
-            "  {}: {} equipped, {} in inventory",
-            name, equipped_count, inventory_count
-        );
+        println!("  {name}: {equipped_count} equipped, {inventory_count} in inventory");
     }
 }
 
@@ -431,7 +428,7 @@ fn test_high_level_character() {
 
     println!("Classes taken: {}", class_list.len());
 
-    for lazy_struct in class_list.iter() {
+    for lazy_struct in class_list {
         let class_entry = lazy_struct.force_load();
 
         let class_id = match class_entry.get("Class") {
@@ -443,7 +440,7 @@ fn test_high_level_character() {
             _ => 0,
         };
 
-        println!("  Class ID {}: {} levels", class_id, class_level);
+        println!("  Class ID {class_id}: {class_level} levels");
     }
 }
 
@@ -455,7 +452,7 @@ fn test_spell_memorization() {
     println!("\n=== Spell Data ===");
 
     if let Some(GffValue::List(class_list)) = root.get("ClassList") {
-        for lazy_struct in class_list.iter() {
+        for lazy_struct in class_list {
             let class_entry = lazy_struct.force_load();
 
             let class_id = match class_entry.get("Class") {

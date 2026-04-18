@@ -67,7 +67,7 @@ async fn test_dump_cantrips() {
         }
     }
 
-    println!("\nTotal cantrips: {}", cantrip_count);
+    println!("\nTotal cantrips: {cantrip_count}");
     assert!(cantrip_count > 0, "Should have wizard cantrips");
 }
 
@@ -87,13 +87,13 @@ async fn test_dump_first_level_spells() {
             let label = cell_value(table, row_idx, "Label").unwrap_or_default();
 
             if level1_count < 20 {
-                println!("  {} - {}", row_idx, label);
+                println!("  {row_idx} - {label}");
             }
             level1_count += 1;
         }
     }
 
-    println!("Total level 1 wizard spells: {}", level1_count);
+    println!("Total level 1 wizard spells: {level1_count}");
 }
 
 #[tokio::test]
@@ -117,7 +117,7 @@ async fn test_spell_schools() {
     school_vec.sort_by(|a, b| b.1.cmp(&a.1));
 
     for (school, count) in school_vec {
-        println!("  {}: {} spells", school, count);
+        println!("  {school}: {count} spells");
     }
 }
 
@@ -144,9 +144,9 @@ async fn test_divine_vs_arcane_spells() {
     }
 
     println!("\n=== Spell Distribution ===");
-    println!("  Wizard-only: {}", wizard_only);
-    println!("  Cleric-only: {}", cleric_only);
-    println!("  Both classes: {}", both);
+    println!("  Wizard-only: {wizard_only}");
+    println!("  Cleric-only: {cleric_only}");
+    println!("  Both classes: {both}");
 }
 
 #[tokio::test]
@@ -199,9 +199,7 @@ async fn test_spell_desc_resolution() {
             let resolved = desc_strref.and_then(|strref| ctx.loader.get_string(strref));
             assert!(
                 resolved.as_ref().is_some_and(|s| !s.is_empty()),
-                "Spell {} should have a resolved description (strref={:?})",
-                label,
-                desc_strref
+                "Spell {label} should have a resolved description (strref={desc_strref:?})"
             );
             break;
         }
@@ -212,26 +210,23 @@ async fn test_spell_desc_resolution() {
     let mut total_with_strref = 0;
     for row_idx in 0..table.row_count() {
         let desc_val = cell_value(table, row_idx, "SpellDesc");
-        if let Some(ref s) = desc_val {
-            if let Ok(strref) = s.parse::<i32>() {
-                total_with_strref += 1;
-                if ctx
-                    .loader
-                    .get_string(strref)
-                    .as_ref()
-                    .is_some_and(|r| !r.is_empty())
-                {
-                    resolved_count += 1;
-                }
+        if let Some(ref s) = desc_val
+            && let Ok(strref) = s.parse::<i32>()
+        {
+            total_with_strref += 1;
+            if ctx
+                .loader
+                .get_string(strref)
+                .as_ref()
+                .is_some_and(|r| !r.is_empty())
+            {
+                resolved_count += 1;
             }
         }
     }
 
-    let resolve_rate = resolved_count as f64 / total_with_strref as f64 * 100.0;
-    println!(
-        "SpellDesc resolution: {}/{} ({:.1}%)",
-        resolved_count, total_with_strref, resolve_rate
-    );
+    let resolve_rate = f64::from(resolved_count) / f64::from(total_with_strref) * 100.0;
+    println!("SpellDesc resolution: {resolved_count}/{total_with_strref} ({resolve_rate:.1}%)");
     assert!(
         resolve_rate > 95.0,
         "At least 95% of SpellDesc strrefs should resolve"
@@ -261,7 +256,7 @@ async fn test_metamagic_flags() {
             }
         }
 
-        println!("Spells with metamagic allowed: {}", has_meta);
-        println!("Spells without metamagic: {}", no_meta);
+        println!("Spells with metamagic allowed: {has_meta}");
+        println!("Spells without metamagic: {no_meta}");
     }
 }

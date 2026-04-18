@@ -303,7 +303,7 @@ mod tests {
             GffValue::LocString(LocalizedString {
                 string_ref: -1,
                 substrings: vec![LocalizedSubstring {
-                    string: Cow::Owned("".to_string()),
+                    string: Cow::Owned(String::new()),
                     language: 0,
                     gender: 0,
                 }],

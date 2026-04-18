@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use crate::config::NWN2Paths;
     use crate::services::campaign::settings::*;

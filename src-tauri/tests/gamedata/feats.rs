@@ -61,7 +61,7 @@ async fn test_dump_first_feats() {
         let label = cell_value(table, row_idx, "LABEL").unwrap_or_default();
         let all_classes = cell_value(table, row_idx, "ALLCLASSESCANUSE").unwrap_or_default();
 
-        println!("{:<4} {:<30} {:<10}", row_idx, label, all_classes);
+        println!("{row_idx:<4} {label:<30} {all_classes:<10}");
     }
 }
 
@@ -78,16 +78,13 @@ async fn test_feat_prerequisite_chain() {
     });
 
     if let Some(pa_row) = power_attack_row {
-        println!("Power Attack found at row {}", pa_row);
+        println!("Power Attack found at row {pa_row}");
 
         let prereq1 = cell_value(table, pa_row, "PREREQFEAT1");
         let prereq2 = cell_value(table, pa_row, "PREREQFEAT2");
         let min_str = cell_value(table, pa_row, "MINSTR");
 
-        println!(
-            "  Prereq1: {:?}, Prereq2: {:?}, MinStr: {:?}",
-            prereq1, prereq2, min_str
-        );
+        println!("  Prereq1: {prereq1:?}, Prereq2: {prereq2:?}, MinStr: {min_str:?}");
     }
 
     let cleave_row = (0..table.row_count()).find(|&row| {
@@ -100,7 +97,7 @@ async fn test_feat_prerequisite_chain() {
         let prereq_id = cell_int(table, c_row, "PREREQFEAT1");
 
         if let Some(prereq) = prereq_id {
-            println!("Cleave requires feat ID {}", prereq);
+            println!("Cleave requires feat ID {prereq}");
 
             if let Some(pa_row) = power_attack_row {
                 assert_eq!(
@@ -135,7 +132,7 @@ async fn test_metamagic_feats() {
 
     println!("\n=== Metamagic Feats ===");
     for (id, label) in &metamagic_feats {
-        println!("  {} - {}", id, label);
+        println!("  {id} - {label}");
     }
 
     assert!(!metamagic_feats.is_empty(), "Should find metamagic feats");
@@ -152,7 +149,7 @@ async fn test_class_feat_table() {
         println!("Rows: {}", table.row_count());
 
         let cols = table.column_names();
-        println!("Columns: {:?}", cols);
+        println!("Columns: {cols:?}");
 
         let mut auto_feats = Vec::new();
         for row_idx in 0..table.row_count().min(50) {
@@ -165,7 +162,7 @@ async fn test_class_feat_table() {
             }
         }
 
-        println!("Auto-granted feats: {:?}", auto_feats);
+        println!("Auto-granted feats: {auto_feats:?}");
     } else {
         println!("cls_feat_fight.2da not loaded as priority table");
     }
@@ -181,7 +178,7 @@ async fn test_feat_strref_lookup() {
 
     if let Some(strref) = name_strref {
         let name = ctx.loader.get_string(strref);
-        println!("Feat 0 name (strref {}): {:?}", strref, name);
+        println!("Feat 0 name (strref {strref}): {name:?}");
     }
 
     for row_idx in [1, 2, 3, 4, 5] {
@@ -216,9 +213,9 @@ async fn test_epic_feats() {
     let has_min_level = cols.iter().any(|c| c.eq_ignore_ascii_case("MINLEVEL"));
 
     println!("\n=== Epic Feat Detection ===");
-    println!("Has PreReqEpic column: {}", has_prereq_epic);
-    println!("Has FeatCategory column: {}", has_feat_category);
-    println!("Has MINLEVEL column: {}", has_min_level);
+    println!("Has PreReqEpic column: {has_prereq_epic}");
+    println!("Has FeatCategory column: {has_feat_category}");
+    println!("Has MINLEVEL column: {has_min_level}");
 
     let mut epic_feats = Vec::new();
 
@@ -253,7 +250,7 @@ async fn test_epic_feats() {
     println!("{}", "-".repeat(75));
 
     for (id, label, min_level, epic_flag) in epic_feats.iter().take(30) {
-        println!("{:<5} {:<45} {:>8} {:>10}", id, label, min_level, epic_flag);
+        println!("{id:<5} {label:<45} {min_level:>8} {epic_flag:>10}");
     }
 
     println!("\nTotal epic feats found: {}", epic_feats.len());
@@ -303,7 +300,7 @@ async fn test_epic_feat_categories() {
     for (cat, feats) in &epic_by_category {
         println!("  {} ({} feats)", cat, feats.len());
         for feat in feats.iter().take(3) {
-            println!("    - {}", feat);
+            println!("    - {feat}");
         }
         if feats.len() > 3 {
             println!("    ... and {} more", feats.len() - 3);
@@ -320,7 +317,7 @@ async fn test_great_epic_feats() {
     println!("\n=== Great [Ability] Feats ===");
 
     for ability in ["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
-        let pattern = format!("GREAT_{}", ability);
+        let pattern = format!("GREAT_{ability}");
 
         let matches: Vec<_> = (0..table.row_count())
             .filter_map(|row| {
@@ -367,9 +364,6 @@ async fn test_epic_spell_feats() {
 
     println!("\n=== Epic Spellcasting Feats ===");
     for (id, label, prereq, min_lvl) in &epic_spell_feats {
-        println!(
-            "  {} (ID {}): prereq={}, minlvl={}",
-            label, id, prereq, min_lvl
-        );
+        println!("  {label} (ID {id}): prereq={prereq}, minlvl={min_lvl}");
     }
 }

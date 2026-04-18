@@ -30,17 +30,15 @@ async fn test_total_level_across_fixtures() {
         let character = load_character(path);
         let level = character.total_level();
 
-        println!("{:<15}: Level {}", name, level);
+        println!("{name:<15}: Level {level}");
 
-        assert!(level >= 1, "{} should have level >= 1", name);
-        assert!(level <= 60, "{} should have level <= 60", name);
+        assert!(level >= 1, "{name} should have level >= 1");
+        assert!(level <= 60, "{name} should have level <= 60");
 
         if name.contains("L30") {
             assert!(
                 level >= 20,
-                "{} should be high level (>=20), got {}",
-                name,
-                level
+                "{name} should be high level (>=20), got {level}"
             );
         }
     }
@@ -396,19 +394,13 @@ async fn test_level_progression_comparison() {
         let classes_l30 = char_l30.class_count();
 
         println!(
-            "{}: L1 = {} levels ({} class), L30 = {} levels ({} classes)",
-            name, level_l1, classes_l1, level_l30, classes_l30
+            "{name}: L1 = {level_l1} levels ({classes_l1} class), L30 = {level_l30} levels ({classes_l30} classes)"
         );
 
-        assert!(
-            level_l30 > level_l1,
-            "{} L30 should be higher than L1",
-            name
-        );
+        assert!(level_l30 > level_l1, "{name} L30 should be higher than L1");
         assert!(
             classes_l30 >= classes_l1,
-            "{} should have >= classes at L30",
-            name
+            "{name} should have >= classes at L30"
         );
 
         let l1_entries = char_l1.class_entries();
@@ -475,7 +467,7 @@ async fn test_xp_for_level_calculation() {
     println!("XP requirements for levels 1-10:");
     for (i, xp) in xp_values.iter().enumerate() {
         let level = i + 1;
-        println!("  Level {:>2}: {:>7} XP", level, xp);
+        println!("  Level {level:>2}: {xp:>7} XP");
     }
 
     for i in 1..xp_values.len() {

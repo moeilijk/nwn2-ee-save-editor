@@ -30,7 +30,7 @@ async fn test_file_modify_experience_and_save() {
         Some(GffValue::Dword(v)) => *v,
         _ => panic!("Experience should be Dword"),
     };
-    println!("Original experience: {}", original_exp);
+    println!("Original experience: {original_exp}");
 
     let mut root_owned = indexmap::IndexMap::new();
     for (k, v) in root {
@@ -54,7 +54,7 @@ async fn test_file_modify_experience_and_save() {
         _ => panic!("Experience should still be Dword"),
     };
 
-    println!("Saved experience: {}", new_exp);
+    println!("Saved experience: {new_exp}");
     assert_eq!(
         new_exp,
         original_exp + 50000,
@@ -99,10 +99,10 @@ async fn test_file_modify_all_abilities_and_save() {
     for (name, expected) in ability_targets {
         let actual = match root2.get(name) {
             Some(GffValue::Byte(v)) => *v,
-            _ => panic!("{} should be Byte", name),
+            _ => panic!("{name} should be Byte"),
         };
-        assert_eq!(actual, expected, "{} should be {}", name, expected);
-        println!("{}: {}", name, actual);
+        assert_eq!(actual, expected, "{name} should be {expected}");
+        println!("{name}: {actual}");
     }
 }
 
@@ -149,7 +149,7 @@ async fn test_file_modify_name_and_save() {
         _ => panic!("FirstName should still be LocString"),
     };
 
-    println!("Saved name: {}", saved_name);
+    println!("Saved name: {saved_name}");
     assert_eq!(saved_name, new_name, "Name should be updated");
 }
 
@@ -174,8 +174,7 @@ async fn test_file_save_preserves_lists() {
     };
 
     println!(
-        "Original: {} classes, {} feats, {} skills",
-        original_class_count, original_feat_count, original_skill_count
+        "Original: {original_class_count} classes, {original_feat_count} feats, {original_skill_count} skills"
     );
 
     let mut root_owned = indexmap::IndexMap::new();
@@ -209,8 +208,7 @@ async fn test_file_save_preserves_lists() {
     };
 
     println!(
-        "After save: {} classes, {} feats, {} skills",
-        saved_class_count, saved_feat_count, saved_skill_count
+        "After save: {saved_class_count} classes, {saved_feat_count} feats, {saved_skill_count} skills"
     );
 
     assert_eq!(
@@ -240,7 +238,7 @@ async fn test_file_save_all_fixtures() {
     ];
 
     for fixture in fixtures {
-        println!("\n=== Testing file save for {} ===", fixture);
+        println!("\n=== Testing file save for {fixture} ===");
 
         let (_temp_dir, temp_path, bytes) = create_temp_bic(fixture);
 
@@ -264,8 +262,7 @@ async fn test_file_save_all_fixtures() {
         assert_eq!(
             original_field_count,
             root2.len(),
-            "Field count mismatch for {}",
-            fixture
+            "Field count mismatch for {fixture}"
         );
 
         println!("  {} fields preserved after file save", root2.len());
@@ -280,7 +277,7 @@ async fn test_file_multiple_saves() {
     let mut current_bytes = initial_bytes;
 
     for i in 1..=5 {
-        println!("Save iteration {}", i);
+        println!("Save iteration {i}");
 
         let parser = GffParser::from_bytes(current_bytes).expect("Parse");
         let root = parser.read_struct_fields(0).expect("Read root");
@@ -309,11 +306,11 @@ async fn test_file_multiple_saves() {
     let final_root = final_parser.read_struct_fields(0).expect("Final read");
 
     if let Some(GffValue::Dword(final_exp)) = final_root.get("Experience") {
-        println!("Final experience after 5 saves: {}", final_exp);
+        println!("Final experience after 5 saves: {final_exp}");
     }
 
     assert!(
-        final_root.len() > 0,
+        !final_root.is_empty(),
         "File should still be valid after 5 saves"
     );
 }

@@ -65,10 +65,7 @@ async fn test_dump_base_classes() {
         let hit_die = cell_value(table, row_idx, "HitDie").unwrap_or_default();
         let desc_ref = cell_value(table, row_idx, "Description").unwrap_or_default();
 
-        println!(
-            "{:<4} {:<20} {:<6} {:>15}",
-            row_idx, label, hit_die, desc_ref
-        );
+        println!("{row_idx:<4} {label:<20} {hit_die:<6} {desc_ref:>15}");
     }
 }
 
@@ -122,11 +119,11 @@ async fn test_class_spellcaster_type() {
     let cleric_arcane = cell_int(table, 2, "ArcSpellLvlMod").unwrap_or(0);
     let cleric_divine = cell_int(table, 2, "DivSpellLvlMod").unwrap_or(0);
 
-    println!("Cleric: Arcane={}, Divine={}", cleric_arcane, cleric_divine);
+    println!("Cleric: Arcane={cleric_arcane}, Divine={cleric_divine}");
 
     let wizard_arcane = cell_int(table, 10, "ArcSpellLvlMod").unwrap_or(0);
 
-    println!("Wizard: Arcane={}", wizard_arcane);
+    println!("Wizard: Arcane={wizard_arcane}");
 }
 
 #[tokio::test]
@@ -147,7 +144,7 @@ async fn test_prestige_classes_exist() {
         }
     }
 
-    println!("Found {} player-selectable classes", prestige_count);
+    println!("Found {prestige_count} player-selectable classes");
     assert!(
         prestige_count > 10,
         "Should have at least 10 player classes"

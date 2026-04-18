@@ -118,14 +118,12 @@ pub fn resolve_armor_prefix(
     };
 
     for row_id in [primary, fallback] {
-        if row_id >= 0 {
-            if let Some(row) = armor_table.get_by_id(row_id)
-                && let Some(prefix) = row_str(&row, "prefix")
-            {
-                if !prefixes.contains(&prefix) {
-                    prefixes.push(prefix);
-                }
-            }
+        if row_id >= 0
+            && let Some(row) = armor_table.get_by_id(row_id)
+            && let Some(prefix) = row_str(&row, "prefix")
+            && !prefixes.contains(&prefix)
+        {
+            prefixes.push(prefix);
         }
     }
     prefixes

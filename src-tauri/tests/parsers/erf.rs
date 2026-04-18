@@ -101,10 +101,10 @@ fn test_extension_mapping_bidirectional() {
 
     for (ext, res_type) in test_cases {
         let actual_ext = resource_type_to_extension(res_type);
-        assert_eq!(actual_ext, ext, "Extension mismatch for type {}", res_type);
+        assert_eq!(actual_ext, ext, "Extension mismatch for type {res_type}");
 
         let back = extension_to_resource_type(ext);
-        assert_eq!(back, Some(res_type), "Round-trip failed for ext {}", ext);
+        assert_eq!(back, Some(res_type), "Round-trip failed for ext {ext}");
     }
 }
 
@@ -402,7 +402,7 @@ async fn test_read_nwn2_models_zip() {
     };
 
     if !zip_path.exists() {
-        println!("NWN2_Models.zip not found at {:?}, skipping test", zip_path);
+        println!("NWN2_Models.zip not found at {zip_path:?}, skipping test");
         return;
     }
 
@@ -412,7 +412,7 @@ async fn test_read_nwn2_models_zip() {
     match result {
         Ok(()) => {
             let stats = parser.get_statistics();
-            println!("Parsed {:?}", zip_path);
+            println!("Parsed {zip_path:?}");
             println!("  Total resources: {}", stats.total_resources);
             println!("  Parse time: {}ms", stats.parse_time_ms);
 
@@ -423,7 +423,7 @@ async fn test_read_nwn2_models_zip() {
 
             println!("  First 10 resources:");
             for (name, size, res_type) in resources.iter().take(10) {
-                println!("    {} (type={}, size={})", name, res_type, size);
+                println!("    {name} (type={res_type}, size={size})");
             }
 
             println!("  Resource type breakdown:");
@@ -433,11 +433,11 @@ async fn test_read_nwn2_models_zip() {
             }
             for (res_type, count) in type_counts.iter().take(10) {
                 let ext = resource_type_to_extension(*res_type);
-                println!("    {} ({}): {} files", ext, res_type, count);
+                println!("    {ext} ({res_type}): {count} files");
             }
         }
         Err(e) => {
-            println!("Could not parse NWN2_Models.zip: {}", e);
+            println!("Could not parse NWN2_Models.zip: {e}");
         }
     }
 }

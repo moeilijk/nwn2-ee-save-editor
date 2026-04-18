@@ -2649,7 +2649,7 @@ fn resolve_item_icon(
     if icon_resref == "****" || icon_resref.is_empty() {
         return None;
     }
-    Some(icon_resref.to_string())
+    Some(icon_resref.clone())
 }
 
 fn gff_struct_to_json(
@@ -2934,10 +2934,12 @@ fn merge_json_list_into_gff_list(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use crate::character::Character;
     use std::borrow::Cow;
+    use std::fmt::Write as _;
 
     #[test]
     fn test_normalize_item_property_entry_types_and_aliases() {
@@ -2964,8 +2966,8 @@ mod tests {
         assert!(matches!(prop.get("CostTable"), Some(GffValue::Byte(25))));
         assert!(matches!(prop.get("Param1"), Some(GffValue::Byte(255))));
         assert!(matches!(prop.get("Param1Value"), Some(GffValue::Byte(0))));
-        assert!(matches!(prop.get("ChanceAppear"), None));
-        assert!(matches!(prop.get("ChancesAppear"), None));
+        assert!(prop.get("ChanceAppear").is_none());
+        assert!(prop.get("ChancesAppear").is_none());
         assert!(matches!(prop.get("Useable"), Some(GffValue::Byte(1))));
         assert!(matches!(prop.get("UsesPerDay"), Some(GffValue::Byte(255))));
         assert!(prop.get("SpellID").is_none());
@@ -3300,7 +3302,7 @@ mod tests {
         // We need entry 100
         let mut feat_content = String::from("2DA V2.0\n\n       Label       FeatName\n");
         for i in 0..=100 {
-            feat_content.push_str(&format!("{}      Feat{}      {}\n", i, i, i));
+            let _ = writeln!(feat_content, "{i}      Feat{i}      {i}");
         }
 
         let mut feat_parser = TDAParser::new();

@@ -500,10 +500,10 @@ pub fn load_character_part(state: State<'_, AppState>, part: String) -> CommandR
                     break;
                 }
             }
-            if !loaded {
-                if let Ok(body_meshes) = load_with_skel(&parts.naked_body_resref, "body", "body") {
-                    meshes.extend(body_meshes);
-                }
+            if !loaded
+                && let Ok(body_meshes) = load_with_skel(&parts.naked_body_resref, "body", "body")
+            {
+                meshes.extend(body_meshes);
             }
         }
         "cloak" => {

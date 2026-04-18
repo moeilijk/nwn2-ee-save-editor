@@ -159,7 +159,7 @@ fn diagnostic_dump_module_ifo_field_types() {
                     dump_field("    ", &fields, k);
                 }
             }
-            for entry in entries.iter() {
+            for entry in entries {
                 let fields = entry.force_load();
                 if let Some(v) = fields.get("Type") {
                     *type_field_variants

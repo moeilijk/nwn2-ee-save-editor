@@ -1223,14 +1223,13 @@ impl Character {
         let mut feat_granted_spells: HashSet<i32> = HashSet::new();
         if let Some(feat_table) = game_data.get_table("feat") {
             for feat_id in &char_feats {
-                if let Ok(feat_row) = feat_table.get_row(*feat_id as usize) {
-                    if let Some(spell_id) = feat_row
+                if let Ok(feat_row) = feat_table.get_row(*feat_id as usize)
+                    && let Some(spell_id) = feat_row
                         .get("spellid")
                         .and_then(|v| v.as_ref())
                         .and_then(|v| v.parse::<i32>().ok())
-                    {
-                        feat_granted_spells.insert(spell_id);
-                    }
+                {
+                    feat_granted_spells.insert(spell_id);
                 }
             }
         }

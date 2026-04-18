@@ -35,7 +35,7 @@ fn test_savegame_handler_read_operations() {
         .expect("Failed to list companions");
     // Classic Campaign might have some companions like 'Khelgar', 'Neeshka' depending on save point.
     // Even if empty, it should not fail.
-    println!("Companions found: {:?}", companions);
+    println!("Companions found: {companions:?}");
 
     // Test batch_read_character_files
     let char_files = handler

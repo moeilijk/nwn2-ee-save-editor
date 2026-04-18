@@ -32,16 +32,14 @@ async fn test_bab_across_fixtures() {
         let bab = character.calculate_bab(game_data);
         let level = character.total_level();
 
-        println!("{:<15}: Level {:>2}, BAB {:>2}", name, level, bab);
+        println!("{name:<15}: Level {level:>2}, BAB {bab:>2}");
 
-        assert!(bab >= 0, "{} should have non-negative BAB", name);
+        assert!(bab >= 0, "{name} should have non-negative BAB");
 
         if name.contains("L30") {
             assert!(
                 bab >= 10,
-                "{} should have BAB >= 10 at high level, got {}",
-                name,
-                bab
+                "{name} should have BAB >= 10 at high level, got {bab}"
             );
         }
     }
@@ -94,10 +92,7 @@ async fn test_bab_progression_l1_vs_l30() {
 
         assert!(
             bab_l30 > bab_l1,
-            "{} L30 BAB ({}) should exceed L1 BAB ({})",
-            name,
-            bab_l30,
-            bab_l1
+            "{name} L30 BAB ({bab_l30}) should exceed L1 BAB ({bab_l1})"
         );
     }
 }
@@ -130,27 +125,20 @@ async fn test_attack_sequence_generation() {
 
         assert!(
             !sequence.is_empty(),
-            "{} should have at least one attack",
-            name
+            "{name} should have at least one attack"
         );
-        assert_eq!(sequence[0], bab, "{} first attack should equal BAB", name);
+        assert_eq!(sequence[0], bab, "{name} first attack should equal BAB");
 
         for i in 1..sequence.len() {
             assert_eq!(
                 sequence[i],
                 sequence[i - 1] - 5,
-                "{} each subsequent attack should be -5",
-                name
+                "{name} each subsequent attack should be -5"
             );
         }
 
         if let Some(&last) = sequence.last() {
-            assert!(
-                last >= 1,
-                "{} last attack should be >= 1, got {}",
-                name,
-                last
-            );
+            assert!(last >= 1, "{name} last attack should be >= 1, got {last}");
         }
     }
 }
@@ -175,16 +163,12 @@ async fn test_melee_attack_bonus() {
         let str_mod = character.ability_modifier(app_lib::character::types::AbilityIndex::STR);
         let size_mod = character.size_modifier();
 
-        println!(
-            "{:<15}: MeleeAB={:>2} (BAB={} + STR={} + Size={})",
-            name, melee_ab, bab, str_mod, size_mod
-        );
+        println!("{name:<15}: MeleeAB={melee_ab:>2} (BAB={bab} + STR={str_mod} + Size={size_mod})");
 
         assert_eq!(
             melee_ab,
             bab + str_mod + size_mod,
-            "{} melee AB should equal BAB + STR mod + size mod",
-            name
+            "{name} melee AB should equal BAB + STR mod + size mod"
         );
     }
 }
@@ -209,15 +193,13 @@ async fn test_ranged_attack_bonus() {
         let size_mod = character.size_modifier();
 
         println!(
-            "{:<15}: RangedAB={:>2} (BAB={} + DEX={} + Size={})",
-            name, ranged_ab, bab, dex_mod, size_mod
+            "{name:<15}: RangedAB={ranged_ab:>2} (BAB={bab} + DEX={dex_mod} + Size={size_mod})"
         );
 
         assert_eq!(
             ranged_ab,
             bab + dex_mod + size_mod,
-            "{} ranged AB should equal BAB + DEX mod + size mod",
-            name
+            "{name} ranged AB should equal BAB + DEX mod + size mod"
         );
     }
 }
@@ -244,22 +226,19 @@ async fn test_damage_bonuses() {
 
         assert_eq!(
             damage.melee, str_mod,
-            "{} melee damage should equal STR mod",
-            name
+            "{name} melee damage should equal STR mod"
         );
         assert_eq!(
             damage.two_handed,
             (str_mod * 3) / 2,
-            "{} two-handed damage should be 1.5x STR mod",
-            name
+            "{name} two-handed damage should be 1.5x STR mod"
         );
         assert_eq!(
             damage.off_hand,
             str_mod / 2,
-            "{} off-hand damage should be 0.5x STR mod",
-            name
+            "{name} off-hand damage should be 0.5x STR mod"
         );
-        assert_eq!(damage.ranged, 0, "{} ranged damage bonus should be 0", name);
+        assert_eq!(damage.ranged, 0, "{name} ranged damage bonus should be 0");
     }
 }
 
@@ -282,16 +261,12 @@ async fn test_initiative_calculation() {
         let dex_mod = character.ability_modifier(app_lib::character::types::AbilityIndex::DEX);
         let init_bonus = character.initiative_bonus();
 
-        println!(
-            "{:<15}: Initiative={:>2} (DEX mod={} + bonus={})",
-            name, initiative, dex_mod, init_bonus
-        );
+        println!("{name:<15}: Initiative={initiative:>2} (DEX mod={dex_mod} + bonus={init_bonus})");
 
         assert_eq!(
             initiative,
             dex_mod + init_bonus,
-            "{} initiative should equal DEX mod + init bonus",
-            name
+            "{name} initiative should equal DEX mod + init bonus"
         );
     }
 }
@@ -311,22 +286,14 @@ async fn test_base_ac_calculation() {
         let base_ac = character.calculate_base_ac();
         let natural_ac = character.natural_ac();
 
-        println!(
-            "{:<15}: BaseAC={:>2} (10 + NaturalAC={})",
-            name, base_ac, natural_ac
-        );
+        println!("{name:<15}: BaseAC={base_ac:>2} (10 + NaturalAC={natural_ac})");
 
         assert_eq!(
             base_ac,
             10 + natural_ac,
-            "{} base AC should be 10 + natural AC",
-            name
+            "{name} base AC should be 10 + natural AC"
         );
-        assert!(
-            natural_ac >= 0,
-            "{} natural AC should be non-negative",
-            name
-        );
+        assert!(natural_ac >= 0, "{name} natural AC should be non-negative");
     }
 }
 
@@ -348,18 +315,14 @@ async fn test_hit_points_consistency() {
         let max_hp = character.max_hit_points();
         let temp_hp = character.temp_hit_points();
 
-        println!(
-            "{:<15}: Current={:>3}, Max={:>3}, Temp={:>2}",
-            name, current_hp, max_hp, temp_hp
-        );
+        println!("{name:<15}: Current={current_hp:>3}, Max={max_hp:>3}, Temp={temp_hp:>2}");
 
-        assert!(max_hp >= 1, "{} max HP should be at least 1", name);
+        assert!(max_hp >= 1, "{name} max HP should be at least 1");
         assert!(
             current_hp <= max_hp + temp_hp,
-            "{} current HP should not exceed max + temp",
-            name
+            "{name} current HP should not exceed max + temp"
         );
-        assert!(temp_hp >= 0, "{} temp HP should be non-negative", name);
+        assert!(temp_hp >= 0, "{name} temp HP should be non-negative");
     }
 }
 
@@ -402,10 +365,7 @@ async fn test_hp_progression_l1_vs_l30() {
 
         assert!(
             hp_l30 > hp_l1,
-            "{} L30 HP ({}) should exceed L1 HP ({})",
-            name,
-            hp_l30,
-            hp_l1
+            "{name} L30 HP ({hp_l30}) should exceed L1 HP ({hp_l1})"
         );
     }
 }
@@ -436,14 +396,12 @@ async fn test_size_modifier() {
         };
 
         println!(
-            "{:<15}: CreatureSize={}, SizeMod={:>2} (expected={})",
-            name, size, size_mod, expected_mod
+            "{name:<15}: CreatureSize={size}, SizeMod={size_mod:>2} (expected={expected_mod})"
         );
 
         assert_eq!(
             size_mod, expected_mod,
-            "{} size modifier for size {} should be {}",
-            name, size, expected_mod
+            "{name} size modifier for size {size} should be {expected_mod}"
         );
     }
 }
@@ -470,20 +428,17 @@ async fn test_combat_stats_aggregate() {
         assert_eq!(
             stats.natural_ac,
             character.natural_ac(),
-            "{} combat_stats natural_ac should match method",
-            name
+            "{name} combat_stats natural_ac should match method"
         );
         assert_eq!(
             stats.damage_reduction,
             character.damage_reduction(),
-            "{} combat_stats DR should match method",
-            name
+            "{name} combat_stats DR should match method"
         );
         assert_eq!(
             stats.spell_resistance,
             character.spell_resistance(),
-            "{} combat_stats SR should match method",
-            name
+            "{name} combat_stats SR should match method"
         );
     }
 }
@@ -499,17 +454,13 @@ async fn test_barbarian_damage_reduction() {
     let barb_dr = character.get_barbarian_damage_reduction(game_data);
     let barb_level = character.get_class_level(app_lib::character::ClassId(0));
 
-    println!(
-        "Okku: Barbarian Level={}, Barbarian DR={}",
-        barb_level, barb_dr
-    );
+    println!("Okku: Barbarian Level={barb_level}, Barbarian DR={barb_dr}");
 
     if barb_level >= 7 {
         let expected_dr = 1 + (barb_level - 7) / 3;
         assert_eq!(
             barb_dr, expected_dr,
-            "Barbarian DR at level {} should be {}",
-            barb_level, expected_dr
+            "Barbarian DR at level {barb_level} should be {expected_dr}"
         );
     } else {
         assert_eq!(barb_dr, 0, "Barbarian DR should be 0 below level 7");
@@ -517,7 +468,7 @@ async fn test_barbarian_damage_reduction() {
 
     let non_barb = load_character("qaraofblacklake/qaraofblacklake4.bic");
     let non_barb_dr = non_barb.get_barbarian_damage_reduction(game_data);
-    println!("Qara: Barbarian DR={} (no barbarian levels)", non_barb_dr);
+    println!("Qara: Barbarian DR={non_barb_dr} (no barbarian levels)");
     assert_eq!(non_barb_dr, 0, "Non-barbarian should have 0 barbarian DR");
 }
 
@@ -540,18 +491,14 @@ async fn test_spell_resistance() {
         let racial_sr = character.get_racial_spell_resistance(game_data);
         let total_sr = character.get_total_spell_resistance(game_data);
 
-        println!(
-            "{:<15}: BaseSR={}, RacialSR={}, TotalSR={}",
-            name, base_sr, racial_sr, total_sr
-        );
+        println!("{name:<15}: BaseSR={base_sr}, RacialSR={racial_sr}, TotalSR={total_sr}");
 
-        assert!(base_sr >= 0, "{} base SR should be non-negative", name);
-        assert!(racial_sr >= 0, "{} racial SR should be non-negative", name);
+        assert!(base_sr >= 0, "{name} base SR should be non-negative");
+        assert!(racial_sr >= 0, "{name} racial SR should be non-negative");
         assert_eq!(
             total_sr,
             base_sr.max(racial_sr),
-            "{} total SR should be max(base, racial)",
-            name
+            "{name} total SR should be max(base, racial)"
         );
     }
 }
@@ -640,7 +587,7 @@ async fn test_armor_class_breakdown() {
             ac.breakdown.size
         );
 
-        assert_eq!(ac.breakdown.base, 10, "{} base AC should be 10", name);
+        assert_eq!(ac.breakdown.base, 10, "{name} base AC should be 10");
 
         let expected_total = ac.breakdown.base
             + ac.breakdown.armor
@@ -653,15 +600,13 @@ async fn test_armor_class_breakdown() {
             + ac.breakdown.misc;
         assert_eq!(
             ac.total, expected_total,
-            "{} AC total should match breakdown sum",
-            name
+            "{name} AC total should match breakdown sum"
         );
 
-        assert!(ac.touch <= ac.total, "{} touch AC should be <= total", name);
+        assert!(ac.touch <= ac.total, "{name} touch AC should be <= total");
         assert!(
             ac.flat_footed <= ac.total,
-            "{} flat-footed AC should be <= total",
-            name
+            "{name} flat-footed AC should be <= total"
         );
     }
 }
@@ -704,8 +649,7 @@ async fn test_attack_bonuses_breakdown() {
             + attacks.melee_breakdown.misc;
         assert_eq!(
             attacks.melee, expected_melee,
-            "{} melee should match breakdown",
-            name
+            "{name} melee should match breakdown"
         );
     }
 }
@@ -737,8 +681,7 @@ async fn test_initiative_breakdown() {
         let expected_total = init.dex + init.feat + init.misc;
         assert_eq!(
             init.total, expected_total,
-            "{} initiative should match breakdown",
-            name
+            "{name} initiative should match breakdown"
         );
     }
 }
@@ -768,11 +711,7 @@ async fn test_combat_maneuver_bonus() {
         );
 
         let expected = cmb.bab + cmb.str_mod - cmb.size_mod;
-        assert_eq!(
-            cmb.total, expected,
-            "{} CMB should be BAB + STR - size",
-            name
-        );
+        assert_eq!(cmb.total, expected, "{name} CMB should be BAB + STR - size");
         assert_eq!(cmb.bab, character.calculate_bab(game_data));
     }
 }
@@ -801,15 +740,10 @@ async fn test_movement_speed() {
 
         // Note: MovementRate may not exist in fixtures, defaults to 0 which becomes 30 with class bonuses
         // or stays 0 if not set. Just verify the struct is populated correctly.
-        assert!(
-            speed.base >= 0,
-            "{} base speed should be non-negative",
-            name
-        );
+        assert!(speed.base >= 0, "{name} base speed should be non-negative");
         assert!(
             speed.current >= 0,
-            "{} current speed should be non-negative",
-            name
+            "{name} current speed should be non-negative"
         );
     }
 }
@@ -876,13 +810,11 @@ async fn test_combat_summary_progression() {
 
         assert!(
             summary_l30.bab > summary_l1.bab,
-            "{} L30 BAB should exceed L1",
-            name
+            "{name} L30 BAB should exceed L1"
         );
         assert!(
             summary_l30.attack_sequence.len() >= summary_l1.attack_sequence.len(),
-            "{} L30 should have >= attacks than L1",
-            name
+            "{name} L30 should have >= attacks than L1"
         );
     }
 }

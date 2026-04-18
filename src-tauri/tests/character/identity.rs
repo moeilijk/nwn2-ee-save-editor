@@ -35,14 +35,12 @@ async fn test_character_names_across_fixtures() {
         let full_name = character.full_name();
 
         println!(
-            "{}: first='{}', last='{}', full='{}'",
-            expected_contains, first_name, last_name, full_name
+            "{expected_contains}: first='{first_name}', last='{last_name}', full='{full_name}'"
         );
 
         assert!(
             !first_name.is_empty() || !last_name.is_empty(),
-            "{} should have at least a first or last name",
-            expected_contains
+            "{expected_contains} should have at least a first or last name"
         );
 
         assert!(
@@ -88,15 +86,13 @@ async fn test_name_consistency_across_levels() {
         assert_eq!(
             char_l1.first_name(),
             char_l30.first_name(),
-            "{} first name should remain unchanged between L1 and L30",
-            name
+            "{name} first name should remain unchanged between L1 and L30"
         );
 
         assert_eq!(
             char_l1.last_name(),
             char_l30.last_name(),
-            "{} last name should remain unchanged between L1 and L30",
-            name
+            "{name} last name should remain unchanged between L1 and L30"
         );
     }
 }
@@ -109,7 +105,7 @@ async fn test_set_names_on_real_character() {
     let original_first = character.first_name();
     let original_last = character.last_name();
 
-    println!("Original: '{}' '{}'", original_first, original_last);
+    println!("Original: '{original_first}' '{original_last}'");
 
     character.set_first_name("TestFirst".to_string());
     character.set_last_name("TestLast".to_string());
@@ -136,7 +132,7 @@ async fn test_classic_campaign_identity() {
     println!("\n=== Classic Campaign Identity ===");
 
     let save_path = fixtures_path().join("saves/Classic_Campaign");
-    println!("Loading save from: {:?}", save_path);
+    println!("Loading save from: {save_path:?}");
 
     let handler =
         SaveGameHandler::new(&save_path, false, false).expect("Failed to create SaveGameHandler");
@@ -237,7 +233,7 @@ async fn test_set_age_validation() {
     let mut character = load_character("ryathstrongarm/ryathstrongarm1.bic");
     let original_age = character.age();
 
-    println!("Original age: {}", original_age);
+    println!("Original age: {original_age}");
 
     let valid_result = character.set_age(50);
     assert!(valid_result.is_ok());
@@ -296,14 +292,13 @@ async fn test_experience_progression() {
             xp_l30 - xp_l1
         );
 
-        assert!(xp_l1 >= 0, "{} L1 XP should be non-negative", name);
-        assert!(xp_l30 >= xp_l1, "{} L30 XP should be >= L1 XP", name);
+        assert!(xp_l1 >= 0, "{name} L1 XP should be non-negative");
+        assert!(xp_l30 >= xp_l1, "{name} L30 XP should be >= L1 XP");
 
         if char_l30.total_level() > char_l1.total_level() {
             assert!(
                 xp_l30 > xp_l1,
-                "{} L30 XP should be greater than L1 XP for higher level character",
-                name
+                "{name} L30 XP should be greater than L1 XP for higher level character"
             );
         }
     }
@@ -348,7 +343,7 @@ async fn test_set_experience_validation() {
     let mut character = load_character("ryathstrongarm/ryathstrongarm1.bic");
     let original_xp = character.experience();
 
-    println!("Original XP: {}", original_xp);
+    println!("Original XP: {original_xp}");
 
     let valid_result = character.set_experience(50000);
     assert!(valid_result.is_ok());
@@ -569,13 +564,13 @@ async fn test_set_deity_on_real_character() {
     let mut character = load_character("ryathstrongarm/ryathstrongarm1.bic");
     let original_deity = character.deity();
 
-    println!("Original deity: '{}'", original_deity);
+    println!("Original deity: '{original_deity}'");
 
     character.set_deity("Tempus".to_string());
     assert_eq!(character.deity(), "Tempus");
     assert!(character.is_modified());
 
-    character.set_deity("".to_string());
+    character.set_deity(String::new());
     assert_eq!(character.deity(), "");
 
     println!("Final deity: '{}'", character.deity());
@@ -624,9 +619,9 @@ async fn test_set_gender_validation() {
     let mut character = load_character("ryathstrongarm/ryathstrongarm1.bic");
     let original_gender = character.gender();
 
-    println!("Original gender: {}", original_gender);
+    println!("Original gender: {original_gender}");
 
-    let new_gender = if original_gender == 0 { 1 } else { 0 };
+    let new_gender = i32::from(original_gender == 0);
     let valid_result = character.set_gender(new_gender);
     assert!(valid_result.is_ok());
     assert_eq!(character.gender(), new_gender);
@@ -693,7 +688,7 @@ async fn test_set_description_on_real_character() {
     assert_eq!(character.description(), new_desc);
     assert!(character.is_modified());
 
-    character.set_description("".to_string());
+    character.set_description(String::new());
     assert_eq!(character.description(), "");
 
     println!("Description can be set and cleared");
@@ -780,7 +775,7 @@ async fn test_biography_consistency_between_levels() {
         let bio_l1 = char_l1.biography(game_data);
         let bio_l30 = char_l30.biography(game_data);
 
-        println!("{} L1 vs L30:", name);
+        println!("{name} L1 vs L30:");
         println!("  Name: '{}' vs '{}'", bio_l1.name, bio_l30.name);
         println!("  Gender: {} vs {}", bio_l1.gender, bio_l30.gender);
         println!("  XP: {} vs {}", bio_l1.experience, bio_l30.experience);
@@ -792,13 +787,11 @@ async fn test_biography_consistency_between_levels() {
 
         assert_eq!(
             bio_l1.name, bio_l30.name,
-            "{} name should be consistent",
-            name
+            "{name} name should be consistent"
         );
         assert_eq!(
             bio_l1.gender, bio_l30.gender,
-            "{} gender should be consistent",
-            name
+            "{name} gender should be consistent"
         );
     }
 }
@@ -836,36 +829,27 @@ async fn test_all_fixtures_identity_sanity() {
         assert!(
             !character.full_name().is_empty()
                 || character.first_name().is_empty() && character.last_name().is_empty(),
-            "{} should have a name or explicitly empty",
-            label
+            "{label} should have a name or explicitly empty"
         );
 
-        assert!(
-            character.age() >= 0,
-            "{} should have non-negative age",
-            label
-        );
+        assert!(character.age() >= 0, "{label} should have non-negative age");
         assert!(
             character.experience() >= 0,
-            "{} should have non-negative XP",
-            label
+            "{label} should have non-negative XP"
         );
         assert!(
             character.gender() == 0 || character.gender() == 1,
-            "{} should have valid gender",
-            label
+            "{label} should have valid gender"
         );
 
         let alignment = character.alignment();
         assert!(
             alignment.law_chaos >= 0 && alignment.law_chaos <= 100,
-            "{} should have valid law_chaos",
-            label
+            "{label} should have valid law_chaos"
         );
         assert!(
             alignment.good_evil >= 0 && alignment.good_evil <= 100,
-            "{} should have valid good_evil",
-            label
+            "{label} should have valid good_evil"
         );
 
         println!(
