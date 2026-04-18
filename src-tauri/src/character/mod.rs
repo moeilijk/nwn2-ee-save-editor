@@ -29,7 +29,9 @@ pub mod types;
 
 pub use abilities::{AbilitiesState, AbilityIncrease, AbilityPointsSummary};
 pub use appearance::{AppearanceOption, AppearanceState, CharacterModelParts};
-pub use appearance_helpers::{TintChannel, TintChannels};
+pub use appearance_helpers::{
+    TintChannel, TintChannels, cosmetic_gloves_tint, swap_tint_2_3,
+};
 pub use classes::ClassesState;
 pub use classes::{
     AlignmentRestriction, BabType, ClassEntry, ClassInfo, ClassSummaryEntry, LevelHistoryEntry,
@@ -55,7 +57,7 @@ pub use item_appearance::{
     AccessorySlot, AccessorySlotData, ArmorAccessories, ItemAppearance, ItemAppearanceOptions,
     RenderableAccessory, resref_attach_bone_and_slot,
 };
-pub(crate) use item_appearance::{detect_armor_slot, parse_equip_slots};
+pub(crate) use item_appearance::{detect_armor_slot, is_bracer_label, parse_equip_slots};
 pub use overview::OverviewState;
 pub use race::{SizeCategory, SubraceInfo};
 pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};

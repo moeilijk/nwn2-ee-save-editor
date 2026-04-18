@@ -93,13 +93,18 @@ pub async fn get_inventory_summary(
 ) -> CommandResult<FullInventorySummary> {
     ensure_decoder_initialized(&state).await;
 
+    let rm = state.resource_manager.read().await;
     let session = state.session.read();
     let game_data = state.game_data.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    let summary = character.get_full_inventory_summary(&game_data, &session.item_property_decoder);
+    let summary = character.get_full_inventory_summary(
+        &game_data,
+        &session.item_property_decoder,
+        Some(&rm),
+    );
     tracing::info!(
         "Inventory summary retrieved. Items: {}, Equipped: {}, Gold: {}",
         summary.inventory.len(),

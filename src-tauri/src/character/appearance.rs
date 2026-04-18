@@ -75,6 +75,8 @@ pub struct CharacterModelParts {
     pub show_helmet: bool,
     pub boots_candidates: Vec<String>,
     pub gloves_candidates: Vec<String>,
+    pub boots_tint: Option<TintChannels>,
+    pub gloves_tint: Option<TintChannels>,
     pub cloak_resref: Option<String>,
     pub cloak_tint: Option<TintChannels>,
     pub armor_tint: Option<TintChannels>,
@@ -97,6 +99,8 @@ struct EquippedVisuals {
     cloak_variation: Option<i32>,
     cloak_tint: Option<TintChannels>,
     armor_tint: Option<TintChannels>,
+    boots_tint: Option<TintChannels>,
+    gloves_tint: Option<TintChannels>,
     chest_accessories: super::item_appearance::ArmorAccessories,
 }
 
@@ -630,6 +634,8 @@ impl Character {
             show_helmet,
             boots_candidates,
             gloves_candidates,
+            boots_tint: equip_visuals.boots_tint,
+            gloves_tint: equip_visuals.gloves_tint,
             cloak_resref,
             cloak_tint: equip_visuals.cloak_tint,
             armor_tint: equip_visuals.armor_tint,
@@ -678,15 +684,16 @@ impl Character {
             .get("ArmorVisualType")
             .and_then(gff_value_to_i32)
             .unwrap_or(0);
-        let variation = part_struct
+        let raw_variation = part_struct
             .get("Variation")
             .and_then(gff_value_to_i32)
             .unwrap_or(0);
 
-        if variation == 0 {
+        if raw_variation == 0 {
             return None;
         }
 
+        let variation = raw_variation + 1;
         let armor_prefixes = if visual_type > 0 {
             resolve_armor_prefix(game_data, visual_type, false)
         } else {
@@ -713,6 +720,8 @@ impl Character {
             cloak_variation: None,
             cloak_tint: None,
             armor_tint: None,
+            boots_tint: None,
+            gloves_tint: None,
             chest_accessories: super::item_appearance::ArmorAccessories::default(),
         };
 
@@ -890,24 +899,30 @@ impl Character {
                 }
             }
 
-            if is_boots && result.boots.is_none() {
+            if is_boots {
                 result.boots = Self::parse_item_part_visual(item_struct, game_data);
+                result.boots_tint =
+                    Self::read_item_tint_with_fallback(item_struct, resource_manager);
                 debug!(
-                    "Boots from slot: {:?}",
+                    "Boots from slot: {:?}, tint={:?}",
                     result
                         .boots
                         .as_ref()
-                        .map(|b| (&b.armor_prefixes, b.variation))
+                        .map(|b| (&b.armor_prefixes, b.variation)),
+                    result.boots_tint
                 );
             }
-            if is_gloves && result.gloves.is_none() {
+            if is_gloves {
                 result.gloves = Self::parse_item_part_visual(item_struct, game_data);
+                result.gloves_tint =
+                    Self::read_item_tint_with_fallback(item_struct, resource_manager);
                 debug!(
-                    "Gloves from slot: {:?}",
+                    "Gloves from slot: {:?}, tint={:?}",
                     result
                         .gloves
                         .as_ref()
-                        .map(|g| (&g.armor_prefixes, g.variation))
+                        .map(|g| (&g.armor_prefixes, g.variation)),
+                    result.gloves_tint
                 );
             }
 
@@ -945,7 +960,7 @@ impl Character {
 
     /// Read an item's tint from its `Tintable` struct, falling back to the
     /// item template (.uti) when the saved tint is all zero.
-    fn read_item_tint_with_fallback(
+    pub(crate) fn read_item_tint_with_fallback(
         item_struct: &IndexMap<String, GffValue<'static>>,
         resource_manager: &crate::services::resource_manager::ResourceManager,
     ) -> Option<TintChannels> {
@@ -966,7 +981,7 @@ impl Character {
         Self::load_template_tint(item_struct, resource_manager)
     }
 
-    fn load_template_tint(
+    pub(crate) fn load_template_tint(
         item_struct: &IndexMap<String, GffValue<'static>>,
         resource_manager: &crate::services::resource_manager::ResourceManager,
     ) -> Option<TintChannels> {
@@ -1019,13 +1034,11 @@ impl Character {
         let variation = item_struct
             .get("Variation")
             .and_then(gff_value_to_i32)
-            .unwrap_or(0);
+            .map(|v| v + 1)
+            .unwrap_or(1)
+            .max(1);
 
-        debug!("Item part visual: ArmorVisualType={visual_type}, Variation={variation}");
-
-        if variation == 0 {
-            return None;
-        }
+        debug!("Item part visual: ArmorVisualType={visual_type}, Variation(mesh)={variation}");
 
         let armor_prefixes = if visual_type > 0 {
             resolve_armor_prefix(game_data, visual_type, false)

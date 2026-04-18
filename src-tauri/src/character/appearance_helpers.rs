@@ -95,6 +95,31 @@ pub fn build_nested_tint(tints: &TintChannels) -> IndexMap<String, GffValue<'sta
     outer
 }
 
+/// Swap channels 2 and 3 on a tint. Glove and boot MDBs tag their tint
+/// masks with an opposite convention to chest armor; swapping the incoming
+/// tint once here lets the same shader code render both.
+pub fn swap_tint_2_3(t: &TintChannels) -> TintChannels {
+    TintChannels {
+        channel1: t.channel1.clone(),
+        channel2: t.channel3.clone(),
+        channel3: t.channel2.clone(),
+    }
+}
+
+/// Build the render-time tint for glove / bracer meshes: force channel 3
+/// to white before the 2↔3 swap. A black channel 3 on these items would
+/// otherwise darken the entire mesh; the game ignores it in practice.
+pub fn cosmetic_gloves_tint(src: &TintChannels) -> TintChannels {
+    let mut pre_swap = src.clone();
+    pre_swap.channel3 = TintChannel {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+    swap_tint_2_3(&pre_swap)
+}
+
 pub fn resolve_armor_prefix(
     game_data: &GameData,
     visual_type: i32,

@@ -1,9 +1,16 @@
 use tauri::State;
 use tracing::{debug, info};
 
-use crate::character::{ItemAppearance, ItemAppearanceOptions};
+use crate::character::{
+    AccessorySlot, ItemAppearance, ItemAppearanceOptions, cosmetic_gloves_tint, swap_tint_2_3,
+};
 use crate::services::model_loader::{self, ModelData};
 use crate::state::AppState;
+
+fn resref_is_boots_or_gloves(resref: &str) -> bool {
+    let lower = resref.to_lowercase();
+    lower.contains("_boots") || lower.contains("_gloves")
+}
 
 /// Returns every MDB resref matching the slot of `base_item_id`.
 ///
@@ -25,7 +32,11 @@ pub fn list_armor_mesh_candidates_impl(
         return Vec::new();
     };
 
-    if row_str(&row, "modeltype").unwrap_or_default().trim() != "3" {
+    let modeltype = row_str(&row, "modeltype").unwrap_or_default();
+    // Bracer items ship with modeltype=0 but render as glove meshes; let
+    // them through so the debug mesh-override dropdown offers candidates.
+    let label = row_str(&row, "label").unwrap_or_default();
+    if modeltype.trim() != "3" && !crate::character::is_bracer_label(&label) {
         return Vec::new();
     }
 
@@ -122,6 +133,12 @@ pub fn load_item_model_impl(
         })
         .unwrap_or_else(|| format!("base_item_{base_item_id}"));
 
+    // Gloves and bracer items share the glove MDB pipeline. In-game ch3
+    // is ignored for both; our resolver bakes `override_tints` with ch3
+    // forced white so a black ch3 in the save doesn't darken the mesh.
+    let is_gloves_like = crate::character::is_bracer_label(&base_label)
+        || base_label.eq_ignore_ascii_case("gloves");
+
     let mut groups = appearance.resolve_model_resrefs(base_item_id, game_data, body_prefix);
 
     // When an override is provided, replace the primary group with a single-
@@ -166,12 +183,34 @@ pub fn load_item_model_impl(
                     if let Some((bone, slot)) =
                         crate::character::resref_attach_bone_and_slot(resref)
                     {
-                        let tints = appearance.accessories.get_tints(slot).cloned();
+                        let raw_tints = appearance.accessories.get_tints(slot).cloned();
+                        let tints = raw_tints.map(|t| {
+                            if matches!(slot, AccessorySlot::LtBracer | AccessorySlot::RtBracer) {
+                                swap_tint_2_3(&t)
+                            } else {
+                                t
+                            }
+                        });
                         for m in &mut data.meshes {
                             m.attach_bone = Some(bone.to_string());
                             if let Some(ref t) = tints {
                                 m.override_tints = Some(t.clone());
                             }
+                        }
+                    } else if is_gloves_like && resref.to_lowercase().contains("_gloves") {
+                        // Freeze the tint group so the frontend's live
+                        // `updateTintUniforms("item", …)` pass doesn't
+                        // overwrite the baked cosmetic override.
+                        let cosmetic = cosmetic_gloves_tint(&appearance.tints);
+                        for m in &mut data.meshes {
+                            m.override_tints = Some(cosmetic.clone());
+                            m.tint_group = "item_frozen".to_string();
+                        }
+                    } else if resref_is_boots_or_gloves(resref) {
+                        let swapped = swap_tint_2_3(&appearance.tints);
+                        for m in &mut data.meshes {
+                            m.override_tints = Some(swapped.clone());
+                            m.tint_group = "item_frozen".to_string();
                         }
                     }
                     combined_data.meshes.extend(data.meshes);

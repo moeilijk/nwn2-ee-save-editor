@@ -229,7 +229,7 @@ async fn extract_storm_campaign_character() {
         }
     }
 
-    let eq_summary = character.get_full_inventory_summary(game_data, decoder);
+    let eq_summary = character.get_full_inventory_summary(game_data, decoder, None);
     println!("\n--- EQUIPPED (get_full_inventory_summary) ---");
     println!("  Equipped count: {}", eq_summary.equipped.len());
     for item in &eq_summary.equipped {

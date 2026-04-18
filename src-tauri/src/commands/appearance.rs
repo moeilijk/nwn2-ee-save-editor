@@ -4,7 +4,10 @@ use specta::Type;
 use tauri::State;
 use tracing::{debug, info, warn};
 
-use crate::character::{AppearanceOption, AppearanceState, Character, TintChannels};
+use crate::character::{
+    AccessorySlot, AppearanceOption, AppearanceState, Character, TintChannels,
+    cosmetic_gloves_tint, swap_tint_2_3,
+};
 use crate::commands::{CommandError, CommandResult};
 use crate::services::model_loader::{self, AttachedPart, MeshData, ModelData, NamedSkeleton};
 use crate::services::resource_manager::ResourceManager;
@@ -305,17 +308,25 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
-    // Boots
-    if !parts.boots_candidates.is_empty() {
-        let mut loaded = false;
-        for boots_resref in &parts.boots_candidates {
-            if let Ok(meshes) = load_part(boots_resref, "boots", "body") {
-                all_meshes.extend(meshes);
-                loaded = true;
-                break;
+    let mut load_body_part_with_tint =
+        |candidates: &[String], part: &str, tint: Option<&TintChannels>| -> bool {
+            for resref in candidates {
+                if let Ok(mut meshes) = load_part(resref, part, "body") {
+                    if let Some(t) = tint {
+                        for m in &mut meshes {
+                            m.override_tints = Some(t.clone());
+                        }
+                    }
+                    all_meshes.extend(meshes);
+                    return true;
+                }
             }
-        }
-        if !loaded {
+            false
+        };
+
+    if !parts.boots_candidates.is_empty() {
+        let tint = parts.boots_tint.as_ref().map(swap_tint_2_3);
+        if !load_body_part_with_tint(&parts.boots_candidates, "boots", tint.as_ref()) {
             warn!(
                 "Failed to load boots from candidates: {:?}",
                 parts.boots_candidates
@@ -323,17 +334,9 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         }
     }
 
-    // Gloves
     if !parts.gloves_candidates.is_empty() {
-        let mut loaded = false;
-        for gloves_resref in &parts.gloves_candidates {
-            if let Ok(meshes) = load_part(gloves_resref, "gloves", "body") {
-                all_meshes.extend(meshes);
-                loaded = true;
-                break;
-            }
-        }
-        if !loaded {
+        let tint = parts.gloves_tint.as_ref().map(cosmetic_gloves_tint);
+        if !load_body_part_with_tint(&parts.gloves_candidates, "gloves", tint.as_ref()) {
             warn!(
                 "Failed to load gloves from candidates: {:?}",
                 parts.gloves_candidates
@@ -347,15 +350,32 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
     let accessory_body_prefix = character
         .body_prefix(&game_data)
         .unwrap_or_else(|| "P_HHM".to_string());
+    // Shin accessories clip through standalone boots; hide them when a
+    // boots item contributed its own tint.
+    let has_standalone_boots = parts.boots_tint.is_some();
     for acc in parts
         .chest_accessories
         .iter_renderable(&accessory_body_prefix)
     {
+        if has_standalone_boots
+            && matches!(acc.slot, AccessorySlot::LtShin | AccessorySlot::RtShin)
+        {
+            debug!(
+                "Hiding shin accessory '{}' because standalone boots are equipped",
+                acc.resref
+            );
+            continue;
+        }
+        let tints = if matches!(acc.slot, AccessorySlot::LtBracer | AccessorySlot::RtBracer) {
+            swap_tint_2_3(acc.tints)
+        } else {
+            acc.tints.clone()
+        };
         match load_part(&acc.resref, "accessory", "body") {
             Ok(meshes) => {
                 for mut m in meshes {
                     m.attach_bone = Some(acc.attach_bone.to_string());
-                    m.override_tints = Some(acc.tints.clone());
+                    m.override_tints = Some(tints.clone());
                     all_meshes.push(m);
                 }
             }

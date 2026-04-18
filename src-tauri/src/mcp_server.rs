@@ -485,7 +485,7 @@ fn get_inventory(state: McpState, _params: Value) -> anyhow::Result<Value> {
     let game_data_lock = state.game_data.read();
     if let Some(char_ref) = session_lock.character() {
         let decoder = &session_lock.item_property_decoder;
-        let summary = char_ref.get_full_inventory_summary(&game_data_lock, decoder);
+        let summary = char_ref.get_full_inventory_summary(&game_data_lock, decoder, None);
         let mut json_val = serde_json::to_value(summary)?;
         if let Some(obj) = json_val.as_object_mut() {
             if let Some(inv) = obj.get_mut("inventory").and_then(|v| v.as_array_mut()) {

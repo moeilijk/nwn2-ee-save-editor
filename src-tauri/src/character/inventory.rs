@@ -660,6 +660,7 @@ impl super::Character {
         &self,
         game_data: &GameData,
         decoder: &ItemPropertyDecoder,
+        resource_manager: Option<&crate::services::resource_manager::ResourceManager>,
     ) -> FullInventorySummary {
         use tracing::{debug, warn};
 
@@ -771,6 +772,14 @@ impl super::Character {
                 let appearance = {
                     let mut a = ItemAppearance::from_gff(item_struct);
                     a.normalize_for_ui(base_item_id, game_data);
+                    // Fall back to the UTI template's Tintable when the save
+                    // has no explicit tints, so the UI swatches show the
+                    // colours actually rendered by the game.
+                    if let Some(rm) = resource_manager
+                        && let Some(effective) = Self::read_item_tint_with_fallback(item_struct, rm)
+                    {
+                        a.tints = effective;
+                    }
                     a
                 };
 
@@ -888,6 +897,12 @@ impl super::Character {
                     appearance: {
                         let mut a = ItemAppearance::from_gff(item_struct);
                         a.normalize_for_ui(base_item_id, game_data);
+                        if let Some(rm) = resource_manager
+                            && let Some(effective) =
+                                Self::read_item_tint_with_fallback(item_struct, rm)
+                        {
+                            a.tints = effective;
+                        }
                         a
                     },
                 });

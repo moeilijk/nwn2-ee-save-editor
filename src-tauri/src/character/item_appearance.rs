@@ -33,6 +33,13 @@ fn classify_model_type(raw: &str) -> ItemModelKind {
     }
 }
 
+/// Bracers ship with `modeltype=0` but render as a fixed glove mesh, not
+/// as a weapon. Detected by the base item's label since there is no
+/// dedicated modeltype for them.
+pub(crate) fn is_bracer_label(s: &str) -> bool {
+    s.eq_ignore_ascii_case("bracer")
+}
+
 /// Which armor part the item occupies, derived from `baseitems.2da`'s
 /// `equipableslots` bitmask.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -558,6 +565,10 @@ impl ItemAppearance {
             "Resolving appearance options for item {base_item_id}: prefix='{prefix}' from {source}, kind={kind:?}"
         );
 
+        // Bracer base items have modeltype=0 but behave like gloves; enumerate
+        // glove-slot variants so the stepper offers usable choices.
+        let is_bracer = is_bracer_label(&prefix);
+
         match kind {
             ItemModelKind::ThreePartWeapon => {
                 let full_prefix = normalize_weapon_prefix(&prefix);
@@ -567,6 +578,13 @@ impl ItemAppearance {
                     available_part2: Self::discover_variants(resource_manager, &full_prefix, "_b"),
                     available_part3: Self::discover_variants(resource_manager, &full_prefix, "_c"),
                 }
+            }
+            ItemModelKind::SinglePart if is_bracer => {
+                // Bracer items render as a fixed glove mesh (variant 01);
+                // the mesh is chosen entirely by AVT → material. Variation
+                // / ModelPart1 on these items don't drive mesh selection,
+                // so expose no stepper.
+                ItemAppearanceOptions::new_empty()
             }
             ItemModelKind::SinglePart => {
                 let full_prefix = normalize_weapon_prefix(&prefix);
@@ -766,6 +784,31 @@ impl ItemAppearance {
 
         let (prefix, source) = Self::resolve_item_prefix(&row);
         let kind = classify_model_type(&row_str(&row, "modeltype").unwrap_or_default());
+
+        // Bracer base items ship with modeltype=0 (weapon) in baseitems.2da
+        // but render as a fixed glove mesh (always variant 01) whose
+        // material comes from the item's `ArmorVisualType` via `armor.2da`.
+        // `Variation`/`ModelPart1` on these items is the bracer style index
+        // (for icons/props), not a mesh number.
+        let is_bracer = is_bracer_label(&prefix);
+        if is_bracer {
+            let body = body_prefix.unwrap_or(DEFAULT_BODY_PREFIX);
+            let item_armor_prefix = self.armor_visual_type.and_then(|vt| {
+                resolve_armor_prefix(game_data, vt, false)
+                    .into_iter()
+                    .next()
+            });
+            let primaries: Vec<&str> = item_armor_prefix.iter().map(String::as_str).collect();
+            info!(
+                "Resolving bracer item {base_item_id}: body={body}, avt_prefix={item_armor_prefix:?}"
+            );
+            let candidates =
+                armor_resref_candidates(body, ArmorSlot::Gloves, 1, &primaries, true);
+            if candidates.is_empty() {
+                return Vec::new();
+            }
+            return vec![candidates];
+        }
 
         if kind == ItemModelKind::BodyArmor {
             let equip_slots =
