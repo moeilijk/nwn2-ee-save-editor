@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod file_operations;
 pub mod loaders;
+#[cfg(debug_assertions)]
 pub mod mcp_server;
 pub mod parsers;
 pub mod services;
@@ -11,6 +12,7 @@ pub mod state;
 pub mod utils;
 mod window_manager;
 
+#[cfg(debug_assertions)]
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::image::Image;
@@ -45,15 +47,18 @@ pub fn run() {
             info!("Initializing AppState");
             let app_state = crate::state::AppState::new();
 
-            // Start MCP SSE Bridge
-            let mcp_state = crate::mcp_server::McpState::new(
-                Arc::clone(&app_state.game_data),
-                Arc::clone(&app_state.session),
-            );
+            // Start MCP SSE Bridge (debug builds only)
+            #[cfg(debug_assertions)]
+            {
+                let mcp_state = crate::mcp_server::McpState::new(
+                    Arc::clone(&app_state.game_data),
+                    Arc::clone(&app_state.session),
+                );
 
-            tauri::async_runtime::spawn(async move {
-                crate::mcp_server::start(mcp_state, 14207).await;
-            });
+                tauri::async_runtime::spawn(async move {
+                    crate::mcp_server::start(mcp_state, 14207).await;
+                });
+            }
 
             app.manage(app_state);
             info!("AppState initialized successfully");
