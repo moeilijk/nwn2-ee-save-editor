@@ -35,6 +35,7 @@ export function GameLaunchDialog({ isOpen, onClose, onLaunch, saveName, gamePath
     setIsLaunching(true);
     try {
       await onLaunch(closeEditor);
+      onClose();
     } finally {
       setIsLaunching(false);
     }
