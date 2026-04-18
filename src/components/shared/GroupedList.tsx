@@ -7,6 +7,8 @@ export interface ListSection<T> {
   key: string;
   title: string;
   items: T[];
+  countLabel?: string;
+  countColor?: string;
 }
 
 interface GroupedListProps<T extends { id: number }> {
@@ -17,7 +19,7 @@ interface GroupedListProps<T extends { id: number }> {
 }
 
 type FlatRow<T> =
-  | { type: 'header'; sectionKey: string; title: string; count: number }
+  | { type: 'header'; sectionKey: string; title: string; count: number; countLabel?: string; countColor?: string }
   | { type: 'item'; item: T };
 
 const ROW_HEIGHTS = {
@@ -61,7 +63,14 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
   const flatRows: FlatRow<T>[] = useMemo(() => {
     const rows: FlatRow<T>[] = [];
     for (const section of sections) {
-      rows.push({ type: 'header', sectionKey: section.key, title: section.title, count: section.items.length });
+      rows.push({
+        type: 'header',
+        sectionKey: section.key,
+        title: section.title,
+        count: section.items.length,
+        countLabel: section.countLabel,
+        countColor: section.countColor,
+      });
       if (!collapsed.has(section.key)) {
         for (const item of section.items) {
           rows.push({ type: 'item', item });
@@ -90,7 +99,7 @@ export function GroupedList<T extends { id: number }>({ sections, selectedId, on
           <span className="t-bold" style={{ color: T.accent, flex: 1 }}>
             {row.title}
           </span>
-          <span style={{ color: T.textMuted }}>{row.count}</span>
+          <span style={{ color: row.countColor ?? T.textMuted }}>{row.countLabel ?? row.count}</span>
         </div>
       );
     }

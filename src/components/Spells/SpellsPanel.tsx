@@ -184,6 +184,39 @@ export function SpellsPanel() {
 
   const levelLabel = (l: number) => l === 0 ? t('spells.cantrips') : t('spells.levelSpells', { level: l });
 
+  // Per-level cap stats for spontaneous casters (Sorcerer, Bard, etc.).
+  // Key = spell level, value = { cap, actual, hasOther } where hasOther means
+  // a prepared/all-known class also contributes spells at this level (skip counter).
+  const knownLevelStats = useMemo(() => {
+    const stats = new Map<number, { cap: number; actual: number; hasOther: boolean }>();
+    const spellcastingClasses = spellsData?.spellcasting_classes ?? [];
+    const activeClassObj = activeClass !== 'all' ? casterClasses.find(c => c.name === activeClass) : undefined;
+    const cappedClassIds = new Set<number>();
+
+    for (const cls of spellcastingClasses) {
+      const caps = cls.expected_spells_known ?? {};
+      if (Object.keys(caps).length === 0) continue;
+      if (activeClassObj && cls.class_id !== activeClassObj.class_id) continue;
+      cappedClassIds.add(cls.class_id);
+      for (const [levelStr, cap] of Object.entries(caps)) {
+        const level = Number(levelStr);
+        const entry = stats.get(level) ?? { cap: 0, actual: 0, hasOther: false };
+        entry.cap += cap;
+        stats.set(level, entry);
+      }
+    }
+
+    for (const ks of spellsData?.known_spells ?? []) {
+      if (activeClassObj && ks.class_id !== activeClassObj.class_id) continue;
+      const entry = stats.get(ks.level);
+      if (!entry) continue;
+      if (cappedClassIds.has(ks.class_id)) entry.actual += 1;
+      else entry.hasOther = true;
+    }
+
+    return stats;
+  }, [spellsData?.spellcasting_classes, spellsData?.known_spells, activeClass, casterClasses]);
+
   const knownSections: ListSection<SpellInfo>[] = useMemo(() => {
     const filtered = knownSpells.filter(clientFilter);
     const grouped = new Map<number, SpellInfo[]>();
@@ -193,12 +226,23 @@ export function SpellsPanel() {
     }
     return [...grouped.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([level, items]) => ({
-        key: `lvl-${level}`,
-        title: levelLabel(level),
-        items,
-      }));
-  }, [knownSpells, clientFilter]);
+      .map(([level, items]) => {
+        const stat = knownLevelStats.get(level);
+        let countLabel: string | undefined;
+        let countColor: string | undefined;
+        if (stat && !stat.hasOther) {
+          countLabel = `${stat.actual}/${stat.cap}`;
+          if (stat.actual > stat.cap) countColor = T.negative;
+        }
+        return {
+          key: `lvl-${level}`,
+          title: levelLabel(level),
+          items,
+          countLabel,
+          countColor,
+        };
+      });
+  }, [knownSpells, clientFilter, knownLevelStats]);
 
   const preparedSections: ListSection<SpellInfo>[] = useMemo(() => {
     const filtered = preparedSpells.filter(clientFilter);

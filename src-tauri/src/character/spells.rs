@@ -1370,6 +1370,12 @@ impl Character {
             }
             total_spell_levels += max_spell_level;
 
+            let expected_spells_known = if !class_info.is_prepared && !all_spells_known {
+                self.get_expected_spells_known_from_table(class_info.class_id, game_data)
+            } else {
+                HashMap::new()
+            };
+
             spellcasting_classes.push(SpellcastingClass {
                 index: class_info.class_list_index as i32,
                 class_id: class_info.class_id,
@@ -1378,6 +1384,7 @@ impl Character {
                 caster_level: class_info.caster_level,
                 spell_type: spell_type.to_string(),
                 can_edit_spells,
+                expected_spells_known,
             });
 
             caster_class_summaries.push(CasterClassSummary {
@@ -2166,6 +2173,9 @@ pub struct SpellcastingClass {
     pub caster_level: i32,
     pub spell_type: String,
     pub can_edit_spells: bool,
+    /// Spells-known cap per spell level from SpellKnownTable (e.g. cls_spkn_sorc).
+    /// Empty for prepared casters and AllSpellsKnown classes (no cap applies).
+    pub expected_spells_known: HashMap<i32, i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

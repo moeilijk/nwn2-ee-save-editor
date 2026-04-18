@@ -38,6 +38,7 @@ export interface SpellcastingClass {
   caster_level: number;
   spell_type: 'prepared' | 'spontaneous';
   can_edit_spells: boolean;
+  expected_spells_known: Record<number, number>;
 }
 
 export interface SpellSummary {
