@@ -14,6 +14,7 @@ interface ItemViewer3DProps {
   baseItemId: number;
   refreshKey: number;
   refreshPart: { partIndex: number; key: number } | null;
+  meshOverride?: string | null;
 }
 
 const PART_LETTERS = ['a', 'b', 'c'] as const;
@@ -56,7 +57,7 @@ async function buildPartGroup(
   return group;
 }
 
-export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }: ItemViewer3DProps) {
+export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart, meshOverride }: ItemViewer3DProps) {
   const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
       const modelData = await invoke<ModelData>('load_item_model', {
         appearance: appearanceRef.current,
         baseItemId,
+        overrideResref: meshOverride ?? null,
       });
 
       if (requestId !== loadCounterRef.current || !sceneRef.current) return;
@@ -195,7 +197,7 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
         setLoading(false);
       }
     }
-  }, [sceneRef, baseItemId, cameraRef, controlsRef]);
+  }, [sceneRef, baseItemId, cameraRef, controlsRef, meshOverride]);
 
   const replacePart = useCallback(async (partIndex: number) => {
     const scene = sceneRef.current;
@@ -226,9 +228,8 @@ export function ItemViewer3D({ appearance, baseItemId, refreshKey, refreshPart }
 
   useEffect(() => {
     loadItem();
-    // Invalidate in-flight requests so they can't mutate an unmounted scene
     return () => { loadCounterRef.current++; };
-  }, [loadItem, refreshKey]);
+  }, [loadItem, refreshKey, meshOverride]);
 
   useEffect(() => {
     if (!refreshPart) return;

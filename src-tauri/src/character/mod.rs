@@ -55,6 +55,7 @@ pub use item_appearance::{
     AccessorySlot, AccessorySlotData, ArmorAccessories, ItemAppearance, ItemAppearanceOptions,
     RenderableAccessory, resref_attach_bone_and_slot,
 };
+pub(crate) use item_appearance::{detect_armor_slot, parse_equip_slots};
 pub use overview::OverviewState;
 pub use race::{SizeCategory, SubraceInfo};
 pub use save_summary::{SaveBreakdown, SaveChange, SaveCheck, SaveSummary, SaveType, SavingThrows};

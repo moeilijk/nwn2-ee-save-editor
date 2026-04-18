@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button, Card, Elevation, Menu, MenuItem, Popover } from '@blueprintjs/core';
+import { Button, Card, Elevation, HTMLSelect, Menu, MenuItem, Popover } from '@blueprintjs/core';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslations } from '@/hooks/useTranslations';
 import type { ItemAppearance, ItemAppearanceOptions, TintChannels, TintChannel } from '@/lib/bindings';
@@ -61,6 +61,8 @@ export function ItemAppearanceTab({ appearance, baseItemId, onChange }: ItemAppe
   const [options, setOptions] = useState<ItemAppearanceOptions | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshPart, setRefreshPart] = useState<{ partIndex: number; key: number } | null>(null);
+  const [meshCandidates, setMeshCandidates] = useState<string[]>([]);
+  const [meshOverride, setMeshOverride] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<ItemAppearanceOptions>('get_item_appearance_options', {
@@ -70,6 +72,15 @@ export function ItemAppearanceTab({ appearance, baseItemId, onChange }: ItemAppe
       .then(setOptions)
       .catch(err => console.error('Failed to load item appearance options:', err));
   }, [baseItemId, appearance.armor_visual_type]);
+
+  useEffect(() => {
+    invoke<string[]>('list_armor_mesh_candidates', { baseItemId })
+      .then(cands => {
+        setMeshCandidates(cands);
+        setMeshOverride(null);
+      })
+      .catch(err => console.error('Failed to load mesh candidates:', err));
+  }, [baseItemId]);
 
   const hasMultipleParts = useMemo(() => {
     return options && (options.available_part1.length > 0 || options.available_part2.length > 0 || options.available_part3.length > 0);
@@ -105,6 +116,7 @@ export function ItemAppearanceTab({ appearance, baseItemId, onChange }: ItemAppe
           baseItemId={baseItemId}
           refreshKey={refreshKey}
           refreshPart={refreshPart}
+          meshOverride={meshOverride}
         />
       </div>
 
@@ -161,6 +173,21 @@ export function ItemAppearanceTab({ appearance, baseItemId, onChange }: ItemAppe
                   onChange={updateVariation}
                 />
               }
+            />
+          </Card>
+        )}
+
+        {meshCandidates.length > 0 && (
+          <Card elevation={Elevation.ONE} style={{ padding: '12px 16px', background: T.surface }}>
+            <SectionHeader label={t('appearance.meshOverride.label')} />
+            <HTMLSelect
+              fill
+              value={meshOverride ?? ''}
+              onChange={(e) => setMeshOverride(e.currentTarget.value || null)}
+              options={[
+                { value: '', label: t('appearance.meshOverride.auto') },
+                ...meshCandidates.map(resref => ({ value: resref, label: resref })),
+              ]}
             />
           </Card>
         )}

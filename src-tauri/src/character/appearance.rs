@@ -91,7 +91,7 @@ struct PartVisual {
 struct EquippedVisuals {
     armor_prefixes: Vec<String>,
     armor_variation: i32,
-    helm_visual: Option<i32>,
+    helm_part: Option<PartVisual>,
     boots: Option<PartVisual>,
     gloves: Option<PartVisual>,
     cloak_variation: Option<i32>,
@@ -573,12 +573,23 @@ impl Character {
             (None, None)
         };
 
-        // Build candidate lists: try part's own prefix(es), then chest armor prefix(es)
-        let helm_candidates: Vec<String> = match equip_visuals.helm_visual {
-            Some(v) => armor_prefixes
+        let build_helm_candidates = |prefixes: &[String], var: i32| -> Vec<String> {
+            prefixes
                 .iter()
-                .map(|pfx| format!("{body_prefix}_{pfx}_Helm{v:02}"))
-                .collect(),
+                .map(|pfx| format!("{body_prefix}_{pfx}_Helm{var:02}"))
+                .collect()
+        };
+        let helm_candidates: Vec<String> = match &equip_visuals.helm_part {
+            Some(pv) => {
+                let cs = build_helm_candidates(&pv.armor_prefixes, pv.variation);
+                // Legacy helms without ArmorVisualType: borrow chest material
+                // so the viewer still renders something.
+                if cs.is_empty() {
+                    build_helm_candidates(armor_prefixes, pv.variation)
+                } else {
+                    cs
+                }
+            }
             None => Vec::new(),
         };
 
@@ -696,7 +707,7 @@ impl Character {
         let mut result = EquippedVisuals {
             armor_prefixes: Vec::new(),
             armor_variation: 1,
-            helm_visual: None,
+            helm_part: None,
             boots: None,
             gloves: None,
             cloak_variation: None,
@@ -860,8 +871,22 @@ impl Character {
                     .get("ArmorVisualType")
                     .and_then(gff_value_to_i32)
                     .unwrap_or(0);
-                if visual_type > 0 {
-                    result.helm_visual = Some(visual_type);
+                let variation = item_struct
+                    .get("Variation")
+                    .and_then(gff_value_to_i32)
+                    .map(|v| v + 1)
+                    .unwrap_or(1)
+                    .max(1);
+                let armor_prefixes = if visual_type > 0 {
+                    resolve_armor_prefix(game_data, visual_type, false)
+                } else {
+                    Vec::new()
+                };
+                if !armor_prefixes.is_empty() || variation > 0 {
+                    result.helm_part = Some(PartVisual {
+                        armor_prefixes,
+                        variation,
+                    });
                 }
             }
 

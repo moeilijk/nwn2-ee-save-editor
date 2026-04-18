@@ -27,3 +27,6 @@ mod diagnose_item_models;
 
 #[path = "debugging/diagnose_model_scale.rs"]
 mod diagnose_model_scale;
+
+#[path = "debugging/armor_debug_dump.rs"]
+mod armor_debug_dump;

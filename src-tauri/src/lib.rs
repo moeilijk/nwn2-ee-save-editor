@@ -228,6 +228,7 @@ pub fn run() {
             crate::commands::inventory::update_item,
             // Item Appearance
             crate::commands::item_appearance::get_item_appearance_options,
+            crate::commands::item_appearance::list_armor_mesh_candidates,
             crate::commands::item_appearance::load_item_model,
             crate::commands::item_appearance::load_item_part,
             // Combat & Saves

@@ -5,6 +5,70 @@ use crate::character::{ItemAppearance, ItemAppearanceOptions};
 use crate::services::model_loader::{self, ModelData};
 use crate::state::AppState;
 
+/// Returns every MDB resref matching the slot of `base_item_id`.
+///
+/// For body-armor base items, derives the slot from `baseitems.2da.equipableslots`
+/// and returns all `p_hhm_*_<slot>NN` MDBs that exist in the resource index.
+/// For weapons / non-armor items returns an empty vector.
+pub fn list_armor_mesh_candidates_impl(
+    base_item_id: i32,
+    game_data: &crate::loaders::GameData,
+    resource_manager: &crate::services::resource_manager::ResourceManager,
+) -> Vec<String> {
+    use crate::character::{detect_armor_slot, parse_equip_slots};
+    use crate::utils::parsing::row_str;
+
+    let Some(table) = game_data.get_table("baseitems") else {
+        return Vec::new();
+    };
+    let Some(row) = table.get_by_id(base_item_id) else {
+        return Vec::new();
+    };
+
+    if row_str(&row, "modeltype").unwrap_or_default().trim() != "3" {
+        return Vec::new();
+    }
+
+    let equip_slots = parse_equip_slots(&row_str(&row, "equipableslots").unwrap_or_default());
+    let Some(slot) = detect_armor_slot(equip_slots) else {
+        return Vec::new();
+    };
+    let slot_fragment = slot.part_name().to_lowercase();
+
+    let mdbs = resource_manager.list_resources_by_prefix("p_hhm_", "mdb");
+    let needle = format!("_{slot_fragment}");
+    let digits_only = |s: &str| -> bool { !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) };
+
+    let mut out: Vec<String> = mdbs
+        .into_iter()
+        .filter_map(|name| {
+            let stem = name.trim_end_matches(".mdb").to_string();
+            let lower = stem.to_lowercase();
+            let idx = lower.rfind(&needle)?;
+            let after = &lower[idx + needle.len()..];
+            if digits_only(after) { Some(stem) } else { None }
+        })
+        .collect();
+
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+#[tauri::command]
+pub fn list_armor_mesh_candidates(
+    state: State<'_, AppState>,
+    base_item_id: i32,
+) -> Result<Vec<String>, String> {
+    let game_data = state.game_data.read();
+    let rm = state.resource_manager.blocking_read();
+    Ok(list_armor_mesh_candidates_impl(
+        base_item_id,
+        &game_data,
+        &rm,
+    ))
+}
+
 #[tauri::command]
 pub fn get_item_appearance_options(
     state: State<'_, AppState>,
@@ -41,17 +105,14 @@ fn current_body_prefix(
     character.body_prefix(game_data)
 }
 
-#[tauri::command]
-pub fn load_item_model(
-    state: State<'_, AppState>,
-    appearance: ItemAppearance,
+pub fn load_item_model_impl(
     base_item_id: i32,
+    appearance: &ItemAppearance,
+    body_prefix: Option<&str>,
+    override_resref: Option<&str>,
+    game_data: &crate::loaders::GameData,
+    rm: &crate::services::resource_manager::ResourceManager,
 ) -> Result<ModelData, String> {
-    let game_data = state.game_data.read();
-    let rm = state.resource_manager.blocking_read();
-
-    // Snapshot the base item label up front so the per-item summary stays on a
-    // single line regardless of how many fallbacks we try.
     let base_label = game_data
         .get_table("baseitems")
         .and_then(|t| t.get_by_id(base_item_id))
@@ -61,14 +122,29 @@ pub fn load_item_model(
         })
         .unwrap_or_else(|| format!("base_item_{base_item_id}"));
 
-    let body_prefix = current_body_prefix(&state, &game_data);
-    let groups = appearance.resolve_model_resrefs(base_item_id, &game_data, body_prefix.as_deref());
+    let mut groups = appearance.resolve_model_resrefs(base_item_id, game_data, body_prefix);
+
+    // When an override is provided, replace the primary group with a single-
+    // entry group containing exactly that resref. Accessory / nested boots /
+    // gloves groups (indexes 1..) are preserved so the rest of the outfit
+    // still renders.
+    if let Some(override_res) = override_resref {
+        if groups.is_empty() {
+            groups.push(vec![override_res.to_string()]);
+        } else {
+            groups[0] = vec![override_res.to_string()];
+        }
+        info!(
+            target: "item_model",
+            "ITEM base={base_label}(#{base_item_id}) OVERRIDE={override_res}"
+        );
+    }
 
     if groups.is_empty() {
         info!(
             target: "item_model",
-            "ITEM base={base_label}(#{base_item_id}) BODY={:?} VARIATION={} MP={:?} VT={:?} -> NO_MODEL",
-            body_prefix, appearance.variation, appearance.model_parts, appearance.armor_visual_type
+            "ITEM base={base_label}(#{base_item_id}) BODY={body_prefix:?} VARIATION={} MP={:?} VT={:?} -> NO_MODEL",
+            appearance.variation, appearance.model_parts, appearance.armor_visual_type
         );
         return Ok(ModelData::default());
     }
@@ -76,10 +152,6 @@ pub fn load_item_model(
     let mut combined_data = ModelData::default();
     let mut loaded_resrefs: Vec<String> = Vec::new();
 
-    // Each outer group represents an independent model part (e.g. the _a/_b/_c
-    // pieces of a 3-part weapon, or the body/nested-boots/nested-gloves of an
-    // armor set). Within a group the candidates are ordered fallbacks — the
-    // first one that loads wins, the rest are skipped.
     for group in &groups {
         let mut group_hit: Option<String> = None;
         for resref in group {
@@ -89,12 +161,8 @@ pub fn load_item_model(
                 [.., b'_', b'c'] => "item_c",
                 _ => "item",
             };
-            match model_loader::load_model(&rm, resref, part_tag, "item") {
+            match model_loader::load_model(rm, resref, part_tag, "item") {
                 Ok(mut data) => {
-                    // Accessory resrefs: pull the slot's bone + per-slot
-                    // tints off `appearance.accessories` so each accessory
-                    // parents correctly and keeps its own colour. Returns
-                    // None for non-accessory resrefs (body/boots/etc.).
                     if let Some((bone, slot)) =
                         crate::character::resref_attach_bone_and_slot(resref)
                     {
@@ -125,12 +193,9 @@ pub fn load_item_model(
         loaded_resrefs.push(group_hit.unwrap_or_else(|| format!("MISS({group:?})")));
     }
 
-    // Single-line summary so filtering with RUST_LOG=item_model=info is enough
-    // to see exactly what each item viewer load decided on.
     info!(
         target: "item_model",
-        "ITEM base={base_label}(#{base_item_id}) BODY={:?} VARIATION={} MP={:?} VT={:?} BOOTS={:?} GLOVES={:?} GROUPS={} LOADED={:?}",
-        body_prefix,
+        "ITEM base={base_label}(#{base_item_id}) BODY={body_prefix:?} VARIATION={} MP={:?} VT={:?} BOOTS={:?} GLOVES={:?} GROUPS={} LOADED={:?}",
         appearance.variation,
         appearance.model_parts,
         appearance.armor_visual_type,
@@ -140,10 +205,6 @@ pub fn load_item_model(
         loaded_resrefs
     );
 
-    // If every candidate resref failed to load, treat this as "no preview" —
-    // frontend renders a placeholder instead of a red error overlay. Items that
-    // legitimately have no model (wands, accessories with unknown ItemClass)
-    // land here naturally.
     if combined_data.meshes.is_empty() {
         info!("No meshes loaded for base item {base_item_id}; returning empty ModelData");
         return Ok(ModelData::default());
@@ -154,6 +215,26 @@ pub fn load_item_model(
         combined_data.meshes.len()
     );
     Ok(combined_data)
+}
+
+#[tauri::command]
+pub fn load_item_model(
+    state: State<'_, AppState>,
+    appearance: ItemAppearance,
+    base_item_id: i32,
+    override_resref: Option<String>,
+) -> Result<ModelData, String> {
+    let game_data = state.game_data.read();
+    let rm = state.resource_manager.blocking_read();
+    let body_prefix = current_body_prefix(&state, &game_data);
+    load_item_model_impl(
+        base_item_id,
+        &appearance,
+        body_prefix.as_deref(),
+        override_resref.as_deref(),
+        &game_data,
+        &rm,
+    )
 }
 
 #[tauri::command]
