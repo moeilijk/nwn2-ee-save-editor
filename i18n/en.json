@@ -246,7 +246,7 @@
     "editWarningPlot": "This is a quest/plot item. Editing it may affect quest progression.",
     "noDescription": "No description available",
     "noProperties": "No special properties",
-    "baseArmorClass": "Base Armor Class",
+    "baseArmorClass": "Base AC",
     "unequip": "Unequip",
     "destroy": "Destroy",
     "backpackEmpty": "Backpack is empty",

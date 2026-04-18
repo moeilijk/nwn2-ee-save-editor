@@ -246,7 +246,7 @@
     "editWarningPlot": "Dies ist ein Quest-Gegenstand. Die Bearbeitung kann den Quest-Fortschritt beeinflussen.",
     "noDescription": "Keine Beschreibung verfügbar",
     "noProperties": "Keine speziellen Eigenschaften",
-    "baseArmorClass": "Basis-Rüstungsklasse",
+    "baseArmorClass": "Basis-RK",
     "unequip": "Ablegen",
     "destroy": "Zerstören",
     "backpackEmpty": "Rucksack ist leer",

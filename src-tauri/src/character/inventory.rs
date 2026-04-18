@@ -436,7 +436,7 @@ impl super::Character {
                 .and_then(gff_value_to_i32)
                 .unwrap_or(0);
 
-            if let Some(base_ac) = self.get_base_item_ac(base_item_id, game_data) {
+            if let Some(base_ac) = self.get_base_item_ac(item_struct, base_item_id, game_data) {
                 total_ac += base_ac;
             }
 
@@ -751,7 +751,7 @@ impl super::Character {
                     .unwrap_or(0)
                     == 1;
 
-                let base_ac = self.get_base_item_ac(base_item_id, game_data);
+                let base_ac = self.get_base_item_ac(item_struct, base_item_id, game_data);
 
                 let category = base_item_data
                     .as_ref()
@@ -864,7 +864,7 @@ impl super::Character {
                     }
                 };
 
-                let base_ac = self.get_base_item_ac(base_item_id, game_data);
+                let base_ac = self.get_base_item_ac(item_struct, base_item_id, game_data);
 
                 let decoded_properties = self.decode_item_properties(item_struct, decoder);
 
@@ -1176,13 +1176,33 @@ impl super::Character {
             .map(|w| w / 10.0)
     }
 
-    fn get_base_item_ac(&self, base_item_id: i32, game_data: &GameData) -> Option<i32> {
+    fn get_base_item_ac(
+        &self,
+        item_struct: &IndexMap<String, GffValue<'static>>,
+        base_item_id: i32,
+        game_data: &GameData,
+    ) -> Option<i32> {
         if base_item_id != BASE_ITEM_ARMOR
             && base_item_id != BASE_ITEM_SMALL_SHIELD
             && base_item_id != BASE_ITEM_LARGE_SHIELD
             && base_item_id != BASE_ITEM_TOWER_SHIELD
         {
             return None;
+        }
+
+        // Real base AC for armor/shields comes from armorrulestats.2da via ArmorRulesType;
+        // baseitems.2da baseac is 0 for the generic "armor" base item.
+        if let Some(armor_rules_type) = item_struct.get("ArmorRulesType").and_then(gff_value_to_i32)
+            && let Some(stats) = game_data
+                .get_table("armorrulestats")
+                .and_then(|t| t.get_by_id(armor_rules_type))
+            && let Some(ac_bonus) = stats
+                .get("acbonus")
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.parse::<f32>().ok())
+                .map(|f| f as i32)
+        {
+            return Some(ac_bonus);
         }
 
         let baseitems = game_data.get_table("baseitems")?;
