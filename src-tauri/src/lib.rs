@@ -2,7 +2,7 @@ pub mod character;
 pub mod commands;
 pub mod config;
 pub mod error;
-mod file_operations;
+pub mod file_operations;
 pub mod loaders;
 pub mod mcp_server;
 pub mod parsers;

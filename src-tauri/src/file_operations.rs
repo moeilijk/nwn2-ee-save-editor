@@ -607,6 +607,36 @@ pub struct BrowseBackupEntry {
     pub save_name: Option<String>,
 }
 
+fn find_newest_inner_backup(save_folder: &std::path::Path) -> Option<std::path::PathBuf> {
+    use std::time::SystemTime;
+
+    let entries = std::fs::read_dir(save_folder).ok()?;
+    let mut newest: Option<(SystemTime, std::path::PathBuf)> = None;
+
+    for entry in entries.flatten() {
+        if !entry.file_type().is_ok_and(|ft| ft.is_dir()) {
+            continue;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("backup_") && !name.starts_with("pre_restore_") {
+            continue;
+        }
+
+        let path = entry.path();
+        let ts = std::fs::metadata(&path)
+            .and_then(|m| m.created().or_else(|_| m.modified()))
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+
+        match &newest {
+            Some((best_ts, _)) if ts <= *best_ts => {}
+            _ => newest = Some((ts, path)),
+        }
+    }
+
+    newest.map(|(_, p)| p)
+}
+
 #[tauri::command]
 pub async fn browse_backups(path: String) -> Result<Vec<BrowseBackupEntry>, String> {
     use std::time::SystemTime;
@@ -663,23 +693,32 @@ pub async fn browse_backups(path: String) -> Result<Vec<BrowseBackupEntry>, Stri
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        let mut size: u64 = 0;
-        if let Ok(dir_entries) = std::fs::read_dir(&entry_path) {
-            for f in dir_entries.flatten() {
-                if let Ok(meta) = f.metadata()
-                    && meta.is_file()
-                {
-                    size += meta.len();
+        let source_path: Option<PathBuf> = if is_root_backups {
+            find_newest_inner_backup(&entry_path)
+        } else {
+            Some(entry_path.clone())
+        };
+
+        let (size, character_name, save_name) = match &source_path {
+            Some(src) => {
+                let mut size: u64 = 0;
+                if let Ok(dir_entries) = std::fs::read_dir(src) {
+                    for f in dir_entries.flatten() {
+                        if f.file_type().is_ok_and(|ft| ft.is_file())
+                            && let Ok(meta) = f.metadata()
+                        {
+                            size += meta.len();
+                        }
+                    }
                 }
+                let character_name = PlayerInfo::get_player_name(src.join("playerinfo.bin")).ok();
+                let save_name = std::fs::read_to_string(src.join("savename.txt"))
+                    .ok()
+                    .map(|s| s.trim().to_string());
+                (size, character_name, save_name)
             }
-        }
-
-        let playerinfo_path = entry_path.join("playerinfo.bin");
-        let character_name = PlayerInfo::get_player_name(&playerinfo_path).ok();
-
-        let save_name = std::fs::read_to_string(entry_path.join("savename.txt"))
-            .ok()
-            .map(|s| s.trim().to_string());
+            None => (0u64, None, None),
+        };
 
         backups.push(BrowseBackupEntry {
             name,

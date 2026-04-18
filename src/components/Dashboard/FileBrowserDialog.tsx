@@ -392,7 +392,7 @@ export function FileBrowserDialog({
         onClose={onClose}
         title={title}
         className="bp-app"
-        style={{ width: 1200, height: '80vh', paddingBottom: 0, background: T.surface, display: 'flex', flexDirection: 'column' as const }}
+        style={{ width: 'min(1400px, 95vw)', height: '80vh', paddingBottom: 0, background: T.surface, display: 'flex', flexDirection: 'column' as const }}
         canOutsideClickClose
       >
         <DialogBody style={{ padding: 0, margin: 0, background: T.surface, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, minHeight: 0 }}>
@@ -461,7 +461,7 @@ export function FileBrowserDialog({
             userSelect: 'none',
           }}>
             <div
-              style={{ flex: isVault ? 3 : 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ ...(isVault ? { flex: 3 } : { width: 260 }), cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               onClick={() => handleSort('name')}
             >
               {nameLabel} {renderSortIcon('name')}
@@ -469,7 +469,7 @@ export function FileBrowserDialog({
             {!isVault && (
               <>
                 <div
-                  style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ width: 240, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   onClick={() => handleSort('character_name')}
                 >
                   {t('fileBrowser.character')} {renderSortIcon('character_name')}
@@ -486,7 +486,7 @@ export function FileBrowserDialog({
               {dateLabel} {renderSortIcon('date')}
             </div>
             <div
-              style={{ width: 72, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ width: 120, paddingLeft: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
               onClick={() => handleSort('size')}
             >
               {t('fileBrowser.size')} {renderSortIcon('size')}
@@ -566,7 +566,7 @@ export function FileBrowserDialog({
                             }
                           }}
                         >
-                          <div style={{ flex: isVault ? 3 : 1, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                          <div style={{ ...(isVault ? { flex: 3 } : { width: 260 }), display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
                             <GameIcon
                               icon={file.is_directory ? GiFullFolder : GiFoldedPaper}
                               size={14}
@@ -583,7 +583,7 @@ export function FileBrowserDialog({
                           </div>
                           {!isVault && (
                             <>
-                              <div style={{ flex: 1, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ width: 240, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {display(file.character_name)}
                               </div>
                               <div style={{ flex: 1, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -594,7 +594,7 @@ export function FileBrowserDialog({
                           <div style={{ width: 160, color: T.textMuted }}>
                             {formatDate(file.modified)}
                           </div>
-                          <div style={{ width: 72, color: T.textMuted }}>
+                          <div style={{ width: 120, paddingLeft: 24, color: T.textMuted }}>
                             {formatBytes(file.size)}
                           </div>
                         </div>
