@@ -1,10 +1,12 @@
 use base64::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_shell::ShellExt;
 
 use crate::services::playerinfo::PlayerInfo;
+use crate::state::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct SaveFile {
@@ -111,14 +113,14 @@ pub async fn select_nwn2_directory(app: tauri::AppHandle) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub async fn find_nwn2_saves(_app: tauri::AppHandle) -> Result<Vec<SaveFile>, String> {
+pub async fn find_nwn2_saves(state: State<'_, AppState>) -> Result<Vec<SaveFile>, String> {
     use std::time::Instant;
     let start_time = Instant::now();
     log::info!("[Rust] Finding available NWN2 saves.");
 
-    // Use NWN2Paths to get saves directory
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let saves_path = nwn2_paths
+    let saves_path = state
+        .paths
+        .read()
         .saves()
         .ok_or("Could not determine NWN2 saves path")?;
     let mut saves = Vec::new();
@@ -303,12 +305,13 @@ pub async fn get_save_thumbnail(thumbnail_path: String) -> Result<String, String
 }
 
 #[tauri::command]
-pub async fn detect_nwn2_installation(_app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub async fn detect_nwn2_installation(
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
     log::info!("[Rust] Detecting NWN2:EE installation");
 
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-
-    if let Some(game_folder) = nwn2_paths.game_folder()
+    let paths = state.paths.read();
+    if let Some(game_folder) = paths.game_folder()
         && game_folder.exists()
     {
         let path_str = game_folder.to_string_lossy().to_string();
@@ -366,13 +369,20 @@ pub async fn open_folder_in_explorer(
 #[tauri::command]
 pub async fn launch_nwn2_game(
     app: tauri::AppHandle,
+    state: State<'_, AppState>,
     game_path: Option<String>,
 ) -> Result<(), String> {
     log::info!("[Rust] Launching NWN2:EE game");
 
     let installation_path = match game_path {
         Some(path) => path,
-        None => match detect_nwn2_installation(app.clone()).await? {
+        None => match state
+            .paths
+            .read()
+            .game_folder()
+            .filter(|p| p.exists())
+            .map(|p| p.to_string_lossy().to_string())
+        {
             Some(path) => path,
             None => {
                 return Err(
@@ -439,15 +449,16 @@ pub struct BrowseSavesResponse {
 
 #[tauri::command]
 pub async fn browse_saves(
+    state: State<'_, AppState>,
     path: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
 ) -> Result<BrowseSavesResponse, String> {
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-
     let target_path = match path {
         Some(p) if !p.is_empty() => PathBuf::from(p),
-        _ => nwn2_paths
+        _ => state
+            .paths
+            .read()
             .saves()
             .ok_or("Could not determine NWN2 saves path")?,
     };
@@ -578,18 +589,20 @@ pub async fn browse_saves(
 }
 
 #[tauri::command]
-pub async fn get_default_saves_path() -> Result<String, String> {
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let saves_path = nwn2_paths
+pub async fn get_default_saves_path(state: State<'_, AppState>) -> Result<String, String> {
+    let saves_path = state
+        .paths
+        .read()
         .saves()
         .ok_or("Could not determine NWN2 saves path")?;
     Ok(saves_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-pub async fn get_default_backups_path() -> Result<String, String> {
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let saves_path = nwn2_paths
+pub async fn get_default_backups_path(state: State<'_, AppState>) -> Result<String, String> {
+    let saves_path = state
+        .paths
+        .read()
         .saves()
         .ok_or("Could not determine NWN2 saves path")?;
     let backups_path = saves_path.join("backups");
@@ -759,10 +772,10 @@ pub struct BrowseVaultResponse {
 }
 
 #[tauri::command]
-pub async fn browse_localvault() -> Result<BrowseVaultResponse, String> {
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-
-    let vault_path = nwn2_paths
+pub async fn browse_localvault(state: State<'_, AppState>) -> Result<BrowseVaultResponse, String> {
+    let vault_path = state
+        .paths
+        .read()
         .localvault()
         .ok_or("Could not determine NWN2 localvault path")?;
 
@@ -845,9 +858,10 @@ pub async fn browse_localvault() -> Result<BrowseVaultResponse, String> {
 }
 
 #[tauri::command]
-pub async fn get_default_localvault_path() -> Result<String, String> {
-    let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-    let vault_path = nwn2_paths
+pub async fn get_default_localvault_path(state: State<'_, AppState>) -> Result<String, String> {
+    let vault_path = state
+        .paths
+        .read()
         .localvault()
         .ok_or("Could not determine NWN2 localvault path")?;
     Ok(vault_path.to_string_lossy().to_string())

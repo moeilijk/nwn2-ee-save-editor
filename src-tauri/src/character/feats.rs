@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use super::gff_helpers::gff_value_to_i32;
 use super::types::{BackgroundId, ClassId, DomainId, FeatId, SaveBonuses};
@@ -920,11 +920,11 @@ impl Character {
         let mut domains = Vec::new();
 
         let Some(class_list) = self.get_list("ClassList") else {
-            debug!("get_character_domains: No ClassList found");
+            trace!("get_character_domains: No ClassList found");
             return domains;
         };
 
-        debug!(
+        trace!(
             "get_character_domains: Found {} class entries",
             class_list.len()
         );
@@ -932,7 +932,7 @@ impl Character {
         for (idx, class_entry) in class_list.iter().enumerate() {
             let domain1_raw = class_entry.get("Domain1");
             let domain2_raw = class_entry.get("Domain2");
-            debug!(
+            trace!(
                 "get_character_domains: Class {} - Domain1 raw: {:?}, Domain2 raw: {:?}",
                 idx, domain1_raw, domain2_raw
             );
@@ -940,18 +940,18 @@ impl Character {
             if let Some(domain1) = class_entry.get("Domain1").and_then(gff_value_to_i32)
                 && domain1 >= 0
             {
-                debug!("get_character_domains: Adding Domain1 = {}", domain1);
+                trace!("get_character_domains: Adding Domain1 = {}", domain1);
                 domains.push(DomainId(domain1));
             }
             if let Some(domain2) = class_entry.get("Domain2").and_then(gff_value_to_i32)
                 && domain2 >= 0
             {
-                debug!("get_character_domains: Adding Domain2 = {}", domain2);
+                trace!("get_character_domains: Adding Domain2 = {}", domain2);
                 domains.push(DomainId(domain2));
             }
         }
 
-        debug!("get_character_domains: Total domains found: {:?}", domains);
+        trace!("get_character_domains: Total domains found: {:?}", domains);
         domains
     }
 
@@ -2670,18 +2670,18 @@ impl Character {
 
     pub fn get_available_domains(&self, game_data: &GameData) -> Vec<DomainInfo> {
         let Some(domains_table) = game_data.get_table("domains") else {
-            debug!("get_available_domains: No domains table found");
+            trace!("get_available_domains: No domains table found");
             return Vec::new();
         };
 
         let character_domains = self.get_character_domains();
-        debug!(
+        trace!(
             "get_available_domains: character_domains = {:?}",
             character_domains
         );
         let mut available = Vec::new();
         let row_count = domains_table.row_count();
-        debug!(
+        trace!(
             "get_available_domains: domains_table row_count = {}",
             row_count
         );
@@ -2691,7 +2691,7 @@ impl Character {
 
             let Some(domain_data) = domains_table.get_by_id(domain_id.0) else {
                 if domain_id.0 == 25 || domain_id.0 == 18 {
-                    debug!(
+                    trace!(
                         "get_available_domains: domain_id {} - no domain_data found",
                         domain_id.0
                     );
@@ -2733,7 +2733,7 @@ impl Character {
             let has_domain = character_domains.contains(&domain_id);
 
             if has_domain {
-                debug!(
+                trace!(
                     "get_available_domains: Domain {} ({}) has_domain=true",
                     domain_id.0, name
                 );
@@ -2751,7 +2751,7 @@ impl Character {
         }
 
         let with_domain: Vec<_> = available.iter().filter(|d| d.has_domain).collect();
-        debug!(
+        trace!(
             "get_available_domains: Total available={}, with has_domain=true: {}",
             available.len(),
             with_domain.len()

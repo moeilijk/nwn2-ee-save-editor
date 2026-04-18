@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument, warn};
 
 use crate::character::{Character, FeatInfo};
+use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
 use crate::services::resource_manager::ResourceManager;
 use crate::services::savegame_handler::SaveGameHandler;
 
@@ -14,6 +15,7 @@ pub struct SessionState {
     pub character: Option<Character>,
     pub item_property_decoder: ItemPropertyDecoder,
     pub feat_cache: Option<Vec<FeatInfo>>,
+    pub module_info_cache: Option<(ModuleInfo, ModuleVariables)>,
 }
 
 impl SessionState {
@@ -33,6 +35,7 @@ impl SessionState {
             character: None,
             item_property_decoder,
             feat_cache: None,
+            module_info_cache: None,
         }
     }
 
@@ -102,6 +105,7 @@ impl SessionState {
         self.character = Some(character);
         self.savegame_handler = Some(handler);
         self.current_file_path = Some(path);
+        self.module_info_cache = None;
 
         info!("Character loaded successfully");
         Ok(())
@@ -225,11 +229,16 @@ impl SessionState {
         self.savegame_handler = None;
         self.current_file_path = None;
         self.feat_cache = None;
+        self.module_info_cache = None;
         crate::services::savegame_handler::backup::clear_backup_tracking();
     }
 
     pub fn invalidate_feat_cache(&mut self) {
         self.feat_cache = None;
+    }
+
+    pub fn invalidate_module_info_cache(&mut self) {
+        self.module_info_cache = None;
     }
 
     pub fn has_unsaved_changes(&self) -> bool {
@@ -246,16 +255,18 @@ impl SessionState {
         self.character.as_mut()
     }
 
-    #[instrument(name = "SessionState::export_to_localvault", skip(self))]
-    pub fn export_to_localvault(&self) -> Result<String, String> {
+    #[instrument(name = "SessionState::export_to_localvault", skip(self, paths))]
+    pub fn export_to_localvault(
+        &self,
+        paths: &crate::config::nwn2_paths::NWN2Paths,
+    ) -> Result<String, String> {
         let handler = self
             .savegame_handler
             .as_ref()
             .ok_or("No active save handler")?;
         let character = self.character.as_ref().ok_or("No character loaded")?;
 
-        let nwn2_paths = crate::config::nwn2_paths::NWN2Paths::new();
-        let vault_path = nwn2_paths
+        let vault_path = paths
             .localvault()
             .ok_or("Could not determine NWN2 localvault path")?;
 

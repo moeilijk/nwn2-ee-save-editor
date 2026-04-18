@@ -2,6 +2,7 @@ use tauri::State;
 
 use crate::character::overview::CampaignOverviewInfo;
 use crate::character::{AbilitiesState, ClassesState, FeatsState, OverviewState, SpellsState};
+use crate::commands::campaign::cached_module_info;
 use crate::commands::{CommandError, CommandResult};
 use crate::services::campaign::CampaignManager;
 use crate::state::AppState;
@@ -11,6 +12,9 @@ use super::types::{AbilitiesUpdates, CharacterUpdates};
 #[tauri::command]
 pub async fn get_overview_state(state: State<'_, AppState>) -> CommandResult<OverviewState> {
     super::inventory::ensure_decoder_initialized(&state).await;
+
+    let module_info_result = cached_module_info(&state).ok();
+
     let session = state.session.read();
     let character = session
         .character
@@ -20,12 +24,11 @@ pub async fn get_overview_state(state: State<'_, AppState>) -> CommandResult<Ove
     let decoder = &session.item_property_decoder;
 
     let mut overview = character.get_overview_state(&game_data, decoder);
-    let paths = state.paths.read();
 
     if let Some(handler) = session.savegame_handler.as_ref() {
         let mut info = CampaignOverviewInfo::default();
 
-        if let Ok((module_info, _)) = CampaignManager::get_module_info(handler, &paths) {
+        if let Some((module_info, _)) = module_info_result {
             info.campaign_name = Some(module_info.campaign);
             info.module_name = Some(module_info.module_name);
             info.area_name = Some(module_info.area_name);

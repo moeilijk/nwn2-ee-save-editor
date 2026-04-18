@@ -193,6 +193,7 @@ export function FileBrowserDialog({
         }
         setTotalFiles(response.total_count);
         if (response.current_path && response.current_path !== currentPath) {
+          lastPath.current = response.current_path;
           onPathChange?.(response.current_path);
         }
       }

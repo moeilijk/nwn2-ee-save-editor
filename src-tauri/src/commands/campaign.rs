@@ -28,17 +28,32 @@ pub async fn get_campaign_variables(state: State<'_, AppState>) -> CommandResult
     CampaignManager::get_campaign_variables(handler).map_err(CommandError::from)
 }
 
-#[tauri::command]
-pub async fn get_module_info(
-    state: State<'_, AppState>,
+pub fn cached_module_info(
+    state: &State<'_, AppState>,
 ) -> CommandResult<(ModuleInfo, ModuleVariables)> {
+    if let Some(cached) = state.session.read().module_info_cache.clone() {
+        return Ok(cached);
+    }
+
+    let mut session = state.session.write();
+    if let Some(cached) = session.module_info_cache.clone() {
+        return Ok(cached);
+    }
     let paths = state.paths.read();
-    let session = state.session.read();
     let handler = session
         .savegame_handler
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    CampaignManager::get_module_info(handler, &paths).map_err(CommandError::from)
+    let result = CampaignManager::get_module_info(handler, &paths).map_err(CommandError::from)?;
+    session.module_info_cache = Some(result.clone());
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn get_module_info(
+    state: State<'_, AppState>,
+) -> CommandResult<(ModuleInfo, ModuleVariables)> {
+    cached_module_info(&state)
 }
 
 #[tauri::command]
@@ -173,7 +188,7 @@ pub async fn update_module_variable(
     variable_type: String,
     module_id: Option<String>,
 ) -> CommandResult<()> {
-    let session = state.session.read();
+    let mut session = state.session.write();
     let handler = session
         .savegame_handler
         .as_ref()
@@ -185,7 +200,9 @@ pub async fn update_module_variable(
         &variable_type,
         module_id.as_deref(),
     )
-    .map_err(CommandError::from)
+    .map_err(CommandError::from)?;
+    session.invalidate_module_info_cache();
+    Ok(())
 }
 
 #[tauri::command]
@@ -194,13 +211,15 @@ pub async fn batch_update_module_variables(
     updates: Vec<(String, String, String)>,
     module_id: Option<String>,
 ) -> CommandResult<()> {
-    let session = state.session.read();
+    let mut session = state.session.write();
     let handler = session
         .savegame_handler
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     CampaignManager::batch_update_module_variables(handler, &updates, module_id.as_deref())
-        .map_err(CommandError::from)
+        .map_err(CommandError::from)?;
+    session.invalidate_module_info_cache();
+    Ok(())
 }
 
 #[tauri::command]

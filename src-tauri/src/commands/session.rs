@@ -120,7 +120,8 @@ pub async fn export_to_localvault(state: State<'_, AppState>) -> CommandResult<S
     info!("Export to localvault command invoked");
 
     let session = state.session.read();
-    match session.export_to_localvault() {
+    let paths = state.paths.read();
+    match session.export_to_localvault(&paths) {
         Ok(path) => {
             info!("Character exported to vault: {}", path);
             Ok(path)

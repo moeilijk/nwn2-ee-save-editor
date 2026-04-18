@@ -7,7 +7,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use encoding_rs::WINDOWS_1252;
 use indexmap::IndexMap;
 use memmap2::Mmap;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, instrument, trace, warn};
 
 use super::error::GffError;
 use super::types::{GffValue, LazyStruct, LocalizedString, LocalizedSubstring};
@@ -71,16 +71,16 @@ pub struct GffParser {
 impl GffParser {
     #[instrument(name = "GffParser::new", skip_all, fields(path = ?path.as_ref()))]
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Arc<Self>, GffError> {
-        info!("Opening GFF file");
+        trace!("Opening GFF file");
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
         let file_size = mmap.len();
-        debug!("Memory-mapped GFF file ({} bytes)", file_size);
+        trace!("Memory-mapped GFF file ({} bytes)", file_size);
 
         let data = Arc::new(DataSource::Mmap(mmap));
 
         let parser = Self::parse_header(data)?;
-        info!(
+        debug!(
             "GFF file parsed: type={}, version={}, structs={}, fields={}",
             parser.file_type, parser.file_version, parser.struct_count, parser.field_count
         );

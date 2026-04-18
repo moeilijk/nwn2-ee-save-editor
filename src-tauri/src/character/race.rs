@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use super::{Character, CharacterError};
 use crate::character::feats::{FeatSource, FeatType};
@@ -1022,7 +1022,7 @@ impl Character {
         if let Some(ref subrace_name) = self.subrace_string()
             && let Some(subrace_data) = self.get_subrace_data(subrace_name, game_data)
         {
-            debug!(
+            trace!(
                 "get_racial_modifier_deltas: found subrace by name '{}': {:?}",
                 subrace_name, subrace_data.ability_modifiers
             );
@@ -1032,7 +1032,7 @@ impl Character {
         if let Some(idx) = self.subrace_index()
             && let Some(subrace_data) = self.get_subrace_data_by_index(idx, game_data)
         {
-            debug!(
+            trace!(
                 "get_racial_modifier_deltas: found subrace by index {}: {:?}",
                 idx, subrace_data.ability_modifiers
             );
@@ -1040,7 +1040,7 @@ impl Character {
         }
 
         let mods = self.get_racial_ability_modifiers_for_race(race_id, game_data);
-        debug!(
+        trace!(
             "get_racial_modifier_deltas: using base race modifiers: {:?}",
             mods
         );

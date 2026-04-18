@@ -1,10 +1,12 @@
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 use tracing::{error, info, warn};
 use xz2::read::XzDecoder;
 use xz2::stream::Stream;
@@ -705,50 +707,83 @@ fn find_module_z_file(save_dir: &Path, module_id: &str) -> Result<PathBuf, Strin
     ))
 }
 
-pub fn find_campaign_path(campaign_id: &str, paths: &NWN2Paths) -> Option<PathBuf> {
-    let mut campaign_dirs = Vec::new();
+struct CampaignEntry {
+    path: PathBuf,
+    display_name: Option<String>,
+}
+
+type CampaignIndex = HashMap<String, CampaignEntry>;
+type CampaignIndexCache = Mutex<Option<(Vec<PathBuf>, Arc<CampaignIndex>)>>;
+
+fn campaign_index(paths: &NWN2Paths) -> Arc<CampaignIndex> {
+    static CACHE: OnceLock<CampaignIndexCache> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+
+    let mut dirs = Vec::new();
     if let Some(p) = paths.user_campaigns() {
-        campaign_dirs.push(p);
+        dirs.push(p);
     }
     if let Some(p) = paths.campaigns() {
-        campaign_dirs.push(p);
+        dirs.push(p);
     }
 
-    for dir in campaign_dirs {
+    let mut guard = cache.lock();
+    if let Some((cached_dirs, cached_idx)) = guard.as_ref()
+        && cached_dirs == &dirs
+    {
+        return Arc::clone(cached_idx);
+    }
+
+    let mut idx = CampaignIndex::new();
+    for dir in &dirs {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_dir() {
-                    let cam_file = path.join("campaign.cam");
-                    if cam_file.exists()
-                        && let Ok(parser) = GffParser::new(&cam_file)
-                    {
-                        // Check GUID
-                        let file_guid = match parser.read_field_by_label(0, "GUID") {
-                            Ok(GffValue::Void(bytes)) => hex::encode(bytes),
-                            Ok(GffValue::String(s) | GffValue::ResRef(s)) => s.to_string(),
-                            _ => continue,
-                        };
-
-                        if file_guid.to_lowercase() == campaign_id.to_lowercase() {
-                            return Some(cam_file);
-                        }
-                    }
+                if !path.is_dir() {
+                    continue;
                 }
+                let cam_file = path.join("campaign.cam");
+                if !cam_file.exists() {
+                    continue;
+                }
+                let Ok(parser) = GffParser::new(&cam_file) else {
+                    continue;
+                };
+                let guid = match parser.read_field_by_label(0, "GUID") {
+                    Ok(GffValue::Void(bytes)) => hex::encode(bytes),
+                    Ok(GffValue::String(s) | GffValue::ResRef(s)) => s.to_string(),
+                    _ => continue,
+                };
+                let display_name = match parser.read_field_by_label(0, "DisplayName") {
+                    Ok(GffValue::LocString(ls)) => {
+                        ls.substrings.first().map(|s| s.string.to_string())
+                    }
+                    _ => None,
+                };
+                idx.insert(
+                    guid.to_lowercase(),
+                    CampaignEntry {
+                        path: cam_file,
+                        display_name,
+                    },
+                );
             }
         }
     }
-    None
+
+    let arc = Arc::new(idx);
+    *guard = Some((dirs, Arc::clone(&arc)));
+    arc
+}
+
+pub fn find_campaign_path(campaign_id: &str, paths: &NWN2Paths) -> Option<PathBuf> {
+    campaign_index(paths)
+        .get(&campaign_id.to_lowercase())
+        .map(|e| e.path.clone())
 }
 
 pub fn find_campaign_name(campaign_id: &str, paths: &NWN2Paths) -> Option<String> {
-    if let Some(cam_file) = find_campaign_path(campaign_id, paths)
-        && let Ok(parser) = GffParser::new(&cam_file)
-    {
-        return match parser.read_field_by_label(0, "DisplayName") {
-            Ok(GffValue::LocString(ls)) => ls.substrings.first().map(|s| s.string.to_string()),
-            _ => None,
-        };
-    }
-    None
+    campaign_index(paths)
+        .get(&campaign_id.to_lowercase())
+        .and_then(|e| e.display_name.clone())
 }

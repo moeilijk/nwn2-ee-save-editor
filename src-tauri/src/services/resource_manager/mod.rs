@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::config::NWN2Paths;
 use crate::parsers::erf::ErfParser;
@@ -1241,7 +1241,7 @@ impl ResourceManager {
     ) -> ResourceManagerResult<Vec<u8>> {
         let key = resource_key(&resref.to_lowercase(), &extension.to_lowercase());
 
-        debug!(
+        trace!(
             "ResourceManager: get_resource_bytes searching for key: {}",
             key
         );
@@ -1249,7 +1249,7 @@ impl ResourceManager {
         if let Some(locations) = self.resource_index.get(&key)
             && let Some(location) = locations.iter().max_by_key(|l| l.source.priority())
         {
-            debug!(
+            trace!(
                 "ResourceManager: Found resource '{}' in source: {:?}",
                 key, location.source
             );
@@ -1323,45 +1323,26 @@ impl ResourceManager {
     }
 
     pub fn list_resources_by_prefix(&self, prefix: &str, extension: &str) -> Vec<String> {
-        let mut results = Vec::new();
-        let mut zip_reader = self.zip_reader.lock();
-
-        debug!(
-            "ResourceManager: list_resources_by_prefix searching for prefix: '{}' in zips",
-            prefix
-        );
-        for path in &self.data_zip_paths {
-            if let Ok(files) =
-                zip_reader.list_files_by_prefix(&path.to_string_lossy(), prefix, extension)
-            {
-                debug!(
-                    "ResourceManager: Found {} files in zip: {:?}",
-                    files.len(),
-                    path
-                );
-                results.extend(files);
-            }
-        }
-
-        drop(zip_reader);
-
-        // Also check indexed override resources
         let prefix_lower = prefix.to_lowercase();
         let ext_lower = extension.to_lowercase();
         let ext_suffix = format!(".{ext_lower}");
-        for (key, locs) in &self.resource_index {
-            if !key.ends_with(&ext_suffix) {
-                continue;
-            }
-            let stem = key.trim_end_matches(&ext_suffix);
-            if stem.starts_with(&prefix_lower)
-                && locs
-                    .iter()
-                    .any(|l| !matches!(l.source, OverrideSource::BaseGame))
-            {
-                results.push(key.clone());
-            }
-        }
+
+        debug!(
+            "ResourceManager: list_resources_by_prefix searching index for prefix: '{}' ext: '{}'",
+            prefix, extension
+        );
+
+        let mut results: Vec<String> = self
+            .resource_index
+            .iter()
+            .filter_map(|(key, _)| {
+                if !key.ends_with(&ext_suffix) {
+                    return None;
+                }
+                let stem = key.trim_end_matches(&ext_suffix);
+                stem.starts_with(&prefix_lower).then(|| key.clone())
+            })
+            .collect();
 
         results.sort();
         results.dedup();
