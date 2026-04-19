@@ -95,8 +95,27 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
           projectPath: "."
+
+      - name: Package Windows Installer
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p installer-staging
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe "installer-staging/NWN2EE-Save-Editor-${VERSION}-Setup.exe"
+          7z a "NWN2EE-Save-Editor-${VERSION}-Windows-Installer.zip" ./installer-staging/*
+
+      - name: Upload Windows Installer Asset
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Windows-Installer.zip
+          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Windows-Installer.zip
+          asset_content_type: application/zip
 
       - name: Package Windows Portable
         if: matrix.platform == 'windows-latest'
@@ -105,7 +124,7 @@ jobs:
           VERSION="${{ needs.create-release.outputs.version }}"
           mkdir -p portable-staging
           cp "src-tauri/target/release/app.exe" "portable-staging/NWN2EE Save Editor.exe"
-          7z a "src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-${VERSION}-Portable.zip" ./portable-staging/*
+          7z a "NWN2EE-Save-Editor-${VERSION}-Windows-Portable.zip" ./portable-staging/*
 
       - name: Upload Windows Portable Asset
         if: matrix.platform == 'windows-latest'
@@ -114,6 +133,46 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Portable.zip
-          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Portable.zip
+          asset_path: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Windows-Portable.zip
+          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Windows-Portable.zip
+          asset_content_type: application/zip
+
+      - name: Package Linux AppImage
+        if: matrix.platform == 'ubuntu-latest'
+        shell: bash
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p appimage-staging
+          cp src-tauri/target/release/bundle/appimage/*.AppImage appimage-staging/
+          cd appimage-staging && zip "../NWN2EE-Save-Editor-${VERSION}-Linux-AppImage.zip" ./*
+
+      - name: Upload Linux AppImage Asset
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Linux-AppImage.zip
+          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Linux-AppImage.zip
+          asset_content_type: application/zip
+
+      - name: Package Linux Deb
+        if: matrix.platform == 'ubuntu-latest'
+        shell: bash
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p deb-staging
+          cp src-tauri/target/release/bundle/deb/*.deb deb-staging/
+          cd deb-staging && zip "../NWN2EE-Save-Editor-${VERSION}-Linux-Deb.zip" ./*
+
+      - name: Upload Linux Deb Asset
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Linux-Deb.zip
+          asset_name: NWN2EE-Save-Editor-${{ needs.create-release.outputs.version }}-Linux-Deb.zip
           asset_content_type: application/zip

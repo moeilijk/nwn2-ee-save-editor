@@ -97,6 +97,15 @@ jobs:
           projectPath: "."
           includeUpdaterJson: false
 
+      - name: Package Windows Installer
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          mkdir -p installer-staging
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe "installer-staging/NWN2EE-Save-Editor-${VERSION}-Setup.exe"
+          7z a "NWN2EE-Save-Editor-${VERSION}-Windows-Installer.zip" ./installer-staging/*
+
       - name: Package Windows Portable
         if: matrix.platform == 'windows-latest'
         shell: bash
@@ -104,32 +113,32 @@ jobs:
           VERSION="${{ steps.get-version.outputs.version }}"
           mkdir -p portable-staging
           cp "src-tauri/target/release/app.exe" "portable-staging/NWN2EE Save Editor.exe"
-          7z a "src-tauri/target/release/bundle/nsis/NWN2EE-Save-Editor-${VERSION}-windows-Portable.zip" ./portable-staging/*
+          7z a "NWN2EE-Save-Editor-${VERSION}-Windows-Portable.zip" ./portable-staging/*
 
-      - name: Upload AppImage
+      - name: Package Linux AppImage
         if: matrix.platform == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: NWN2EE-Editor-${{ steps.get-version.outputs.version }}-AppImage
-          path: src-tauri/target/release/bundle/appimage/*.AppImage
-          retention-days: 7
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          mkdir -p appimage-staging
+          cp src-tauri/target/release/bundle/appimage/*.AppImage appimage-staging/ 2>/dev/null || true
+          cd appimage-staging && zip "../NWN2EE-Save-Editor-${VERSION}-Linux-AppImage.zip" ./* 2>/dev/null || true
 
-      - name: Upload Deb
+      - name: Package Linux Deb
         if: matrix.platform == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: NWN2EE-Editor-${{ steps.get-version.outputs.version }}-Deb
-          path: src-tauri/target/release/bundle/deb/*.deb
-          retention-days: 7
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          mkdir -p deb-staging
+          cp src-tauri/target/release/bundle/deb/*.deb deb-staging/ 2>/dev/null || true
+          cd deb-staging && zip "../NWN2EE-Save-Editor-${VERSION}-Linux-Deb.zip" ./* 2>/dev/null || true
 
       - name: Upload Windows Installer
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: NWN2EE-Editor-${{ steps.get-version.outputs.version }}-Windows-Installer
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Windows-Installer
+          path: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Windows-Installer.zip
           retention-days: 7
           if-no-files-found: ignore
 
@@ -137,7 +146,25 @@ jobs:
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: NWN2EE-Editor-${{ steps.get-version.outputs.version }}-windows-Portable
-          path: src-tauri/target/release/bundle/nsis/*.zip
+          name: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Windows-Portable
+          path: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Windows-Portable.zip
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Linux AppImage
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Linux-AppImage
+          path: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Linux-AppImage.zip
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Linux Deb
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Linux-Deb
+          path: NWN2EE-Save-Editor-${{ steps.get-version.outputs.version }}-Linux-Deb.zip
           retention-days: 7
           if-no-files-found: ignore
