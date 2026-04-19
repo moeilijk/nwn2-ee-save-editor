@@ -802,8 +802,7 @@ impl ItemAppearance {
             info!(
                 "Resolving bracer item {base_item_id}: body={body}, avt_prefix={item_armor_prefix:?}"
             );
-            let candidates =
-                armor_resref_candidates(body, ArmorSlot::Gloves, 1, &primaries, true);
+            let candidates = armor_resref_candidates(body, ArmorSlot::Gloves, 1, &primaries, true);
             if candidates.is_empty() {
                 return Vec::new();
             }

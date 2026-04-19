@@ -136,8 +136,8 @@ pub fn load_item_model_impl(
     // Gloves and bracer items share the glove MDB pipeline. In-game ch3
     // is ignored for both; our resolver bakes `override_tints` with ch3
     // forced white so a black ch3 in the save doesn't darken the mesh.
-    let is_gloves_like = crate::character::is_bracer_label(&base_label)
-        || base_label.eq_ignore_ascii_case("gloves");
+    let is_gloves_like =
+        crate::character::is_bracer_label(&base_label) || base_label.eq_ignore_ascii_case("gloves");
 
     let mut groups = appearance.resolve_model_resrefs(base_item_id, game_data, body_prefix);
 

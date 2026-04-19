@@ -29,9 +29,7 @@ pub mod types;
 
 pub use abilities::{AbilitiesState, AbilityIncrease, AbilityPointsSummary};
 pub use appearance::{AppearanceOption, AppearanceState, CharacterModelParts};
-pub use appearance_helpers::{
-    TintChannel, TintChannels, cosmetic_gloves_tint, swap_tint_2_3,
-};
+pub use appearance_helpers::{TintChannel, TintChannels, cosmetic_gloves_tint, swap_tint_2_3};
 pub use classes::ClassesState;
 pub use classes::{
     AlignmentRestriction, BabType, ClassEntry, ClassInfo, ClassSummaryEntry, LevelHistoryEntry,

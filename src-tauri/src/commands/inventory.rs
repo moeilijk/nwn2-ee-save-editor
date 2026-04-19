@@ -100,11 +100,8 @@ pub async fn get_inventory_summary(
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    let summary = character.get_full_inventory_summary(
-        &game_data,
-        &session.item_property_decoder,
-        Some(&rm),
-    );
+    let summary =
+        character.get_full_inventory_summary(&game_data, &session.item_property_decoder, Some(&rm));
     tracing::info!(
         "Inventory summary retrieved. Items: {}, Equipped: {}, Gold: {}",
         summary.inventory.len(),

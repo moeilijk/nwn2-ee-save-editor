@@ -357,8 +357,7 @@ pub fn load_character_model(state: State<'_, AppState>) -> CommandResult<ModelDa
         .chest_accessories
         .iter_renderable(&accessory_body_prefix)
     {
-        if has_standalone_boots
-            && matches!(acc.slot, AccessorySlot::LtShin | AccessorySlot::RtShin)
+        if has_standalone_boots && matches!(acc.slot, AccessorySlot::LtShin | AccessorySlot::RtShin)
         {
             debug!(
                 "Hiding shin accessory '{}' because standalone boots are equipped",
