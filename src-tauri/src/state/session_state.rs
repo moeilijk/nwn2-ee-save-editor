@@ -6,8 +6,8 @@ use tracing::{debug, info, instrument, warn};
 use crate::character::{Character, FeatInfo};
 use crate::loaders::GameData;
 use crate::parsers::gff::{GffParser, GffValue, GffWriter};
-use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
 use crate::services::PlayerInfo;
+use crate::services::campaign::content::{ModuleInfo, ModuleVariables};
 use crate::services::item_property_decoder::ItemPropertyDecoder;
 use crate::services::resource_manager::ResourceManager;
 use crate::services::savegame_handler::SaveGameHandler;
@@ -284,10 +284,8 @@ impl SessionState {
 
         let player_bic_data = handler
             .extract_player_bic()
-            .map_err(|e| format!("Failed to extract player.bic: {e}"))?;
-        let current_character_fields = character.clone_gff();
-        let player_bic_bytes =
-            serialize_player_bic_bytes(player_bic_data, &current_character_fields)?;
+            .map_err(|e| format!("Failed to extract player.bic: {e}"))?
+            .ok_or("No player.bic found in save")?;
 
         let first_name = character.first_name();
         let last_name = character.last_name();
@@ -304,7 +302,7 @@ impl SessionState {
 
         let dest_path = vault_path.join(&sanitized_filename);
 
-        std::fs::write(&dest_path, &player_bic_bytes)
+        std::fs::write(&dest_path, &player_bic_data)
             .map_err(|e| format!("Failed to write character to vault: {e}"))?;
 
         info!("Exported character to vault: {}", dest_path.display());
