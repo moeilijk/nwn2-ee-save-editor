@@ -1,8 +1,35 @@
-# NWN2 Enhanced Edition Save Editor
+<h1 align="center">NWN2 Enhanced Edition Save Editor</h1>
 
-A desktop application for editing Neverwinter Nights 2 Enhanced Edition saves.
+<p align="center">
+  A desktop application for editing Neverwinter Nights 2 Enhanced Edition saves.<br/>
+  Built with Tauri, Rust, and Vite. Fully offline, available as a portable <code>.exe</code> or installer.
+</p>
 
-Built with Tauri, Rust, and Vite. Fully offline, available as a portable `.exe` or installer.
+<p align="center">
+  <a href="https://github.com/Micromanner/nwn2-ee-save-editor/releases/latest"><img src="https://img.shields.io/github/v/release/Micromanner/nwn2-ee-save-editor?style=flat-square&color=a0522d" alt="Latest release"/></a>
+  <a href="https://github.com/Micromanner/nwn2-ee-save-editor/releases"><img src="https://img.shields.io/github/downloads/Micromanner/nwn2-ee-save-editor/total?style=flat-square&color=a0522d" alt="Downloads"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Micromanner/nwn2-ee-save-editor?style=flat-square&color=a0522d" alt="License"/></a>
+  <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux-a0522d?style=flat-square" alt="Platform"/>
+  <a href="https://github.com/Micromanner/nwn2-ee-save-editor/stargazers"><img src="https://img.shields.io/github/stars/Micromanner/nwn2-ee-save-editor?style=flat-square&color=a0522d" alt="Stars"/></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Micromanner/nwn2-ee-save-editor/releases/latest"><img src="https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"/></a>
+  <a href="https://github.com/Micromanner/nwn2-ee-save-editor/releases/latest"><img src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux"/></a>
+</p>
+
+<p align="center">
+  <img src=".github/screenshots/Overview.png" alt="Character overview" width="90%"/>
+</p>
+
+## Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+- [Building from Source](#building-from-source)
+- [Roadmap](#roadmap)
 
 ## Features
 
@@ -34,10 +61,27 @@ Built with Tauri, Rust, and Vite. Fully offline, available as a portable `.exe` 
 ### 3D Model Viewer
 - Browse and preview all in-game 3D models
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src=".github/screenshots/Appearance.png" alt="Appearance"/><br/><sub><b>Appearance</b> — live 3D preview with body parts, tints, wings, tails</sub></td>
+    <td width="50%"><img src=".github/screenshots/Inventory.png" alt="Inventory"/><br/><sub><b>Inventory</b> — equipment, item properties, encumbrance</sub></td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/ClassesandLevel.png" alt="Classes and levels"/><br/><sub><b>Classes & Levels</b> — multiclass with level history</sub></td>
+    <td><img src=".github/screenshots/Gamestate.png" alt="Game state"/><br/><sub><b>Game state</b> — campaign and module variables</sub></td>
+  </tr>
+  <tr>
+    <td><img src=".github/screenshots/Backups.png" alt="Backups"/><br/><sub><b>Backups</b> — automatic safety snapshots and restore</sub></td>
+    <td><img src=".github/screenshots/Feats.png" alt="Feats"/><br/><sub><b>Feats</b> — add/remove with prerequisite checks</sub></td>
+  </tr>
+</table>
+
 ## Requirements
 
 - Windows 10+ / Ubuntu
-- Neverwinter Nights 2 Enhanced Edition 
+- Neverwinter Nights 2 Enhanced Edition
 
 ## Getting Started
 
@@ -65,3 +109,6 @@ Requires:
 ## Roadmap
 
 - Companion editing (view, edit, and manage party companions)
+- Full equipment rendering in the 3D character preview (some equipped items don't yet display correctly)
+- Quest journal editor — browse each quest with its branches and outcomes, see current progress, and jump to any state (today the Game State tab shows the raw values, but not what they mean)
+- Custom item icons — pick a different icon for any item in the inventory
