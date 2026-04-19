@@ -586,7 +586,7 @@ pub async fn get_available_voicesets(
             let strref = crate::utils::parsing::row_int(&row, "strref", -1);
             let label = crate::utils::parsing::row_str(&row, "label")
                 .unwrap_or_else(|| format!("Voice {id}"));
-            rows.push((id, resref, type_val | ((gender as u8) << 4), strref, label));
+            rows.push((id, resref, type_val | (gender << 4), strref, label));
         }
         rows
     };
@@ -631,7 +631,7 @@ pub async fn get_available_voicesets(
         });
     }
 
-    voicesets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    voicesets.sort_by_key(|a| a.name.to_lowercase());
     Ok(voicesets)
 }
 

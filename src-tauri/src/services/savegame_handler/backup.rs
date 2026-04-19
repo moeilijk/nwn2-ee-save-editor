@@ -165,7 +165,7 @@ pub fn list_backups(save_dir: &Path) -> SaveGameResult<Vec<BackupInfo>> {
         }
     }
 
-    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    backups.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
     Ok(backups)
 }

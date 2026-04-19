@@ -1334,8 +1334,8 @@ impl ResourceManager {
 
         let mut results: Vec<String> = self
             .resource_index
-            .iter()
-            .filter_map(|(key, _)| {
+            .keys()
+            .filter_map(|key| {
                 if !key.ends_with(&ext_suffix) {
                     return None;
                 }

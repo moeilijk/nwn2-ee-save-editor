@@ -562,7 +562,7 @@ pub async fn get_available_templates(
         })
         .collect();
 
-    indexed.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    indexed.sort_by_key(|a| a.name.to_lowercase());
     tracing::info!("TOTAL get_available_templates: {:?}", total_start.elapsed());
     Ok(indexed)
 }

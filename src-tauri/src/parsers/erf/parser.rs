@@ -317,7 +317,7 @@ impl ErfParser {
         self.resources.clear();
         let mut largest: Option<(String, usize)> = None;
 
-        for (key, entry) in keys.into_iter().zip(resources.into_iter()) {
+        for (key, entry) in keys.into_iter().zip(resources) {
             // Update statistics
             *self
                 .stats
