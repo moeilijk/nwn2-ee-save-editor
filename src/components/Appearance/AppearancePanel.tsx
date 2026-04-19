@@ -44,6 +44,7 @@ export function AppearancePanel() {
   const [pendingVoiceId, setPendingVoiceId] = useState<number | null>(null);
   const [pendingTints, setPendingTints] = useState<{ tint_head: TintChannels; tint_hair: TintChannels } | null>(null);
   const [pendingSize, setPendingSize] = useState<{ height: number; girth: number } | null>(null);
+  const [showHelmetInViewer, setShowHelmetInViewer] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -54,6 +55,7 @@ export function AppearancePanel() {
         appearanceSubsystem.load();
       }
     }
+    setShowHelmetInViewer(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.id]);
 
@@ -568,8 +570,12 @@ export function AppearancePanel() {
             label={t('appearance.showHelmet')}
             value={
               <Switch
-                checked={!data.never_draw_helmet}
-                onChange={() => updateField({ never_draw_helmet: !data.never_draw_helmet }, 'helm')}
+                checked={showHelmetInViewer}
+                onChange={() => {
+                  const next = !showHelmetInViewer;
+                  setShowHelmetInViewer(next);
+                  updateField({ never_draw_helmet: !next }, 'helm');
+                }}
                 style={{ marginBottom: 0 }}
               />
             }
@@ -651,6 +657,7 @@ export function AppearancePanel() {
           tintArmor={data.armor_tint}
           height={liveHeight}
           girth={liveGirth}
+          showHelmet={showHelmetInViewer}
         />
       </div>
     </div>

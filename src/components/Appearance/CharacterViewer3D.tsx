@@ -20,9 +20,10 @@ interface CharacterViewer3DProps {
   tintArmor?: TintChannels | null;
   height: number;
   girth: number;
+  showHelmet: boolean;
 }
 
-export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair, tintCloak, tintArmor, height, girth }: CharacterViewer3DProps) {
+export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair, tintCloak, tintArmor, height, girth, showHelmet }: CharacterViewer3DProps) {
   const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +41,14 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
   const tintArmorRef = useRef(tintArmor);
   const heightRef = useRef(height);
   const girthRef = useRef(girth);
+  const showHelmetRef = useRef(showHelmet);
   tintHeadRef.current = tintHead;
   tintHairRef.current = tintHair;
   tintCloakRef.current = tintCloak;
   tintArmorRef.current = tintArmor;
   heightRef.current = height;
   girthRef.current = girth;
+  showHelmetRef.current = showHelmet;
 
   const onAnimate = useCallback((scene: THREE.Scene) => {
     const model = scene.getObjectByName('__model');
@@ -59,6 +62,18 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
   }, []);
 
   const { container: containerRef, scene: sceneRef, camera: cameraRef, controls: controlsRef } = useThreeScene(onAnimate);
+
+  const applyHelmetVisibility = useCallback(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const model = scene.getObjectByName('__model');
+    if (!model) return;
+    const helmGroup = model.getObjectByName('__part_helm');
+    const hairGroup = model.getObjectByName('__part_hair');
+    if (helmGroup) helmGroup.visible = showHelmetRef.current;
+    const helmetActuallyShown = showHelmetRef.current && !!helmGroup;
+    if (hairGroup) hairGroup.visible = !helmetActuallyShown;
+  }, [sceneRef]);
 
   function getTintColors(): Record<string, TintColors> {
     const headColors = tintChannelsToColors(tintHeadRef.current);
@@ -238,6 +253,7 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       }
 
       scene.add(modelGroup);
+      applyHelmetVisibility();
       frameBounds(camera, controls, scene, modelGroup);
 
       // Set up idle animation with fidget rotation
@@ -387,6 +403,10 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         modelGroup.add(newGroup);
       }
 
+      if (part === 'helm' || part === 'hair') {
+        applyHelmetVisibility();
+      }
+
       if (capeTopologyChanged && playNextRef.current) {
         playNextRef.current();
       }
@@ -409,6 +429,10 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       })();
     }
   }, [refreshPart, replacePart]);
+
+  useEffect(() => {
+    applyHelmetVisibility();
+  }, [showHelmet, applyHelmetVisibility]);
 
   useEffect(() => {
     const scene = sceneRef.current;
