@@ -19,21 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third Party Notices
-
-This project includes code ported from the following open source projects:
-
-nwn2mdk - Neverwinter Nights 2 Modding & Development Kit
-Copyright 2017 Arbos
-Licensed under the Apache License, Version 2.0
-https://github.com/Arbos/nwn2mdk
-Used for: MDB and GR2 binary file format parsing (ported to Rust)
-
-xoreos-tools (via nwn2mdk)
-Distributed under the Boost Software License, Version 1.0
-https://github.com/xoreos/xoreos-tools
-http://www.boost.org/LICENSE_1_0.txt
-Used for: Oodle1 decompression algorithm (GR2 compressed sections, ported to Rust)
