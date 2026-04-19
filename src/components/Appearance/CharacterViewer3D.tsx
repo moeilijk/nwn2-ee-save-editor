@@ -11,6 +11,12 @@ import { Spinner } from '@blueprintjs/core';
 
 type PartType = 'head' | 'hair' | 'fhair' | 'wings' | 'tail' | 'helm' | 'body' | 'cloak';
 
+// Head/armor tint masks invert G and B relative to hair and glove/boot masks
+// (the latter are pre-swapped on the Rust side via swap_tint_2_3).
+function needsShaderGBSwap(group: string): boolean {
+  return group === 'head' || group === 'body' || group === 'cloak' || group === 'helm';
+}
+
 interface CharacterViewer3DProps {
   refreshKey: number;
   refreshPart: { parts: PartType[]; key: number } | null;
@@ -105,7 +111,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
       const colors = meshData.override_tints
         ? tintChannelsToColors(meshData.override_tints)
         : tintMap[meshData.tint_group];
-      const material = await createMaterial(meshData.material, colors);
+      const swapGB = needsShaderGBSwap(meshData.tint_group);
+      const material = await createMaterial(meshData.material, colors, swapGB);
       const bound = overrideSkeleton ?? getSkeletonFor(meshData.skeleton_ref);
       const obj = buildMesh(meshData, material, bound?.skeleton, bound?.rootBone);
       if (meshData.attach_bone && bound?.rootBone) {
@@ -203,7 +210,8 @@ export function CharacterViewer3D({ refreshKey, refreshPart, tintHead, tintHair,
         const colors = meshData.override_tints
           ? tintChannelsToColors(meshData.override_tints)
           : tintMap[meshData.tint_group];
-        return createMaterial(meshData.material, colors);
+        const swapGB = needsShaderGBSwap(meshData.tint_group);
+        return createMaterial(meshData.material, colors, swapGB);
       });
       const allMaterials = await Promise.all(materialPromises);
 

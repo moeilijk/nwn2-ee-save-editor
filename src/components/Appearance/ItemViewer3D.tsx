@@ -40,7 +40,7 @@ async function buildPartGroup(
   group.name = partGroupName(letter);
   const visible = meshes.filter(m => !/_L\d+$/i.test(m.name));
   const materials = await Promise.all(
-    visible.map(m => createMaterial(m.material, m.override_tints ? tintChannelsToColors(m.override_tints) : tintColors))
+    visible.map(m => createMaterial(m.material, m.override_tints ? tintChannelsToColors(m.override_tints) : tintColors, true))
   );
   for (let i = 0; i < visible.length; i++) {
     const m = visible[i];

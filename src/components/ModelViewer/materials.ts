@@ -52,6 +52,7 @@ function injectTintShader(
   mat: THREE.MeshStandardMaterial,
   tintMapTexture: THREE.CompressedTexture,
   tintColors: TintColors,
+  swapGB: boolean,
 ): void {
   const uniforms = {
     tintMap: { value: tintMapTexture },
@@ -61,6 +62,12 @@ function injectTintShader(
   };
 
   (mat.userData as Record<string, unknown>).tintUniforms = uniforms;
+
+  // Armor/item tint masks use channel 2 → blue, channel 3 → green (verified
+  // against Darksteel Full Plate on 2026-04-18). Head/hair/face masks use
+  // the straight r/g/b order. Caller passes swapGB accordingly.
+  const ch2 = swapGB ? 'b' : 'g';
+  const ch3 = swapGB ? 'g' : 'b';
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.tintMap = uniforms.tintMap;
@@ -90,12 +97,9 @@ uniform vec3 tintColor3;
     vec2 tintUv = vec2(0.0);
   #endif
   vec4 tintMask = texture2D(tintMap, tintUv);
-  // NWN2 tint masks map channel 2 → blue, channel 3 → green (not the
-  // obvious r/g/b order). Verified against in-game render of the
-  // Darksteel Full Plate and other textile armors on 2026-04-18.
   vec3 tint = mix(vec3(1.0), tintColor1, tintMask.r)
-            * mix(vec3(1.0), tintColor2, tintMask.b)
-            * mix(vec3(1.0), tintColor3, tintMask.g);
+            * mix(vec3(1.0), tintColor2, tintMask.${ch2})
+            * mix(vec3(1.0), tintColor3, tintMask.${ch3});
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * tint, tintMask.a);
 }
 `,
@@ -127,6 +131,7 @@ export function updateTintUniforms(
 export async function createMaterial(
   materialData: { diffuse_map: string; normal_map: string; tint_map?: string; glow_map: string; flags: number },
   tintColors?: TintColors,
+  swapGB: boolean = false,
 ): Promise<THREE.MeshStandardMaterial> {
   const mat = new THREE.MeshStandardMaterial({
     side: THREE.DoubleSide,
@@ -154,7 +159,7 @@ export async function createMaterial(
       white.needsUpdate = true;
       mat.map = white;
     }
-    injectTintShader(mat, tintTex, tintColors);
+    injectTintShader(mat, tintTex, tintColors, swapGB);
   } else if (!diffuse && tintTex) {
     mat.map = tintTex;
   }

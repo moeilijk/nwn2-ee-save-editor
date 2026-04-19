@@ -12,7 +12,7 @@ use crate::parsers::gff::GffValue;
 use crate::utils::parsing::row_str;
 
 use super::appearance_helpers::{
-    TintChannels, build_nested_tint, read_tint_from_tintable, resolve_armor_prefix,
+    TintChannels, build_nested_tint, read_tint_from_tintable, resolve_armor_prefix, swap_tint_2_3,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
@@ -216,8 +216,11 @@ impl Character {
         read_tint_from_tintable(&tintable)
     }
 
+    /// GFF head tint stores channels 2/3 as (eyebrows, eyes). Swap on both
+    /// read and write so our TintChannels matches the "Eyes"/"Eyebrows"
+    /// ordering the UI and viewer assume. Hair doesn't need this.
     pub fn tint_head(&self) -> TintChannels {
-        self.read_tint_channels_nested("Tint_Head")
+        swap_tint_2_3(&self.read_tint_channels_nested("Tint_Head"))
     }
 
     pub fn tint_hair(&self) -> TintChannels {
@@ -227,7 +230,7 @@ impl Character {
     // -- Tint writing --
 
     pub fn set_tint_head(&mut self, tints: &TintChannels) {
-        let nested = build_nested_tint(tints);
+        let nested = build_nested_tint(&swap_tint_2_3(tints));
         self.set_struct("Tint_Head", nested);
     }
 

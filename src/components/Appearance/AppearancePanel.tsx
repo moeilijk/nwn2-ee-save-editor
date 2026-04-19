@@ -358,8 +358,8 @@ export function AppearancePanel() {
           <SectionHeader label={t('appearance.colors')} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <ColorPicker label={t('appearance.skin')} value={(pendingTints ?? data).tint_head.channel1} onChange={updateTintChannel('tint_head', 'channel1')} />
-            <ColorPicker label={t('appearance.eyes')} value={(pendingTints ?? data).tint_head.channel2} onChange={updateTintChannel('tint_head', 'channel2')} />
-            <ColorPicker label={t('appearance.eyebrows')} value={(pendingTints ?? data).tint_head.channel3} onChange={updateTintChannel('tint_head', 'channel3')} />
+            <ColorPicker label={t('appearance.eyebrows')} value={(pendingTints ?? data).tint_head.channel2} onChange={updateTintChannel('tint_head', 'channel2')} />
+            <ColorPicker label={t('appearance.eyes')} value={(pendingTints ?? data).tint_head.channel3} onChange={updateTintChannel('tint_head', 'channel3')} />
             <ColorPicker label={t('appearance.hairBase')} value={(pendingTints ?? data).tint_hair.channel1} onChange={updateTintChannel('tint_hair', 'channel1')} />
             <ColorPicker label={t('appearance.hairHighlight')} value={(pendingTints ?? data).tint_hair.channel2} onChange={updateTintChannel('tint_hair', 'channel2')} />
             <ColorPicker label={t('appearance.hairAccessory')} value={(pendingTints ?? data).tint_hair.channel3} onChange={updateTintChannel('tint_hair', 'channel3')} />
