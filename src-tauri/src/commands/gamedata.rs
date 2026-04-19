@@ -171,6 +171,16 @@ pub async fn get_initialization_status(state: State<'_, AppState>) -> CommandRes
     Ok(state.init_status.read().clone())
 }
 
+/// Returns true if the configured game folder is missing or does not exist on disk.
+/// Callers should short-circuit `initialize_game_data` when this is true and set
+/// the `needsConfiguration` status instead.
+fn needs_configuration(paths: &crate::config::NWN2Paths) -> bool {
+    match paths.game_folder() {
+        None => true,
+        Some(p) => !p.exists(),
+    }
+}
+
 #[tauri::command]
 #[instrument(name = "initialize_game_data_command", skip(state))]
 pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<bool> {
@@ -193,6 +203,21 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     info!("Starting game data initialization");
     update_init_status(&state, "initializing", 0.0, "Starting initialization...");
 
+    {
+        let paths = state.paths.read();
+        if needs_configuration(&paths) {
+            info!("Game folder missing or invalid - entering needsConfiguration state");
+            drop(paths);
+            update_init_status(
+                &state,
+                "needsConfiguration",
+                0.0,
+                "Game folder not configured",
+            );
+            return Ok(false);
+        }
+    }
+
     update_init_status(
         &state,
         "initializing",
@@ -214,9 +239,21 @@ pub async fn initialize_game_data(state: State<'_, AppState>) -> CommandResult<b
     update_init_status(&state, "initializing", 2.0, "Loading TLK strings...");
     let tlk_parser = {
         let rm = state.resource_manager.read().await;
-        rm.get_tlk_parser().ok_or_else(|| CommandError::NotFound {
-            item: "TLK parser".to_string(),
-        })?
+        if let Some(parser) = rm.get_tlk_parser() {
+            parser
+        } else {
+            warn!(
+                "TLK parser unavailable after ResourceManager init - entering needsConfiguration state"
+            );
+            drop(rm);
+            update_init_status(
+                &state,
+                "needsConfiguration",
+                0.0,
+                "dialog.tlk not found in configured game folder",
+            );
+            return Ok(false);
+        }
     };
 
     update_init_status(&state, "initializing", 5.0, "Loading 2DA tables...");
@@ -1389,5 +1426,27 @@ Bane (BAIN) is the ultimate tyrant.
         assert_eq!(parsed.aliases, "The Black Hand");
         assert_eq!(parsed.favored_weapon, "Morningstar");
         assert_eq!(parsed.description, "Bane (BAIN) is the ultimate tyrant.");
+    }
+
+    #[test]
+    fn none_game_folder_needs_configuration() {
+        let mut paths = crate::config::NWN2Paths::new();
+        paths.clear_game_folder();
+        assert!(needs_configuration(&paths));
+    }
+
+    #[test]
+    fn nonexistent_game_folder_needs_configuration() {
+        let mut paths = crate::config::NWN2Paths::new();
+        paths.set_game_folder_for_test(std::path::PathBuf::from("C:/definitely/not/real/nwn2"));
+        assert!(needs_configuration(&paths));
+    }
+
+    #[test]
+    fn existing_game_folder_does_not_need_configuration() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut paths = crate::config::NWN2Paths::new();
+        paths.set_game_folder_for_test(tmp.path().to_path_buf());
+        assert!(!needs_configuration(&paths));
     }
 }

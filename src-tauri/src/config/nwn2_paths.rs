@@ -157,10 +157,6 @@ impl NWN2Paths {
                     break;
                 }
             }
-            if self.game_folder.is_none() && !result.nwn2_paths.is_empty() {
-                self.game_folder = Some(PathBuf::from(&result.nwn2_paths[0]));
-                self.game_folder_source = PathSource::Discovery;
-            }
 
             if self.documents_folder.is_none() {
                 self.documents_folder = Self::find_documents_folder();
@@ -597,6 +593,16 @@ impl NWN2Paths {
 
     pub fn steam_workshop_folder_source(&self) -> PathSource {
         self.steam_workshop_folder_source
+    }
+
+    #[cfg(test)]
+    pub fn clear_game_folder(&mut self) {
+        self.game_folder = None;
+    }
+
+    #[cfg(test)]
+    pub fn set_game_folder_for_test(&mut self, path: std::path::PathBuf) {
+        self.game_folder = Some(path);
     }
 }
 

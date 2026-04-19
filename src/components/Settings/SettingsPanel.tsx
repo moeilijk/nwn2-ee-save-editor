@@ -39,9 +39,15 @@ function PathRow({ label, path, exists, autoDetected, onEdit, onReset }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <GameIcon icon={GiFullFolder} size={16} color={T.textMuted} />
           <span className="t-semibold" style={{ color: T.text }}>{label}</span>
-          <Tag minimal round intent={autoDetected ? 'primary' : 'warning'} style={{ background: autoDetected ? 'rgba(45, 114, 210, 0.1)' : 'rgba(184, 149, 47, 0.1)' }}>
-            {autoDetected ? t('settings.paths.autoDetected') : t('settings.paths.manuallySet')}
-          </Tag>
+          {autoDetected && !path ? (
+            <Tag minimal round intent="danger" style={{ background: 'rgba(218, 85, 85, 0.1)' }}>
+              {t('settings.paths.failedToFind')}
+            </Tag>
+          ) : (
+            <Tag minimal round intent={autoDetected ? 'primary' : 'warning'} style={{ background: autoDetected ? 'rgba(45, 114, 210, 0.1)' : 'rgba(184, 149, 47, 0.1)' }}>
+              {autoDetected ? t('settings.paths.autoDetected') : t('settings.paths.manuallySet')}
+            </Tag>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <span className="t-mono" style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -370,9 +376,11 @@ function GameLaunchTab() {
   );
 }
 
-function SettingsContent() {
+type SettingsTabId = 'general' | 'paths' | 'launch';
+
+function SettingsContent({ defaultTab = 'general' }: { defaultTab?: SettingsTabId }) {
   const t = useTranslations();
-  const [activeTab, setActiveTab] = useState<string>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(defaultTab);
 
   return (
     <>
@@ -380,7 +388,7 @@ function SettingsContent() {
         <Tabs
           id="settings-tabs"
           selectedTabId={activeTab}
-          onChange={(newTab) => setActiveTab(newTab as string)}
+          onChange={(newTab) => setActiveTab(newTab as SettingsTabId)}
           renderActiveTabPanelOnly
           large
         >
@@ -398,7 +406,15 @@ function SettingsContent() {
   );
 }
 
-export function SettingsDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function SettingsDialog({
+  isOpen,
+  onClose,
+  defaultTab,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultTab?: SettingsTabId;
+}) {
   const t = useTranslations();
   return (
     <ParchmentDialog
@@ -412,7 +428,7 @@ export function SettingsDialog({ isOpen, onClose }: { isOpen: boolean; onClose: 
       }
     >
       <div style={{ margin: -16 }}>
-        <SettingsContent />
+        <SettingsContent defaultTab={defaultTab} />
       </div>
     </ParchmentDialog>
   );

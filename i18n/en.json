@@ -634,6 +634,7 @@
       "customHakFolders": "Custom HAK Folders",
       "autoDetected": "Auto-detected",
       "manuallySet": "Manually Set",
+      "failedToFind": "Failed to find",
       "notConfigured": "(Not configured)",
       "reset": "Reset",
       "change": "Change",
@@ -657,6 +658,13 @@
       "exporting": "Exporting...",
       "exportSuccess": "Debug log saved to:",
       "exportError": "Failed to export debug log"
+    }
+  },
+  "startup": {
+    "notFound": {
+      "title": "NWN2 installation not found",
+      "description": "We couldn't find a Neverwinter Nights 2 installation. Please set your game folder to continue.",
+      "retry": "Retry"
     }
   },
   "spells": {

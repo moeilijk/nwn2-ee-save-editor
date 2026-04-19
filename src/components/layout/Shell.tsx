@@ -3,6 +3,7 @@ import { Button, Card, Elevation, ProgressBar } from '@blueprintjs/core';
 import { GiAnvil } from 'react-icons/gi';
 import { GameIcon } from '../shared/GameIcon';
 import { invoke } from '@tauri-apps/api/core';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { TauriAPI } from '@/lib/tauri-api';
 import { CharacterProvider, useCharacterContext } from '@/contexts/CharacterContext';
 import { useTranslations } from '@/hooks/useTranslations';
@@ -23,6 +24,7 @@ import { ModelBrowser } from '../ModelViewer/ModelBrowser';
 import { IconShowcasePanel } from '../IconShowcase/IconShowcasePanel';
 import { AppearancePanel } from '../Appearance/AppearancePanel';
 import DashboardPanel from '../Dashboard/DashboardPanel';
+import { SettingsDialog } from '../Settings/SettingsPanel';
 import { LevelHelper, ErrorBoundary, AboutDialog } from '../shared';
 
 const PANELS: Record<string, React.ComponentType> = {
@@ -124,8 +126,10 @@ function ShellContent() {
 }
 
 export default function Shell() {
+  const t = useTranslations();
   const [initReady, setInitReady] = useState(false);
   const [initProgress, setInitProgress] = useState({ step: 'initializing', progress: 0, message: 'Starting up...' });
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     invoke('show_main_window').catch(() => {});
@@ -152,6 +156,44 @@ export default function Shell() {
 
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (initProgress.step === 'needsConfiguration') {
+      setSettingsOpen(true);
+    }
+  }, [initProgress.step]);
+
+  if (initProgress.step === 'needsConfiguration') {
+    return (
+      <div className="bp-app" style={{
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', background: T.bg,
+        backgroundImage: PATTERN_BG, backgroundSize: '200px 200px',
+      }}>
+        <TitleBar onAboutClick={() => {}} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 420, textAlign: 'center' }}>
+            <div className="t-2xl t-bold" style={{ color: T.accent, marginBottom: 12 }}>
+              {t('startup.notFound.title')}
+            </div>
+            <div className="t-base" style={{ color: T.textMuted, marginBottom: 20 }}>
+              {t('startup.notFound.description')}
+            </div>
+            <Button
+              intent="primary"
+              text={t('startup.notFound.retry')}
+              onClick={() => { relaunch().catch(err => console.error('Relaunch failed:', err)); }}
+            />
+          </div>
+        </div>
+        <SettingsDialog
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          defaultTab="paths"
+        />
+      </div>
+    );
+  }
 
   if (!initReady) {
     return (
