@@ -134,39 +134,57 @@ impl NWN2Paths {
             }
         }
 
-        if self.game_folder.is_none() {
-            self.auto_discover();
+        if self.game_folder.is_none()
+            || self.documents_folder.is_none()
+            || self.steam_workshop_folder.is_none()
+        {
+            self.auto_discover_missing();
         }
     }
 
-    #[instrument(name = "NWN2Paths::auto_discover", skip(self))]
-    fn auto_discover(&mut self) {
+    #[instrument(name = "NWN2Paths::auto_discover_missing", skip(self))]
+    fn auto_discover_missing(&mut self) {
+        self.auto_discover_missing_with(Self::find_documents_folder, Self::find_steam_workshop);
+    }
+
+    fn auto_discover_missing_with(
+        &mut self,
+        find_documents_folder: impl FnOnce() -> Option<PathBuf>,
+        find_steam_workshop: impl FnOnce() -> Option<PathBuf>,
+    ) {
         debug!("Auto-discovering NWN2 installation paths");
         if let Ok(result) = discover_nwn2_paths_rust(None) {
             debug!(
                 "Path discovery found {} candidates",
                 result.nwn2_paths.len()
             );
-            for path in &result.nwn2_paths {
-                let path = PathBuf::from(path);
-                if !path.to_string_lossy().contains("Documents")
-                    && !path.to_string_lossy().contains("My Documents")
-                {
-                    self.game_folder = Some(path);
+            if self.game_folder.is_none() {
+                for path in &result.nwn2_paths {
+                    let path = PathBuf::from(path);
+                    if !path.to_string_lossy().contains("Documents")
+                        && !path.to_string_lossy().contains("My Documents")
+                    {
+                        self.game_folder = Some(path);
+                        self.game_folder_source = PathSource::Discovery;
+                        break;
+                    }
+                }
+
+                if self.game_folder.is_none() && !result.nwn2_paths.is_empty() {
+                    self.game_folder = Some(PathBuf::from(&result.nwn2_paths[0]));
                     self.game_folder_source = PathSource::Discovery;
-                    break;
                 }
             }
 
             if self.documents_folder.is_none() {
-                self.documents_folder = Self::find_documents_folder();
+                self.documents_folder = find_documents_folder();
                 if self.documents_folder.is_some() {
                     self.documents_folder_source = PathSource::Discovery;
                 }
             }
 
             if self.steam_workshop_folder.is_none() && !result.steam_paths.is_empty() {
-                self.steam_workshop_folder = Self::find_steam_workshop();
+                self.steam_workshop_folder = find_steam_workshop();
                 if self.steam_workshop_folder.is_some() {
                     self.steam_workshop_folder_source = PathSource::Discovery;
                 }
@@ -175,6 +193,9 @@ impl NWN2Paths {
     }
 
     fn get_config_path() -> Option<PathBuf> {
+        if let Ok(override_path) = std::env::var("NWN2EE_SETTINGS_PATH") {
+            return Some(PathBuf::from(override_path));
+        }
         dirs::data_dir().map(|d| d.join("nwn2_save_editor").join("settings.json"))
     }
 
@@ -248,19 +269,42 @@ impl NWN2Paths {
 
         #[cfg(not(windows))]
         {
-            if let Some(home) = dirs::home_dir() {
-                let docs = home.join("Documents").join("Neverwinter Nights 2");
-                if docs.exists() {
-                    return Some(docs);
-                }
-                let local = home.join(".local/share/Neverwinter Nights 2");
-                if local.exists() {
-                    return Some(local);
+            for candidate in Self::non_windows_documents_candidates() {
+                if candidate.exists() {
+                    return Some(candidate);
                 }
             }
         }
 
         None
+    }
+
+    #[cfg(not(windows))]
+    fn non_windows_documents_candidates() -> Vec<PathBuf> {
+        let mut candidates = Vec::new();
+
+        if let Some(home) = dirs::home_dir() {
+            candidates.push(home.join("Documents").join("Neverwinter Nights 2"));
+            candidates.push(home.join(".local/share/Neverwinter Nights 2"));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(userprofile) = std::env::var("USERPROFILE")
+                && let Some(wsl_home) = windows_profile_to_wsl_home(&userprofile)
+            {
+                candidates.push(wsl_home.join("Documents").join("Neverwinter Nights 2"));
+                candidates.push(wsl_home.join("My Documents").join("Neverwinter Nights 2"));
+            }
+
+            if let Ok(username) = std::env::var("USER") {
+                let wsl_home = PathBuf::from("/mnt/c/Users").join(username);
+                candidates.push(wsl_home.join("Documents").join("Neverwinter Nights 2"));
+                candidates.push(wsl_home.join("My Documents").join("Neverwinter Nights 2"));
+            }
+        }
+
+        candidates
     }
 
     fn find_steam_workshop() -> Option<PathBuf> {
@@ -314,7 +358,7 @@ impl NWN2Paths {
     pub fn reset_game_folder(&mut self) -> Result<(), String> {
         self.game_folder = None;
         self.game_folder_source = PathSource::Discovery;
-        self.auto_discover();
+        self.auto_discover_missing();
         self.save_settings().map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -606,6 +650,33 @@ impl NWN2Paths {
     }
 }
 
+#[cfg(all(target_os = "linux", not(windows)))]
+fn windows_profile_to_wsl_home(userprofile: &str) -> Option<PathBuf> {
+    let normalized = userprofile.replace('\\', "/");
+    let mut chars = normalized.chars();
+
+    let drive = chars.next()?;
+    if !drive.is_ascii_alphabetic() {
+        return None;
+    }
+    if chars.next()? != ':' {
+        return None;
+    }
+
+    let mut remainder = chars.as_str().trim_start_matches('/').to_string();
+    if remainder.is_empty() {
+        return None;
+    }
+
+    remainder = remainder.trim_end_matches('/').to_string();
+
+    Some(PathBuf::from(format!(
+        "/mnt/{}/{}",
+        drive.to_ascii_lowercase(),
+        remainder
+    )))
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct NWN2PathsConfig {
     game_folder: Option<String>,
@@ -617,4 +688,138 @@ struct NWN2PathsConfig {
     custom_module_folders: Vec<String>,
     #[serde(default)]
     custom_hak_folders: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(all(target_os = "linux", not(windows)))]
+    use super::windows_profile_to_wsl_home;
+    use super::{NWN2Paths, PathSource};
+    use std::path::PathBuf;
+    use std::sync::{LazyLock, Mutex};
+    use tempfile::TempDir;
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn with_test_settings_path<T>(temp_dir: &TempDir, test: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env mutex poisoned");
+        let settings_path = temp_dir.path().join("settings.json");
+        let old_settings = std::env::var("NWN2EE_SETTINGS_PATH").ok();
+
+        unsafe {
+            std::env::set_var("NWN2EE_SETTINGS_PATH", &settings_path);
+        }
+
+        let result = test();
+
+        unsafe {
+            if let Some(value) = old_settings {
+                std::env::set_var("NWN2EE_SETTINGS_PATH", value);
+            } else {
+                std::env::remove_var("NWN2EE_SETTINGS_PATH");
+            }
+        }
+
+        result
+    }
+
+    fn paths_for_discovery_test(
+        game_folder: Option<PathBuf>,
+        documents_folder: Option<PathBuf>,
+        steam_workshop_folder: Option<PathBuf>,
+    ) -> NWN2Paths {
+        NWN2Paths {
+            game_folder,
+            documents_folder,
+            steam_workshop_folder,
+            game_folder_source: PathSource::Config,
+            documents_folder_source: PathSource::Config,
+            steam_workshop_folder_source: PathSource::Config,
+            custom_override_folders: Vec::new(),
+            custom_module_folders: Vec::new(),
+            custom_hak_folders: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_save_settings_respects_override_path() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+
+        with_test_settings_path(&temp_dir, || {
+            let paths = NWN2Paths::new();
+            paths.save_settings().expect("failed to save settings");
+            assert!(temp_dir.path().join("settings.json").exists());
+        });
+    }
+
+    #[test]
+    fn test_auto_discover_missing_only_fills_blank_fields() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let configured_game = temp_dir.path().join("configured-game");
+        let configured_workshop = temp_dir.path().join("configured-workshop");
+        let discovered_docs = temp_dir
+            .path()
+            .join("discovered-documents")
+            .join("Neverwinter Nights 2");
+
+        let mut paths = paths_for_discovery_test(
+            Some(configured_game.clone()),
+            None,
+            Some(configured_workshop.clone()),
+        );
+        paths.documents_folder_source = PathSource::Discovery;
+
+        paths.auto_discover_missing_with(
+            || Some(discovered_docs.clone()),
+            || Some(temp_dir.path().join("discovered-workshop")),
+        );
+
+        assert_eq!(paths.game_folder(), Some(&configured_game));
+        assert_eq!(paths.documents_folder(), Some(&discovered_docs));
+        assert_eq!(paths.steam_workshop_folder(), Some(&configured_workshop));
+        assert_eq!(paths.game_folder_source(), PathSource::Config);
+        assert_eq!(paths.documents_folder_source(), PathSource::Discovery);
+        assert_eq!(paths.steam_workshop_folder_source(), PathSource::Config);
+    }
+
+    #[test]
+    fn test_auto_discover_missing_never_overwrites_user_configured_documents() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let configured_game = temp_dir.path().join("configured-game");
+        let configured_docs = temp_dir.path().join("configured-documents");
+        let discovered_docs = temp_dir.path().join("discovered-documents");
+
+        let mut paths =
+            paths_for_discovery_test(Some(configured_game), Some(configured_docs.clone()), None);
+
+        paths.auto_discover_missing_with(|| Some(discovered_docs), || None);
+
+        assert_eq!(paths.documents_folder(), Some(&configured_docs));
+        assert_eq!(paths.documents_folder_source(), PathSource::Config);
+    }
+
+    #[cfg(all(target_os = "linux", not(windows)))]
+    #[test]
+    fn test_windows_profile_to_wsl_home_converts_valid_profiles() {
+        assert_eq!(
+            windows_profile_to_wsl_home(r"C:\Users\foo"),
+            Some(PathBuf::from("/mnt/c/Users/foo"))
+        );
+        assert_eq!(
+            windows_profile_to_wsl_home(r"c:\Users\foo"),
+            Some(PathBuf::from("/mnt/c/Users/foo"))
+        );
+        assert_eq!(
+            windows_profile_to_wsl_home("D:/Users/foo"),
+            Some(PathBuf::from("/mnt/d/Users/foo"))
+        );
+    }
+
+    #[cfg(all(target_os = "linux", not(windows)))]
+    #[test]
+    fn test_windows_profile_to_wsl_home_rejects_malformed_profiles() {
+        for malformed in ["", "Users\\foo", "C", "C:", r"C:\", r"1:\Users\foo"] {
+            assert_eq!(windows_profile_to_wsl_home(malformed), None);
+        }
+    }
 }

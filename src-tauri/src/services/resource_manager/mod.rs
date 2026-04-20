@@ -136,6 +136,34 @@ impl ResourceManager {
         Ok(())
     }
 
+    pub async fn update_paths(&mut self, new_paths: NWN2Paths) {
+        {
+            let mut paths = self.paths.write().await;
+            *paths = new_paths;
+        }
+
+        self.initialized = false;
+        self.template_locations.clear();
+        self.tlk_cache = None;
+        self.custom_tlk_cache = None;
+        self.hak_overrides.clear();
+        self.module_overrides.clear();
+        self.tda_cache.clear();
+        self.current_module = None;
+        self.module_path = None;
+        self.module_info = None;
+        self.current_campaign_id = None;
+        self.current_campaign_folder = None;
+        self.module_cache.clear();
+        self.file_mod_tracker.clear();
+        self.data_zip_paths.clear();
+        self.resource_index.clear();
+        self.icon_file_paths.clear();
+        self.cache_hits.store(0, Ordering::Relaxed);
+        self.cache_misses.store(0, Ordering::Relaxed);
+        *self.zip_reader.lock() = ZipContentReader::new();
+    }
+
     async fn scan_base_game_zips(&mut self) -> ResourceManagerResult<()> {
         let paths = self.paths.read().await;
         let data_dir = paths

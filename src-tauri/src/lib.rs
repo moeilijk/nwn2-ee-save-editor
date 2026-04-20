@@ -291,7 +291,6 @@ pub fn run() {
             crate::commands::paths::reset_game_folder,
             crate::commands::paths::reset_documents_folder,
             crate::commands::paths::reset_steam_workshop_folder,
-            crate::commands::paths::reset_steam_workshop_folder,
             crate::commands::paths::auto_detect_paths,
             // Config
             crate::commands::config::get_app_config,
