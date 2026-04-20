@@ -6,10 +6,54 @@ authors = ["you"]
 license = ""
 repository = ""
 edition = "2024"
+autotests = false
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+integration-tests = []
+
+[[test]]
+name = "character"
+path = "tests/character.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "debugging"
+path = "tests/debugging.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "file_operations"
+path = "tests/file_operations.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "gamedata"
+path = "tests/gamedata.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "parsing"
+path = "tests/parsing.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "save_pipeline"
+path = "tests/save_pipeline.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "services"
+path = "tests/services.rs"
+required-features = ["integration-tests"]
+
+[[test]]
+name = "utils"
+path = "tests/utils.rs"
+required-features = ["integration-tests"]
 
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
@@ -139,5 +183,3 @@ cast_possible_wrap = "allow"
 cast_precision_loss = "allow"
 cast_sign_loss = "allow"
 case_sensitive_file_extension_comparisons = "allow"
-
-
