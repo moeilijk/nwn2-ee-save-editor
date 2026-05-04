@@ -122,8 +122,8 @@ impl Character {
         10 + self.natural_ac()
     }
 
-    pub fn calculate_initiative(&self, _game_data: &GameData) -> i32 {
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
+    pub fn calculate_initiative(&self, game_data: &GameData) -> i32 {
+        let dex_mod = self.get_effective_ability_modifier(AbilityIndex::DEX, game_data);
         let misc_bonus = self.get_i32("initbonus").unwrap_or(0);
 
         dex_mod + misc_bonus
@@ -135,22 +135,22 @@ impl Character {
 
     pub fn get_melee_attack_bonus(&self, game_data: &GameData) -> i32 {
         let bab = self.calculate_bab(game_data);
-        let str_mod = self.ability_modifier(AbilityIndex::STR);
-        let size_mod = self.size_modifier();
+        let str_mod = self.get_effective_ability_modifier(AbilityIndex::STR, game_data);
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
 
         bab + str_mod + size_mod
     }
 
     pub fn get_ranged_attack_bonus(&self, game_data: &GameData) -> i32 {
         let bab = self.calculate_bab(game_data);
-        let dex_mod = self.ability_modifier(AbilityIndex::DEX);
-        let size_mod = self.size_modifier();
+        let dex_mod = self.get_effective_ability_modifier(AbilityIndex::DEX, game_data);
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
 
         bab + dex_mod + size_mod
     }
 
-    pub fn get_damage_bonuses(&self) -> DamageBonuses {
-        let str_mod = self.ability_modifier(AbilityIndex::STR);
+    pub fn get_damage_bonuses(&self, game_data: &GameData) -> DamageBonuses {
+        let str_mod = self.get_effective_ability_modifier(AbilityIndex::STR, game_data);
         DamageBonuses::from_strength(str_mod)
     }
 
@@ -474,8 +474,11 @@ mod tests {
         let mut fields = IndexMap::new();
         fields.insert("Str".to_string(), GffValue::Byte(18));
         let character = Character::from_gff(fields);
+        let game_data = crate::loaders::GameData::new(std::sync::Arc::new(std::sync::RwLock::new(
+            crate::parsers::tlk::TLKParser::default(),
+        )));
 
-        let damage = character.get_damage_bonuses();
+        let damage = character.get_damage_bonuses(&game_data);
         assert_eq!(damage.melee, 4);
         assert_eq!(damage.two_handed, 6);
         assert_eq!(damage.off_hand, 2);

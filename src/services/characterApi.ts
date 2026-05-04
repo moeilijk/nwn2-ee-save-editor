@@ -58,6 +58,14 @@ export interface DeityResponse {
   deity: string;
 }
 
+export interface BackgroundOption {
+  id: number;
+  name: string;
+  description?: string;
+  can_take?: boolean;
+  missing_requirements?: string[];
+}
+
 export interface SetDeityResponse {
   success: boolean;
   deity: string;
@@ -87,6 +95,19 @@ export interface SaveResult {
   success: boolean;
   changes: Record<string, unknown>;
   backup_created: boolean;
+}
+
+export interface SaveCharacterClass {
+  name: string;
+  level: number;
+}
+
+export interface SaveCharacterOption {
+  player_index: number;
+  name: string;
+  race: string;
+  total_level: number;
+  classes: SaveCharacterClass[];
 }
 
 export interface FeatResponse {
@@ -339,7 +360,7 @@ export interface AlignmentUpdateResponse {
 export interface RaceDataResponse {
   race_id: number;
   race_name: string;
-  subrace: string;
+  subrace?: string;
   size: number;
   size_name: string;
   base_speed: number;
@@ -369,6 +390,10 @@ export interface CharacterData {
   gender_id: number;
   age: number;
   alignment: string;
+  alignment_values?: {
+    law_chaos: number;
+    good_evil: number;
+  };
   alignmentValues?: { law_chaos: number; good_evil: number };
   deity: string;
   biography?: string;
@@ -565,6 +590,7 @@ export class CharacterAPI {
         gender_id: overview.gender_id,
         age: overview.age,
         alignment: overview.alignment_string,
+        alignment_values: overview.alignment,
         alignmentValues: { law_chaos: overview.alignment.law_chaos, good_evil: overview.alignment.good_evil },
         deity: overview.deity,
         biography: overview.description,
@@ -647,9 +673,18 @@ export class CharacterAPI {
     return [];
   }
 
-  static async importCharacter(savePath: string): Promise<{id: number; name: string}> {
+  static async listSaveCharacters(savePath: string): Promise<SaveCharacterOption[]> {
     try {
-      await invoke('load_character', { filePath: savePath });
+      return await invoke<SaveCharacterOption[]>('list_save_characters', { filePath: savePath });
+    } catch (error) {
+      console.error('Error listing save characters:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async importCharacter(savePath: string, playerIndex?: number): Promise<{id: number; name: string}> {
+    try {
+      await invoke('load_character', { filePath: savePath, playerIndex });
       const name = await invoke<string>('get_character_name');
       return {
         id: Date.now(), // Unique session ID to trigger state updates
@@ -690,6 +725,26 @@ export class CharacterAPI {
       return this.getCharacterState(characterId);
     } catch (error) {
       console.error("Error updating character:", error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async setGender(characterId: number, gender: number): Promise<CharacterData> {
+    try {
+      await invoke('set_gender', { gender });
+      return this.getCharacterState(characterId);
+    } catch (error) {
+      console.error('Error updating gender:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  static async setBackground(characterId: number, backgroundId: number | null): Promise<CharacterData> {
+    try {
+      await invoke('set_background', { backgroundId });
+      return this.getCharacterState(characterId);
+    } catch (error) {
+      console.error('Error updating background:', error);
       throw new Error(String(error));
     }
   }
@@ -1124,6 +1179,10 @@ export class CharacterAPI {
     return { success: true, deity: deityName };
   }
 
+  static async changeRace(_characterId: number, raceId: number, subrace: string | null): Promise<void> {
+    await invoke('change_race', { raceId, subrace });
+  }
+
   static async updateHitPoints(characterId: number, currentHp?: number, maxHp?: number): Promise<{ success: boolean; current_hp?: number; max_hp?: number }> {
     const res = await invoke<{current: number, max: number}>('update_hit_points', { current: currentHp, max: maxHp });
     return { success: true, current_hp: res.current, max_hp: res.max };
@@ -1168,21 +1227,44 @@ export class CharacterAPI {
   }
 
   static async getRaceData(characterId: number): Promise<RaceDataResponse> {
-    // Construct race response from commands
-     const id = await invoke<number>('get_race_id');
-     const name = await invoke<string>('get_race_name');
-     const sub = await invoke<string | null>('get_subrace');
-     
-     return {
-         race_id: id,
-         race_name: name,
-         subrace: sub || '',
-         size: 0,
-         size_name: 'Medium',
-         base_speed: 30,
-         ability_modifiers: {},
-         racial_feats: []
-     };
+    void characterId;
+    const data = await invoke<{
+      race_id: number;
+      race_name: string;
+      subrace: string | null;
+      size: number;
+      size_name: string;
+      base_speed: number;
+      ability_modifiers: {
+        Str?: number;
+        Dex?: number;
+        Con?: number;
+        Int?: number;
+        Wis?: number;
+        Cha?: number;
+      };
+      racial_feats: number[];
+      favored_class?: number | null;
+    }>('get_racial_properties');
+
+    return {
+      race_id: data.race_id,
+      race_name: data.race_name,
+      subrace: data.subrace || undefined,
+      size: data.size,
+      size_name: data.size_name,
+      base_speed: data.base_speed,
+      ability_modifiers: {
+        Str: data.ability_modifiers.Str ?? 0,
+        Dex: data.ability_modifiers.Dex ?? 0,
+        Con: data.ability_modifiers.Con ?? 0,
+        Int: data.ability_modifiers.Int ?? 0,
+        Wis: data.ability_modifiers.Wis ?? 0,
+        Cha: data.ability_modifiers.Cha ?? 0,
+      },
+      racial_feats: data.racial_feats,
+      favored_class: data.favored_class ?? undefined,
+    };
   }
 
   static async getClassesState(characterId: number): Promise<any> {

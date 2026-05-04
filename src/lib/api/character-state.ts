@@ -119,6 +119,13 @@ export const CharacterStateAPI = {
     invoke<AbilitiesState>('update_abilities', { updates }),
 
   /**
+   * Update reconstructed starting scores while preserving level-up history.
+   * Returns the updated AbilitiesState.
+   */
+  updateStartingAbilities: (scores: import('../bindings').AbilityScores) =>
+    invoke<AbilitiesState>('update_starting_abilities', { scores }),
+
+  /**
    * Apply point buy scores - resets level-up ability history and sets new base scores.
    * Returns the updated AbilitiesState.
    */
@@ -152,8 +159,8 @@ export const CharacterStateAPI = {
   /**
    * Load a character from a save file.
    */
-  loadCharacter: (filePath: string) =>
-    invoke<boolean>('load_character', { filePath }),
+  loadCharacter: (filePath: string, playerIndex?: number) =>
+    invoke<boolean>('load_character', { filePath, playerIndex }),
 
   /**
    * Save the current character.

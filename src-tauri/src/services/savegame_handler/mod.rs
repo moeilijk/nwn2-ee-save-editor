@@ -102,6 +102,8 @@ impl SaveGameHandler {
             return Err(SaveGameError::NotFound { path: zip_path });
         }
 
+        backup::cleanup_legacy_save_tree_artifacts(&save_dir)?;
+
         if create_load_backup && !backup::has_backup_been_created(&save_dir) {
             backup::create_backup(&save_dir)?;
         }
@@ -278,6 +280,7 @@ impl SaveGameHandler {
             || disk_path.exists()
         {
             fs::write(&disk_path, content)?;
+            backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
             debug!("Updated file on disk: {}", filename);
             return Ok(());
         }
@@ -322,6 +325,7 @@ impl SaveGameHandler {
         }
 
         fs::rename(&temp_path, &self.zip_path)?;
+        backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
 
         debug!("Updated file in save: {}", filename);
         Ok(())
@@ -330,7 +334,7 @@ impl SaveGameHandler {
     pub fn update_player_complete(
         &mut self,
         playerlist_content: &[u8],
-        playerbic_content: &[u8],
+        playerbic_content: Option<&[u8]>,
         _base_stats: Option<&CharacterStats>,
         _char_summary: Option<&CharacterSummary>,
     ) -> SaveGameResult<()> {
@@ -348,7 +352,7 @@ impl SaveGameHandler {
                 .last_modified_time(*NWN2_DATE_TIME);
 
             let mut playerlist_written = false;
-            let mut playerbic_written = false;
+            let mut playerbic_present = false;
 
             for i in 0..src_archive.len() {
                 let mut src_entry = src_archive.by_index(i)?;
@@ -359,9 +363,15 @@ impl SaveGameHandler {
                     dst_archive.write_all(playerlist_content)?;
                     playerlist_written = true;
                 } else if name == PLAYER_BIC {
+                    playerbic_present = true;
                     dst_archive.start_file(&name, options)?;
-                    dst_archive.write_all(playerbic_content)?;
-                    playerbic_written = true;
+                    if let Some(playerbic_content) = playerbic_content {
+                        dst_archive.write_all(playerbic_content)?;
+                    } else {
+                        let mut buffer = Vec::with_capacity(src_entry.size() as usize);
+                        src_entry.read_to_end(&mut buffer)?;
+                        dst_archive.write_all(&buffer)?;
+                    }
                 } else {
                     dst_archive.start_file(&name, options)?;
                     let mut buffer = Vec::with_capacity(src_entry.size() as usize);
@@ -375,7 +385,7 @@ impl SaveGameHandler {
                 dst_archive.write_all(playerlist_content)?;
             }
 
-            if !playerbic_written {
+            if !playerbic_present && let Some(playerbic_content) = playerbic_content {
                 dst_archive.start_file(PLAYER_BIC, options)?;
                 dst_archive.write_all(playerbic_content)?;
             }
@@ -384,6 +394,7 @@ impl SaveGameHandler {
         }
 
         fs::rename(&temp_path, &self.zip_path)?;
+        backup::cleanup_legacy_save_tree_artifacts(&self.save_dir)?;
 
         info!("Updated player files in save");
         Ok(())

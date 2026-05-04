@@ -474,6 +474,8 @@ export interface SkillSummaryEntry {
   skill_id: SkillId;
   name: string;
   ranks: number;
+  max_ranks: number;
+  rank_cost: number;
   modifier: number;
   total: number;
   is_class_skill: boolean;
@@ -488,6 +490,8 @@ export interface SkillsState {
   class_skills: SkillSummaryEntry[];
   cross_class_skills: SkillSummaryEntry[];
   total_available: number;
+  available_points: number;
+  overdrawn_points: number;
   spent_points: number;
 }
 
@@ -540,6 +544,12 @@ export interface Initiative {
   total: number;
   dex: number;
   misc: number;
+}
+
+export interface MovementSpeed {
+  base: number;
+  current: number;
+  armor_penalty: boolean;
 }
 
 export interface DamageReduction {
@@ -911,6 +921,7 @@ export interface CommandError {
 export interface AvailableRace {
   id: RaceId;
   name: string;
+  is_playable: boolean;
   description: string | null;
   icon: string | null;
   ability_adjustments: AbilityModifiers;
@@ -935,13 +946,9 @@ export interface AvailableSubrace {
 
 export interface AvailableClass {
   id: ClassId;
-  name: string;
-  description: string | null;
-  icon: string | null;
+  name: string | null;
   hit_die: number;
   is_prestige: boolean;
-  is_spellcaster: boolean;
-  primary_ability: AbilityIndex;
 }
 
 export interface AvailableFeat {
@@ -1005,6 +1012,8 @@ export interface AvailableBackground {
   id: number;
   name: string;
   description: string | null;
+  can_take: boolean;
+  missing_requirements: string[];
 }
 
 export interface AvailableAbility {

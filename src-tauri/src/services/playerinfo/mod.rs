@@ -82,37 +82,17 @@ impl PlayerInfo {
     }
 
     pub fn get_player_name(path: impl AsRef<Path>) -> PlayerInfoResult<String> {
-        let path = path.as_ref();
-        let mut file = File::open(path)?;
+        let info = Self::load(path)?;
+        let display_name = info.data.display_name();
 
-        let mut len_bytes = [0u8; 4];
-        file.read_exact(&mut len_bytes)?;
-        let length = u32::from_le_bytes(len_bytes) as usize;
-
-        if length == 0 {
+        if display_name.is_empty() {
             return Err(PlayerInfoParseError::InvalidString {
                 position: 0,
                 reason: "Empty name".to_string(),
             });
         }
 
-        if length > 256 {
-            return Err(PlayerInfoParseError::InvalidString {
-                position: 0,
-                reason: format!("Name length {length} exceeds maximum"),
-            });
-        }
-
-        let mut name_bytes = vec![0u8; length];
-        file.read_exact(&mut name_bytes)?;
-
-        let (decoded, _, had_errors) = WINDOWS_1252.decode(&name_bytes);
-        if had_errors {
-            let (utf8_decoded, _, _) = UTF_8.decode(&name_bytes);
-            Ok(utf8_decoded.into_owned())
-        } else {
-            Ok(decoded.into_owned())
-        }
+        Ok(display_name)
     }
 
     pub fn update_from_gff_data(
@@ -134,18 +114,7 @@ impl PlayerInfo {
         self.data.subrace = subrace_name.to_string();
         self.data.alignment = alignment_name.to_string();
 
-        if let Some(good_evil) = extract_byte(fields, "GoodEvil") {
-            self.data.alignment_vertical = good_evil_to_axis(good_evil);
-        }
-        if let Some(law_chaos) = extract_byte(fields, "LawfulChaotic") {
-            self.data.alignment_horizontal = law_chaos_to_axis(law_chaos);
-        }
-
-        if let Some(bg) = fields.get("CharBackground").and_then(gff_value_to_u32) {
-            self.data.background_id = bg;
-        }
-
-        if let Some(deity) = extract_string(fields, "Deity") {
+        if let Some(deity) = extract_locstring(fields, "Deity") {
             self.data.deity = deity;
         }
 
@@ -382,14 +351,6 @@ fn write_string(writer: &mut impl Write, s: &str) -> PlayerInfoResult<()> {
     Ok(())
 }
 
-fn extract_string(fields: &IndexMap<String, GffValue<'_>>, key: &str) -> Option<String> {
-    match fields.get(key)? {
-        GffValue::String(s) => Some(s.to_string()),
-        GffValue::ResRef(s) => Some(s.to_string()),
-        _ => None,
-    }
-}
-
 fn extract_locstring(fields: &IndexMap<String, GffValue<'_>>, key: &str) -> Option<String> {
     match fields.get(key)? {
         GffValue::String(s) => Some(s.to_string()),
@@ -463,5 +424,40 @@ mod tests {
         let result = read_string(&mut cursor).unwrap();
 
         assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_update_from_gff_data_reads_locstring_deity() {
+        let mut info = PlayerInfo::new();
+        let mut fields = IndexMap::new();
+        fields.insert(
+            "Deity".to_string(),
+            GffValue::LocString(crate::parsers::gff::LocalizedString {
+                string_ref: -1,
+                substrings: vec![crate::parsers::gff::LocalizedSubstring {
+                    string: std::borrow::Cow::Borrowed("Tempus"),
+                    language: 0,
+                    gender: 0,
+                }],
+            }),
+        );
+
+        info.update_from_gff_data(&fields, "Human", "Chaotic Good", &[]);
+
+        assert_eq!(info.data.deity, "Tempus");
+    }
+
+    #[test]
+    fn test_get_player_name_returns_full_name() {
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let path = temp_dir.path().join("playerinfo.bin");
+
+        let mut info = PlayerInfo::new();
+        info.data.first_name = "Garrick".to_string();
+        info.data.last_name = "Ironheart".to_string();
+        info.save(&path).expect("Failed to save playerinfo");
+
+        let name = PlayerInfo::get_player_name(&path).expect("Failed to read player name");
+        assert_eq!(name, "Garrick Ironheart");
     }
 }

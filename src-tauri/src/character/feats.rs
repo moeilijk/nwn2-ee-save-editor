@@ -396,6 +396,14 @@ enum SaveType {
     FortitudeAndWill,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+struct FeatDescriptionSections<'a> {
+    flavor: &'a str,
+    prerequisites: Option<&'a str>,
+    effects: Option<&'a str>,
+}
+
 static SAVE_PATTERNS: LazyLock<Vec<(Regex, SaveType)>> = LazyLock::new(|| {
     vec![
         (
@@ -796,7 +804,22 @@ impl Character {
 
         self.set_list("FeatList", feat_list);
 
-        self.record_feat_change(feat_id, false);
+        if let Some(mut lvl_stat_list) = self.get_list_owned("LvlStatList") {
+            for stat_entry in &mut lvl_stat_list {
+                if let Some(mut history_feat_list) =
+                    super::gff_helpers::extract_list_from_map(stat_entry, "FeatList")
+                {
+                    history_feat_list.retain(|entry| {
+                        entry.get("Feat").and_then(gff_value_to_i32) != Some(feat_id.0)
+                    });
+                    stat_entry.insert(
+                        "FeatList".to_string(),
+                        GffValue::ListOwned(history_feat_list),
+                    );
+                }
+            }
+            self.set_list("LvlStatList", lvl_stat_list);
+        }
 
         Ok(())
     }
@@ -1373,16 +1396,150 @@ impl Character {
 
     /// Calculate feat slots using the Blueprint Method - analyzes level history for accuracy.
     pub fn get_feat_slots(&self, game_data: &GameData) -> FeatSlots {
-        let level_history = self.level_history();
+        let slot_sequence = self.build_feat_slot_sequence(game_data);
 
-        if level_history.is_empty() {
+        if slot_sequence.is_empty() {
             return FeatSlots::default();
         }
+        let filled_general_slots = slot_sequence
+            .iter()
+            .filter(|(is_general, feat)| *is_general && feat.is_some())
+            .count() as i32;
+        let filled_bonus_slots = slot_sequence
+            .iter()
+            .filter(|(is_general, feat)| !*is_general && feat.is_some())
+            .count() as i32;
+        let open_general_slots = slot_sequence
+            .iter()
+            .filter(|(is_general, feat)| *is_general && feat.is_none())
+            .count() as i32;
+        let open_bonus_slots = slot_sequence
+            .iter()
+            .filter(|(is_general, feat)| !*is_general && feat.is_none())
+            .count() as i32;
 
-        let mut open_general_slots = 0;
-        let mut open_bonus_slots = 0;
-        let mut filled_general_slots = 0;
-        let mut filled_bonus_slots = 0;
+        let racial_bonus = self.get_racial_bonus_feats();
+
+        let total_general_slots = filled_general_slots + open_general_slots + racial_bonus;
+        let total_bonus_slots = filled_bonus_slots + open_bonus_slots;
+        let total_slots = total_general_slots + total_bonus_slots;
+
+        let open_slots = open_general_slots + open_bonus_slots;
+        let filled_slots = filled_general_slots + filled_bonus_slots;
+
+        FeatSlots {
+            total_general_slots,
+            total_bonus_slots,
+            total_slots,
+            filled_slots,
+            open_slots,
+            open_general_slots,
+            open_bonus_slots,
+        }
+    }
+
+    /// Returns the feat IDs that were explicitly chosen via general/bonus feat slots.
+    /// Uses the same logic as get_feat_slots to identify selectable (non-auto-granted) feats.
+    pub fn get_slot_chosen_feat_ids(&self, game_data: &GameData) -> Vec<FeatId> {
+        self.build_feat_slot_sequence(game_data)
+            .into_iter()
+            .filter_map(|(_, feat_id)| feat_id)
+            .collect()
+    }
+
+    pub fn normalize_level_one_feat_history_for_save(&mut self) {
+        let Some(mut lvl_stat_list) = self.get_list_owned("LvlStatList") else {
+            return;
+        };
+        if lvl_stat_list.is_empty() {
+            return;
+        }
+
+        let top_level_feat_list = self.get_list_owned("FeatList").unwrap_or_default();
+        if top_level_feat_list.is_empty() {
+            return;
+        }
+
+        let top_level_feat_ids: Vec<i32> = top_level_feat_list
+            .iter()
+            .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+            .collect();
+        if top_level_feat_ids.is_empty() {
+            return;
+        }
+
+        let mut residual_counts: HashMap<i32, usize> = HashMap::new();
+        for feat_id in &top_level_feat_ids {
+            *residual_counts.entry(*feat_id).or_insert(0) += 1;
+        }
+
+        for entry in lvl_stat_list.iter().skip(1) {
+            let Some(history_feat_list) =
+                super::gff_helpers::extract_list_from_map(entry, "FeatList")
+            else {
+                continue;
+            };
+
+            for feat_entry in history_feat_list {
+                let Some(feat_id) = feat_entry.get("Feat").and_then(gff_value_to_i32) else {
+                    continue;
+                };
+
+                let Some(count) = residual_counts.get_mut(&feat_id) else {
+                    return;
+                };
+                if *count == 0 {
+                    return;
+                }
+                *count -= 1;
+            }
+        }
+
+        let rebuilt_level_one_feats: Vec<IndexMap<String, GffValue<'static>>> = top_level_feat_ids
+            .into_iter()
+            .filter_map(|feat_id| {
+                let count = residual_counts.get_mut(&feat_id)?;
+                if *count == 0 {
+                    return None;
+                }
+                *count -= 1;
+
+                let mut feat_entry = IndexMap::new();
+                feat_entry.insert("Feat".to_string(), GffValue::Word(feat_id as u16));
+                Some(feat_entry)
+            })
+            .collect();
+
+        let current_level_one_feats: Vec<i32> = lvl_stat_list[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let rebuilt_feat_ids: Vec<i32> = rebuilt_level_one_feats
+            .iter()
+            .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+            .collect();
+
+        if current_level_one_feats == rebuilt_feat_ids {
+            return;
+        }
+
+        lvl_stat_list[0].insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(rebuilt_level_one_feats),
+        );
+        self.set_list("LvlStatList", lvl_stat_list);
+    }
+
+    fn build_feat_slot_sequence(&self, game_data: &GameData) -> Vec<(bool, Option<FeatId>)> {
+        let level_history = self.level_history();
+        let mut slots: Vec<(bool, Option<FeatId>)> = Vec::new();
 
         let mut class_level_tracker: std::collections::HashMap<i32, i32> =
             std::collections::HashMap::new();
@@ -1390,8 +1547,6 @@ impl Character {
             i32,
             std::collections::HashMap<i32, i32>,
         > = std::collections::HashMap::new();
-
-        let mut leftover_selectable: i32 = 0;
 
         for (total_level_idx, level_entry) in level_history.iter().enumerate() {
             let total_level = (total_level_idx + 1) as i32;
@@ -1412,13 +1567,9 @@ impl Character {
                 if class_feat_table.get(feat_id).copied() == Some(3) {
                     continue;
                 }
-
-                if let Some(feat_type) = self.get_feat_type(FeatId(*feat_id), game_data)
-                    && Self::AUTO_GRANTED_FEAT_TYPES.contains(&feat_type.0)
-                {
+                if !self.is_slot_eligible_feat(FeatId(*feat_id), game_data) {
                     continue;
                 }
-
                 selectable_feats.push(*feat_id);
             }
 
@@ -1429,60 +1580,112 @@ impl Character {
             };
 
             if has_general_slot {
-                if !selectable_feats.is_empty() {
-                    filled_general_slots += 1;
+                let feat_id = selectable_feats.first().copied().map(FeatId);
+                if feat_id.is_some() {
                     selectable_feats.remove(0);
-                } else {
-                    open_general_slots += 1;
                 }
+                slots.push((true, feat_id));
             }
 
             let has_bonus_slot =
                 self.check_bonus_feat_slot(ClassId(class_id), class_level, game_data);
-
             if has_bonus_slot {
-                if !selectable_feats.is_empty() {
-                    filled_bonus_slots += 1;
+                let feat_id = selectable_feats.first().copied().map(FeatId);
+                if feat_id.is_some() {
                     selectable_feats.remove(0);
-                } else {
-                    open_bonus_slots += 1;
                 }
+                slots.push((false, feat_id));
             }
 
-            leftover_selectable += selectable_feats.len() as i32;
         }
 
-        // Feats added via editor may land on a level without a slot.
-        // Use leftover selectable feats to fill open slots from other levels.
-        while leftover_selectable > 0 && open_general_slots > 0 {
-            open_general_slots -= 1;
-            filled_general_slots += 1;
-            leftover_selectable -= 1;
-        }
-        while leftover_selectable > 0 && open_bonus_slots > 0 {
-            open_bonus_slots -= 1;
-            filled_bonus_slots += 1;
-            leftover_selectable -= 1;
+        if slots.is_empty() {
+            return slots;
         }
 
-        let racial_bonus = self.get_racial_bonus_feats();
+        let mut occupied_feats: HashSet<FeatId> =
+            slots.iter().filter_map(|(_, feat_id)| *feat_id).collect();
 
-        let total_general_slots = filled_general_slots + open_general_slots + racial_bonus;
-        let total_bonus_slots = filled_bonus_slots + open_bonus_slots;
-        let total_slots = total_general_slots + total_bonus_slots;
+        let extra_manual_feats: Vec<FeatId> = self
+            .feat_entries()
+            .into_iter()
+            .filter(|entry| entry.source == FeatSource::Manual)
+            .map(|entry| entry.feat_id)
+            .filter(|feat_id| !occupied_feats.contains(feat_id))
+            .filter(|feat_id| self.is_slot_eligible_feat(*feat_id, game_data))
+            .collect();
 
-        let open_slots = open_general_slots + open_bonus_slots;
-        let filled_slots = filled_general_slots + filled_bonus_slots;
-
-        FeatSlots {
-            total_general_slots,
-            total_bonus_slots,
-            total_slots,
-            filled_slots,
-            open_slots,
-            open_general_slots,
-            open_bonus_slots,
+        let mut extra_iter = extra_manual_feats.into_iter();
+        for (_, feat_id) in &mut slots {
+            if feat_id.is_none()
+                && let Some(extra_feat_id) = extra_iter.next()
+            {
+                *feat_id = Some(extra_feat_id);
+                occupied_feats.insert(extra_feat_id);
+            }
         }
+
+        slots
+    }
+
+    fn is_slot_eligible_feat(&self, feat_id: FeatId, game_data: &GameData) -> bool {
+        let Some(feat_info) = self.get_feat_info(feat_id, game_data) else {
+            return false;
+        };
+        let is_domain = self.is_domain_feat(feat_id, game_data);
+        let raw_feat_type = self
+            .get_feat_type(feat_id, game_data)
+            .unwrap_or(feat_info.feat_type);
+        let raw_category = FeatCategory::from_feat_type(raw_feat_type, is_domain);
+
+        if feat_info.is_protected {
+            return false;
+        }
+
+        if matches!(
+            self.feat_source(feat_id),
+            Some(
+                FeatSource::Race | FeatSource::Background | FeatSource::Domain | FeatSource::Class
+            )
+        ) {
+            return false;
+        }
+
+        if matches!(
+            raw_category,
+            FeatCategory::Background
+                | FeatCategory::History
+                | FeatCategory::Heritage
+                | FeatCategory::Racial
+                | FeatCategory::Domain
+                | FeatCategory::Class
+        ) {
+            return false;
+        }
+
+        if matches!(
+            feat_info.category,
+            FeatCategory::Background
+                | FeatCategory::History
+                | FeatCategory::Heritage
+                | FeatCategory::Racial
+                | FeatCategory::Domain
+                | FeatCategory::Class
+        ) {
+            return false;
+        }
+
+        let label_upper = feat_info.label.to_ascii_uppercase();
+        let name_upper = feat_info.name.to_ascii_uppercase();
+        if label_upper.starts_with("FEAT_EPITHET_")
+            || name_upper.starts_with("FEAT_EPITHET_")
+            || label_upper.starts_with("WATCH_RANK_")
+            || name_upper.starts_with("WATCH_RANK_")
+        {
+            return false;
+        }
+
+        !Self::AUTO_GRANTED_FEAT_TYPES.contains(&raw_feat_type.0)
     }
 
     fn load_class_feat_table(
@@ -1669,12 +1872,13 @@ impl Character {
             missing.push(format!("Requires: {prereq_name}"));
         }
 
-        let str_score = self.get_i32("Str").unwrap_or(10);
-        let dex_score = self.get_i32("Dex").unwrap_or(10);
-        let con_score = self.get_i32("Con").unwrap_or(10);
-        let int_score = self.get_i32("Int").unwrap_or(10);
-        let wis_score = self.get_i32("Wis").unwrap_or(10);
-        let cha_score = self.get_i32("Cha").unwrap_or(10);
+        let effective = self.get_effective_abilities(game_data);
+        let str_score = effective.str_;
+        let dex_score = effective.dex;
+        let con_score = effective.con;
+        let int_score = effective.int;
+        let wis_score = effective.wis;
+        let cha_score = effective.cha;
 
         if let Some(min_str) = feat_data
             .get("minstr")
@@ -1800,9 +2004,11 @@ impl Character {
             };
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
+            let relevant_text_lower = relevant_text.to_ascii_lowercase();
 
-            if is_conditional_feat(&feat_data, &description_lower, SAVE_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(&feat_data, &relevant_text_lower, SAVE_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
@@ -1811,7 +2017,7 @@ impl Character {
             let mut found_will = false;
 
             for (pattern, save_type) in SAVE_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -1886,14 +2092,16 @@ impl Character {
                 .to_lowercase();
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
+            let relevant_text_lower = relevant_text.to_ascii_lowercase();
 
-            if is_conditional_feat(&feat_data, &description_lower, AC_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(&feat_data, &relevant_text_lower, AC_CONDITIONAL_KEYWORDS) {
                 continue;
             }
 
             if label.contains("dodge") || label.contains("mobility") {
-                if let Some(captures) = AC_DODGE_PATTERN.captures(&description) {
+                if let Some(captures) = AC_DODGE_PATTERN.captures(relevant_text) {
                     if let Some(bonus_str) = captures.get(1)
                         && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                     {
@@ -1907,7 +2115,7 @@ impl Character {
             }
 
             for pattern in AC_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -1946,9 +2154,11 @@ impl Character {
             }
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
+            let sections = Self::parse_feat_description_sections(&description);
+            let relevant_text = sections.effects.unwrap_or(&description);
 
             for pattern in INITIATIVE_PATTERNS.iter() {
-                if let Some(captures) = pattern.captures(&description)
+                if let Some(captures) = pattern.captures(relevant_text)
                     && let Some(bonus_str) = captures.get(1)
                     && let Ok(bonus_value) = bonus_str.as_str().parse::<i32>()
                 {
@@ -2007,29 +2217,26 @@ impl Character {
             };
 
             let description = Self::resolve_feat_description(&feat_data, game_data);
-            let description_lower = description.to_lowercase();
+            let sections = Self::parse_feat_description_sections(&description);
+            let effects_text = sections.effects;
+            let conditional_text = effects_text.unwrap_or(&description);
+            let conditional_text_lower = conditional_text.to_ascii_lowercase();
 
             let feat_label = feat_data
                 .get("label")
                 .and_then(|s| s.as_ref().map(String::as_str))
                 .unwrap_or("unknown");
 
-            // Explicit `Effects:` line is authoritative. Scope the conditional
-            // check to the effects text so narrative prose words ("when", "if",
-            // etc.) don't suppress unconditional bonuses — e.g. TheFlirt's prose
-            // says "...when you try to act tough" but its effects are flat.
-            if let Some(effects_start) = description_lower.find("effects:") {
-                let effects_text = &description[effects_start..];
-                let effects_lower = effects_text.to_lowercase();
+            if is_conditional_feat(
+                &feat_data,
+                &conditional_text_lower,
+                SKILL_CONDITIONAL_KEYWORDS,
+            ) {
+                debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
+                continue;
+            }
 
-                if is_conditional_feat(&feat_data, &effects_lower, SKILL_CONDITIONAL_KEYWORDS) {
-                    debug!(
-                        "[feat_skill] Skipping conditional effects feat '{}'",
-                        feat_label
-                    );
-                    continue;
-                }
-
+            if let Some(effects_text) = effects_text {
                 debug!(
                     "[feat_skill] Feat '{}' has effects line: {:?}",
                     feat_label, effects_text
@@ -2054,7 +2261,7 @@ impl Character {
                 continue;
             }
 
-            if is_conditional_feat(&feat_data, &description_lower, SKILL_CONDITIONAL_KEYWORDS) {
+            if is_conditional_feat(&feat_data, &conditional_text_lower, SKILL_CONDITIONAL_KEYWORDS) {
                 debug!("[feat_skill] Skipping conditional feat '{}'", feat_label);
                 continue;
             }
@@ -2135,6 +2342,32 @@ impl Character {
         }
 
         String::new()
+    }
+
+    fn parse_feat_description_sections(description: &str) -> FeatDescriptionSections<'_> {
+        let description_lower = description.to_ascii_lowercase();
+        let prerequisite_index = description_lower.find("prerequisite:");
+        let effects_index = description_lower.find("effects:");
+
+        let flavor_end = match (prerequisite_index, effects_index) {
+            (Some(prereq), Some(effects)) => prereq.min(effects),
+            (Some(prereq), None) => prereq,
+            (None, Some(effects)) => effects,
+            (None, None) => description.len(),
+        };
+
+        let prerequisites = prerequisite_index.map(|start| {
+            let end = effects_index.unwrap_or(description.len());
+            description[start..end].trim()
+        });
+
+        let effects = effects_index.map(|start| description[start..].trim());
+
+        FeatDescriptionSections {
+            flavor: description[..flavor_end].trim(),
+            prerequisites,
+            effects,
+        }
     }
 
     fn strip_html_tags(text: &str) -> String {
@@ -2834,7 +3067,13 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ahash::AHashMap;
     use indexmap::IndexMap;
+    use std::sync::Arc;
+
+    use crate::loaders::{GameData, LoadedTable};
+    use crate::parsers::tda::TDAParser;
+    use crate::parsers::tlk::TLKParser;
 
     fn create_test_character_with_feats() -> Character {
         let mut fields = IndexMap::new();
@@ -2860,6 +3099,313 @@ mod tests {
         Character::from_gff(IndexMap::new())
     }
 
+    fn create_mock_game_data() -> GameData {
+        GameData::new(Arc::new(std::sync::RwLock::new(TLKParser::default())))
+    }
+
+    fn create_loaded_table(
+        name: &str,
+        columns: &[&str],
+        rows: Vec<AHashMap<String, Option<String>>>,
+    ) -> LoadedTable {
+        let mut parser = TDAParser::new();
+        for column in columns {
+            parser.add_column(column);
+        }
+        for row in rows {
+            parser.add_row(row);
+        }
+        LoadedTable::new(name.to_string(), Arc::new(parser))
+    }
+
+    fn create_slot_test_character() -> Character {
+        let mut fields = IndexMap::new();
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(2));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let make_feat_entry = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_one.insert("LvlStatHitDie".to_string(), GffValue::Byte(10));
+        level_one.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_one.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_one.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(2),
+                make_feat_entry(3),
+                make_feat_entry(1),
+            ]),
+        );
+
+        let mut level_two = IndexMap::new();
+        level_two.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_two.insert("LvlStatHitDie".to_string(), GffValue::Byte(8));
+        level_two.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_two.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_two.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![make_feat_entry(4)]),
+        );
+
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![level_one, level_two]),
+        );
+        fields.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(1),
+                make_feat_entry(2),
+                make_feat_entry(3),
+                make_feat_entry(4),
+            ]),
+        );
+
+        Character::from_gff(fields)
+    }
+
+    fn create_slot_test_character_with_story_history() -> Character {
+        let mut fields = IndexMap::new();
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(0));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(2));
+        fields.insert(
+            "ClassList".to_string(),
+            GffValue::ListOwned(vec![class_entry]),
+        );
+
+        let make_feat_entry = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_one.insert("LvlStatHitDie".to_string(), GffValue::Byte(10));
+        level_one.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_one.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_one.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(2),
+                make_feat_entry(5),
+                make_feat_entry(6),
+                make_feat_entry(1),
+            ]),
+        );
+
+        let mut level_two = IndexMap::new();
+        level_two.insert("LvlStatClass".to_string(), GffValue::Byte(0));
+        level_two.insert("LvlStatHitDie".to_string(), GffValue::Byte(8));
+        level_two.insert("SkillPoints".to_string(), GffValue::Short(0));
+        level_two.insert("LvlStatAbility".to_string(), GffValue::Byte(255));
+        level_two.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![make_feat_entry(4)]),
+        );
+
+        fields.insert(
+            "LvlStatList".to_string(),
+            GffValue::ListOwned(vec![level_one, level_two]),
+        );
+        fields.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![
+                make_feat_entry(1),
+                make_feat_entry(2),
+                make_feat_entry(4),
+                make_feat_entry(5),
+                make_feat_entry(6),
+            ]),
+        );
+
+        Character::from_gff(fields)
+    }
+
+    fn create_slot_test_game_data() -> GameData {
+        let mut game_data = create_mock_game_data();
+
+        let mut class_row = AHashMap::new();
+        class_row.insert("FeatsTable".to_string(), Some("fighterfeat".to_string()));
+        class_row.insert(
+            "BonusFeatsTable".to_string(),
+            Some("fighterbonus".to_string()),
+        );
+        game_data.tables.insert(
+            "classes".to_string(),
+            create_loaded_table(
+                "classes",
+                &["FeatsTable", "BonusFeatsTable"],
+                vec![class_row],
+            ),
+        );
+
+        let mut class_feat_auto = AHashMap::new();
+        class_feat_auto.insert("FeatIndex".to_string(), Some("2".to_string()));
+        class_feat_auto.insert("List".to_string(), Some("3".to_string()));
+        let mut class_feat_selectable = AHashMap::new();
+        class_feat_selectable.insert("FeatIndex".to_string(), Some("4".to_string()));
+        class_feat_selectable.insert("List".to_string(), Some("1".to_string()));
+        game_data.tables.insert(
+            "fighterfeat".to_string(),
+            create_loaded_table(
+                "fighterfeat",
+                &["FeatIndex", "List"],
+                vec![class_feat_auto, class_feat_selectable],
+            ),
+        );
+
+        let mut level_one_bonus = AHashMap::new();
+        level_one_bonus.insert("Bonus".to_string(), Some("0".to_string()));
+        let mut level_two_bonus = AHashMap::new();
+        level_two_bonus.insert("Bonus".to_string(), Some("1".to_string()));
+        game_data.tables.insert(
+            "fighterbonus".to_string(),
+            create_loaded_table(
+                "fighterbonus",
+                &["Bonus"],
+                vec![level_one_bonus, level_two_bonus],
+            ),
+        );
+
+        let make_feat_row = |feat_type: &str, label: &str| {
+            let mut row = AHashMap::new();
+            row.insert("FEAT".to_string(), Some(feat_type.to_string()));
+            row.insert("label".to_string(), Some(label.to_string()));
+            row
+        };
+        game_data.tables.insert(
+            "feat".to_string(),
+            create_loaded_table(
+                "feat",
+                &["FEAT", "label"],
+                vec![
+                    make_feat_row("GENERAL", "AUTO_0"),
+                    make_feat_row("GENERAL", "POWER_ATTACK"),
+                    make_feat_row("GENERAL", "AUTO_CLASS_FEAT"),
+                    make_feat_row("BACKGROUND", "BACKGROUND_PICK"),
+                    make_feat_row("GENERAL", "WEAPON_FOCUS_LONGSWORD"),
+                    make_feat_row("GENERAL", "FEAT_EPITHET_MERCHANTS_FRIEND"),
+                    make_feat_row("GENERAL", "FEAT_EPITHET_BLESSED_OF_WAUKEEN"),
+                ],
+            ),
+        );
+
+        game_data
+    }
+
+    #[test]
+    fn test_normalize_level_one_feat_history_for_save_rebuilds_missing_residual_feats() {
+        let mut character = create_empty_character();
+
+        let mut class_entry = IndexMap::new();
+        class_entry.insert("Class".to_string(), GffValue::Byte(4));
+        class_entry.insert("ClassLevel".to_string(), GffValue::Short(3));
+        character.set_list("ClassList", vec![class_entry]);
+
+        let make_feat = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        character.set_list(
+            "FeatList",
+            vec![
+                make_feat(2),
+                make_feat(28),
+                make_feat(106),
+                make_feat(1701),
+                make_feat(6),
+                make_feat(40),
+            ],
+        );
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_one.insert(
+            "FeatList".to_string(),
+            GffValue::ListOwned(vec![make_feat(28), make_feat(106)]),
+        );
+        let mut level_two = IndexMap::new();
+        level_two.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_two.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(6)]));
+        let mut level_three = IndexMap::new();
+        level_three.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_three.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(40)]));
+
+        character.set_list("LvlStatList", vec![level_one, level_two, level_three]);
+
+        character.normalize_level_one_feat_history_for_save();
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        let level_one_feats: Vec<i32> = history[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(level_one_feats, vec![2, 28, 106, 1701]);
+    }
+
+    #[test]
+    fn test_normalize_level_one_feat_history_for_save_sets_single_level_history_to_top_level() {
+        let mut character = create_empty_character();
+
+        let make_feat = |feat_id: u16| {
+            let mut feat = IndexMap::new();
+            feat.insert("Feat".to_string(), GffValue::Word(feat_id));
+            feat
+        };
+
+        character.set_list(
+            "FeatList",
+            vec![make_feat(2), make_feat(28), make_feat(106), make_feat(1717)],
+        );
+
+        let mut level_one = IndexMap::new();
+        level_one.insert("LvlStatClass".to_string(), GffValue::Byte(4));
+        level_one.insert("FeatList".to_string(), GffValue::ListOwned(vec![make_feat(28)]));
+        character.set_list("LvlStatList", vec![level_one]);
+
+        character.normalize_level_one_feat_history_for_save();
+
+        let history = character.get_list_owned("LvlStatList").unwrap();
+        let level_one_feats: Vec<i32> = history[0]
+            .get("FeatList")
+            .and_then(|value| match value {
+                GffValue::ListOwned(list) => Some(
+                    list.iter()
+                        .filter_map(|entry| entry.get("Feat").and_then(gff_value_to_i32))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(level_one_feats, vec![2, 28, 106, 1717]);
+    }
+
     #[test]
     fn test_feat_ids() {
         let character = create_test_character_with_feats();
@@ -2877,6 +3423,48 @@ mod tests {
         let feat_ids = character.feat_ids();
 
         assert_eq!(feat_ids.len(), 0);
+    }
+
+    #[test]
+    fn test_slot_chosen_feat_ids_only_return_removable_slot_picks() {
+        let character = create_slot_test_character();
+        let game_data = create_slot_test_game_data();
+
+        let chosen = character.get_slot_chosen_feat_ids(&game_data);
+        let slots = character.get_feat_slots(&game_data);
+
+        assert_eq!(chosen, vec![FeatId(1), FeatId(4)]);
+        assert_eq!(slots.filled_slots, 2);
+        assert_eq!(chosen.len() as i32, slots.filled_slots);
+    }
+
+    #[test]
+    fn test_slot_chosen_feat_ids_ignore_story_feats_in_level_history() {
+        let character = create_slot_test_character_with_story_history();
+        let game_data = create_slot_test_game_data();
+
+        let chosen = character.get_slot_chosen_feat_ids(&game_data);
+        let slots = character.get_feat_slots(&game_data);
+
+        assert_eq!(chosen, vec![FeatId(1), FeatId(4)]);
+        assert_eq!(slots.filled_slots, 2);
+        assert_eq!(slots.open_slots, 0);
+    }
+
+    #[test]
+    fn test_remove_feat_also_updates_level_history_slots() {
+        let mut character = create_slot_test_character();
+        let game_data = create_slot_test_game_data();
+
+        character.remove_feat(FeatId(1)).unwrap();
+
+        let chosen = character.get_slot_chosen_feat_ids(&game_data);
+        let slots = character.get_feat_slots(&game_data);
+
+        assert_eq!(chosen, vec![FeatId(4)]);
+        assert_eq!(slots.filled_slots, 1);
+        assert_eq!(slots.open_slots, 1);
+        assert!(!character.has_feat(FeatId(1)));
     }
 
     #[test]
@@ -3068,5 +3656,17 @@ mod tests {
 
         let captures = pattern.captures("PowerAttack");
         assert!(captures.is_none());
+    }
+
+    #[test]
+    fn test_parse_feat_description_sections_splits_flavor_prereq_and_effects() {
+        let description =
+            "Flavor text here. Prerequisite: Dexterity 10+ Effects: +1 Listen, -1 Intimidate";
+
+        let sections = Character::parse_feat_description_sections(description);
+
+        assert_eq!(sections.flavor, "Flavor text here.");
+        assert_eq!(sections.prerequisites, Some("Prerequisite: Dexterity 10+"));
+        assert_eq!(sections.effects, Some("Effects: +1 Listen, -1 Intimidate"));
     }
 }

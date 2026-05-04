@@ -1,4 +1,7 @@
-use crate::character::{AbilityIndex, AbilityPointsSummary, AbilityScores, Alignment, HitPoints};
+use crate::character::{
+    AbilityIndex, AbilityPointsSummary, AbilityScores, Alignment, HitPoints, RaceId,
+    RacialProperties,
+};
 use crate::commands::{CommandError, CommandResult};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -127,6 +130,22 @@ pub async fn set_character_age(state: State<'_, AppState>, age: i32) -> CommandR
 }
 
 #[tauri::command]
+pub async fn set_gender(state: State<'_, AppState>, gender: i32) -> CommandResult<i32> {
+    let mut session = state.session.write();
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    character
+        .set_gender(gender)
+        .map_err(|e| CommandError::ValidationError {
+            field: "gender".to_string(),
+            reason: e.to_string(),
+        })?;
+    Ok(character.gender())
+}
+
+#[tauri::command]
 pub async fn get_experience_points(state: State<'_, AppState>) -> CommandResult<i32> {
     let session = state.session.read();
     let character = session
@@ -245,6 +264,27 @@ pub async fn get_background(state: State<'_, AppState>) -> CommandResult<Option<
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
     Ok(character.background(&game_data))
+}
+
+#[tauri::command]
+pub async fn set_background(
+    state: State<'_, AppState>,
+    background_id: Option<i32>,
+) -> CommandResult<Option<String>> {
+    let game_data = state.game_data.read();
+    let mut session = state.session.write();
+    let result = {
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+        character.set_background(background_id, &game_data)
+    };
+    session.invalidate_feat_cache();
+    result.map_err(|e| CommandError::ValidationError {
+        field: "background".to_string(),
+        reason: e.to_string(),
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -490,11 +530,53 @@ pub async fn get_race_name(state: State<'_, AppState>) -> CommandResult<String> 
 #[tauri::command]
 pub async fn get_subrace(state: State<'_, AppState>) -> CommandResult<Option<String>> {
     let session = state.session.read();
+    let game_data = state.game_data.read();
     let character = session
         .character
         .as_ref()
         .ok_or(CommandError::NoCharacterLoaded)?;
-    Ok(character.subrace())
+    Ok(character.subrace_name(&game_data))
+}
+
+#[tauri::command]
+pub async fn get_racial_properties(
+    state: State<'_, AppState>,
+) -> CommandResult<RacialProperties> {
+    let session = state.session.read();
+    let game_data = state.game_data.read();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    Ok(character.get_racial_properties(&game_data))
+}
+
+#[tauri::command]
+pub async fn set_race(state: State<'_, AppState>, race_id: i32) -> CommandResult<()> {
+    let mut session = state.session.write();
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    character.set_race(RaceId(race_id));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_subrace(state: State<'_, AppState>, subrace: Option<String>) -> CommandResult<()> {
+    let mut session = state.session.write();
+    let game_data = state.game_data.read();
+    let character = session
+        .character
+        .as_mut()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    character
+        .change_race(character.race_id().0, subrace, false, &game_data)
+        .map_err(|e| CommandError::ValidationError {
+            field: "subrace".to_string(),
+            reason: e.to_string(),
+        })?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -549,16 +631,18 @@ pub async fn change_race(
         .as_mut()
         .ok_or(CommandError::NoCharacterLoaded)?;
 
-    let old_race_id = character.race_id();
-    let old_subrace = character.subrace();
-
-    character.change_race(race_id, subrace.clone(), false, &game_data)?;
+    let result = character
+        .change_race(race_id, subrace.clone(), false, &game_data)
+        .map_err(|e| CommandError::ValidationError {
+            field: "race".to_string(),
+            reason: e.to_string(),
+        })?;
 
     Ok(RaceChangedEvent {
-        old_race_id: Some(old_race_id.0),
-        new_race_id: race_id,
-        old_subrace,
-        new_subrace: subrace,
+        old_race_id: Some(result.old_race_id),
+        new_race_id: result.new_race_id,
+        old_subrace: result.old_subrace,
+        new_subrace: result.new_subrace,
     })
 }
 

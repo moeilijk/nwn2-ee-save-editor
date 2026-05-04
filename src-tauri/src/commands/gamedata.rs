@@ -100,6 +100,7 @@ pub struct AvailableClass {
     pub id: i32,
     pub name: Option<String>,
     pub is_prestige: bool,
+    pub hit_die: i32,
 }
 
 #[tauri::command]
@@ -116,12 +117,38 @@ pub async fn get_available_classes(
     let mut classes = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name = row_str(&row, "name");
-            let is_prestige = row_str(&row, "prereqtable").is_some();
+            // Name column contains a TLK string reference — resolve it
+            let name = if let Some(Some(strref_str)) = row.get("Name")
+                && let Ok(strref) = strref_str.parse::<i32>()
+                && let Some(resolved) = game_data.get_string(strref)
+            {
+                resolved
+            } else {
+                row.get("Label")
+                    .and_then(std::clone::Clone::clone)
+                    .unwrap_or_default()
+            };
+
+            if name.is_empty() {
+                continue;
+            }
+
+            let hit_die = row
+                .get("HitDie")
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+
+            if hit_die == 0 {
+                continue;
+            }
+
+            let is_prestige = row.get("PreReqTable").and_then(|v| v.as_ref()).is_some();
             classes.push(AvailableClass {
                 id: i as i32,
-                name,
+                name: Some(name),
                 is_prestige,
+                hit_die,
             });
         }
     }
@@ -379,6 +406,7 @@ pub async fn get_available_spells(
 pub struct AvailableRace {
     pub id: i32,
     pub name: String,
+    pub is_playable: bool,
     pub icon: Option<String>,
     pub description: Option<String>,
     pub ability_adjustments: crate::character::types::AbilityModifiers,
@@ -440,9 +468,6 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
             let is_playable = row_int(&row, "playerrace", 0) == 1;
-            if !is_playable {
-                continue;
-            }
 
             let name_ref = row_int(&row, "name", -1);
             let name = if name_ref >= 0 {
@@ -452,6 +477,10 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
             }
             .or_else(|| row_str(&row, "label"))
             .unwrap_or_else(|| format!("Race {i}"));
+
+            if name.is_empty() {
+                continue;
+            }
 
             let desc_ref = row_int(&row, "description", -1);
             let description = if desc_ref >= 0 {
@@ -482,6 +511,7 @@ pub async fn get_available_races(state: State<'_, AppState>) -> CommandResult<Ve
             races.push(AvailableRace {
                 id: i as i32,
                 name,
+                is_playable,
                 icon,
                 description,
                 ability_adjustments,
@@ -655,6 +685,14 @@ pub struct AvailableGender {
     pub name: String,
 }
 
+fn default_gender_name(gender_id: i32) -> &'static str {
+    match gender_id {
+        0 => "Male",
+        1 => "Female",
+        _ => "Unknown",
+    }
+}
+
 #[tauri::command]
 pub async fn get_available_genders(
     state: State<'_, AppState>,
@@ -667,16 +705,20 @@ pub async fn get_available_genders(
         })?;
 
     let mut genders = Vec::new();
-    for i in 0..table.row_count() {
-        if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row_int(&row, "name", -1);
-            let name = if name_ref >= 0 {
-                game_data.get_string(name_ref)
-            } else {
-                None
-            }
-            .unwrap_or_else(|| format!("Gender {i}"));
-            genders.push(AvailableGender { id: i as i32, name });
+    for gender_id in 0..=1 {
+        if let Some(row) = table.get_by_id(gender_id) {
+            let name_ref = row
+                .get("name")
+                .and_then(std::clone::Clone::clone)
+                .and_then(|s| s.parse::<i32>().ok());
+            let name = name_ref
+                .and_then(|r| game_data.get_string(r))
+                .filter(|name| !name.trim().is_empty() && !name.starts_with("Gender "))
+                .unwrap_or_else(|| default_gender_name(gender_id).to_string());
+            genders.push(AvailableGender {
+                id: gender_id,
+                name,
+            });
         }
     }
     Ok(genders)
@@ -997,12 +1039,191 @@ pub struct AvailableBackground {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
+    pub can_take: bool,
+    pub missing_requirements: Vec<String>,
+}
+
+fn background_row_i32(row: &ahash::AHashMap<String, Option<String>>, keys: &[&str]) -> Option<i32> {
+    keys.iter()
+        .find_map(|key| row.get(*key).and_then(std::clone::Clone::clone))
+        .and_then(|value| value.parse::<i32>().ok())
+}
+
+fn background_row_removed(row: &ahash::AHashMap<String, Option<String>>) -> bool {
+    background_row_i32(row, &["REMOVED", "Removed"]).unwrap_or(0) != 0
+}
+
+fn background_row_primary_feat_id(row: &ahash::AHashMap<String, Option<String>>) -> Option<i32> {
+    [
+        ["DisplayFeat", "display_feat"].as_slice(),
+        ["FeatGained", "feat_gained"].as_slice(),
+        ["MasterFeatGained", "master_feat_gained"].as_slice(),
+    ]
+    .into_iter()
+    .find_map(|keys| background_row_i32(row, keys))
+    .filter(|feat_id| *feat_id >= 0)
+}
+
+fn background_missing_requirements(
+    character: &crate::character::Character,
+    row: &ahash::AHashMap<String, Option<String>>,
+    game_data: &crate::loaders::GameData,
+) -> Vec<String> {
+    let mut missing = Vec::new();
+
+    let ability_requirements = [
+        (
+            "MINSTR",
+            "Strength",
+            character.get_i32("Str").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINDEX",
+            "Dexterity",
+            character.get_i32("Dex").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINCON",
+            "Constitution",
+            character.get_i32("Con").unwrap_or(10),
+            true,
+        ),
+        (
+            "MININT",
+            "Intelligence",
+            character.get_i32("Int").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINWIS",
+            "Wisdom",
+            character.get_i32("Wis").unwrap_or(10),
+            true,
+        ),
+        (
+            "MINCHA",
+            "Charisma",
+            character.get_i32("Cha").unwrap_or(10),
+            true,
+        ),
+        (
+            "MAXSTR",
+            "Strength",
+            character.get_i32("Str").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXDEX",
+            "Dexterity",
+            character.get_i32("Dex").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXCON",
+            "Constitution",
+            character.get_i32("Con").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXINT",
+            "Intelligence",
+            character.get_i32("Int").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXWIS",
+            "Wisdom",
+            character.get_i32("Wis").unwrap_or(10),
+            false,
+        ),
+        (
+            "MAXCHA",
+            "Charisma",
+            character.get_i32("Cha").unwrap_or(10),
+            false,
+        ),
+    ];
+
+    for (field, label, score, is_minimum) in ability_requirements {
+        if let Some(value) = background_row_i32(row, &[field]).filter(|value| *value > 0) {
+            let invalid = if is_minimum {
+                score < value
+            } else {
+                score > value
+            };
+            if invalid {
+                let requirement = if is_minimum {
+                    format!("Requires {label} {value}")
+                } else {
+                    format!("Requires {label} {value} or lower")
+                };
+                missing.push(requirement);
+            }
+        }
+    }
+
+    if let Some(min_bab) = background_row_i32(row, &["MINATTACKBONUS"]).filter(|value| *value > 0) {
+        let bab = character.calculate_bab(game_data);
+        if bab < min_bab {
+            missing.push(format!("Requires Base Attack Bonus +{min_bab}"));
+        }
+    }
+
+    if let Some(required_gender) = background_row_i32(row, &["Gender"]).filter(|value| *value >= 0)
+    {
+        let current_gender = character.gender();
+        if required_gender <= 1 && current_gender != required_gender {
+            let gender_label = if required_gender == 1 {
+                "Female"
+            } else {
+                "Male"
+            };
+            missing.push(format!("Requires {gender_label}"));
+        }
+    }
+
+    let required_classes: Vec<crate::character::ClassId> =
+        ["OrReqClass0", "OrReqClass1", "OrReqClass2"]
+            .iter()
+            .filter_map(|field| background_row_i32(row, &[*field]))
+            .filter(|class_id| *class_id >= 0)
+            .map(crate::character::ClassId)
+            .collect();
+
+    if !required_classes.is_empty()
+        && !required_classes
+            .iter()
+            .any(|class_id| character.class_level(*class_id) > 0)
+    {
+        let class_names = required_classes
+            .iter()
+            .map(|class_id| character.get_class_name(*class_id, game_data))
+            .collect::<Vec<_>>()
+            .join(", ");
+        missing.push(format!("Requires one of: {class_names}"));
+    }
+
+    if let Some(feat_id) = background_row_primary_feat_id(row)
+        && !character.has_feat(crate::character::FeatId(feat_id))
+    {
+        let feat_prereqs = character
+            .validate_feat_prerequisites(crate::character::FeatId(feat_id), game_data)
+            .missing_requirements;
+        missing.extend(feat_prereqs);
+    }
+
+    missing.sort();
+    missing.dedup();
+    missing
 }
 
 #[tauri::command]
 pub async fn get_available_backgrounds(
     state: State<'_, AppState>,
 ) -> CommandResult<Vec<AvailableBackground>> {
+    let session = state.session.read();
     let game_data = state.game_data.read();
     let table = match game_data.get_table("backgrounds") {
         Some(t) => t,
@@ -1012,24 +1233,45 @@ pub async fn get_available_backgrounds(
     let mut backgrounds = Vec::new();
     for i in 0..table.row_count() {
         if let Some(row) = table.get_by_id(i as i32) {
-            let name_ref = row_int(&row, "name", -1);
-            let name = if name_ref >= 0 {
-                game_data.get_string(name_ref)
-            } else {
-                None
+            if background_row_removed(&row) {
+                continue;
             }
-            .or_else(|| row_str(&row, "label"))
-            .unwrap_or_else(|| format!("Background {i}"));
-            let desc_ref = row_int(&row, "description", -1);
-            let description = if desc_ref >= 0 {
-                game_data.get_string(desc_ref)
-            } else {
-                None
+
+            let name_ref = row
+                .get("name")
+                .or_else(|| row.get("Name"))
+                .and_then(std::clone::Clone::clone)
+                .and_then(|s| s.parse::<i32>().ok());
+            let name = row
+                .get("label")
+                .or_else(|| row.get("Label"))
+                .and_then(std::clone::Clone::clone)
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| name_ref.and_then(|r| game_data.get_string(r)))
+                .unwrap_or_else(|| format!("Background {i}"));
+            let desc_ref = row
+                .get("description")
+                .or_else(|| row.get("Description"))
+                .and_then(|v| v.as_ref())
+                .and_then(|s| s.parse::<i32>().ok());
+            let description = desc_ref.and_then(|r| game_data.get_string(r));
+            let Some(_primary_feat_id) = background_row_primary_feat_id(&row) else {
+                continue;
+            };
+
+            let (can_take, missing_requirements) = match session.character.as_ref() {
+                Some(character) => {
+                    let missing = background_missing_requirements(character, &row, &game_data);
+                    (missing.is_empty(), missing)
+                }
+                None => (true, Vec::new()),
             };
             backgrounds.push(AvailableBackground {
                 id: i as i32,
                 name,
                 description,
+                can_take,
+                missing_requirements,
             });
         }
     }

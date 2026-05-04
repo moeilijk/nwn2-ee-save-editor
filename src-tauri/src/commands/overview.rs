@@ -188,7 +188,6 @@ pub async fn apply_point_buy(
     use crate::character::abilities::{
         POINT_BUY_BUDGET, POINT_BUY_MAX, POINT_BUY_MIN, calculate_point_buy_cost,
     };
-    use crate::character::types::AbilityIndex;
 
     super::inventory::ensure_decoder_initialized(&state).await;
 
@@ -225,19 +224,34 @@ pub async fn apply_point_buy(
             .as_mut()
             .ok_or(CommandError::NoCharacterLoaded)?;
 
-        character.clear_ability_level_up_history()?;
+        character.apply_point_buy_scores(new_scores, &game_data)?;
+    }
 
-        let old_con = character.base_ability(AbilityIndex::CON);
-        character.set_ability(AbilityIndex::STR, new_scores.str_)?;
-        character.set_ability(AbilityIndex::DEX, new_scores.dex)?;
-        character.set_ability(AbilityIndex::CON, new_scores.con)?;
-        character.set_ability(AbilityIndex::INT, new_scores.int)?;
-        character.set_ability(AbilityIndex::WIS, new_scores.wis)?;
-        character.set_ability(AbilityIndex::CHA, new_scores.cha)?;
+    let session = state.session.read();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+    let decoder = &session.item_property_decoder;
+    Ok(character.get_abilities_state(&game_data, decoder))
+}
 
-        if new_scores.con != old_con {
-            character.recalculate_hit_points(old_con, new_scores.con);
-        }
+#[tauri::command]
+pub async fn update_starting_abilities(
+    state: State<'_, AppState>,
+    scores: crate::character::types::AbilityScores,
+) -> CommandResult<AbilitiesState> {
+    super::inventory::ensure_decoder_initialized(&state).await;
+    let game_data = state.game_data.read();
+
+    {
+        let mut session = state.session.write();
+        let character = session
+            .character
+            .as_mut()
+            .ok_or(CommandError::NoCharacterLoaded)?;
+
+        character.set_starting_ability_scores(scores, &game_data)?;
     }
 
     let session = state.session.read();

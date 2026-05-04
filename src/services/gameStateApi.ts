@@ -273,6 +273,8 @@ export interface ModuleInfo {
   module_description: string;
   campaign_id: string;
   current_module?: string;
+  hak_list?: string[];
+  custom_tlk?: string;
   game_year?: number;
   game_month?: number;
   game_day?: number;
@@ -301,7 +303,39 @@ export interface UpdateModuleVariableResponse {
   has_unsaved_changes: boolean;
 }
 
+export interface CampaignSummaryCompanionStatus {
+  name: string;
+  influence: number | null;
+  recruitment: string;
+  source: string;
+}
+
+export interface CampaignSummaryQuestGroup {
+  completed: string[];
+  active: string[];
+}
+
+export interface CampaignSummaryQuestOverview {
+  completed_count: number;
+  active_count: number;
+  total_quest_vars: number;
+  completion_percentage: number;
+  quest_groups: Record<string, CampaignSummaryQuestGroup>;
+}
+
+export interface CampaignSummaryResponse {
+  general_info: Record<string, string | null>;
+  companion_status: Record<string, CampaignSummaryCompanionStatus>;
+  quest_overview: CampaignSummaryQuestOverview;
+  raw_data_counts: Record<string, number>;
+}
+
 export class GameStateAPI {
+  async getCampaignSummary(characterId: number): Promise<CampaignSummaryResponse> {
+    void characterId;
+    return invoke<CampaignSummaryResponse>('get_campaign_summary');
+  }
+
   async getCompanionInfluence(characterId: number): Promise<CompanionInfluenceResponse> {
     const companions = await invoke<Record<string, CompanionInfluenceData>>('get_companion_influence');
     return { companions };

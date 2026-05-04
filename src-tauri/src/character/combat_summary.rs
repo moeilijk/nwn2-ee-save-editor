@@ -1,5 +1,5 @@
 use crate::character::Character;
-use crate::character::types::{AbilityIndex, ClassId, calculate_modifier};
+use crate::character::types::{ClassId, calculate_modifier};
 use crate::loaders::GameData;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -114,7 +114,7 @@ impl Character {
     ) -> CombatSummary {
         let bab = self.calculate_bab(game_data);
         let attack_sequence = self.get_attack_sequence(game_data);
-        let damage_bonuses = self.get_damage_bonuses();
+        let damage_bonuses = self.get_damage_bonuses(game_data);
 
         let armor_class = self.get_armor_class(game_data, decoder);
         let attack_bonuses = self.get_attack_bonuses(game_data, decoder);
@@ -170,9 +170,9 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> ArmorClass {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
-        let size_mod = self.size_modifier();
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
         let natural_ac = self.natural_ac();
         let feat_ac = self.get_feat_ac_bonuses(game_data);
         let class_ac = self.get_class_ac_bonus(game_data, item_bonuses.ac_shield_bonus > 0);
@@ -265,11 +265,10 @@ impl Character {
     ) -> AttackBonuses {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
-        let size_mod = self.size_modifier();
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let str_mod = calculate_modifier(effective_abilities.str_ + item_bonuses.str_bonus);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
+        let size_mod = self.get_size_modifier(self.creature_size(), game_data);
 
         let melee_breakdown = AttackBreakdown {
             base: bab,
@@ -314,8 +313,8 @@ impl Character {
         decoder: &crate::services::item_property_decoder::ItemPropertyDecoder,
     ) -> Initiative {
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let dex_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::DEX) + item_bonuses.dex_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let dex_mod = calculate_modifier(effective_abilities.dex + item_bonuses.dex_bonus);
         let feat_bonus = self.get_feat_initiative_bonus(game_data);
         let misc = self.get_i32("initbonus").unwrap_or(0);
 
@@ -334,8 +333,8 @@ impl Character {
     ) -> CombatManeuverBonus {
         let bab = self.calculate_bab(game_data);
         let item_bonuses = self.get_equipment_bonuses(game_data, decoder);
-        let str_mod =
-            calculate_modifier(self.base_ability(AbilityIndex::STR) + item_bonuses.str_bonus);
+        let effective_abilities = self.get_effective_abilities(game_data);
+        let str_mod = calculate_modifier(effective_abilities.str_ + item_bonuses.str_bonus);
         let size_mod = self.size_modifier();
 
         CombatManeuverBonus {
@@ -391,6 +390,8 @@ impl Character {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::loaders::types::LoadedTable;
+    use crate::parsers::tda::TDAParser;
     use crate::parsers::gff::GffValue;
     use crate::parsers::tlk::TLKParser;
     use indexmap::IndexMap;
@@ -408,6 +409,24 @@ mod tests {
 
     fn create_test_game_data() -> GameData {
         GameData::new(Arc::new(RwLock::new(TLKParser::default())))
+    }
+
+    fn create_test_game_data_with_creaturesize() -> GameData {
+        let mut game_data = create_test_game_data();
+        let content = "2DA V2.0
+
+        LABEL    ACAttackMod
+0       FINE     8
+1       DIMINUTIVE 4
+2       SMALL    1
+3       MEDIUM   0
+4       LARGE    -1
+";
+        let mut parser = TDAParser::new();
+        parser.parse_from_bytes(content.as_bytes()).unwrap();
+        let table = LoadedTable::new("creaturesize".to_string(), Arc::new(parser));
+        game_data.tables.insert("creaturesize".to_string(), table);
+        game_data
     }
 
     fn create_test_decoder() -> crate::services::item_property_decoder::ItemPropertyDecoder {
@@ -469,5 +488,19 @@ mod tests {
         assert!(summary.armor_class.total >= 10);
         assert_eq!(summary.bab, 0);
         assert_eq!(summary.attack_sequence.len(), 1);
+    }
+
+    #[test]
+    fn test_armor_class_uses_creaturesize_table_for_size_modifier() {
+        let mut fields = IndexMap::new();
+        fields.insert("Dex".to_string(), GffValue::Byte(10));
+        fields.insert("CreatureSize".to_string(), GffValue::Int(4));
+        let character = Character::from_gff(fields);
+        let game_data = create_test_game_data_with_creaturesize();
+        let decoder = create_test_decoder();
+
+        let ac = character.get_armor_class(&game_data, &decoder);
+
+        assert_eq!(ac.breakdown.size, 0);
     }
 }

@@ -98,6 +98,7 @@ pub fn run() {
             get_default_localvault_path,
             // Session
             crate::commands::session::load_character,
+            crate::commands::session::list_save_characters,
             crate::commands::session::save_character,
             crate::commands::session::close_character,
             crate::commands::session::get_session_info,
@@ -112,6 +113,7 @@ pub fn run() {
             crate::commands::character::get_full_name,
             crate::commands::character::set_character_age,
             crate::commands::character::get_character_age,
+            crate::commands::character::set_gender,
             crate::commands::character::get_experience_points,
             crate::commands::character::set_experience_points,
             crate::commands::character::get_alignment,
@@ -121,6 +123,7 @@ pub fn run() {
             crate::commands::character::set_biography,
             crate::commands::character::get_biography,
             crate::commands::character::get_background,
+            crate::commands::character::set_background,
             crate::commands::character::get_domains,
             // Character - Abilities
             crate::commands::character::set_attribute,
@@ -135,6 +138,7 @@ pub fn run() {
             crate::commands::character::get_race_id,
             crate::commands::character::get_race_name,
             crate::commands::character::get_subrace,
+            crate::commands::character::get_racial_properties,
             crate::commands::character::get_available_subraces,
             crate::commands::character::get_ability_modifiers,
             crate::commands::character::get_racial_modifiers,
@@ -167,6 +171,7 @@ pub fn run() {
             crate::commands::feats::has_feat,
             crate::commands::feats::get_feat_info,
             crate::commands::feats::get_feat_summary,
+            crate::commands::feats::get_slot_chosen_feats,
             crate::commands::feats::get_feat_slots,
             crate::commands::feats::validate_feat_prerequisites,
             crate::commands::feats::add_feat,
@@ -291,6 +296,7 @@ pub fn run() {
             crate::commands::paths::reset_game_folder,
             crate::commands::paths::reset_documents_folder,
             crate::commands::paths::reset_steam_workshop_folder,
+            crate::commands::paths::set_path_setup_mode,
             crate::commands::paths::auto_detect_paths,
             // Config
             crate::commands::config::get_app_config,
@@ -334,6 +340,7 @@ pub fn run() {
             crate::commands::overview::get_abilities_state,
             crate::commands::overview::update_abilities,
             crate::commands::overview::apply_point_buy,
+            crate::commands::overview::update_starting_abilities,
             crate::commands::overview::get_classes_state,
             crate::commands::overview::get_feats_state,
             crate::commands::overview::get_spells_state,
@@ -345,6 +352,7 @@ pub fn run() {
             crate::commands::models::get_texture_bytes,
             crate::commands::models::get_icon_png,
             crate::commands::models::list_available_models,
+            crate::commands::debug::log_js_error,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

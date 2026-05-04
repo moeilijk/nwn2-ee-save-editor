@@ -77,6 +77,28 @@ pub async fn get_feat_summary(state: State<'_, AppState>) -> CommandResult<FeatS
 }
 
 #[tauri::command]
+pub async fn get_slot_chosen_feats(state: State<'_, AppState>) -> CommandResult<Vec<FeatInfo>> {
+    let game_data = state.game_data.read();
+    let mut session = state.session.write();
+    let character = session
+        .character
+        .as_ref()
+        .ok_or(CommandError::NoCharacterLoaded)?;
+
+    let feat_ids = character.get_slot_chosen_feat_ids(&game_data);
+    ensure_feat_cache(&mut session, &game_data)?;
+    let cache = session.feat_cache.as_ref().unwrap();
+
+    let feats = feat_ids
+        .iter()
+        .filter_map(|id| cache.iter().find(|f| f.id == *id))
+        .cloned()
+        .collect();
+
+    Ok(feats)
+}
+
+#[tauri::command]
 pub async fn get_feat_slots(state: State<'_, AppState>) -> CommandResult<FeatSlots> {
     let session = state.session.read();
     let game_data = state.game_data.read();
@@ -588,12 +610,8 @@ pub async fn get_filtered_feats(
             if let Some(ref search_str) = search_lower {
                 let name_lower = feat_info.name.to_lowercase();
                 let label_lower = feat_info.label.to_lowercase();
-                let desc_lower = feat_info.description.to_lowercase();
 
-                if !name_lower.contains(search_str)
-                    && !label_lower.contains(search_str)
-                    && !desc_lower.contains(search_str)
-                {
+                if !name_lower.contains(search_str) && !label_lower.contains(search_str) {
                     return false;
                 }
             }
